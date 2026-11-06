@@ -1,81 +1,568 @@
-<script>
-    let lastPrice = 0;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Johnny O'Neal</title>
+    <link rel="icon" type="image/png" href="JBO Logo.%20green%20background.png">
+    
+    <!-- Umami Analytics Script -->
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="5062ac5a-8e7c-4aa2-a942-6c7f4ce40108"></script>
 
-    // Real-time automatic polling ticker
-    function fetchLiveBtcPrice() {
-        fetch('https://mempool.space/api/v1/prices')
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.USD) {
-                    updatePriceDisplay(data.USD);
-                }
-            })
-            .catch(err => {
-                // Fallback to CoinGecko if primary is rate-limited
-                fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
-                    .then(res => res.json())
-                    .then(cgData => {
-                        if (cgData && cgData.bitcoin && cgData.bitcoin.usd) {
-                            updatePriceDisplay(cgData.bitcoin.usd);
-                        }
-                    })
-                    .catch(() => {
-                        document.getElementById('btc-price').innerText = "Live price unavailable";
-                    });
-            });
-    }
+    <style>
+        :root {
+            --bg-color: #fcfcfd;
+            --text-color: #1a1f24;
+            --link-color: #0969da;
+            --border-color: #d8dee4;
+            --card-bg: #ffffff;
+            --subtext-color: #57606a;
+            --badge-bg: #ddf4ff;
+            --badge-text: #0969da;
+        }
 
-    function updatePriceDisplay(newUsdPrice) {
-        const priceElement = document.getElementById('btc-price');
-        const formattedPrice = newUsdPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        body.dark-mode {
+            --bg-color: #0d1117;
+            --text-color: #e6edf3;
+            --link-color: #2f81f7;
+            --border-color: #30363d;
+            --card-bg: #161b22;
+            --subtext-color: #8b949e;
+            --badge-bg: #111d2e;
+            --badge-text: #58a6ff;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 720px;
+            margin: 60px auto;
+            padding: 0 24px;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            line-height: 1.75;
+            letter-spacing: -0.01em;
+            transition: background-color 0.25s ease, color 0.25s ease;
+        }
+
+        /* Top Right Theme Toggle Switch */
+        .theme-switch-wrapper {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+            z-index: 1000;
+        }
+
+        .theme-switch-wrapper span {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--subtext-color);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 22px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #2ea043;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Clean Header */
+        header {
+            margin-bottom: 40px;
+        }
+
+        h1 { 
+            font-size: 2.6rem;
+            font-weight: 700;
+            margin: 0 0 12px 0; 
+            letter-spacing: -0.035em;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background-color: var(--badge-bg);
+            color: var(--badge-text);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            border: 1px solid var(--border-color);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            background-color: #2ea043;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 6px #2ea043;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 45px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 6px;
+            letter-spacing: -0.02em;
+        }
+
+        h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-top: 18px;
+            margin-bottom: 6px;
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: var(--subtext-color);
+        }
+
+        body > p, body > h2 + p {
+            color: var(--text-color);
+        }
+
+        ul {
+            padding-left: 20px;
+            margin-top: 6px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        a { 
+            color: var(--link-color); 
+            text-decoration: none; 
+            transition: opacity 0.15s ease;
+        }
+        a:hover { 
+            text-decoration: underline; 
+            opacity: 0.85;
+        }
+
+        /* Bento Grid Cards */
+        .bento-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.04);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 6px;
+        }
+
+        .quote-card {
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 18px;
+            background-color: var(--card-bg);
+            margin-bottom: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
         
-        priceElement.innerText = `$${formattedPrice} USD`;
-
-        // Visual flash effect to show it's actively checking and updating in real-time
-        if (lastPrice !== 0 && newUsdPrice !== lastPrice) {
-            priceElement.style.transition = 'color 0.3s ease';
-            priceElement.style.color = newUsdPrice > lastPrice ? '#2ea043' : '#f85149'; // Green up, Red down
-            setTimeout(() => {
-                priceElement.style.color = '';
-            }, 1000);
+        .quote-card blockquote {
+            margin: 0;
+            color: var(--text-color);
+            font-style: italic;
         }
-        lastPrice = newUsdPrice;
-    }
 
-    // Fetch immediately on page load
-    fetchLiveBtcPrice();
+        .quote-author {
+            font-size: 0.85rem;
+            color: var(--subtext-color);
+            text-align: right;
+            margin-top: 8px;
+            font-weight: 500;
+        }
 
-    // Check for updates every 5 seconds
-    setInterval(fetchLiveBtcPrice, 5000);
+        .book-list-container {
+            max-height: 260px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 14px 18px;
+            background-color: var(--card-bg);
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
 
-    // Copy Bitcoin Address Function
-    function copyBtcAddress() {
-        const addressText = document.getElementById('btc-wallet-address').innerText;
-        navigator.clipboard.writeText(addressText).then(() => {
-            const btn = document.querySelector('.copy-btn');
-            btn.innerText = 'Copied!';
-            setTimeout(() => {
-                btn.innerText = 'Copy Address';
-            }, 2000);
-        });
-    }
+        .podcast-container {
+            max-height: 580px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 14px 18px;
+            background-color: var(--card-bg);
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
 
-    // Light/Dark Mode Toggle Script
-    const toggleSwitch = document.getElementById('theme-toggle');
-    const currentTheme = localStorage.getItem('theme');
+        .donate-card {
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            background-color: var(--card-bg);
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            text-align: center;
+        }
 
-    if (currentTheme === 'dark') {
-        document.body.classList.add('dark-mode');
-        toggleSwitch.checked = true;
-    }
+        .btc-address-box {
+            font-family: monospace;
+            font-size: 0.85rem;
+            background: var(--bg-color);
+            border: 1px dashed var(--border-color);
+            padding: 10px 14px;
+            border-radius: 6px;
+            word-break: break-all;
+            margin: 12px 0;
+            color: var(--text-color);
+        }
 
-    toggleSwitch.addEventListener('change', function(e) {
-        if (e.target.checked) {
+        .copy-btn {
+            background-color: var(--link-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s ease;
+        }
+
+        .copy-btn:hover {
+            opacity: 0.9;
+        }
+
+        .analytics-container {
+            width: 100%;
+            height: 420px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background-color: var(--card-bg);
+            overflow: hidden;
+            margin-top: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+
+        /* Mobile Responsive Media Query */
+        @media (max-width: 768px) {
+            body {
+                margin: 30px auto;
+                padding: 0 16px;
+            }
+            h1 {
+                font-size: 2.1rem;
+            }
+            .bento-grid {
+                grid-template-columns: 1fr;
+            }
+            .theme-switch-wrapper {
+                top: 12px;
+                right: 12px;
+                padding: 4px 8px;
+            }
+            .podcast-container {
+                max-height: 450px;
+            }
+            .analytics-container {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Right Light/Dark Toggle Switch -->
+    <div class="theme-switch-wrapper">
+        <span>☀️</span>
+        <label class="switch">
+            <input type="checkbox" id="theme-toggle">
+            <span class="slider"></span>
+        </label>
+        <span>🌙</span>
+    </div>
+
+    <!-- Clean Header -->
+    <header>
+        <h1>Johnny O'Neal</h1>
+        <div class="status-badge"><span class="status-dot"></span> Building a sustainable & abundant future</div>
+    </header>
+    
+    <h2>About Me</h2>
+    <p>I read direct from the world's best minds, from antiquity to present.</p>
+    <p>I aim to make a positive impact in the world by integrating these readings with my own personal touch. It is our duty to stand boldly, and walk intentionally, on the shoulders of giants, to create an abundant future.</p>
+    <p>My work focuses on Sustainable Development, Finance, Physics, Art, and finding solutions to the world's most important problems and opportunities.</p>
+
+    <h2>Career & Education</h2>
+    
+    <!-- Bento Grid for Professional Background -->
+    <div class="bento-grid">
+        <div class="card">
+            <h3>Culinary Background (2010 - 2015)</h3>
+            <ul style="padding-left: 16px; margin: 0; color: var(--text-color); font-size: 0.95rem;">
+                <li><a href="https://www.sanitaryfishmarket.com/" target="_blank">Sanitary Fish Market</a></li>
+                <li><a href="https://winstonsgrille.com/" target="_blank">Winston's Grille</a></li>
+                <li><a href="http://www.barntestsite.com/" target="_blank">Angus Barn</a></li>
+                <li><a href="https://www.gideonridge.com/" target="_blank">Gideon Ridge Inn</a></li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>Undergraduate Education</h3>
+            <p style="margin: 0 0 10px 0; color: var(--text-color); font-size: 0.95rem;"><strong>Appalachian State University</strong> (2011–2015)</p>
+            <ul style="padding-left: 16px; margin: 0; color: var(--text-color); font-size: 0.95rem;">
+                <li><strong>B.A. in Sustainable Development</strong></li>
+                <li><strong>Minor in Appropriate Technology</strong></li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>Graduate Education</h3>
+            <p style="margin: 0 0 10px 0; color: var(--text-color); font-size: 0.95rem;"><strong>Appalachian State University</strong> (2015–2017)</p>
+            <ul style="padding-left: 16px; margin: 0; color: var(--text-color); font-size: 0.95rem;">
+                <li><strong>M.S. in Sustainable Technology in the Built Environment</strong></li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>Post-Graduation</h3>
+            <ul style="padding-left: 16px; margin: 0; color: var(--text-color); font-size: 0.95rem;">
+                <li><strong>Green Mountain Energy (2017):</strong> Renewable Energy Sales</li>
+                <li><strong>BrightFarms (2017 - 2026):</strong> Apprentice, Head, & Corporate Grower</li>
+            </ul>
+        </div>
+    </div>
+
+    <h2>Projects I Follow</h2>
+    <ul>
+        <li><a href="https://www.crystalcoastsanctuary.com/" target="_blank">The Sanctuary</a> - Maritime Retreat in Beaufort, NC.</li>
+        <li><a href="bitcoin.html">Bitcoin</a> - Fixed Money. (<span id="btc-price" style="font-family: monospace; font-weight: 600;">Loading price...</span>)</li>
+    </ul>
+
+    <h2>Quotes</h2>
+    <div class="quote-card">
+        <blockquote>"Humanity needs a vision of an expanding and unending future. This spiritual craving cannot be satisfied by the colonization of space. The true frontier for humanity is life on Earth, its exploration and the transport of knowledge about it into science, art and practical affairs."</blockquote>
+        <div class="quote-author">— E. O. Wilson</div>
+    </div>
+
+    <div class="quote-card">
+        <blockquote>"Fix the Money, Fix the World."</blockquote>
+    </div>
+
+    <h2>A Curated Reading List</h2>
+    <div class="book-list-container">
+        <ul>
+            <li><a href="https://www.goodreads.com/book/show/236.Silent_Spring" target="_blank">Silent Spring</a> – Rachel Carson</li>
+            <li><a href="https://www.goodreads.com/book/show/2612.The_Omnivore_s_Dilemma" target="_blank">The Omnivore's Dilemma</a> – Michael Pollan</li>
+            <li><a href="https://www.goodreads.com/book/show/19133.Biomimicry" target="_blank">Biomimicry: Innovation Inspired by Nature</a> – Janine M. Benyus</li>
+            <li><a href="https://www.goodreads.com/book/show/440788.The_Man_Who_Tapped_the_Secrets_of_the_Universe" target="_blank">The Man Who Tapped the Secrets of the Universe</a> – Glenn Clark</li>
+            <li><a href="https://www.goodreads.com/book/show/1344265.A_World_of_Difference" target="_blank">A World of Difference: Encountering and Contesting Development</a> – Eric S. Sheppard</li>
+            <li><a href="https://www.goodreads.com/book/show/16087527-eating-on-the-wild-side" target="_blank">Eating on the Wild Side</a> – Jo Robinson</li>
+            <li><a href="https://www.goodreads.com/book/show/25785.Cradle_to_Cradle" target="_blank">Cradle to Cradle</a> – William McDonough</li>
+            <li><a href="https://www.goodreads.com/book/show/608226.Ecology" target="_blank">Ecology</a> – Carolyn Merchant</li>
+            <li><a href="https://www.goodreads.com/book/show/406118.Ishmael" target="_blank">Ishmael</a> – Daniel Quinn</li>
+            <li><a href="https://www.goodreads.com/book/show/6288.Born_to_Run" target="_blank">Born to Run</a> – Christopher McDougall</li>
+            <li><a href="https://www.goodreads.com/book/show/7126.The_Count_of_Monte_Cristo" target="_blank">The Count of Monte Cristo</a> – Alexandre Dumas</li>
+            <li><a href="https://www.goodreads.com/book/show/13539828-the-ocean-of-life" target="_blank">The Ocean of Life</a> – Callum Roberts</li>
+            <li><a href="https://www.goodreads.com/book/show/30659.Meditations" target="_blank">Meditations</a> – Marcus Aurelius</li>
+            <li><a href="https://www.goodreads.com/book/show/25330364-elon-musk" target="_blank">Elon Musk: Tesla, SpaceX, and the Quest for a Fantastic Future</a> – Ashlee Vance</li>
+            <li><a href="https://www.goodreads.com/book/show/44122.Buffett" target="_blank">Buffett: The Making of an American Capitalist</a> – Roger Lowenstein</li>
+            <li><a href="https://www.goodreads.com/book/show/4069.Man_s_Search_for_Meaning" target="_blank">Man's Search for Meaning</a> – Viktor E. Frankl</li>
+            <li><a href="https://www.goodreads.com/book/show/43516598-trillion-dollar-coach" target="_blank">Trillion Dollar Coach</a> – Eric Schmidt</li>
+            <li><a href="https://www.goodreads.com/book/show/35696141-enlightenment-now" target="_blank">Enlightenment Now</a> – Steven Pinker</li>
+            <li><a href="https://www.goodreads.com/book/show/44525893-the-ride-of-a-lifetime" target="_blank">The Ride of a Lifetime</a> – Robert Iger</li>
+            <li><a href="https://www.goodreads.com/book/show/905380.As_a_Man_Thinketh" target="_blank">As a Man Thinketh</a> – James Allen</li>
+            <li><a href="https://www.goodreads.com/book/show/54149331-caste" target="_blank">Caste: The Origins of Our Discontents</a> – Isabel Wilkerson</li>
+            <li><a href="https://www.goodreads.com/book/show/69282.Let_My_People_Go_Surfing" target="_blank">Let My People Go Surfing</a> – Yvon Chouinard</li>
+            <li><a href="https://www.goodreads.com/book/show/16868.Alexander_Hamilton" target="_blank">Alexander Hamilton</a> – Ron Chernow</li>
+            <li><a href="https://www.goodreads.com/book/show/12338165-it-worked-for-me" target="_blank">It Worked for Me: In Life and Leadership</a> – Colin Powell</li>
+            <li><a href="https://www.goodreads.com/book/show/58537671-principles-for-dealing-with-the-changing-world-order" target="_blank">Principles for Dealing with the Changing World Order</a> – Ray Dalio</li>
+            <li><a href="https://www.goodreads.com/book/show/17847970-the-third-plate" target="_blank">The Third Plate</a> – Dan Barber</li>
+            <li><a href="https://www.goodreads.com/book/show/40877722-radical-candor" target="_blank">Radical Candor</a> – Kim Malone Scott</li>
+            <li><a href="https://www.goodreads.com/book/show/61327170-excellent-advice-for-living" target="_blank">Excellent Advice for Living</a> – Kevin Kelly</li>
+            <li><a href="https://www.goodreads.com/book/show/10483167-the-beginning-of-infinity" target="_blank">The Beginning of Infinity</a> – David Deutsch</li>
+            <li><a href="https://www.goodreads.com/book/show/6792618-rework" target="_blank">Rework</a> – Jason Fried</li>
+            <li><a href="https://www.goodreads.com/book/show/21853612-bigger-thin-smaller-than-average" target="_blank">Bigger Than Tiny, Smaller Than Average</a> – Sheri Koones</li>
+            <li><a href="https://www.goodreads.com/book/show/60784949-the-creative-act" target="_blank">The Creative Act: A Way of Being</a> – Rick Rubin</li>
+            <li><a href="https://www.goodreads.com/book/show/62915627-outlive" target="_blank">Outlive: The Science & Art of Longevity</a> – Peter Attia</li>
+            <li><a href="https://www.goodreads.com/book/show/199793138-the-coming-wave" target="_blank">The Coming Wave</a> – Mustafa Suleyman</li>
+            <li><a href="https://www.goodreads.com/book/show/40693529-life-after-google" target="_blank">Life After Google</a> – George Gilder</li>
+            <li><a href="https://www.goodreads.com/book/show/36886368-the-sovereign-individual" target="_blank">The Sovereign Individual</a> – James Dale Davidson & William Rees-Mogg</li>
+            <li><a href="https://www.goodreads.com/book/show/18077903-zero-to-one" target="_blank">Zero to One</a> – Peter Thiel</li>
+        </ul>
+    </div>
+
+    <h2>A Curated List of Favorite Podcast Episodes</h2>
+    <div class="podcast-container">
+        <!-- Expanded Spotify Playlist Player -->
+        <iframe src="https://open.spotify.com/embed/playlist/5Y0IoAjVwXBLNAOiOdnqPw?utm_source=generator&theme=0" width="100%" height="540" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style="border-radius: 12px;"></iframe>
+    </div>
+
+    <h2>Support / Donate</h2>
+    <p>If you'd like to support my open-source projects, sustainable technology research, or commision a new project, donations and requests are warmly welcomed in Bitcoin:</p>
+    
+    <div class="donate-card">
+        <p style="margin-bottom: 6px; font-weight: 600; color: var(--text-color);">Bitcoin Address:</p>
+        <div class="btc-address-box" id="btc-wallet-address">bc1qyourbitcoinaddressplaceredhereplaceholder</div>
+        <button class="copy-btn" onclick="copyBtcAddress()">Copy Address</button>
+    </div>
+
+    <h2>Get in Touch</h2>
+    <p>Find me on <a href="https://x.com/JohnnyONeal93" target="_blank">X</a> or <a href="https://www.goodreads.com/user/show/55201896-johnny-o-neal" target="_blank">Goodreads</a>.</p>
+
+    <h2>Site Traffic</h2>
+    <p>Monthly & Yearly Page Views (Tracking since 2026):</p>
+    <div class="analytics-container">
+        <iframe src="https://cloud.umami.is/share/yoEKl3h3RzIUrtzu?embed=true" width="100%" height="100%" frameborder="0"></iframe>
+    </div>
+
+    <script>
+        let lastPrice = 0;
+
+        // Real-time automatic polling ticker
+        function fetchLiveBtcPrice() {
+            fetch('https://mempool.space/api/v1/prices')
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.USD) {
+                        updatePriceDisplay(data.USD);
+                    }
+                })
+                .catch(err => {
+                    // Fallback to CoinGecko if primary is rate-limited
+                    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+                        .then(res => res.json())
+                        .then(cgData => {
+                            if (cgData && cgData.bitcoin && cgData.bitcoin.usd) {
+                                updatePriceDisplay(cgData.bitcoin.usd);
+                            }
+                        })
+                        .catch(() => {
+                            document.getElementById('btc-price').innerText = "Live price unavailable";
+                        });
+                });
+        }
+
+        function updatePriceDisplay(newUsdPrice) {
+            const priceElement = document.getElementById('btc-price');
+            const formattedPrice = newUsdPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            
+            priceElement.innerText = `$${formattedPrice} USD`;
+
+            // Visual flash effect to show it's actively checking and updating in real-time
+            if (lastPrice !== 0 && newUsdPrice !== lastPrice) {
+                priceElement.style.transition = 'color 0.3s ease';
+                priceElement.style.color = newUsdPrice > lastPrice ? '#2ea043' : '#f85149'; // Green up, Red down
+                setTimeout(() => {
+                    priceElement.style.color = '';
+                }, 1000);
+            }
+            lastPrice = newUsdPrice;
+        }
+
+        // Fetch immediately on page load
+        fetchLiveBtcPrice();
+
+        // Check for updates every 5 seconds
+        setInterval(fetchLiveBtcPrice, 5000);
+
+        // Copy Bitcoin Address Function
+        function copyBtcAddress() {
+            const addressText = document.getElementById('btc-wallet-address').innerText;
+            navigator.clipboard.writeText(addressText).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.innerText = 'Copied!';
+                setTimeout(() => {
+                    btn.innerText = 'Copy Address';
+                }, 2000);
+            });
+        }
+
+        // Light/Dark Mode Toggle Script
+        const toggleSwitch = document.getElementById('theme-toggle');
+        const currentTheme = localStorage.getItem('theme');
+
+        if (currentTheme === 'dark') {
             document.body.classList.add('dark-mode');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.body.classList.remove('dark-mode');
-            localStorage.setItem('theme', 'light');
+            toggleSwitch.checked = true;
         }
-    });
-</script>
+
+        toggleSwitch.addEventListener('change', function(e) {
+            if (e.target.checked) {
+                document.body.classList.add('dark-mode');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.body.classList.remove('dark-mode');
+                localStorage.setItem('theme', 'light');
+            }
+        });
+    </script>
+</body>
+</html>
