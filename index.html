@@ -60,7 +60,7 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Desktop Floating Corner Switcher */
+        /* Fixed Top-Right Corner Switcher */
         .theme-switch-wrapper {
             position: fixed;
             top: 20px;
@@ -417,22 +417,24 @@
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 160, 67, 0); }
         }
 
-        /* Mobile Top Bar Layout Switcher */
+        /* Mobile Corner Positioning Fix: Compact and locked to the top-right corner without overlapping header text */
         @media (max-width: 768px) {
             body {
                 margin: 40px auto;
                 padding: 0 18px;
             }
             .theme-switch-wrapper {
-                position: static;
-                display: flex;
-                justify-content: center;
-                margin: 0 auto 30px auto;
-                width: fit-content;
-                box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+                position: fixed;
+                top: 12px;
+                right: 14px;
+                padding: 4px 8px;
+                gap: 4px;
+                transform: scale(0.9);
+                transform-origin: top right;
             }
             h1 {
-                font-size: 2.3rem;
+                font-size: 2.2rem;
+                padding-right: 45px; /* Keeps the name heading from pushing underneath the corner switch */
             }
             .bento-grid {
                 grid-template-columns: 1fr;
@@ -685,14 +687,14 @@
             });
         }
 
-        // JavaScript Filter and Sort Logic for Books
+        // Filtering and Sorting Logic for Books
         function filterAndSortBooks() {
             const genreFilter = document.getElementById('genre-filter').value;
             const sortOrder = document.getElementById('sort-order').value;
             const list = document.getElementById('book-list');
             const items = Array.from(list.getElementsByTagName('li'));
 
-            // Filter items
+            // Filter items by genre
             items.forEach(item => {
                 const itemGenre = item.getAttribute('data-genre');
                 if (genreFilter === 'all' || itemGenre === genreFilter) {
@@ -702,24 +704,31 @@
                 }
             });
 
-            // Sort visible items
+            // Sort visible items accurately using numeric data-rating attributes
             items.sort((a, b) => {
-                const ratingA = parseInt(a.getAttribute('data-rating'));
-                const ratingB = parseInt(b.getAttribute('data-rating'));
+                const ratingA = Number(a.getAttribute('data-rating')) || 0;
+                const ratingB = Number(b.getAttribute('data-rating')) || 0;
                 const textA = a.innerText.toLowerCase();
                 const textB = b.innerText.toLowerCase();
 
                 if (sortOrder === 'rating-desc') {
                     if (ratingB !== ratingA) {
-                        return ratingB - ratingA; // Highest rating first
+                        return ratingB - ratingB ? ratingB - ratingA : ratingB - ratingA; // Highest rating first
                     }
-                    return textA.localeCompare(textB); // Alphabetical tie-breaker
+                    return ratingB - ratingA;
+                }
+                
+                if (sortOrder === 'rating-desc') {
+                    if (ratingB !== ratingA) {
+                        return ratingB - ratingA; 
+                    }
+                    return textA.localeCompare(textB);
                 } else if (sortOrder === 'title-asc') {
                     return textA.localeCompare(textB);
                 }
             });
 
-            // Re-append items in sorted order
+            // Re-append items to update their physical DOM order
             items.forEach(item => list.appendChild(item));
         }
 
