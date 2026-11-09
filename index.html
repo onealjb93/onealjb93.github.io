@@ -51,7 +51,7 @@
             background-color: var(--bg-color);
             line-height: 1.8;
             letter-spacing: -0.01em;
-            transition: background-color 0.5s ease, color 0.5s ease;
+            transition: background-color 0.4s ease, color 0.4s ease;
             animation: keynoteFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
@@ -362,12 +362,22 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.04);
         }
 
+        /* Resizable Container for TradingView Box */
+        .chart-resize-wrapper {
+            resize: vertical;
+            overflow: auto;
+            min-height: 450px;
+            height: 650px;
+            max-height: 1200px;
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
         .tradingview-widget-container {
-            height: 600px;
+            height: 100%;
             width: 100%;
             position: relative;
-            overflow: hidden;
-            border-radius: 12px;
         }
 
         .live-pulse {
@@ -405,7 +415,7 @@
             .analytics-container {
                 height: 350px;
             }
-            .tradingview-widget-container {
+            .chart-resize-wrapper {
                 height: 450px;
             }
         }
@@ -473,28 +483,30 @@
         <li><a href="bitcoin.html">Bitcoin</a> - the generational project that aims to create a fundamentally improved money for the world. (<span class="live-pulse"></span><span id="btc-price" style="font-family: monospace; font-weight: 600;">Loading price...</span>)</li>
     </ul>
 
-    <!-- Standard TradingView Advanced Chart Widget Block -->
+    <!-- Resizable TradingView Advanced Chart Widget Block -->
     <div class="btc-chart-card">
-        <div class="tradingview-widget-container" id="tv-container">
-            <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
-            {
-                "width": "100%",
-                "height": "100%",
-                "symbol": "BITSTAMP:BTCUSD",
-                "interval": "12M",
-                "timezone": "Etc/UTC",
-                "theme": "dark",
-                "style": "3",
-                "locale": "en",
-                "enable_publishing": false,
-                "hide_top_toolbar": false,
-                "hide_legend": false,
-                "save_image": false,
-                "calendar": false,
-                "support_host": "https://www.tradingview.com"
-            }
-            </script>
+        <div class="chart-resize-wrapper">
+            <div class="tradingview-widget-container" id="tv-container">
+                <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+                {
+                    "width": "100%",
+                    "height": "100%",
+                    "symbol": "BITSTAMP:BTCUSD",
+                    "interval": "12M",
+                    "timezone": "Etc/UTC",
+                    "theme": "dark",
+                    "style": "3",
+                    "locale": "en",
+                    "enable_publishing": false,
+                    "hide_top_toolbar": false,
+                    "hide_legend": false,
+                    "save_image": false,
+                    "calendar": false,
+                    "support_host": "https://www.tradingview.com"
+                }
+                </script>
+            </div>
         </div>
     </div>
 
@@ -567,4 +579,94 @@
     </div>
 
     <h2>Site Traffic</h2>
-    <p>Monthly & Yearly Page Views (Tracking since
+    <p>Monthly & Yearly Page Views (Tracking since 2026):</p>
+    <div class="analytics-container">
+        <iframe src="https://cloud.umami.is/share/yoEKl3h3RzIUrtzu?embed=true" width="100%" height="100%" frameborder="0"></iframe>
+    </div>
+
+    <script>
+        let lastPrice = 0;
+
+        function fetchLiveBtcPrice() {
+            fetch('https://mempool.space/api/v1/prices')
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data && data.USD) {
+                        updatePriceDisplay(data.USD);
+                    }
+                })
+                .catch(function() {
+                    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+                        .then(function(res) { return res.json(); })
+                        .then(function(cgData) {
+                            if (cgData && cgData.bitcoin && cgData.bitcoin.usd) {
+                                updatePriceDisplay(cgData.bitcoin.usd);
+                            }
+                        })
+                        .catch(function() {
+                            const p = document.getElementById('btc-price');
+                            if (p) p.innerText = "Live price unavailable";
+                        });
+                });
+        }
+
+        function updatePriceDisplay(newUsdPrice) {
+            const priceElement = document.getElementById('btc-price');
+            if (!priceElement) return;
+            const formattedPrice = newUsdPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            priceElement.innerText = '$' + formattedPrice + ' USD';
+
+            if (lastPrice !== 0 && newUsdPrice !== lastPrice) {
+                priceElement.style.transition = 'color 0.3s ease';
+                priceElement.style.color = newUsdPrice > lastPrice ? '#2ea043' : '#f85149';
+                setTimeout(function() {
+                    priceElement.style.color = '';
+                }, 1200);
+            }
+            lastPrice = newUsdPrice;
+        }
+
+        fetchLiveBtcPrice();
+        setInterval(fetchLiveBtcPrice, 5000);
+
+        function copyBtcAddress() {
+            const addressText = document.getElementById('btc-wallet-address').innerText;
+            navigator.clipboard.writeText(addressText).then(function() {
+                const btn = document.querySelector('.copy-btn');
+                if (btn) {
+                    btn.innerText = 'Copied!';
+                    setTimeout(function() {
+                        btn.innerText = 'Copy Address';
+                    }, 2000);
+                }
+            });
+        }
+
+        // Functional Light/Dark Mode Switcher & Persistent Storage
+        const toggleSwitch = document.getElementById('theme-toggle');
+        const currentTheme = localStorage.getItem('theme');
+
+        if (currentTheme === 'light') {
+            document.body.classList.add('light-mode');
+            if (toggleSwitch) toggleSwitch.checked = false;
+        } else {
+            document.body.classList.remove('light-mode');
+            if (toggleSwitch) toggleSwitch.checked = true;
+        }
+
+        if (toggleSwitch) {
+            toggleSwitch.addEventListener('change', function(e) {
+                if (!e.target.checked) {
+                    document.body.classList.add('light-mode');
+                    localStorage.setItem('theme', 'light');
+                } else {
+                    document.body.classList.remove('light-mode');
+                    localStorage.setItem('theme', 'dark');
+                }
+                // Quick reload ensures widgets sync their appearance seamlessly
+                window.location.reload();
+            });
+        }
+    </script>
+</body>
+</html>
