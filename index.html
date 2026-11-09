@@ -131,7 +131,6 @@
             position: relative;
         }
 
-        /* Classy, Timeless Apple/Tesla-Inspired Brand Header */
         h1 {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
             font-size: 3.4rem;
@@ -360,6 +359,52 @@
             transform: scale(1.02);
         }
 
+        /* Live Donation Feed Section */
+        .donation-log-box {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        .donation-log-title {
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 10px;
+            color: var(--subtext-color);
+        }
+
+        .donation-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .donation-item {
+            font-size: 0.85rem;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-color);
+        }
+
+        .donation-empty {
+            font-size: 0.85rem;
+            color: var(--subtext-color);
+            font-style: italic;
+            padding: 6px 0;
+        }
+
         .analytics-container {
             width: 100%;
             height: 420px;
@@ -417,7 +462,7 @@
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 160, 67, 0); }
         }
 
-        /* Mobile Corner Positioning Fix: Compact and locked to the top-right corner without overlapping header text */
+        /* Mobile Corner Positioning Fix */
         @media (max-width: 768px) {
             body {
                 margin: 40px auto;
@@ -434,7 +479,7 @@
             }
             h1 {
                 font-size: 2.2rem;
-                padding-right: 45px; /* Keeps the name heading from pushing underneath the corner switch */
+                padding-right: 45px;
             }
             .bento-grid {
                 grid-template-columns: 1fr;
@@ -609,6 +654,14 @@
         <p style="margin-bottom: 6px; font-weight: 600;">Bitcoin Address:</p>
         <div class="btc-address-box" id="btc-wallet-address">bc1qyourbitcoinaddressplaceredhereplaceholder</div>
         <button class="copy-btn" onclick="copyBtcAddress()">Copy Address</button>
+
+        <!-- Live Donation Feed Section -->
+        <div class="donation-log-box">
+            <div class="donation-log-title">Recent Site Donations</div>
+            <ul class="donation-list" id="donation-feed-list">
+                <!-- Dynamically populated or defaults to "No donations yet" -->
+            </ul>
+        </div>
     </div>
 
     <h2>Get in Touch</h2>
@@ -687,6 +740,35 @@
             });
         }
 
+        // Fetch verified on-site donations (defaults gracefully to "No donations yet")
+        function loadDonationHistory() {
+            const feedList = document.getElementById('donation-feed-list');
+            if (!feedList) return;
+
+            // Replace this URL with your lightweight backend JSON endpoint or webhook record
+            fetch('https://your-backend-api.com/donations') 
+                .then(response => response.json())
+                .then(donations => {
+                    feedList.innerHTML = '';
+                    if (!donations || donations.length === 0) {
+                        feedList.innerHTML = '<li class="donation-empty">No donations yet</li>';
+                        return;
+                    }
+                    donations.forEach(d => {
+                        const li = document.createElement('li');
+                        li.className = 'donation-item';
+                        li.innerHTML = `<span><strong>${d.amount}</strong> (${d.memo || 'General Support'})</span><span style="font-size:0.75rem; color:var(--subtext-color);">${d.date}</span>`;
+                        feedList.appendChild(li);
+                    });
+                })
+                .catch(() => {
+                    // Fallback state if no API endpoint is connected yet
+                    feedList.innerHTML = '<li class="donation-empty">No donations yet</li>';
+                });
+        }
+
+        loadDonationHistory();
+
         // Filtering and Sorting Logic for Books
         function filterAndSortBooks() {
             const genreFilter = document.getElementById('genre-filter').value;
@@ -694,7 +776,6 @@
             const list = document.getElementById('book-list');
             const items = Array.from(list.getElementsByTagName('li'));
 
-            // Filter items by genre
             items.forEach(item => {
                 const itemGenre = item.getAttribute('data-genre');
                 if (genreFilter === 'all' || itemGenre === genreFilter) {
@@ -704,20 +785,12 @@
                 }
             });
 
-            // Sort visible items accurately using numeric data-rating attributes
             items.sort((a, b) => {
                 const ratingA = Number(a.getAttribute('data-rating')) || 0;
                 const ratingB = Number(b.getAttribute('data-rating')) || 0;
                 const textA = a.innerText.toLowerCase();
                 const textB = b.innerText.toLowerCase();
 
-                if (sortOrder === 'rating-desc') {
-                    if (ratingB !== ratingA) {
-                        return ratingB - ratingB ? ratingB - ratingA : ratingB - ratingA; // Highest rating first
-                    }
-                    return ratingB - ratingA;
-                }
-                
                 if (sortOrder === 'rating-desc') {
                     if (ratingB !== ratingA) {
                         return ratingB - ratingA; 
@@ -728,7 +801,6 @@
                 }
             });
 
-            // Re-append items to update their physical DOM order
             items.forEach(item => list.appendChild(item));
         }
 
