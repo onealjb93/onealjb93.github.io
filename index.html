@@ -42,7 +42,7 @@
             padding: 0;
         }
 
-        /* Precision Cursor Glow (Desktop Only, No Effect on Touch/Mobile) */
+        /* Precision Cursor Glow (Active ONLY on Desktop/Fine Pointer Devices) */
         @media (pointer: fine) {
             #cursor-glow {
                 position: fixed;
@@ -62,7 +62,6 @@
                 border-radius: 50%;
                 z-index: 9999;
                 will-change: transform;
-                transition: opacity 0.3s ease;
             }
         }
 
@@ -626,7 +625,7 @@
     </div>
 
     <script>
-        // Perfect Centered Cursor Glow (Only runs if a fine pointer/mouse exists)
+        // Cursor Glow Tracker (Desktop Only)
         const cursorGlow = document.getElementById('cursor-glow');
         if (cursorGlow) {
             window.addEventListener('mousemove', function(e) {
@@ -722,4 +721,51 @@
             wrapper.appendChild(script);
         }
 
-        loadTradingViewChart('12
+        loadTradingViewChart('12M');
+
+        function changeTimeframe(tf, buttonElement) {
+            const buttons = document.querySelectorAll('.tf-btn');
+            for (let i = 0; i < buttons.length; i++) {
+                buttons[i].classList.remove('active');
+            }
+            buttonElement.classList.add('active');
+            loadTradingViewChart(tf);
+        }
+
+        const toggleSwitch = document.getElementById('theme-toggle');
+        const currentTheme = localStorage.getItem('theme');
+
+        if (currentTheme === 'light') {
+            document.body.classList.add('light-mode');
+            if (toggleSwitch) toggleSwitch.checked = false;
+        } else {
+            document.body.classList.remove('light-mode');
+            if (toggleSwitch) toggleSwitch.checked = true;
+        }
+
+        if (toggleSwitch) {
+            toggleSwitch.addEventListener('change', function(e) {
+                if (!e.target.checked) {
+                    document.body.classList.add('light-mode');
+                    localStorage.setItem('theme', 'light');
+                } else {
+                    document.body.classList.remove('light-mode');
+                    localStorage.setItem('theme', 'dark');
+                }
+                const activeBtn = document.querySelector('.tf-btn.active');
+                const activeTf = activeBtn ? getActiveTfCode(activeBtn.innerText) : '12M';
+                loadTradingViewChart(activeTf);
+            });
+        }
+
+        function getActiveTfCode(label) {
+            const map = {
+                '1h': '60', '1d': 'D', '1w': 'W', '1m': 'M', 
+                '1y': '12M', '2yr': '24M', '3yr': '36M', '4yr': '48M', 
+                '5yr': '60M', '6yr': '72M', '7yr': '84M', '8yr': '96M'
+            };
+            return map[label] || '12M';
+        }
+    </script>
+</body>
+</html>
