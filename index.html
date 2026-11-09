@@ -375,6 +375,49 @@
             transition: background-color 0.4s ease, border-color 0.4s ease;
         }
 
+        /* Bitcoin Chart Container Styles */
+        .btc-chart-card {
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            background-color: var(--card-bg);
+            margin-top: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.02);
+            transition: background-color 0.4s ease, border-color 0.4s ease;
+        }
+
+        .chart-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .tf-btn {
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+            background-color: var(--badge-bg);
+            color: var(--badge-text);
+            border: 1px solid var(--border-color);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        .tf-btn:hover, .tf-btn.active {
+            background-color: var(--link-color);
+            color: #ffffff;
+            border-color: var(--link-color);
+        }
+
+        .tradingview-widget-container {
+            height: 400px;
+            width: 100%;
+        }
+
         /* Pulsing Live Indicator for Bitcoin Ticker */
         .live-pulse {
             display: inline-block;
@@ -409,8 +452,8 @@
                 right: 16px;
                 padding: 4px 8px;
             }
-            .analytics-container {
-                height: 350px;
+            .analytics-container, .tradingview-widget-container {
+                height: 320px;
             }
         }
     </style>
@@ -479,6 +522,27 @@
         <li><a href="https://www.crystalcoastsanctuary.com/" target="_blank">The Sanctuary</a> - Maritime Retreat in Beaufort, NC.</li>
         <li><a href="bitcoin.html">Bitcoin</a> - Fixed Money. (<span class="live-pulse"></span><span id="btc-price" style="font-family: monospace; font-weight: 600;">Loading price...</span>)</li>
     </ul>
+
+    <!-- Interactive Bitcoin Chart Section with Timeframe Toggles -->
+    <div class="btc-chart-card">
+        <div class="chart-toolbar">
+            <button class="tf-btn" onclick="changeTimeframe('60', this)">1h</button>
+            <button class="tf-btn" onclick="changeTimeframe('D', this)">1d</button>
+            <button class="tf-btn" onclick="changeTimeframe('W', this)">1w</button>
+            <button class="tf-btn" onclick="changeTimeframe('M', this)">1m</button>
+            <button class="tf-btn active" onclick="changeTimeframe('12M', this)">1y</button>
+            <button class="tf-btn" onclick="changeTimeframe('24M', this)">2yr</button>
+            <button class="tf-btn" onclick="changeTimeframe('36M', this)">3yr</button>
+            <button class="tf-btn" onclick="changeTimeframe('48M', this)">4yr</button>
+            <button class="tf-btn" onclick="changeTimeframe('60M', this)">5yr</button>
+            <button class="tf-btn" onclick="changeTimeframe('72M', this)">6yr</button>
+            <button class="tf-btn" onclick="changeTimeframe('84M', this)">7yr</button>
+            <button class="tf-btn" onclick="changeTimeframe('96M', this)">8yr</button>
+        </div>
+        <div class="tradingview-widget-container" id="tradingview-container">
+            <!-- Dynamic TradingView Widget Widget Injected Here -->
+        </div>
+    </div>
 
     <h2>A Curated Reading List</h2>
     <div class="book-list-container">
@@ -624,6 +688,46 @@
             });
         }
 
+        // Dynamic TradingView Chart Function
+        function loadTradingViewChart(timeframe) {
+            const container = document.getElementById('tradingview-container');
+            container.innerHTML = ''; // Clear previous widget instance
+
+            const isDark = document.body.classList.contains('dark-mode');
+            
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.async = true;
+            script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+            script.innerHTML = JSON.stringify({
+                "width": "100%",
+                "height": "100%",
+                "symbol": "BITSTAMP:BTCUSD",
+                "interval": timeframe,
+                "timezone": "Etc/UTC",
+                "theme": isDark ? "dark" : "light",
+                "style": "3", // Clean line chart style
+                "locale": "en",
+                "enable_publishing": false,
+                "hide_top_toolbar": false,
+                "hide_legend": false,
+                "save_image": false,
+                "calendar": false,
+                "support_host": "https://www.tradingview.com"
+            });
+            container.appendChild(script);
+        }
+
+        // Initial chart load (Default to 1y)
+        loadTradingViewChart('12M');
+
+        // Handle Timeframe Button Clicks
+        function changeTimeframe(tf, buttonElement) {
+            document.querySelectorAll('.tf-btn').forEach(btn => btn.classList.remove('active'));
+            buttonElement.classList.add('active');
+            loadTradingViewChart(tf);
+        }
+
         // Synchronized Light/Dark Mode Toggle Script for Desktop & Mobile
         const toggleSwitch = document.getElementById('theme-toggle');
         const currentTheme = localStorage.getItem('theme');
@@ -635,7 +739,6 @@
             document.body.classList.remove('dark-mode');
             toggleSwitch.checked = false;
         } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            // Respect system preference by default if no toggle has been clicked yet
             document.body.classList.add('dark-mode');
             toggleSwitch.checked = true;
         }
@@ -648,7 +751,20 @@
                 document.body.classList.remove('dark-mode');
                 localStorage.setItem('theme', 'light');
             }
+            // Reload the chart so its internal theme matches the new mode instantly
+            const activeBtn = document.querySelector('.tf-btn.active');
+            const activeTf = activeBtn ? getActiveTfCode(activeBtn.innerText) : '12M';
+            loadTradingViewChart(activeTf);
         });
+
+        function getActiveTfCode(label) {
+            const map = {
+                '1h': '60', '1d': 'D', '1w': 'W', '1m': 'M', 
+                '1y': '12M', '2yr': '24M', '3yr': '36M', '4yr': '48M', 
+                '5yr': '60M', '6yr': '72M', '7yr': '84M', '8yr': '96M'
+            };
+            return map[label] || '12M';
+        }
     </script>
 </body>
 </html>
