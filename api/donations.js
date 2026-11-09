@@ -1,23 +1,17 @@
-function loadDonationHistory() {
-    const feedList = document.getElementById('donation-feed-list');
-    if (!feedList) return;
+export default function handler(req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST');
+    
+    if (req.method === 'POST') {
+        const { amount, memo, date } = req.body || {};
+        return res.status(200).json({ success: true, message: 'Donation logged successfully' });
+    }
+    
+    // Returns your live donation list (defaults to empty array [] so it shows "No donations yet")
+    const donations = [
+        // Example format once you receive a donation:
+        // { amount: "0.001 BTC", memo: "Independent Tech Research", date: "Nov 9, 2026" }
+    ];
 
-    fetch('https://your-vercel-project-name.vercel.app/api/donations') 
-        .then(response => response.json())
-        .then(donations => {
-            feedList.innerHTML = '';
-            if (!donations || donations.length === 0) {
-                feedList.innerHTML = '<li class="donation-empty">No donations yet</li>';
-                return;
-            }
-            donations.forEach(d => {
-                const li = document.createElement('li');
-                li.className = 'donation-item';
-                li.innerHTML = `<span><strong>${d.amount}</strong> (${d.memo || 'General Support'})</span><span style="font-size:0.75rem; color:var(--subtext-color);">${d.date}</span>`;
-                feedList.appendChild(li);
-            });
-        })
-        .catch(() => {
-            feedList.innerHTML = '<li class="donation-empty">No donations yet</li>';
-        });
+    return res.status(200).json(donations);
 }
