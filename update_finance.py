@@ -3,10 +3,9 @@ import datetime
 import os
 import urllib.request
 
-# Reads your API key securely from GitHub Actions environment secrets
 API_KEY = os.environ.get('API_KEY', 'demo')
 
-# Manual baselines for private or specialized assets where public APIs do not stream live tickers
+# Manual baselines for private/special assets
 MANUAL_OVERRIDES = {
     "SPCX": { "mcap": 1930.0, "mcap_str": "$1.93T", "peg": 1.15, "growth": 30.00, "debt": 0.05, "inst": 12.50 },
     "ASST": { "mcap": 2.7, "mcap_str": "$2.70B", "peg": 0.95, "growth": 42.10, "debt": 0.10, "inst": 18.20 }
@@ -24,16 +23,26 @@ def update_data():
     with open('finance-data.json', 'r') as f:
         data = json.load(f)
 
-    for item in data['stocks']:
+    stocks = data['stocks']
+    total_stocks = len(stocks)
+    
+    # Determine which batch of 4 stocks to update today based on the day of the year
+    day_of_year = datetime.datetime.utcnow().timetuple().tm_yday
+    batch_size = 4
+    start_index = (day_of_year * batch_size) % total_stocks
+    end_index = min(start_index + batch_size, total_stocks)
+    
+    print(f"Running daily batch update for stocks index {start_index} to {end_index} (out of {total_stocks})")
+
+    for i in range(start_index, end_index):
+        item = stocks[i]
         ticker = item['ticker']
         
-        # Apply manual baselines for private/special assets immediately
         if ticker in MANUAL_OVERRIDES:
             item.update(MANUAL_OVERRIDES[ticker])
             print(f"Applied manual baseline for {ticker}")
             continue
 
-        # Fetch real-time company overview from Alpha Vantage free endpoint
         url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={ticker}&apikey={API_KEY}"
         result = fetch_json(url)
 
@@ -59,7 +68,7 @@ def update_data():
             except Exception as parse_err:
                 print(f"Error parsing data fields for {ticker}: {parse_err}")
         else:
-            print(f"API limit reached or invalid symbol returned for {ticker}. Keeping existing data.")
+            print(f"API limit or invalid symbol returned for {ticker}. Keeping existing data.")
 
     data['last_updated'] = datetime.datetime.utcnow().strftime('%Y-%m-%d')
 
