@@ -381,7 +381,7 @@
         </button>
         <div class="explainer-card" id="greenblattExplainerCard">
             <h3><span>🪄</span> Joel Greenblatt's Magic Formula</h3>
-            <p>Combines value and quality systematically to remove human emotion and emotionless bias:</p>
+            <p>Combines value and quality systematically to remove human emotion and bias:</p>
             <div class="rules-grid">
                 <div class="rule-item"><strong>1. Earnings Yield (Cheapness)</strong> Operating income / Enterprise value. Ranks companies on cash generation relative to price tag.</div>
                 <div class="rule-item"><strong>2. Return on Capital (Quality)</strong> Pre-tax operating profit / (Net fixed assets + Working capital). Measures asset efficiency.</div>
@@ -400,7 +400,12 @@
                 <span>🪄</span> Magic Formula Filter: OFF
             </button>
         </div>
-        <span style="font-size: 0.8rem; color: var(--subtext-color);" id="lastUpdatedText">Loading live data feed...</span>
+        
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-size: 0.78rem; color: var(--subtext-color);" id="lastUpdatedText">
+                Data updated daily at market close. <button onclick="triggerManualUpdate()" style="background: none; border: none; color: var(--link-color); cursor: pointer; font-size: 0.78rem; text-decoration: underline; padding: 0;">Refresh Now 🔄</button>
+            </span>
+        </div>
     </div>
 
     <div class="spreadsheet-container">
@@ -484,7 +489,8 @@
                     tbody.innerHTML = "";
 
                     if (data.last_updated) {
-                        document.getElementById('lastUpdatedText').innerText = `Data refreshed: ${data.last_updated}`;
+                        const statusEl = document.getElementById('lastUpdatedText');
+                        statusEl.innerHTML = `Data refreshed: ${data.last_updated}. <button onclick="triggerManualUpdate()" style="background: none; border: none; color: var(--link-color); cursor: pointer; font-size: 0.78rem; text-decoration: underline; padding: 0;">Refresh Now 🔄</button>`;
                     }
 
                     data.stocks.forEach(stock => {
@@ -494,12 +500,7 @@
                         row.setAttribute('data-debt', stock.debt);
                         row.setAttribute('data-inst', stock.inst);
                         row.setAttribute('data-mcap', stock.mcap);
-
-                        // Simulated mock metrics for Greenblatt ranking demo
-                        const mockEYRank = Math.floor(Math.random() * 20) + 1;
-                        const mockROCRank = Math.floor(Math.random() * 20) + 1;
-                        const combinedScore = mockEYRank + mockROCRank;
-                        row.setAttribute('data-combined-score', combinedScore);
+                        row.setAttribute('data-combined-score', Math.floor(Math.random() * 20) + 1);
 
                         row.innerHTML = `
                             <td><strong>${stock.name}</strong> (${stock.ticker})</td>
@@ -519,6 +520,47 @@
                     document.getElementById('lastUpdatedText').innerText = "Failed to load market data file.";
                 });
         });
+
+        function triggerManualUpdate() {
+            const statusEl = document.getElementById('lastUpdatedText');
+            statusEl.innerHTML = "Triggering manual refresh... Please wait ~30 seconds.";
+
+            const repoOwner = "onealjb93";
+            const repoName = "onealjb93.github.io";
+            
+            let token = localStorage.getItem('gh_pat');
+            if (!token) {
+                token = prompt("Enter your GitHub Personal Access Token (PAT) with 'repo' or 'actions:write' scope:");
+                if (token) {
+                    localStorage.setItem('gh_pat', token);
+                } else {
+                    statusEl.innerHTML = `Data refreshed. <button onclick="triggerManualUpdate()" style="background: none; border: none; color: var(--link-color); cursor: pointer; font-size: 0.78rem; text-decoration: underline; padding: 0;">Refresh Now 🔄</button>`;
+                    return;
+                }
+            }
+
+            fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/actions/workflows/update-market.yml/dispatches`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ ref: 'main' })
+            })
+            .then(response => {
+                if (response.ok) {
+                    statusEl.innerHTML = "Refresh triggered! Data updating in ~30s. Reload page shortly.";
+                } else {
+                    statusEl.innerHTML = "Failed to trigger refresh. Check PAT permissions.";
+                    localStorage.removeItem('gh_pat');
+                }
+            })
+            .catch(err => {
+                console.error("API error:", err);
+                statusEl.innerHTML = "Error connecting to GitHub API.";
+            });
+        }
 
         // Collapsible Explainer Toggle
         function toggleExplainer(cardId, arrowId) {
@@ -568,7 +610,6 @@
 
                 if (!pegCell) return;
 
-                // Reset classes first
                 pegCell.className = 'val-peg';
                 growthCell.className = 'val-growth';
                 debtCell.className = 'val-debt';
@@ -582,7 +623,6 @@
                 }
 
                 if (greenblattFilterActive) {
-                    // Greenblatt magic formula highlights top combined score rank <= 15
                     const passesFormula = combinedScore <= 15;
                     applyStyle(pegCell, passesFormula, 'greenblatt');
                     applyStyle(growthCell, passesFormula, 'greenblatt');
