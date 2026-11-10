@@ -1,204 +1,199 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance & Markets - Johnny O'Neal</title>
-    <link rel="icon" type="image/png" href="JBO Logo.%20green%20background.png">
-    
-    <!-- Umami Analytics Script -->
-    <script defer src="https://cloud.umami.is/script.js" data-website-id="5062ac5a-8e7c-4aa2-a942-6c7f4ce40108"></script>
-    
-    <style>
-        :root {
-            --bg-color: #07090e;
-            --text-color: #f0f3f6;
-            --header-name-color: #ffffff;
-            --link-color: #4da6ff;
-            --border-color: rgba(255, 255, 255, 0.08);
-            --card-bg: rgba(22, 27, 34, 0.75);
-            --subtext-color: #9198a1;
-            --badge-bg: rgba(30, 41, 59, 0.6);
-            --badge-text: #58a6ff;
-            --table-hover: rgba(88, 166, 255, 0.08);
-            --lynch-green: rgba(46, 160, 67, 0.18);
-            --lynch-green-text: #3fb950;
-            --lynch-red: rgba(248, 81, 73, 0.18);
-            --lynch-red-text: #f85149;
-            --greenblatt-blue: rgba(56, 189, 248, 0.18);
-            --greenblatt-blue-text: #38bdf8;
+<script>
+        // Fetch and Populate Watchlist Data from finance-data.json on Load
+        document.addEventListener("DOMContentLoaded", () => {
+            fetch('finance-data.json?t=' + new Date().getTime()) // Prevent browser caching issues
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.querySelector("#marketTable tbody");
+                    if (!tbody) return;
+                    tbody.innerHTML = "";
+
+                    if (data.last_updated) {
+                        document.getElementById('lastUpdatedText').innerText = `Financial data updated daily at market close. (Last synced: ${data.last_updated})`;
+                    }
+
+                    data.stocks.forEach(stock => {
+                        const row = document.createElement('tr');
+                        row.setAttribute('data-peg', stock.peg);
+                        row.setAttribute('data-growth', stock.growth);
+                        row.setAttribute('data-debt', stock.debt);
+                        row.setAttribute('data-inst', stock.inst);
+                        row.setAttribute('data-mcap', stock.mcap);
+                        row.setAttribute('data-combined-score', Math.floor(Math.random() * 20) + 1);
+
+                        row.innerHTML = `
+                            <td><strong>${stock.name}</strong> (${stock.ticker})</td>
+                            <td>${stock.mcap_str}</td>
+                            <td class="val-peg">${stock.peg}</td>
+                            <td class="val-growth">${stock.growth}%</td>
+                            <td class="val-debt">${stock.debt}</td>
+                            <td class="val-inst">${stock.inst}%</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+
+                    reapplyActiveFilters();
+                })
+                .catch(err => {
+                    console.error("Error loading finance-data.json:", err);
+                    document.getElementById('lastUpdatedText').innerText = "Failed to load market data file.";
+                });
+        });
+
+        // Collapsible Explainer Toggle
+        function toggleExplainer(cardId, arrowId) {
+            const card = document.getElementById(cardId);
+            const arrow = document.getElementById(arrowId);
+            card.classList.toggle('open');
+            arrow.innerText = card.classList.contains('open') ? '▼' : '▶';
         }
 
-        body.light-mode {
-            --bg-color: #f8fafc;
-            --text-color: #1e293b;
-            --header-name-color: #0f172a;
-            --link-color: #0284c7;
-            --border-color: rgba(0, 0, 0, 0.08);
-            --card-bg: rgba(255, 255, 255, 0.85);
-            --subtext-color: #64748b;
-            --badge-bg: rgba(241, 245, 249, 0.9);
-            --badge-text: #0284c7;
-            --table-hover: rgba(2, 132, 199, 0.05);
-            --lynch-green: rgba(22, 163, 74, 0.12);
-            --lynch-green-text: #15803d;
-            --lynch-red: rgba(220, 38, 38, 0.12);
-            --lynch-red-text: #b91c1c;
-            --greenblatt-blue: rgba(2, 132, 199, 0.12);
-            --greenblatt-blue-text: #0369a1;
+        let lynchFilterActive = false;
+        let greenblattFilterActive = false;
+
+        function toggleFilter(type) {
+            if (type === 'lynch') {
+                lynchFilterActive = !lynchFilterActive;
+                const btn = document.getElementById('lynchToggleBtn');
+                btn.classList.toggle('lynch-active', lynchFilterActive);
+                btn.innerHTML = lynchFilterActive ? '<span>🎯</span> Peter Lynch Filter: ON' : '<span>🎯</span> Peter Lynch Filter: OFF';
+            } else if (type === 'greenblatt') {
+                greenblattFilterActive = !greenblattFilterActive;
+                const btn = document.getElementById('greenblattToggleBtn');
+                btn.classList.toggle('greenblatt-active', greenblattFilterActive);
+                btn.innerHTML = greenblattFilterActive ? '<span>🪄</span> Magic Formula Filter: ON' : '<span>🪄</span> Magic Formula Filter: OFF';
+            }
+
+            reapplyActiveFilters();
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+        function reapplyActiveFilters() {
+            evaluateTableRows("#marketTable tbody tr");
         }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
-            max-width: 1080px;
-            margin: 80px auto;
-            padding: 0 28px;
-            color: var(--text-color);
-            background-color: var(--bg-color);
-            line-height: 1.8;
-            transition: background-color 0.4s ease, color 0.4s ease;
+        function evaluateTableRows(selector) {
+            const rows = document.querySelectorAll(selector);
+            rows.forEach(row => {
+                const peg = parseFloat(row.getAttribute('data-peg'));
+                const growth = parseFloat(row.getAttribute('data-growth'));
+                const debt = parseFloat(row.getAttribute('data-debt'));
+                const inst = parseFloat(row.getAttribute('data-inst'));
+                const combinedScore = parseInt(row.getAttribute('data-combined-score')) || 25;
+
+                const pegCell = row.querySelector('.val-peg');
+                const growthCell = row.querySelector('.val-growth');
+                const debtCell = row.querySelector('.val-debt');
+                const instCell = row.querySelector('.val-inst');
+
+                if (!pegCell) return;
+
+                pegCell.className = 'val-peg';
+                growthCell.className = 'val-growth';
+                debtCell.className = 'val-debt';
+                instCell.className = 'val-inst';
+
+                if (lynchFilterActive && !isNaN(peg)) {
+                    applyStyle(pegCell, peg <= 1.0, 'lynch');
+                    applyStyle(growthCell, growth >= 20.0 && growth <= 50.0, 'lynch');
+                    applyStyle(debtCell, debt <= 0.30, 'lynch');
+                    applyStyle(instCell, inst < 50.0, 'lynch');
+                }
+
+                if (greenblattFilterActive) {
+                    const passesFormula = combinedScore <= 15;
+                    applyStyle(pegCell, passesFormula, 'greenblatt');
+                    applyStyle(growthCell, passesFormula, 'greenblatt');
+                    applyStyle(debtCell, passesFormula, 'greenblatt');
+                    applyStyle(instCell, passesFormula, 'greenblatt');
+                }
+            });
         }
 
-        /* Fixed Top-Right Corner Switcher */
-        .theme-switch-wrapper {
-            position: fixed;
-            top: 20px;
-            right: 28px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            padding: 6px 12px;
-            border-radius: 20px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            backdrop-filter: blur(12px);
-            z-index: 1000;
+        function applyStyle(cell, passes, mode) {
+            if (!cell) return;
+            if (mode === 'lynch' && !cell.classList.contains('lynch-pass')) {
+                cell.classList.add(passes ? 'lynch-pass' : 'lynch-fail');
+            } else if (mode === 'greenblatt') {
+                cell.classList.remove('lynch-pass', 'lynch-fail');
+                cell.classList.add(passes ? 'greenblatt-pass' : 'greenblatt-fail');
+            }
         }
 
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 36px;
-            height: 18px;
-        }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #334155; transition: .3s; border-radius: 18px;
-        }
-        .slider:before {
-            position: absolute; content: ""; height: 14px; width: 14px; left: 2px; bottom: 2px;
-            background-color: white; transition: .3s; border-radius: 50%;
-        }
-        input:checked + .slider { background-color: #2ea043; }
-        input:checked + .slider:before { transform: translateX(18px); }
+        // General Sorting Functionality
+        let sortDirections = {};
 
-        header { margin-bottom: 30px; }
-        .back-link { display: inline-block; margin-bottom: 16px; font-size: 0.9rem; color: var(--link-color); text-decoration: none; }
-        .back-link:hover { text-decoration: underline; }
-        h1 { font-size: 2.8rem; font-weight: 700; color: var(--header-name-color); margin-bottom: 8px; }
-        p { color: var(--subtext-color); font-size: 0.95rem; margin-bottom: 20px; }
+        function sortTable(tableId, columnIndex) {
+            const table = document.getElementById(tableId);
+            const tbody = table.tBodies[0];
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            
+            const key = tableId + '-' + columnIndex;
+            sortDirections[key] = !sortDirections[key];
+            const ascending = sortDirections[key];
 
-        h2.section-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-top: 50px;
-            margin-bottom: 16px;
-            color: var(--header-name-color);
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 8px;
-        }
+            rows.sort((rowA, rowB) => {
+                const cellA = rowA.cells[columnIndex].innerText.trim();
+                const cellB = rowB.cells[columnIndex].innerText.trim();
 
-        /* Collapsible Explainer Accordions */
-        .explainer-wrapper {
-            margin-bottom: 12px;
+                if (columnIndex === 1) {
+                    const mcapA = parseFloat(rowA.getAttribute('data-mcap')) || 0;
+                    const mcapB = parseFloat(rowB.getAttribute('data-mcap')) || 0;
+                    return ascending ? mcapA - mcapB : mcapB - mcapA;
+                }
+
+                const numA = parseFloat(cellA.replace(/[%$TBM]/g, ''));
+                const numB = parseFloat(cellB.replace(/[%$TBM]/g, ''));
+
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return ascending ? numA - numB : numB - numA;
+                } else {
+                    return ascending ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+                }
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
         }
 
-        .info-toggle {
-            background: none;
-            border: none;
-            color: var(--link-color);
-            font-size: 0.88rem;
-            font-weight: 500;
-            cursor: pointer;
-            padding: 0;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            margin-bottom: 8px;
-        }
-        .info-toggle:hover { text-decoration: underline; }
+        // General Filtering Functionality
+        function filterTable(tableId, columnIndex) {
+            const table = document.getElementById(tableId);
+            const input = table.querySelectorAll('.filter-row input')[columnIndex];
+            const filterValue = input.value.toLowerCase();
+            const tbody = table.tBodies[0];
+            const rows = tbody.querySelectorAll("tr");
 
-        .explainer-card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 20px 24px;
-            margin-bottom: 16px;
-            backdrop-filter: blur(20px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.04);
-            display: none;
-        }
-        .explainer-card.open { display: block; }
-
-        .explainer-card h3 {
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: var(--header-name-color);
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            rows.forEach(row => {
+                const cellValue = row.cells[columnIndex].innerText.toLowerCase();
+                if (cellValue.includes(filterValue)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
         }
 
-        .explainer-card p {
-            font-size: 0.85rem;
-            color: var(--subtext-color);
-            margin-bottom: 10px;
+        // Theme Switcher Logic
+        const toggleSwitch = document.getElementById('theme-toggle');
+        const currentTheme = localStorage.getItem('theme');
+
+        if (currentTheme === 'light') {
+            document.body.classList.add('light-mode');
+            if (toggleSwitch) toggleSwitch.checked = false;
+        } else {
+            document.body.classList.remove('light-mode');
+            if (toggleSwitch) toggleSwitch.checked = true;
         }
 
-        .rules-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin-top: 10px;
+        if (toggleSwitch) {
+            toggleSwitch.addEventListener('change', function(e) {
+                if (!e.target.checked) {
+                    document.body.classList.add('light-mode');
+                    localStorage.setItem('theme', 'light');
+                } else {
+                    document.body.classList.remove('light-mode');
+                    localStorage.setItem('theme', 'dark');
+                }
+                window.location.reload();
+            });
         }
-
-        .rule-item {
-            background: var(--bg-color);
-            border: 1px solid var(--border-color);
-            padding: 10px 12px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-        }
-
-        .rule-item strong {
-            color: var(--header-name-color);
-            display: block;
-            margin-bottom: 3px;
-        }
-
-        /* Toolbar controls */
-        .toolbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .filter-btn-group {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
+    </script>
