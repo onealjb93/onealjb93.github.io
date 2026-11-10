@@ -25,9 +25,7 @@ def update_data():
 
     stocks = data['stocks']
     
-    # Smart Prioritization: Sort stocks so that those closest to Peter Lynch's sweet spots 
-    # (PEG <= 1.0, Debt <= 0.30, Growth between 20-50%) get prioritized for live updates first,
-    # ensuring your high-conviction targets stay fresh while staying well under the 25 request daily limit.
+    # Prioritize stocks closest to Peter Lynch's sweet spots
     def lynch_priority_score(stock):
         score = 0
         peg = stock.get('peg', 99)
@@ -39,7 +37,6 @@ def update_data():
         if 18 <= growth <= 55: score += 2
         return score
 
-    # Sort stocks by priority score descending
     stocks.sort(key=lynch_priority_score, reverse=True)
 
     # Rotate through a small batch of 4-5 top priority stocks per day
@@ -60,6 +57,7 @@ def update_data():
             print(f"Applied manual baseline for special asset: {ticker}")
             continue
 
+        # Fixed valid Alpha Vantage query URL
         url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={ticker}&apikey={API_KEY}"
         result = fetch_json(url)
 
