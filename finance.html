@@ -21,6 +21,10 @@
             --badge-bg: rgba(30, 41, 59, 0.6);
             --badge-text: #58a6ff;
             --table-hover: rgba(88, 166, 255, 0.08);
+            --lynch-green: rgba(46, 160, 67, 0.18);
+            --lynch-green-text: #3fb950;
+            --lynch-red: rgba(248, 81, 73, 0.18);
+            --lynch-red-text: #f85149;
         }
 
         body.light-mode {
@@ -34,6 +38,10 @@
             --badge-bg: rgba(241, 245, 249, 0.9);
             --badge-text: #0284c7;
             --table-hover: rgba(2, 132, 199, 0.05);
+            --lynch-green: rgba(22, 163, 74, 0.12);
+            --lynch-green-text: #15803d;
+            --lynch-red: rgba(220, 38, 38, 0.12);
+            --lynch-red-text: #b91c1c;
         }
 
         * {
@@ -44,7 +52,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
-            max-width: 900px;
+            max-width: 960px;
             margin: 80px auto;
             padding: 0 28px;
             color: var(--text-color);
@@ -88,11 +96,48 @@
         input:checked + .slider { background-color: #2ea043; }
         input:checked + .slider:before { transform: translateX(18px); }
 
-        header { margin-bottom: 40px; }
+        header { margin-bottom: 30px; }
         .back-link { display: inline-block; margin-bottom: 16px; font-size: 0.9rem; color: var(--link-color); text-decoration: none; }
         .back-link:hover { text-decoration: underline; }
         h1 { font-size: 2.8rem; font-weight: 700; color: var(--header-name-color); margin-bottom: 8px; }
         p { color: var(--subtext-color); font-size: 0.95rem; margin-bottom: 20px; }
+
+        /* Toolbar controls */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .lynch-btn {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .lynch-btn:hover {
+            border-color: var(--link-color);
+            transform: translateY(-1px);
+        }
+
+        .lynch-btn.active {
+            background-color: #2ea043;
+            color: #ffffff;
+            border-color: #2ea043;
+        }
 
         /* Spreadsheet Container */
         .spreadsheet-container {
@@ -126,22 +171,11 @@
             white-space: nowrap;
         }
 
-        th:hover {
-            color: var(--link-color);
-        }
-
-        th::after {
-            content: ' ↕';
-            font-size: 0.75rem;
-            opacity: 0.5;
-        }
+        th:hover { color: var(--link-color); }
+        th::after { content: ' ↕'; font-size: 0.75rem; opacity: 0.5; }
 
         /* Filter Row Inputs */
-        .filter-row th {
-            padding: 6px 12px;
-            background: transparent;
-            cursor: default;
-        }
+        .filter-row th { padding: 6px 12px; background: transparent; cursor: default; }
         .filter-row th::after { content: ''; }
 
         .column-filter {
@@ -154,15 +188,21 @@
             font-size: 0.8rem;
             outline: none;
         }
-        .column-filter:focus {
-            border-color: var(--link-color);
-        }
+        .column-filter:focus { border-color: var(--link-color); }
 
-        tbody tr {
-            transition: background-color 0.2s ease;
+        tbody tr { transition: background-color 0.2s ease; }
+        tbody tr:hover { background-color: var(--table-hover); }
+
+        /* Dynamic Lynch Evaluation Styling classes */
+        td.lynch-pass {
+            background-color: var(--lynch-green);
+            color: var(--lynch-green-text);
+            font-weight: 600;
         }
-        tbody tr:hover {
-            background-color: var(--table-hover);
+        td.lynch-fail {
+            background-color: var(--lynch-red);
+            color: var(--lynch-red-text);
+            font-weight: 500;
         }
 
         /* Professional Footer Section */
@@ -195,18 +235,25 @@
     <header>
         <a href="index.html" class="back-link">← Back to Home</a>
         <h1>Finance & Markets</h1>
-        <p>Comparative valuation screening matrix for Tesla, NVIDIA, and Alphabet.</p>
+        <p>Comparative valuation screening matrix evaluated against Peter Lynch's GARP (Growth at a Reasonable Price) metrics.</p>
     </header>
+
+    <div class="toolbar">
+        <button id="lynchToggleBtn" class="lynch-btn" onclick="togglePeterLynchFilter()">
+            <span>🎯</span> Peter Lynch Filter: OFF
+        </button>
+        <span style="font-size: 0.8rem; color: var(--subtext-color);">Criteria: PEG &le; 1.0 | Growth 20-50% | Low Debt | Low Inst. Ownership</span>
+    </div>
 
     <div class="spreadsheet-container">
         <table id="marketTable">
             <thead>
                 <tr id="headerRow">
                     <th onclick="sortTable(0)">Company (Ticker)</th>
-                    <th onclick="sortTable(1)">PEG Ratio</th>
-                    <th onclick="sortTable(2)">Earnings Growth Rate</th>
-                    <th onclick="sortTable(3)">Debt-to-Equity</th>
-                    <th onclick="sortTable(4)">Institutional Ownership</th>
+                    <th onclick="sortTable(1)">PEG Ratio (Ideal &le; 1.0)</th>
+                    <th onclick="sortTable(2)">Earnings Growth (Sweet Spot 20-50%)</th>
+                    <th onclick="sortTable(3)">Debt-to-Equity (Ideal &rarr; 0)</th>
+                    <th onclick="sortTable(4)">Institutional Ownership (Lower = Better)</th>
                 </tr>
                 <!-- Filtering Row -->
                 <tr class="filter-row">
@@ -218,26 +265,26 @@
                 </tr>
             </thead>
             <tbody>
-                <tr>
+                <tr data-peg="28.31" data-growth="17.70" data-debt="0.11" data-inst="66.20">
                     <td><strong>Tesla</strong> (TSLA)</td>
-                    <td>28.31</td>
-                    <td>17.70%</td>
-                    <td>0.11</td>
-                    <td>66.20%</td>
+                    <td class="val-peg">28.31</td>
+                    <td class="val-growth">17.70%</td>
+                    <td class="val-debt">0.11</td>
+                    <td class="val-inst">66.20%</td>
                 </tr>
-                <tr>
+                <tr data-peg="0.20" data-growth="125.36" data-debt="0.15" data-inst="69.56">
                     <td><strong>NVIDIA</strong> (NVDA)</td>
-                    <td>0.20</td>
-                    <td>125.36%</td>
-                    <td>0.15</td>
-                    <td>69.56%</td>
+                    <td class="val-peg">0.20</td>
+                    <td class="val-growth">125.36%</td>
+                    <td class="val-debt">0.15</td>
+                    <td class="val-inst">69.56%</td>
                 </tr>
-                <tr>
+                <tr data-peg="1.06" data-growth="22.60" data-debt="0.22" data-inst="40.03">
                     <td><strong>Alphabet / Google</strong> (GOOGL)</td>
-                    <td>1.06</td>
-                    <td>22.60%</td>
-                    <td>0.22</td>
-                    <td>40.03%</td>
+                    <td class="val-peg">1.06</td>
+                    <td class="val-growth">22.60%</td>
+                    <td class="val-debt">0.22</td>
+                    <td class="val-inst">40.03%</td>
                 </tr>
             </tbody>
         </table>
@@ -254,6 +301,56 @@
     </footer>
 
     <script>
+        let lynchFilterActive = false;
+
+        function togglePeterLynchFilter() {
+            lynchFilterActive = !lynchFilterActive;
+            const btn = document.getElementById('lynchToggleBtn');
+            const rows = document.querySelectorAll("#marketTable tbody tr");
+
+            if (lynchFilterActive) {
+                btn.classList.add('active');
+                btn.innerHTML = '<span>🎯</span> Peter Lynch Filter: ON';
+            } else {
+                btn.classList.remove('active');
+                btn.innerHTML = '<span>🎯</span> Peter Lynch Filter: OFF';
+            }
+
+            rows.forEach(row => {
+                const peg = parseFloat(row.getAttribute('data-peg'));
+                const growth = parseFloat(row.getAttribute('data-growth'));
+                const debt = parseFloat(row.getAttribute('data-debt'));
+                const inst = parseFloat(row.getAttribute('data-inst'));
+
+                const pegCell = row.querySelector('.val-peg');
+                const growthCell = row.querySelector('.val-growth');
+                const debtCell = row.querySelector('.val-debt');
+                const instCell = row.querySelector('.val-inst');
+
+                if (lynchFilterActive) {
+                    // Lynch Evaluator Logic
+                    // 1. PEG: <= 1.0 is ideal pass
+                    applyStyle(pegCell, peg <= 1.0);
+                    // 2. Growth: Sweet spot 20% to 50% (under 50% sustainable, >20% fast grower)
+                    applyStyle(growthCell, growth >= 20.0 && growth <= 50.0);
+                    // 3. Debt-to-Equity: Low debt (< 0.30 considered healthy low leverage)
+                    applyStyle(debtCell, debt <= 0.30);
+                    // 4. Institutional Ownership: Lower is better (< 50% is hidden gem zone)
+                    applyStyle(instCell, inst < 50.0);
+                } else {
+                    // Reset Styling
+                    [pegCell, growthCell, debtCell, instCell].forEach(cell => {
+                        cell.className = cell.className.replace(/lynch-pass|lynch-fail/g, '').trim();
+                    });
+                }
+            });
+        }
+
+        function applyStyle(cell, passes) {
+            cell.classList.remove('lynch-pass', 'lynch-fail');
+            cell.classList.add(passes ? 'lynch-pass' : 'lynch-fail');
+        }
+
         // Sorting Functionality
         let sortDirections = [false, false, false, false, false];
 
