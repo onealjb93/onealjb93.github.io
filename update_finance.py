@@ -2,12 +2,6 @@ import json
 import datetime
 import yfinance as yf
 
-# Manual overrides to lock in verified caps/metrics for micro-caps or private assets
-MANUAL_OVERRIDES = {
-    "ASST": { "mcap": 2.7, "mcap_str": "$2.70B" },
-    "SPCX": { "mcap": 1930.0, "mcap_str": "$1.93T" }
-}
-
 def update_data():
     with open('finance-data.json', 'r') as f:
         data = json.load(f)
@@ -15,35 +9,42 @@ def update_data():
     for item in data['stocks']:
         ticker_symbol = item['ticker']
         
-        # Apply overrides immediately if defined
-        if ticker_symbol in MANUAL_OVERRIDES:
-            item['mcap'] = MANUAL_OVERRIDES[ticker_symbol]['mcap']
-            item['mcap_str'] = MANUAL_OVERRIDES[ticker_symbol]['mcap_str']
-
         try:
             stock = yf.Ticker(ticker_symbol)
-            info = stock.info
             
-            market_cap = info.get('marketCap')
-            if market_cap and ticker_symbol not in MANUAL_OVERRIDES:
+            # Fast-path for private or unique assets like SpaceX
+            if ticker_symbol == "SPCX":
+                item['mcap'] = 1930.0
+                item['mcap_str'] = "$1.93T"
+                continue
+
+            # Pull live fast info or general info dictionary
+            fi = stock.fast_info
+            market_cap = getattr(fi, 'market_cap', None)
+            
+            # Fallback to standard info if fast_info is missing
+            if not market_cap:
+                info = stock.info
+                market_cap = info.get('marketCap')
+                if info.get('pegRatio'):
+                    item['peg'] = round(info.get('pegRatio'), 2)
+                if info.get('earningsGrowth'):
+                    item['growth'] = round(info.get('earningsGrowth') * 100, 2)
+                if info.get('debtToEquity'):
+                    item['debt'] = round(info.get('debtToEquity') / 100, 2)
+                if info.get('heldPercentInstitutions'):
+                    item['inst'] = round(info.get('heldPercentInstitutions') * 100, 2)
+
+            if market_cap:
                 item['mcap'] = market_cap / 1e9
                 if market_cap >= 1e12:
                     item['mcap_str'] = f"${market_cap/1e12:.2f}T"
                 else:
                     item['mcap_str'] = f"${market_cap/1e9:.2f}B"
-            
-            if info.get('pegRatio'):
-                item['peg'] = round(info.get('pegRatio'), 2)
-            if info.get('earningsGrowth'):
-                item['growth'] = round(info.get('earningsGrowth') * 100, 2)
-            if info.get('debtToEquity'):
-                item['debt'] = round(info.get('debtToEquity') / 100, 2)
-            if info.get('heldPercentInstitutions'):
-                item['inst'] = round(info.get('heldPercentInstitutions') * 100, 2)
                 
-            print(f"Successfully updated {ticker_symbol}")
+            print(f"Successfully updated {ticker_symbol} -> Market Cap: {item['mcap_str']}")
         except Exception as e:
-            print(f"Skipping API fetch for {ticker_symbol} due to error: {e}")
+            print(f"Error updating {ticker_symbol}: {e}")
 
     data['last_updated'] = datetime.datetime.utcnow().strftime('%Y-%m-%d')
 
