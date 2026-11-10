@@ -1,50 +1,65 @@
 import json
 import datetime
-import yfinance as yf
+import os
+import urllib.request
+
+# Reads your API key securely from GitHub Actions environment secrets
+API_KEY = os.environ.get('API_KEY', 'demo')
+
+# Manual baselines for private or specialized assets where public APIs do not stream live tickers
+MANUAL_OVERRIDES = {
+    "SPCX": { "mcap": 1930.0, "mcap_str": "$1.93T", "peg": 1.15, "growth": 30.00, "debt": 0.05, "inst": 12.50 },
+    "ASST": { "mcap": 2.7, "mcap_str": "$2.70B", "peg": 0.95, "growth": 42.10, "debt": 0.10, "inst": 18.20 }
+}
+
+def fetch_json(url):
+    try:
+        with urllib.request.urlopen(url) as response:
+            return json.loads(response.read().decode())
+    except Exception as e:
+        print(f"Network error: {e}")
+        return None
 
 def update_data():
     with open('finance-data.json', 'r') as f:
         data = json.load(f)
 
     for item in data['stocks']:
-        ticker_symbol = item['ticker']
+        ticker = item['ticker']
         
-        try:
-            stock = yf.Ticker(ticker_symbol)
-            
-            # Fast-path for private or unique assets like SpaceX
-            if ticker_symbol == "SPCX":
-                item['mcap'] = 1930.0
-                item['mcap_str'] = "$1.93T"
-                continue
+        # Apply manual baselines for private/special assets immediately
+        if ticker in MANUAL_OVERRIDES:
+            item.update(MANUAL_OVERRIDES[ticker])
+            print(f"Applied manual baseline for {ticker}")
+            continue
 
-            # Pull live fast info or general info dictionary
-            fi = stock.fast_info
-            market_cap = getattr(fi, 'market_cap', None)
-            
-            # Fallback to standard info if fast_info is missing
-            if not market_cap:
-                info = stock.info
-                market_cap = info.get('marketCap')
-                if info.get('pegRatio'):
-                    item['peg'] = round(info.get('pegRatio'), 2)
-                if info.get('earningsGrowth'):
-                    item['growth'] = round(info.get('earningsGrowth') * 100, 2)
-                if info.get('debtToEquity'):
-                    item['debt'] = round(info.get('debtToEquity') / 100, 2)
-                if info.get('heldPercentInstitutions'):
-                    item['inst'] = round(info.get('heldPercentInstitutions') * 100, 2)
+        # Fetch real-time company overview from Alpha Vantage free endpoint
+        url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={ticker}&apikey={API_KEY}"
+        result = fetch_json(url)
 
-            if market_cap:
+        if result and 'MarketCapitalization' in result and result['MarketCapitalization'] != 'None':
+            try:
+                market_cap = float(result['MarketCapitalization'])
                 item['mcap'] = market_cap / 1e9
                 if market_cap >= 1e12:
                     item['mcap_str'] = f"${market_cap/1e12:.2f}T"
                 else:
                     item['mcap_str'] = f"${market_cap/1e9:.2f}B"
-                
-            print(f"Successfully updated {ticker_symbol} -> Market Cap: {item['mcap_str']}")
-        except Exception as e:
-            print(f"Error updating {ticker_symbol}: {e}")
+
+                if result.get('PEGRatio') and result['PEGRatio'] != 'None':
+                    item['peg'] = round(float(result['PEGRatio']), 2)
+                if result.get('QuarterlyEarningsGrowthYOY') and result['QuarterlyEarningsGrowthYOY'] != 'None':
+                    item['growth'] = round(float(result['QuarterlyEarningsGrowthYOY']) * 100, 2)
+                if result.get('DebtToEquityTTC') and result['DebtToEquityTTC'] != 'None':
+                    item['debt'] = round(float(result['DebtToEquityTTC']) / 100, 2)
+                if result.get('PercentInstitutions') and result['PercentInstitutions'] != 'None':
+                    item['inst'] = round(float(result['PercentInstitutions']) * 100, 2)
+
+                print(f"Successfully updated live data for {ticker}")
+            except Exception as parse_err:
+                print(f"Error parsing data fields for {ticker}: {parse_err}")
+        else:
+            print(f"API limit reached or invalid symbol returned for {ticker}. Keeping existing data.")
 
     data['last_updated'] = datetime.datetime.utcnow().strftime('%Y-%m-%d')
 
