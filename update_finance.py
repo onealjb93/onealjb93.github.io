@@ -24,15 +24,32 @@ def update_data():
         data = json.load(f)
 
     stocks = data['stocks']
-    total_stocks = len(stocks)
     
-    # Determine which batch of 4 stocks to update today based on the day of the year
+    # Smart Prioritization: Sort stocks so that those closest to Peter Lynch's sweet spots 
+    # (PEG <= 1.0, Debt <= 0.30, Growth between 20-50%) get prioritized for live updates first,
+    # ensuring your high-conviction targets stay fresh while staying well under the 25 request daily limit.
+    def lynch_priority_score(stock):
+        score = 0
+        peg = stock.get('peg', 99)
+        debt = stock.get('debt', 99)
+        growth = stock.get('growth', 0)
+        
+        if peg <= 1.2: score += 3
+        if debt <= 0.35: score += 2
+        if 18 <= growth <= 55: score += 2
+        return score
+
+    # Sort stocks by priority score descending
+    stocks.sort(key=lynch_priority_score, reverse=True)
+
+    # Rotate through a small batch of 4-5 top priority stocks per day
     day_of_year = datetime.datetime.utcnow().timetuple().tm_yday
     batch_size = 4
+    total_stocks = len(stocks)
     start_index = (day_of_year * batch_size) % total_stocks
     end_index = min(start_index + batch_size, total_stocks)
-    
-    print(f"Running daily batch update for stocks index {start_index} to {end_index} (out of {total_stocks})")
+
+    print(f"Prioritizing and updating batch index {start_index} to {end_index} based on Lynch metric alignment.")
 
     for i in range(start_index, end_index):
         item = stocks[i]
@@ -40,7 +57,7 @@ def update_data():
         
         if ticker in MANUAL_OVERRIDES:
             item.update(MANUAL_OVERRIDES[ticker])
-            print(f"Applied manual baseline for {ticker}")
+            print(f"Applied manual baseline for special asset: {ticker}")
             continue
 
         url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={ticker}&apikey={API_KEY}"
@@ -66,9 +83,9 @@ def update_data():
 
                 print(f"Successfully updated live data for {ticker}")
             except Exception as parse_err:
-                print(f"Error parsing data fields for {ticker}: {parse_err}")
+                print(f"Error parsing data for {ticker}: {parse_err}")
         else:
-            print(f"API limit or invalid symbol returned for {ticker}. Keeping existing data.")
+            print(f"API limit or invalid symbol returned for {ticker}. Retaining cached metrics.")
 
     data['last_updated'] = datetime.datetime.utcnow().strftime('%Y-%m-%d')
 
