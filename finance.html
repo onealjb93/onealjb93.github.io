@@ -340,13 +340,13 @@
             <span id="greenblattArrow">▶</span> About Joel Greenblatt's Magic Formula
         </button>
         <div class="explainer-card" id="greenblattExplainerCard">
-            <h3><span>🪄</span> Joel Greenblatt's Magic Formula</h3>
-            <p>Combines value and quality systematically to remove human emotion and bias:</p>
+            <h3><span>🪄</span> Joel Greenblatt's Magic Formula (Objective Ranking Model)</h3>
+            <p>A purely mathematical, rules-based strategy ranking companies on cheapness and capital efficiency:</p>
             <div class="rules-grid">
-                <div class="rule-item"><strong>1. Earnings Yield (Cheapness)</strong> Operating income / Enterprise value. Ranks companies on cash generation relative to price tag.</div>
-                <div class="rule-item"><strong>2. Return on Capital (Quality)</strong> Pre-tax operating profit / (Net fixed assets + Working capital). Measures asset efficiency.</div>
-                <div class="rule-item"><strong>3. Combined Score</strong> Sum of EY rank + ROC rank. Lowest combined scores represent top buy candidates.</div>
-                <div class="rule-item"><strong>4. Portfolio Discipline</strong> Buy top 20–30 stocks, hold for 1 year, sell, and repeat mechanically.</div>
+                <div class="rule-item"><strong>1. Earnings Yield (EBIT / EV)</strong> Measures cash flow return relative to total enterprise value. Higher yield = cheaper valuation.</div>
+                <div class="rule-item"><strong>2. Return on Capital (EBIT / Net Working Capital + Fixed Assets)</strong> Measures how efficiently a business generates operating earnings from its asset base.</div>
+                <div class="rule-item"><strong>3. Quantifiable Ranking Score</strong> Stocks are ranked (#1 to N) on both metrics. Combined score = (EY Rank + ROC Rank). Lowest scores win.</div>
+                <div class="rule-item"><strong>4. Mechanical Discipline</strong> Targets top-decile combined scores (Top 15–20% of universe) to systematically remove human bias.</div>
             </div>
         </div>
     </div>
@@ -418,6 +418,7 @@
                         document.getElementById('lastUpdatedText').innerText = `Financial data updated daily at market close. (Last synced: ${data.last_updated})`;
                     }
 
+                    // Sort stocks by Greenblatt combined score if available, or fallback order
                     data.stocks.forEach(stock => {
                         const row = document.createElement('tr');
                         row.setAttribute('data-peg', stock.peg);
@@ -425,7 +426,7 @@
                         row.setAttribute('data-debt', stock.debt);
                         row.setAttribute('data-inst', stock.inst);
                         row.setAttribute('data-mcap', stock.mcap);
-                        row.setAttribute('data-combined-score', Math.floor(Math.random() * 20) + 1);
+                        row.setAttribute('data-combined-score', stock.combined_score || 20);
 
                         row.innerHTML = `
                             <td><strong>${stock.name}</strong> (${stock.ticker})</td>
@@ -502,106 +503,4 @@
                     applyStyle(pegCell, peg <= 1.0, 'lynch');
                     applyStyle(growthCell, growth >= 20.0 && growth <= 50.0, 'lynch');
                     applyStyle(debtCell, debt <= 0.30, 'lynch');
-                    applyStyle(instCell, inst < 50.0, 'lynch');
-                }
-
-                if (greenblattFilterActive) {
-                    const passesFormula = combinedScore <= 15;
-                    applyStyle(pegCell, passesFormula, 'greenblatt');
-                    applyStyle(growthCell, passesFormula, 'greenblatt');
-                    applyStyle(debtCell, passesFormula, 'greenblatt');
-                    applyStyle(instCell, passesFormula, 'greenblatt');
-                }
-            });
-        }
-
-        function applyStyle(cell, passes, mode) {
-            if (!cell) return;
-            if (mode === 'lynch' && !cell.classList.contains('lynch-pass')) {
-                cell.classList.add(passes ? 'lynch-pass' : 'lynch-fail');
-            } else if (mode === 'greenblatt') {
-                cell.classList.remove('lynch-pass', 'lynch-fail');
-                cell.classList.add(passes ? 'greenblatt-pass' : 'greenblatt-fail');
-            }
-        }
-
-        // General Sorting Functionality
-        let sortDirections = {};
-
-        function sortTable(tableId, columnIndex) {
-            const table = document.getElementById(tableId);
-            const tbody = table.tBodies[0];
-            const rows = Array.from(tbody.querySelectorAll("tr"));
-            
-            const key = tableId + '-' + columnIndex;
-            sortDirections[key] = !sortDirections[key];
-            const ascending = sortDirections[key];
-
-            rows.sort((rowA, rowB) => {
-                const cellA = rowA.cells[columnIndex].innerText.trim();
-                const cellB = rowB.cells[columnIndex].innerText.trim();
-
-                if (columnIndex === 1) {
-                    const mcapA = parseFloat(rowA.getAttribute('data-mcap')) || 0;
-                    const mcapB = parseFloat(rowB.getAttribute('data-mcap')) || 0;
-                    return ascending ? mcapA - mcapB : mcapB - mcapA;
-                }
-
-                const numA = parseFloat(cellA.replace(/[%$TBM]/g, ''));
-                const numB = parseFloat(cellB.replace(/[%$TBM]/g, ''));
-
-                if (!isNaN(numA) && !isNaN(numB)) {
-                    return ascending ? numA - numB : numB - numA;
-                } else {
-                    return ascending ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
-                }
-            });
-
-            rows.forEach(row => tbody.appendChild(row));
-        }
-
-        // General Filtering Functionality
-        function filterTable(tableId, columnIndex) {
-            const table = document.getElementById(tableId);
-            const input = table.querySelectorAll('.filter-row input')[columnIndex];
-            const filterValue = input.value.toLowerCase();
-            const tbody = table.tBodies[0];
-            const rows = tbody.querySelectorAll("tr");
-
-            rows.forEach(row => {
-                const cellValue = row.cells[columnIndex].innerText.toLowerCase();
-                if (cellValue.includes(filterValue)) {
-                    row.style.display = "";
-                } else {
-                    row.style.display = "none";
-                }
-            });
-        }
-
-        // Theme Switcher Logic
-        const toggleSwitch = document.getElementById('theme-toggle');
-        const currentTheme = localStorage.getItem('theme');
-
-        if (currentTheme === 'light') {
-            document.body.classList.add('light-mode');
-            if (toggleSwitch) toggleSwitch.checked = false;
-        } else {
-            document.body.classList.remove('light-mode');
-            if (toggleSwitch) toggleSwitch.checked = true;
-        }
-
-        if (toggleSwitch) {
-            toggleSwitch.addEventListener('change', function(e) {
-                if (!e.target.checked) {
-                    document.body.classList.add('light-mode');
-                    localStorage.setItem('theme', 'light');
-                } else {
-                    document.body.classList.remove('light-mode');
-                    localStorage.setItem('theme', 'dark');
-                }
-                window.location.reload();
-            });
-        }
-    </script>
-</body>
-</html>
+                    applyStyle(instCell,
