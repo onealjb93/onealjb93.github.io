@@ -1,70 +1,22 @@
-// Gravitational Cursor Effect Tracker
-document.addEventListener('mousemove', (e) => {
-    const x = e.clientX + 'px';
-    const y = e.clientY + 'px';
-    document.documentElement.style.setProperty('--x', x);
-    document.documentElement.style.setProperty('--y', y);
-});
-
-// Replace with your exact receiving Bitcoin address
-const MY_BTC_ADDRESS = "YOUR_ACTUAL_BITCOIN_ADDRESS_HERE";
-
-async function fetchRealDonations() {
-    const container = document.getElementById('supporters-list');
-    
+async function loadFinancialData() {
     try {
-        const response = await fetch(`https://mempool.space/api/address/${MY_BTC_ADDRESS}/txs`);
+        const response = await fetch('finance-data.json');
+        const data = await response.json();
         
-        if (!response.ok) {
-            throw new Error("Failed to fetch transaction data.");
-        }
+        // Update the last synced date text if you have an element for it
+        const dateEl = document.getElementById('last-updated');
+        if (dateEl) dateEl.innerText = data.last_updated;
 
-        const transactions = await response.json();
-        const realDonations = [];
-        
-        transactions.forEach(tx => {
-            if (tx.vout && Array.isArray(tx.vout)) {
-                tx.vout.forEach(output => {
-                    if (output.scriptpubkey_address === MY_BTC_ADDRESS) {
-                        const amountBtc = output.value / 100000000; // Satoshis to BTC
-                        const blockTime = tx.status && tx.status.block_time ? tx.status.block_time * 1000 : Date.now();
-                        const date = new Date(blockTime).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                        });
-                        
-                        realDonations.push({
-                            amount: `${amountBtc} BTC`,
-                            date: date,
-                            txid: tx.txid
-                        });
-                    }
-                });
-            }
+        // Loop through stocks and populate your table cells dynamically
+        data.stocks.forEach(stock => {
+            // Find your table row or cell elements matching the ticker
+            // e.g., mapping stock.price and stock.fair_value directly into your HTML cells
+            console.log(`Ticker: ${stock.ticker}, Price: $${stock.price}, Fair Value: $${stock.fair_value}`);
         });
-
-        if (realDonations.length === 0) {
-            container.innerHTML = '<p class="no-donations">No donations yet.</p>';
-            return;
-        }
-
-        let html = '<ul class="supporters-ul">';
-        realDonations.slice(0, 5).forEach(don => {
-            html += `<li>
-                        <span>Donation: <strong>${don.amount}</strong></span>
-                        <span class="tx-date">${don.date}</span>
-                     </li>`;
-        });
-        html += '</ul>';
         
-        container.innerHTML = html;
-
     } catch (error) {
-        console.error("Error connecting to blockchain explorer:", error);
-        container.innerHTML = '<p class="no-donations">No donations yet.</p>';
+        console.error("Error loading financial data:", error);
     }
 }
 
-// Run on load
-fetchRealDonations();
+document.addEventListener('DOMContentLoaded', loadFinancialData);
