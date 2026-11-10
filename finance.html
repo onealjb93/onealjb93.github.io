@@ -503,4 +503,106 @@
                     applyStyle(pegCell, peg <= 1.0, 'lynch');
                     applyStyle(growthCell, growth >= 20.0 && growth <= 50.0, 'lynch');
                     applyStyle(debtCell, debt <= 0.30, 'lynch');
-                    applyStyle(instCell,
+                    applyStyle(instCell, inst < 50.0, 'lynch');
+                }
+
+                if (greenblattFilterActive) {
+                    const passesFormula = combinedScore <= 6; // Top quantifiable rank threshold
+                    applyStyle(pegCell, passesFormula, 'greenblatt');
+                    applyStyle(growthCell, passesFormula, 'greenblatt');
+                    applyStyle(debtCell, passesFormula, 'greenblatt');
+                    applyStyle(instCell, passesFormula, 'greenblatt');
+                }
+            });
+        }
+
+        function applyStyle(cell, passes, mode) {
+            if (!cell) return;
+            if (mode === 'lynch' && !cell.classList.contains('lynch-pass')) {
+                cell.classList.add(passes ? 'lynch-pass' : 'lynch-fail');
+            } else if (mode === 'greenblatt') {
+                cell.classList.remove('lynch-pass', 'lynch-fail');
+                cell.classList.add(passes ? 'greenblatt-pass' : 'greenblatt-fail');
+            }
+        }
+
+        // General Sorting Functionality
+        let sortDirections = {};
+
+        function sortTable(tableId, columnIndex) {
+            const table = document.getElementById(tableId);
+            const tbody = table.tBodies[0];
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            
+            const key = tableId + '-' + columnIndex;
+            sortDirections[key] = !sortDirections[key];
+            const ascending = sortDirections[key];
+
+            rows.sort((rowA, rowB) => {
+                const cellA = rowA.cells[columnIndex].innerText.trim();
+                const cellB = rowB.cells[columnIndex].innerText.trim();
+
+                if (columnIndex === 1) {
+                    const mcapA = parseFloat(rowA.getAttribute('data-mcap')) || 0;
+                    const mcapB = parseFloat(rowB.getAttribute('data-mcap')) || 0;
+                    return ascending ? mcapA - mcapB : mcapB - mcapA;
+                }
+
+                const numA = parseFloat(cellA.replace(/[%$TBM]/g, ''));
+                const numB = parseFloat(cellB.replace(/[%$TBM]/g, ''));
+
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return ascending ? numA - numB : numB - numA;
+                } else {
+                    return ascending ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+                }
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        // General Filtering Functionality
+        function filterTable(tableId, columnIndex) {
+            const table = document.getElementById(tableId);
+            const input = table.querySelectorAll('.filter-row input')[columnIndex];
+            const filterValue = input.value.toLowerCase();
+            const tbody = table.tBodies[0];
+            const rows = tbody.querySelectorAll("tr");
+
+            rows.forEach(row => {
+                const cellValue = row.cells[columnIndex].innerText.toLowerCase();
+                if (cellValue.includes(filterValue)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
+        }
+
+        // Theme Switcher Logic
+        const toggleSwitch = document.getElementById('theme-toggle');
+        const currentTheme = localStorage.getItem('theme');
+
+        if (currentTheme === 'light') {
+            document.body.classList.add('light-mode');
+            if (toggleSwitch) toggleSwitch.checked = false;
+        } else {
+            document.body.classList.remove('light-mode');
+            if (toggleSwitch) toggleSwitch.checked = true;
+        }
+
+        if (toggleSwitch) {
+            toggleSwitch.addEventListener('change', function(e) {
+                if (!e.target.checked) {
+                    document.body.classList.add('light-mode');
+                    localStorage.setItem('theme', 'light');
+                } else {
+                    document.body.classList.remove('light-mode');
+                    localStorage.setItem('theme', 'dark');
+                }
+                window.location.reload();
+            });
+        }
+    </script>
+</body>
+</html>
