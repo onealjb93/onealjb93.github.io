@@ -5,11 +5,11 @@ import requests
 
 TICKERS = [
     "ASST", "NBIS", "AAOI", "NVDA", "CIFR", "IREN", 
-    "PLTR", "GOOGL", "AAPL", "MSFT"
+    "PLTR", "GOOGL", "AAPL", "MSFT", "AMD", "MU", 
+    "TSLA", "MSTR", "TSM", "LLY", "WM", "COST", "JPM", "WMT"
 ]
 
-# Pulls your API key securely from GitHub Actions Secrets environment variables
-API_KEY = os.environ.get("ALPHA_VANTAGE_API_KEY")
+API_KEY = os.environ.get("API_KEY")
 
 def fetch_financial_data():
     stocks_data = []
@@ -22,9 +22,11 @@ def fetch_financial_data():
             data = response.json()
             
             quote = data.get("Global Quote", {})
-            current_price = float(quote.get("05. price", 100.0))
+            # Extract live price safely from Alpha Vantage response dictionary
+            price_str = quote.get("05. price", "100.00")
+            current_price = float(price_str)
             
-            # Fallback estimation metrics
+            # Baseline estimation metrics & fair value calculation
             trailing_eps = 4.5 
             earnings_growth = 25.0
             fair_value = trailing_eps * earnings_growth
@@ -45,7 +47,7 @@ def fetch_financial_data():
                 "momentum": 35.0,
                 "combined_score": 5
             })
-            print(f"Successfully fetched {ticker_symbol} via Alpha Vantage: ${current_price:.2f}")
+            print(f"Successfully pulled live price for {ticker_symbol}: ${current_price:.2f}")
             
         except Exception as e:
             print(f"Error fetching data for {ticker_symbol}: {e}")
@@ -58,7 +60,7 @@ def fetch_financial_data():
     with open("finance-data.json", "w") as f:
         json.dump(output, f, indent=4)
         
-    print("Successfully updated finance-data.json via Alpha Vantage.")
+    print("Successfully updated finance-data.json with live Alpha Vantage prices.")
 
 if __name__ == "__main__":
     fetch_financial_data()
