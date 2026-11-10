@@ -401,9 +401,9 @@
             </button>
         </div>
         
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <div>
             <span style="font-size: 0.78rem; color: var(--subtext-color);" id="lastUpdatedText">
-                Data updated daily at market close. <button onclick="triggerManualUpdate()" style="background: none; border: none; color: var(--link-color); cursor: pointer; font-size: 0.78rem; text-decoration: underline; padding: 0;">Refresh Now 🔄</button>
+                Financial data updates automatically once per day at market close.
             </span>
         </div>
     </div>
@@ -489,8 +489,7 @@
                     tbody.innerHTML = "";
 
                     if (data.last_updated) {
-                        const statusEl = document.getElementById('lastUpdatedText');
-                        statusEl.innerHTML = `Data refreshed: ${data.last_updated}. <button onclick="triggerManualUpdate()" style="background: none; border: none; color: var(--link-color); cursor: pointer; font-size: 0.78rem; text-decoration: underline; padding: 0;">Refresh Now 🔄</button>`;
+                        document.getElementById('lastUpdatedText').innerText = `Financial data updated daily at market close. (Last synced: ${data.last_updated})`;
                     }
 
                     data.stocks.forEach(stock => {
@@ -520,47 +519,6 @@
                     document.getElementById('lastUpdatedText').innerText = "Failed to load market data file.";
                 });
         });
-
-        function triggerManualUpdate() {
-            const statusEl = document.getElementById('lastUpdatedText');
-            statusEl.innerHTML = "Triggering manual refresh... Please wait ~30 seconds.";
-
-            const repoOwner = "onealjb93";
-            const repoName = "onealjb93.github.io";
-            
-            let token = localStorage.getItem('gh_pat');
-            if (!token) {
-                token = prompt("Enter your GitHub Personal Access Token (PAT) with 'repo' or 'actions:write' scope:");
-                if (token) {
-                    localStorage.setItem('gh_pat', token);
-                } else {
-                    statusEl.innerHTML = `Data refreshed. <button onclick="triggerManualUpdate()" style="background: none; border: none; color: var(--link-color); cursor: pointer; font-size: 0.78rem; text-decoration: underline; padding: 0;">Refresh Now 🔄</button>`;
-                    return;
-                }
-            }
-
-            fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/actions/workflows/update-market.yml/dispatches`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/vnd.github+json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ ref: 'main' })
-            })
-            .then(response => {
-                if (response.ok) {
-                    statusEl.innerHTML = "Refresh triggered! Data updating in ~30s. Reload page shortly.";
-                } else {
-                    statusEl.innerHTML = "Failed to trigger refresh. Check PAT permissions.";
-                    localStorage.removeItem('gh_pat');
-                }
-            })
-            .catch(err => {
-                console.error("API error:", err);
-                statusEl.innerHTML = "Error connecting to GitHub API.";
-            });
-        }
 
         // Collapsible Explainer Toggle
         function toggleExplainer(cardId, arrowId) {
