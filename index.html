@@ -644,13 +644,102 @@
         <iframe style="border-radius:12px; width:100%; height:352px;" src="https://open.spotify.com/embed/playlist/5Y0IoAjVwXBLNAOiOdnqPw?utm_source=generator&theme=0" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
     </div>
 
-    <h2>Support / Donate</h2>
-    <p>If you'd like to support my open-source projects, sustainable technology research, or commission a new project, donations and requests are warmly welcomed in Bitcoin:</p>
-    <div class="donate-card">
-        <p style="margin-bottom: 6px; font-weight: 600;">Bitcoin Address:</p>
-        <div class="btc-address-box" id="btc-wallet-address">bc1qyourbitcoinaddressplaceredhereplaceholder</div>
-        <button class="copy-btn" onclick="copyBtcAddress()">Copy Address</button>
+   <h2>Support / Donate</h2>
+<p>If you'd like to support my open-source projects, sustainable technology research, or commission a new project, donations and requests are warmly welcomed in Bitcoin:</p>
+
+<div class="donate-card">
+    <p style="margin-bottom: 6px; font-weight: 600;">Bitcoin Address:</p>
+    <div class="btc-address-box" id="btc-wallet-address">bc1qyourbitcoinaddressplaceredhereplaceholder</div>
+    <button class="copy-btn" onclick="copyBtcAddress()">Copy Address</button>
+</div>
+
+<!-- Verified On-Chain Supporters Table -->
+<div class="card" style="margin-top: 20px; padding: 24px;">
+    <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 1.05rem;">Verified On-Chain Supporters</h3>
+    <p style="font-size: 0.85rem; margin-bottom: 16px; color: var(--subtext-color);">This table queries the Bitcoin blockchain automatically. Entries appear here only when a verified transaction hits your address.</p>
+    
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); text-align: left;">
+                    <th style="padding: 8px; color: var(--subtext-color);">Time / Date</th>
+                    <th style="padding: 8px; color: var(--subtext-color);">Amount (BTC)</th>
+                    <th style="padding: 8px; color: var(--subtext-color);">Transaction Hash (TxID)</th>
+                </tr>
+            </thead>
+            <tbody id="blockchain-donors-body">
+                <tr>
+                    <td colspan="3" style="padding: 16px; text-align: center; color: var(--subtext-color); font-style: italic;">Fetching recent transactions from blockchain...</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
+</div>
+
+<script>
+    // Automatically fetch real transactions sent to your Bitcoin address via Mempool.space API
+    const btcAddress = "bc1qyourbitcoinaddressplaceredhereplaceholder"; // Replace with your actual address
+
+    function fetchOnChainDonations() {
+        fetch(`https://mempool.space/api/address/${btcAddress}/txs`)
+            .then(response => response.json())
+            .then(txs => {
+                const tbody = document.getElementById('blockchain-donors-body');
+                if (!txs || txs.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="3" style="padding: 16px; text-align: center; color: var(--subtext-color); font-style: italic;">No donations recorded on-chain yet.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                let incomingTxs = [];
+                txs.forEach(tx => {
+                    let totalReceivedSatoshis = 0;
+                    tx.vout.forEach(out => {
+                        if (out.scriptpubkey_address === btcAddress) {
+                            totalReceivedSatoshis += out.value;
+                        }
+                    });
+                    if (totalReceivedSatoshis > 0) {
+                        incomingTxs.push({
+                            txid: tx.txid,
+                            amountBtc: (totalReceivedSatoshis / 100000000).toFixed(8),
+                            time: tx.status && tx.status.block_time ? new Date(tx.status.block_time * 1000).toLocaleDateString() : 'Unconfirmed / Recent'
+                        });
+                    }
+                });
+
+                if (incomingTxs.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="3" style="padding: 16px; text-align: center; color: var(--subtext-color); font-style: italic;">No donations recorded on-chain yet.</td></tr>`;
+                    return;
+                }
+
+                // Display up to 5 recent incoming donations
+                incomingTxs.slice(0, 5).forEach(donation => {
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = '1px solid var(--border-color)';
+                    const shortTxid = donation.txid.substring(0, 10) + '...' + donation.txid.substring(donation.txid.length - 8);
+                    tr.innerHTML = `
+                        <td style="padding: 10px 8px; color: var(--text-color);">${donation.time}</td>
+                        <td style="padding: 10px 8px; font-weight: 600; color: var(--badge-text);">+${donation.amountBtc} BTC</td>
+                        <td style="padding: 10px 8px; font-family: monospace; font-size: 0.82rem;"><a href="https://mempool.space/tx/${donation.txid}" target="_blank" style="color: var(--link-color);">[${shortTxid}]</a></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            })
+            .catch(error => {
+                console.error("Error fetching blockchain data:", error);
+                const tbody = document.getElementById('blockchain-donors-body');
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="3" style="padding: 16px; text-align: center; color: var(--subtext-color); font-style: italic;">Unable to load live transactions.</td></tr>`;
+                }
+            });
+    }
+
+    // Call on page load
+    window.addEventListener('DOMContentLoaded', () => {
+        fetchOnChainDonations();
+    });
+</script>
 
     <h2>Quotes</h2>
     <div class="quote-card">
