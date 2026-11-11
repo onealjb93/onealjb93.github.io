@@ -50,6 +50,27 @@ function initThemeToggle() {
     }
 }
 
+function initNavDropdown() {
+    var toggle = document.getElementById('nav-toggle');
+    var menu = document.getElementById('nav-menu');
+    if (!toggle || !menu) return;
+    function closeMenu() {
+        menu.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+    }
+    toggle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = menu.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', function (e) {
+        if (!menu.contains(e.target)) closeMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { closeMenu(); toggle.focus(); }
+    });
+}
+
 async function loadFinancialData() {
     try {
         const response = await fetch('finance-data.json');
@@ -73,5 +94,6 @@ async function loadFinancialData() {
 
 document.addEventListener('DOMContentLoaded', function () {
     initThemeToggle();
+    initNavDropdown();
     loadFinancialData();
 });
