@@ -39,20 +39,21 @@
 
     <nav class="site-nav" aria-label="Site pages">
         <a class="site-brand" href="/" aria-label="Johnny O'Neal — home">
-            <img class="site-brand-logo" src="JBO%20Logo.%20green%20background.png" alt="Johnny O'Neal logo" width="32" height="32">
+            <img class="site-brand-logo" src="jbo-logo.svg" alt="Johnny O'Neal logo" width="32" height="32">
         </a>
         <div class="site-nav-right">
             <div class="site-nav-menu">
                 <button class="site-nav-toggle" id="nav-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="nav-menu">Explore ▾</button>
                 <div class="site-nav-dropdown" id="nav-menu" role="menu">
                     <a href="/" role="menuitem">Home</a>
-                    <a href="finance.html" role="menuitem">Finance</a>
                     <a href="health.html" role="menuitem">Health</a>
-                    <a href="sustainability.html" role="menuitem">Sustainability</a>
-                    <a href="bitcoin.html" role="menuitem">Bitcoin</a>
                     <a href="recipes.html" role="menuitem">Cooking</a>
-                    <a href="messageboard.html" role="menuitem">Message Board</a>
+                    <a href="finance.html" role="menuitem">Finance</a>
+                    <a href="bitcoin.html" role="menuitem">Bitcoin</a>
+                    <a href="sustainability.html" role="menuitem">Sustainability</a>
+                    <a href="media.html" role="menuitem">Media</a>
                     <a href="games.html" role="menuitem">Games</a>
+                    <a href="messageboard.html" role="menuitem">Message Board</a>
                 </div>
             </div>
             <div class="theme-switch-wrapper">
@@ -745,27 +746,9 @@
         <h2>Investment Scoreboard</h2>
         <p>How does each company stand against each investor's framework? Toggle investors to combine them; the score is the % of selected investors' rules the company passes. A dash (&mdash;) means the rule could not be tested for that company.</p>
                     <div class="chip-row" id="scoreboardInvestors" role="group" aria-label="Investors to score against">
-                <button class="filter-pill" data-investor="simons" disabled title="Not scored from this data">Simons</button>
-                <button class="filter-pill" data-investor="thiel" disabled title="Not scored from this data">Thiel</button>
-                <button class="filter-pill" data-investor="ives" disabled title="Not scored from this data">Ives</button>
-                <button class="filter-pill active" data-investor="druckenmiller">Druckenmiller</button>
-                <button class="filter-pill active" data-investor="buffett">Buffett</button>
-                <button class="filter-pill" data-investor="soros" disabled title="Not scored from this data">Soros</button>
-                <button class="filter-pill" data-investor="dalio" disabled title="Not scored from this data">Dalio</button>
-                <button class="filter-pill active" data-investor="tepper">Tepper</button>
-                <button class="filter-pill" data-investor="klarman" disabled title="Not scored from this data">Klarman</button>
-                <button class="filter-pill active" data-investor="alden">Alden</button>
-                <button class="filter-pill" data-investor="visser" disabled title="Not scored from this data">Visser</button>
-                <button class="filter-pill active" data-investor="alfred">Alfred</button>
-                <button class="filter-pill active" data-investor="oshaughnessy">O&rsquo;Shaughnessy</button>
-                <button class="filter-pill active" data-investor="baker">Baker</button>
-                <button class="filter-pill" data-investor="lavish" disabled title="Not scored from this data">Lavish</button>
-                <button class="filter-pill" data-investor="sacks" disabled title="Not scored from this data">Sacks</button>
-                <button class="filter-pill" data-investor="andreessen" disabled title="Not scored from this data">Andreessen</button>
-                <button class="filter-pill" data-investor="marks" disabled title="Not scored from this data">Marks</button>
-                <button class="filter-pill active" data-investor="lynch">Lynch</button>
+                        <!-- Investor chips are rendered from SCOREBOARD_RULES below: only investors with a scored leg appear. -->
             </div>
-        <p style="font-size: 0.85rem; color: var(--subtext-color);">Eleven investors are not scored from this data &mdash; their frameworks cannot be tested from the table&rsquo;s fields. Alfred&rsquo;s rule has no pass/fail line and always shows as &mdash;. A rule that can&rsquo;t be measured from the table&rsquo;s data is labelled &ldquo;Principle&rdquo; in each investor&rsquo;s card, never scored by proxy.</p>
+        <p id="scoreboardNotScoredNote" style="font-size: 0.85rem; color: var(--subtext-color);">Eleven investors are not scored from this data &mdash; their frameworks cannot be tested from the table&rsquo;s fields. Alfred&rsquo;s rule has no pass/fail line and always shows as &mdash;. A rule that can&rsquo;t be measured from the table&rsquo;s data is labelled &ldquo;Principle&rdquo; in each investor&rsquo;s card, never scored by proxy.</p>
         <div class="chip-row">
             <div class="selector-group" style="max-width: 280px;">
                 <label for="scoreboardSort">Sort</label>
@@ -993,8 +976,40 @@
                 return null;
             } },
         };
-        const scoreboardSelected = new Set(['druckenmiller', 'buffett', 'tepper', 'alden', 'alfred', 'oshaughnessy', 'baker', 'lynch']);
+        const scoreboardSelected = new Set(Object.keys(SCOREBOARD_RULES)); // every scored investor starts selected
         let scoreboardSort = 'score-desc';
+
+        // Scoreboard investor chips are rendered from SCOREBOARD_RULES itself:
+        // only investors with at least one scored leg get a chip — and a column
+        // in the table, since renderScoreboard() builds its columns from the
+        // same keys. Add a scored leg to an investor's rule and their chip and
+        // column appear automatically; remove the last leg and both disappear.
+        (function renderScoreboardInvestors() {
+            const row = document.getElementById('scoreboardInvestors');
+            if (!row) return;
+            Object.keys(SCOREBOARD_RULES).forEach(id => {
+                const btn = document.createElement('button');
+                btn.className = 'filter-pill' + (scoreboardSelected.has(id) ? ' active' : '');
+                btn.dataset.investor = id;
+                btn.textContent = SCOREBOARD_RULES[id].label;
+                btn.addEventListener('click', () => {
+                    if (scoreboardSelected.has(id)) { scoreboardSelected.delete(id); btn.classList.remove('active'); }
+                    else { scoreboardSelected.add(id); btn.classList.add('active'); }
+                    renderScoreboard();
+                });
+                row.appendChild(btn);
+            });
+            // Keep the "not scored" note accurate: its count is the investors
+            // on this page with no scored leg (investor cards minus scored rules).
+            // The sentence stays the same; only the number word is computed.
+            const note = document.getElementById('scoreboardNotScoredNote');
+            const total = document.querySelectorAll('.frameworks-section .explainer-wrapper').length;
+            const words = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty'];
+            const notScored = total - Object.keys(SCOREBOARD_RULES).length;
+            if (note && total > 0 && notScored >= 0 && notScored < words.length) {
+                note.textContent = words[notScored] + ' investors are not scored from this data \u2014 their frameworks cannot be tested from the table\u2019s fields. Alfred\u2019s rule has no pass/fail line and always shows as \u2014. A rule that can\u2019t be measured from the table\u2019s data is labelled \u201CPrinciple\u201D in each investor\u2019s card, never scored by proxy.';
+            }
+        })();
 
         function renderScoreboard() {
             const head = document.getElementById('scoreboardHead');
@@ -1047,16 +1062,8 @@
             });
         });
 
-        // Scoreboard investor picker + sort (script sits at end of body, so the
-        // controls already exist when this runs).
-        document.querySelectorAll('#scoreboardInvestors .filter-pill:not(:disabled)').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = btn.dataset.investor;
-                if (scoreboardSelected.has(id)) { scoreboardSelected.delete(id); btn.classList.remove('active'); }
-                else { scoreboardSelected.add(id); btn.classList.add('active'); }
-                renderScoreboard();
-            });
-        });
+        // Scoreboard sort (the investor picker listeners are attached when
+        // the chips are rendered from SCOREBOARD_RULES above).
         document.getElementById('scoreboardSort').addEventListener('change', e => {
             scoreboardSort = e.target.value;
             renderScoreboard();
