@@ -112,9 +112,15 @@ document.addEventListener('DOMContentLoaded', function () {
    the visitor prefers reduced motion. The header logo's landing spot is
    measured at runtime (its at-rest position at the top of the page), so
    it lands exactly on the header logo in both themes and on mobile. The green
-   overlay fades fast (gone by ~25% of progress, eased) while the logo
-   keeps shrinking across the full range and stays fully opaque, so the
-   page shows through almost as soon as scrolling starts. */
+   overlay fades across most of the morph (gone by ~75% of progress,
+   ease-out cubic) while the logo keeps shrinking across the full range
+   and stays fully opaque, so the page shows through almost as soon as
+   scrolling starts but the green melts away instead of snapping off.
+   Motion model: scroll input accumulates into a *target* progress; a
+   continuous rAF loop eases the rendered progress toward it with
+   frame-rate-independent damping (the Lenis / GSAP-scrub pattern), so
+   stepped mouse-wheel notches become one smooth glide and the logo and
+   the green move as a single gesture on one master progress. */
 function initLogoIntro() {
     var intro = document.getElementById('logo-intro');
     if (!intro) return;
@@ -131,11 +137,14 @@ function initLogoIntro() {
     var brand = document.querySelector('.site-brand-logo');
     if (!logo || !bg || !brand) return;
     document.documentElement.classList.add('logo-intro-on');
-    var range = 0, start = null, target = null, ticking = false;
-    var vy = 0;       // virtual scroll px accumulated from input, 0..range
+    var range = 0, start = null, target = null;
+    var vyTarget = 0; // virtual scroll px accumulated from input, 0..range
+    var vy = 0;       // rendered progress: eased toward vyTarget every frame
     var done = false; // one-shot: once landed, the intro never re-engages
+    var rafId = null, lastTs = null;
     function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
     function smooth(t) { return t * t * (3 - 2 * t); }
+    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
     function measure() {
         range = Math.max(window.innerHeight * 0.9, 320);
         // Start = the logo's centered position, read from the overlay's
@@ -156,7 +165,6 @@ function initLogoIntro() {
         apply();
     }
     function apply() {
-        ticking = false;
         if (!start || !target) return;
         var p = clamp01(vy / range);
         var e = smooth(p);
@@ -164,12 +172,51 @@ function initLogoIntro() {
         var dx = (target.cx - start.cx) * e;
         var dy = (target.cy - start.cy) * e;
         logo.style.transform = 'translate3d(calc(-50% + ' + dx.toFixed(1) + 'px), calc(-50% + ' + dy.toFixed(1) + 'px), 0) scale(' + scale.toFixed(4) + ')';
-        // Green overlay fades fast and is decoupled from the logo: gone by
-        // ~25% of progress (eased). The logo keeps shrinking across the
-        // full range and stays fully opaque throughout.
-        var bgOpacity = 1 - smooth(clamp01(p / 0.25));
+        // Green overlay fades across most of the morph, phased with the
+        // logo on the same master progress: ease-out cubic over the first
+        // ~75% of progress. It starts fading immediately (at p = 0.1 the
+        // green is already ~65%, so the page shows through right away),
+        // but the tail is gentle — ease-out cubic's slope is 0 at the end,
+        // so the last of the green melts away with no hard edge at zero.
+        // The old 25% window made one wheel notch drop the green from 1 to
+        // ~0.5 in a single frame while the logo had barely moved: the pop
+        // the user called glitchy.
+        var bgOpacity = 1 - easeOutCubic(clamp01(p / 0.75));
         bg.style.opacity = bgOpacity.toFixed(3);
-        intro.style.pointerEvents = bgOpacity <= 0 ? 'none' : 'auto';
+        intro.style.pointerEvents = bgOpacity <= 0.02 ? 'none' : 'auto';
+    }
+    // Damped render loop (Lenis / GSAP-scrub pattern): input sets the
+    // target, the loop eases the rendered value toward it every frame,
+    // scaled by frame delta so the feel is identical at 30/60/120 Hz.
+    // lambda ~9/s: ~110 ms time constant, settles in ~250 ms — the
+    // momentum-settle that makes stepped wheel notches read as one glide.
+    function tick(ts) {
+        rafId = null;
+        if (done) return;
+        if (lastTs === null) lastTs = ts;
+        var dt = Math.max(0, Math.min(64, ts - lastTs));
+        lastTs = ts;
+        var k = 1 - Math.exp(-dt * 0.009);
+        vy += (vyTarget - vy) * k;
+        if (vyTarget >= range && range - vy < 0.5) {
+            vy = range;
+            apply();
+            finish();
+            return;
+        }
+        apply();
+        if (Math.abs(vyTarget - vy) > 0.05) {
+            rafId = requestAnimationFrame(tick);
+        } else {
+            vy = vyTarget;
+            apply();
+        }
+    }
+    function ensureLoop() {
+        if (rafId === null && !done) {
+            lastTs = null;
+            rafId = requestAnimationFrame(tick);
+        }
     }
     function setLocked(on) {
         document.documentElement.classList.toggle('logo-intro-locked', on);
@@ -184,14 +231,10 @@ function initLogoIntro() {
         intro.style.pointerEvents = 'none';
         detach();
     }
-    function queue() {
-        if (!ticking) { ticking = true; requestAnimationFrame(apply); }
-    }
     function advance(d) {
         if (done) return;
-        vy = Math.max(0, Math.min(range, vy + d));
-        queue();
-        if (vy >= range) finish();
+        vyTarget = Math.max(0, Math.min(range, vyTarget + d));
+        ensureLoop();
     }
     function normDelta(e) {
         var d = e.deltaY || 0;
@@ -246,6 +289,7 @@ function initLogoIntro() {
     }
     function onResize() { measure(); }
     function detach() {
+        if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
         window.removeEventListener('wheel', onWheel);
         window.removeEventListener('touchstart', onTouchStart);
         window.removeEventListener('touchmove', onTouchMove);
