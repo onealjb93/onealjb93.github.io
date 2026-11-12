@@ -106,6 +106,8 @@
         @media (max-width: 700px) {
             #lr-canvas { height: 420px; }
             .lr-status { margin-left: 0; width: 100%; }
+            /* Big tap targets on phones: Draw / Move / zoom must be easy to hit. */
+            .lr-btn { padding: 12px 18px; min-height: 44px; }
         }
     </style>
     <!-- Umami Analytics Script -->
@@ -170,6 +172,7 @@
 
         <div class="lr-toolbar" role="toolbar" aria-label="Line Rider tools">
             <button class="lr-btn active" id="lr-tool-draw" type="button">✏️ Draw</button>
+            <button class="lr-btn" id="lr-tool-move" type="button">✋ Move</button>
             <button class="lr-btn" id="lr-tool-erase" type="button">🧽 Erase</button>
             <button class="lr-btn" id="lr-clear" type="button">Clear all</button>
             <button class="lr-btn" id="lr-default" type="button">Default track</button>
@@ -182,16 +185,16 @@
             <span class="lr-zoom-label" id="lr-zoom-label" aria-live="polite">100%</span>
         </div>
 
-        <canvas id="lr-canvas" aria-label="Line Rider game canvas. Draw a track with your mouse or finger, then press Play."></canvas>
+        <canvas id="lr-canvas" aria-label="Line Rider game canvas. Draw a track with your mouse or finger, switch to Move to slide the view without drawing, then press Play."></canvas>
 
-        <p class="lr-help">Tip: zoom out (−, scroll, or pinch) to see the whole track, or press "Fit track". Drag on the canvas to draw track — downhill for speed, ramps for air. Press Play (or Space) to ride, Pause (or Space) to stop and draw more, Restart (or R) to go back to the start. While airborne, ← and → spin him — land on your wheels, not your head. Works with mouse or touch.</p>
+        <p class="lr-help">Tip: tap ✋ Move and drag to slide the view around without drawing — the view stays exactly where you leave it. Zoom out (−, scroll, or pinch) to see the whole track, or press "Fit track". Drag on the canvas to draw track — downhill for speed, ramps for air. Press Play (or Space) to ride, Pause (or Space) to stop and draw more, Restart (or R) to go back to the start. While airborne, ← and → spin him — land on your wheels, not your head. Works with mouse or touch.</p>
     </section>
 
     <section class="lr-howto" aria-labelledby="how-to-play-heading">
         <h2 id="how-to-play-heading">How to play</h2>
         <ol>
             <li><strong>Draw a track</strong> — drag on the canvas with your mouse or finger. Downhill slopes build speed; ramps launch him into the air.</li>
-            <li><strong>See the whole track</strong> — zoom out with the − button, scroll on the canvas, or pinch on your phone. "Fit track" shows the entire track at once.</li>
+            <li><strong>Move the view</strong> — tap ✋ Move, then drag to slide the window around without drawing anything. Zoom with the − / + buttons, scroll on the canvas, or pinch on your phone; "Fit track" shows the entire track at once. The view stays exactly where you leave it — it never snaps back.</li>
             <li><strong>Press Play</strong> (or Space) — the rider sets off from the flag. While he's airborne, ← and → spin him. Land on your wheels, not your head.</li>
             <li><strong>Don't crash</strong> — if his head hits a line, he's done. Pause (Space) to draw more track, then Play to keep going.</li>
             <li><strong>Tools</strong> — Erase wipes lines, Clear all starts fresh, Default track brings back the starter track, Restart (R) sends him back to the flag. Your best distance is saved on your device.</li>
@@ -229,17 +232,20 @@
         var BEST_KEY = 'lr-best-m';
 
         var lines = [];         // array of polylines: [{x, y}, ...]
-        var tool = 'draw';      // 'draw' | 'erase'
+        var tool = 'draw';      // 'draw' | 'move' | 'erase' — Move pans the view, draws nothing
         var mode = 'edit';      // 'edit' | 'playing' | 'paused' | 'crashed'
         var rider = null;       // {x, y, vx, vy, angle, omega, state, maxX, startX, stuckT}
         var cam = { x: 0, y: 0 };
-        var camTarget = null;   // while drawing: follow the pointer
+        // The camera NEVER moves on its own while editing: zoom and pan persist
+        // until the user changes them. It only follows the rider while playing.
         var zoom = 1;           // view scale: 1 = actual size, smaller = zoomed out
         var ZOOM_MIN = 0.1, ZOOM_MAX = 3;
         function viewW() { return CW / zoom; }   // visible world width
         function viewH() { return CH / zoom; }   // visible world height
         var keys = {};
         var drawing = false;
+        var panning = false;    // one-finger drag in Move mode pans the view
+        var panLast = null;     // last pointer position while panning
         var curLine = null;
         var lastPt = null;
         var crashMsg = '';
@@ -251,6 +257,7 @@
         var elBest = document.getElementById('lr-best');
         var elStatus = document.getElementById('lr-status');
         var btnDraw = document.getElementById('lr-tool-draw');
+        var btnMove = document.getElementById('lr-tool-move');
         var btnErase = document.getElementById('lr-tool-erase');
         var btnClear = document.getElementById('lr-clear');
         var btnDefault = document.getElementById('lr-default');
@@ -313,7 +320,6 @@
                       state: 'riding', maxX: p0.x, startX: p0.x, stuckT: 0 };
             cam.x = p0.x - viewW() * 0.3;
             cam.y = p0.y - viewH() * 0.55;
-            camTarget = null;
             crashMsg = '';
         }
 
@@ -575,7 +581,9 @@
         }
         function updateUI() {
             btnDraw.classList.toggle('active', tool === 'draw');
+            btnMove.classList.toggle('active', tool === 'move');
             btnErase.classList.toggle('active', tool === 'erase');
+            canvas.style.cursor = tool === 'move' ? 'grab' : (tool === 'erase' ? 'cell' : 'crosshair');
             btnPlay.disabled = (mode === 'playing') || !lines.length;
             btnPause.disabled = mode !== 'playing';
             btnRestart.disabled = !lines.length;
@@ -612,10 +620,14 @@
             updateUI();
         }
         function setTool(t) {
+            // Switching tools stops any line in progress, so a stray drag
+            // after tapping Move can never draw.
+            drawing = false; panning = false; curLine = null;
             tool = t;
             updateUI();
         }
         btnDraw.addEventListener('click', function () { setTool('draw'); this.blur(); });
+        btnMove.addEventListener('click', function () { setTool('move'); this.blur(); });
         btnErase.addEventListener('click', function () { setTool('erase'); this.blur(); });
         btnClear.addEventListener('click', function () { clearAll(); this.blur(); });
         btnDefault.addEventListener('click', function () { defaultTrack(); this.blur(); });
@@ -698,16 +710,21 @@
             if (pointers.size === 2) {
                 // Second finger down: stop drawing and start a pinch zoom.
                 if (curLine && curLine.length < 2) { lines.splice(lines.indexOf(curLine), 1); }
-                drawing = false; curLine = null; camTarget = null;
+                drawing = false; panning = false; curLine = null;
                 var pp = Array.from(pointers.values());
                 pinch = { d0: Math.hypot(pp[0].x - pp[1].x, pp[0].y - pp[1].y), z0: zoom,
                          mx: (pp[0].x + pp[1].x) / 2, my: (pp[0].y + pp[1].y) / 2 };
                 return;
             }
+            if (tool === 'move') {
+                // Move mode: one finger drags the view itself — draws nothing.
+                panning = true;
+                panLast = { x: e.clientX, y: e.clientY };
+                return;
+            }
             var w = toWorld(e);
             drawing = true;
             lastPt = w;
-            camTarget = { x: w.x - viewW() / 2, y: w.y - viewH() / 2 };
             if (tool === 'draw') { curLine = [w]; lines.push(curLine); }
             else { eraseAt(w); }
             updateUI();
@@ -724,10 +741,17 @@
                 e.preventDefault();
                 return;
             }
+            if (panning && pointers.has(e.pointerId)) {
+                // Slide the window under the finger; zoom stays as it is.
+                cam.x -= (e.clientX - panLast.x) / zoom;
+                cam.y -= (e.clientY - panLast.y) / zoom;
+                panLast = { x: e.clientX, y: e.clientY };
+                e.preventDefault();
+                return;
+            }
             if (!drawing) return;
             e.preventDefault();
             var w = toWorld(e);
-            camTarget = { x: w.x - viewW() / 2, y: w.y - viewH() / 2 };
             if (tool === 'draw') {
                 if (Math.hypot(w.x - lastPt.x, w.y - lastPt.y) > 5) { curLine.push(w); lastPt = w; }
             } else {
@@ -737,7 +761,8 @@
         function endPointer(e) {
             if (e && e.pointerId !== undefined) pointers.delete(e.pointerId);
             if (pointers.size < 2) pinch = null;
-            drawing = false; curLine = null; camTarget = null;
+            // Releasing a touch changes nothing about the view: no snap-back.
+            drawing = false; panning = false; curLine = null;
         }
         canvas.addEventListener('pointerup', endPointer);
         canvas.addEventListener('pointercancel', endPointer);
@@ -768,14 +793,15 @@
                 var h = dt / steps;
                 for (var s = 0; s < steps && mode === 'playing'; s++) stepRider(h);
             }
-            // camera: follow the rider; while drawing, follow the pointer
-            var tx, ty;
-            if (camTarget) { tx = camTarget.x; ty = camTarget.y; }
-            else if (rider) { tx = rider.x - viewW() * 0.32; ty = rider.y - viewH() * 0.55; }
-            else { tx = -viewW() * 0.3; ty = -viewH() * 0.55; }
-            var k = Math.min(1, 4 * dt);
-            cam.x += (tx - cam.x) * k;
-            cam.y += (ty - cam.y) * k;
+            // camera: follow the rider ONLY while playing (at the user's zoom).
+            // While editing, paused, or crashed, the view stays exactly where
+            // the user put it — releasing a touch never resets it.
+            if (mode === 'playing' && rider) {
+                var tx = rider.x - viewW() * 0.32, ty = rider.y - viewH() * 0.55;
+                var k = Math.min(1, 4 * dt);
+                cam.x += (tx - cam.x) * k;
+                cam.y += (ty - cam.y) * k;
+            }
             draw();
             updateHUD(now);
             requestAnimationFrame(loop);
