@@ -94,6 +94,15 @@
             font-size: 0.95rem;
             margin-top: 12px;
         }
+        .lr-zoom-label {
+            align-self: center;
+            color: var(--subtext-color);
+            font-size: 0.95rem;
+            min-width: 52px;
+            text-align: center;
+        }
+        .lr-howto ol { margin: 0; padding-left: 1.25rem; }
+        .lr-howto li { margin-bottom: 6px; }
         @media (max-width: 700px) {
             #lr-canvas { height: 420px; }
             .lr-status { margin-left: 0; width: 100%; }
@@ -167,11 +176,26 @@
             <button class="lr-btn" id="lr-play" type="button">▶ Play</button>
             <button class="lr-btn" id="lr-pause" type="button" disabled>⏸ Pause</button>
             <button class="lr-btn" id="lr-restart" type="button">↺ Restart</button>
+            <button class="lr-btn" id="lr-zoom-out" type="button">− Zoom out</button>
+            <button class="lr-btn" id="lr-zoom-in" type="button">+ Zoom in</button>
+            <button class="lr-btn" id="lr-zoom-fit" type="button">⤢ Fit track</button>
+            <span class="lr-zoom-label" id="lr-zoom-label" aria-live="polite">100%</span>
         </div>
 
         <canvas id="lr-canvas" aria-label="Line Rider game canvas. Draw a track with your mouse or finger, then press Play."></canvas>
 
-        <p class="lr-help">How to play: drag on the canvas to draw track — downhill for speed, ramps for air. Press Play (or Space) to ride, Pause (or Space) to stop and draw more, Restart (or R) to go back to the start. While airborne, ← and → spin him — land on your wheels, not your head. Works with mouse or touch.</p>
+        <p class="lr-help">Tip: zoom out (−, scroll, or pinch) to see the whole track, or press "Fit track". Drag on the canvas to draw track — downhill for speed, ramps for air. Press Play (or Space) to ride, Pause (or Space) to stop and draw more, Restart (or R) to go back to the start. While airborne, ← and → spin him — land on your wheels, not your head. Works with mouse or touch.</p>
+    </section>
+
+    <section class="lr-howto" aria-labelledby="how-to-play-heading">
+        <h2 id="how-to-play-heading">How to play</h2>
+        <ol>
+            <li><strong>Draw a track</strong> — drag on the canvas with your mouse or finger. Downhill slopes build speed; ramps launch him into the air.</li>
+            <li><strong>See the whole track</strong> — zoom out with the − button, scroll on the canvas, or pinch on your phone. "Fit track" shows the entire track at once.</li>
+            <li><strong>Press Play</strong> (or Space) — the rider sets off from the flag. While he's airborne, ← and → spin him. Land on your wheels, not your head.</li>
+            <li><strong>Don't crash</strong> — if his head hits a line, he's done. Pause (Space) to draw more track, then Play to keep going.</li>
+            <li><strong>Tools</strong> — Erase wipes lines, Clear all starts fresh, Default track brings back the starter track, Restart (R) sends him back to the flag. Your best distance is saved on your device.</li>
+        </ol>
     </section>
 
     <section aria-labelledby="more-games-heading">
@@ -210,6 +234,10 @@
         var rider = null;       // {x, y, vx, vy, angle, omega, state, maxX, startX, stuckT}
         var cam = { x: 0, y: 0 };
         var camTarget = null;   // while drawing: follow the pointer
+        var zoom = 1;           // view scale: 1 = actual size, smaller = zoomed out
+        var ZOOM_MIN = 0.1, ZOOM_MAX = 3;
+        function viewW() { return CW / zoom; }   // visible world width
+        function viewH() { return CH / zoom; }   // visible world height
         var keys = {};
         var drawing = false;
         var curLine = null;
@@ -283,8 +311,8 @@
             var a = Math.atan2(p1.y - p0.y, p1.x - p0.x);
             rider = { x: p0.x, y: p0.y, vx: 0, vy: 0, angle: a, omega: 0,
                       state: 'riding', maxX: p0.x, startX: p0.x, stuckT: 0 };
-            cam.x = p0.x - CW * 0.3;
-            cam.y = p0.y - CH * 0.55;
+            cam.x = p0.x - viewW() * 0.3;
+            cam.y = p0.y - viewH() * 0.55;
             camTarget = null;
             crashMsg = '';
         }
@@ -451,44 +479,49 @@
 
         /* ---------- drawing the scene ---------- */
         function draw() {
+            // Screen-space background first, then the world transform (zoom +
+            // camera), so all scene drawing uses world coordinates directly.
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
             ctx.fillStyle = colors.bg;
             ctx.fillRect(0, 0, CW, CH);
-            // faint dot grid (helps when drawing)
+            ctx.setTransform(DPR * zoom, 0, 0, DPR * zoom, -cam.x * DPR * zoom, -cam.y * DPR * zoom);
+            // faint dot grid (helps when drawing); dot size stays ~2px on screen
             ctx.fillStyle = colors.grid;
             var step = 100;
+            var vw = viewW(), vh = viewH();
             var gx0 = Math.floor(cam.x / step) * step, gy0 = Math.floor(cam.y / step) * step;
-            for (var gx = gx0; gx < cam.x + CW; gx += step) {
-                for (var gy = gy0; gy < cam.y + CH; gy += step) {
-                    ctx.fillRect(gx - cam.x, gy - cam.y, 2, 2);
+            for (var gx = gx0; gx < cam.x + vw; gx += step) {
+                for (var gy = gy0; gy < cam.y + vh; gy += step) {
+                    ctx.fillRect(gx, gy, 2 / zoom, 2 / zoom);
                 }
             }
-            // track lines
+            // track lines (line width stays ~3px on screen at any zoom)
             ctx.strokeStyle = colors.text;
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 3 / zoom;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             for (var i = 0; i < lines.length; i++) {
                 var pts = lines[i];
                 if (pts.length < 2) continue;
                 ctx.beginPath();
-                ctx.moveTo(pts[0].x - cam.x, pts[0].y - cam.y);
-                for (var j = 1; j < pts.length; j++) ctx.lineTo(pts[j].x - cam.x, pts[j].y - cam.y);
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (var j = 1; j < pts.length; j++) ctx.lineTo(pts[j].x, pts[j].y);
                 ctx.stroke();
             }
             // start flag
             if (lines.length && lines[0].length) {
                 var s = lines[0][0];
                 ctx.strokeStyle = colors.accent;
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 2 / zoom;
                 ctx.beginPath();
-                ctx.moveTo(s.x - cam.x, s.y - cam.y);
-                ctx.lineTo(s.x - cam.x, s.y - cam.y - 26);
+                ctx.moveTo(s.x, s.y);
+                ctx.lineTo(s.x, s.y - 26);
                 ctx.stroke();
                 ctx.fillStyle = colors.accent;
                 ctx.beginPath();
-                ctx.moveTo(s.x - cam.x, s.y - cam.y - 26);
-                ctx.lineTo(s.x - cam.x + 14, s.y - cam.y - 21);
-                ctx.lineTo(s.x - cam.x, s.y - cam.y - 16);
+                ctx.moveTo(s.x, s.y - 26);
+                ctx.lineTo(s.x + 14, s.y - 21);
+                ctx.lineTo(s.x, s.y - 16);
                 ctx.closePath();
                 ctx.fill();
             }
@@ -496,14 +529,13 @@
         }
         function drawRider() {
             var r = rider;
-            var sx = r.x - cam.x, sy = r.y - cam.y;
             ctx.save();
-            ctx.translate(sx, sy);
+            ctx.translate(r.x, r.y);
             ctx.rotate(r.angle);
             ctx.lineCap = 'round';
             // sled
             ctx.strokeStyle = colors.accent;
-            ctx.lineWidth = 3.5;
+            ctx.lineWidth = 3.5 / zoom;
             ctx.beginPath();
             ctx.moveTo(-17, 2);
             ctx.quadraticCurveTo(0, 8, 17, 2);
@@ -511,7 +543,7 @@
             // stick figure: seated on the sled, facing +x
             ctx.strokeStyle = colors.text;
             ctx.fillStyle = colors.text;
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 3 / zoom;
             ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(2, -24); ctx.stroke();          // torso
             ctx.beginPath(); ctx.arc(3, -29, 5, 0, Math.PI * 2); ctx.fill();               // head
             ctx.beginPath(); ctx.moveTo(1, -21); ctx.lineTo(12, -13); ctx.stroke();         // arm to sled
@@ -569,12 +601,13 @@
             lines = [];
             rider = null;
             mode = 'edit';
-            cam.x = -CW * 0.3; cam.y = -CH * 0.55;
+            cam.x = -viewW() * 0.3; cam.y = -viewH() * 0.55;
             updateUI();
         }
         function defaultTrack() {
             starterTrack();
             resetRider();
+            fitTrack();   // show the whole fresh track
             mode = 'edit';
             updateUI();
         }
@@ -590,10 +623,56 @@
         btnPause.addEventListener('click', function () { pause(); this.blur(); });
         btnRestart.addEventListener('click', function () { restart(); this.blur(); });
 
+        /* ---------- zoom ---------- */
+        var elZoom = document.getElementById('lr-zoom-label');
+        var btnZoomOut = document.getElementById('lr-zoom-out');
+        var btnZoomIn = document.getElementById('lr-zoom-in');
+        var btnZoomFit = document.getElementById('lr-zoom-fit');
+        function updateZoomLabel() { elZoom.textContent = Math.round(zoom * 100) + '%'; }
+        // Zoom around a point on the canvas (cx, cy in canvas CSS px), so the
+        // world point under the cursor (or the canvas centre) stays put.
+        function setZoom(z, cx, cy) {
+            z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+            if (cx === undefined) { cx = CW / 2; cy = CH / 2; }
+            var wx = cx / zoom + cam.x, wy = cy / zoom + cam.y;
+            zoom = z;
+            cam.x = wx - cx / zoom;
+            cam.y = wy - cy / zoom;
+            updateZoomLabel();
+        }
+        // Fit the whole track in the canvas, centred.
+        function fitTrack() {
+            if (!lines.length) {
+                zoom = 1;
+                cam.x = -viewW() * 0.3; cam.y = -viewH() * 0.55;
+                updateZoomLabel();
+                return;
+            }
+            var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            lines.forEach(function (pts) { pts.forEach(function (p) {
+                if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
+                if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
+            }); });
+            var bw = Math.max(50, maxX - minX), bh = Math.max(50, maxY - minY);
+            zoom = Math.max(ZOOM_MIN, Math.min(1.2, Math.min(CW / (bw + 80), CH / (bh + 80))));
+            cam.x = minX - (viewW() - bw) / 2;
+            cam.y = minY - (viewH() - bh) / 2;
+            updateZoomLabel();
+        }
+        btnZoomOut.addEventListener('click', function () { setZoom(zoom / 1.25); this.blur(); });
+        btnZoomIn.addEventListener('click', function () { setZoom(zoom * 1.25); this.blur(); });
+        btnZoomFit.addEventListener('click', function () { fitTrack(); this.blur(); });
+        // Mouse-wheel zoom (desktop), centred on the pointer.
+        canvas.addEventListener('wheel', function (e) {
+            e.preventDefault();
+            var rect = canvas.getBoundingClientRect();
+            setZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX - rect.left, e.clientY - rect.top);
+        }, { passive: false });
+
         /* ---------- pointer drawing / erasing (mouse + touch) ---------- */
         function toWorld(e) {
             var rect = canvas.getBoundingClientRect();
-            return { x: e.clientX - rect.left + cam.x, y: e.clientY - rect.top + cam.y };
+            return { x: (e.clientX - rect.left) / zoom + cam.x, y: (e.clientY - rect.top) / zoom + cam.y };
         }
         function eraseAt(w) {
             var R = 20, out = [];
@@ -609,30 +688,57 @@
             if (!lines.length) { rider = null; if (mode !== 'edit') { mode = 'edit'; } }
             updateUI();
         }
+        var pointers = new Map();   // active pointers on the canvas (for pinch zoom)
+        var pinch = null;           // {d0, z0, mx, my} while two fingers are down
         canvas.addEventListener('pointerdown', function (e) {
             if (mode === 'playing' || mode === 'crashed') return;
             e.preventDefault();
             try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+            pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (pointers.size === 2) {
+                // Second finger down: stop drawing and start a pinch zoom.
+                if (curLine && curLine.length < 2) { lines.splice(lines.indexOf(curLine), 1); }
+                drawing = false; curLine = null; camTarget = null;
+                var pp = Array.from(pointers.values());
+                pinch = { d0: Math.hypot(pp[0].x - pp[1].x, pp[0].y - pp[1].y), z0: zoom,
+                         mx: (pp[0].x + pp[1].x) / 2, my: (pp[0].y + pp[1].y) / 2 };
+                return;
+            }
             var w = toWorld(e);
             drawing = true;
             lastPt = w;
-            camTarget = { x: w.x - CW / 2, y: w.y - CH / 2 };
+            camTarget = { x: w.x - viewW() / 2, y: w.y - viewH() / 2 };
             if (tool === 'draw') { curLine = [w]; lines.push(curLine); }
             else { eraseAt(w); }
             updateUI();
         });
         canvas.addEventListener('pointermove', function (e) {
+            if (pinch && pointers.has(e.pointerId)) {
+                pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                var pp = Array.from(pointers.values());
+                var d = Math.hypot(pp[0].x - pp[1].x, pp[0].y - pp[1].y);
+                if (d > 10 && pinch.d0 > 10) {
+                    var rect = canvas.getBoundingClientRect();
+                    setZoom(pinch.z0 * d / pinch.d0, pinch.mx - rect.left, pinch.my - rect.top);
+                }
+                e.preventDefault();
+                return;
+            }
             if (!drawing) return;
             e.preventDefault();
             var w = toWorld(e);
-            camTarget = { x: w.x - CW / 2, y: w.y - CH / 2 };
+            camTarget = { x: w.x - viewW() / 2, y: w.y - viewH() / 2 };
             if (tool === 'draw') {
                 if (Math.hypot(w.x - lastPt.x, w.y - lastPt.y) > 5) { curLine.push(w); lastPt = w; }
             } else {
                 eraseAt(w);
             }
         });
-        function endPointer() { drawing = false; curLine = null; camTarget = null; }
+        function endPointer(e) {
+            if (e && e.pointerId !== undefined) pointers.delete(e.pointerId);
+            if (pointers.size < 2) pinch = null;
+            drawing = false; curLine = null; camTarget = null;
+        }
         canvas.addEventListener('pointerup', endPointer);
         canvas.addEventListener('pointercancel', endPointer);
 
@@ -642,6 +748,9 @@
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON') return;
             if (e.code === 'Space') { e.preventDefault(); if (mode === 'playing') pause(); else play(); }
             else if (e.code === 'KeyR') { restart(); }
+            else if (e.code === 'Equal' || e.code === 'NumpadAdd') { setZoom(zoom * 1.25); }
+            else if (e.code === 'Minus' || e.code === 'NumpadSubtract') { setZoom(zoom / 1.25); }
+            else if (e.code === 'Digit0') { fitTrack(); }
             else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'KeyA' || e.code === 'KeyD') {
                 keys[e.code] = true;
                 e.preventDefault();
@@ -662,8 +771,8 @@
             // camera: follow the rider; while drawing, follow the pointer
             var tx, ty;
             if (camTarget) { tx = camTarget.x; ty = camTarget.y; }
-            else if (rider) { tx = rider.x - CW * 0.32; ty = rider.y - CH * 0.55; }
-            else { tx = -CW * 0.3; ty = -CH * 0.55; }
+            else if (rider) { tx = rider.x - viewW() * 0.32; ty = rider.y - viewH() * 0.55; }
+            else { tx = -viewW() * 0.3; ty = -viewH() * 0.55; }
             var k = Math.min(1, 4 * dt);
             cam.x += (tx - cam.x) * k;
             cam.y += (ty - cam.y) * k;
@@ -675,12 +784,13 @@
         /* ---------- init ---------- */
         starterTrack();
         resetRider();
+        fitTrack();   // open showing the whole track, so it is visible at once
         updateUI();
         // Debug handle for automated checks (not part of the UI).
         window.__lr = {
             getState: function () {
                 return {
-                    mode: mode, tool: tool,
+                    mode: mode, tool: tool, zoom: zoom,
                     cam: { x: cam.x, y: cam.y },
                     lines: lines.length,
                     points: lines.reduce(function (n, l) { return n + l.length; }, 0),
