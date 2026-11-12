@@ -11,8 +11,10 @@ Sources (all free; only Alpha Vantage needs a key, and only from the env):
   day" is its as-of date. The workflow runs at 22:00 UTC, after the 4 p.m. ET
   close, so that price is the latest close.
 - Market cap: price x shares outstanding from the latest SEC EDGAR filing
-  (companyfacts, no key). Cross-checked against OVERVIEW MarketCapitalization
-  where an OVERVIEW call was made.
+  (companyfacts, no key). The ticker->CIK map is committed as cik_map.json
+  because the live SEC file 403s automated access from cloud IPs; the live
+  fetch only fills gaps for tickers missing from the file. Cross-checked
+  against OVERVIEW MarketCapitalization where an OVERVIEW call was made.
 - Fundamentals (PEG, growth, debt, ROE, margin): SEC EDGAR companyfacts
   (us-gaap tags first, ifrs-full for foreign filers), refreshed weekly on
   rotation; Alpha Vantage OVERVIEW (max 4 calls/day, only for tickers whose
@@ -34,6 +36,8 @@ Honesty rules (do not weaken them)
   miss all come out as null, and the page shows a dash.
 - If any Alpha Vantage response carries a rate-limit "Note", the run stops
   immediately with a non-zero exit and writes nothing (no partial data).
+- A missing or unreachable ticker->CIK map never kills a run: prices are
+  still fetched and missing fundamentals come out as null.
 - Nothing is written until every ticker has been processed.
 """
 
@@ -52,6 +56,7 @@ TICKERS = [
 ]
 
 DATA_FILE = "finance-data.json"
+CIK_MAP_FILE = "cik_map.json"
 OVERVIEW_MAX_PER_RUN = 4
 FUNDAMENTALS_STALE_DAYS = 7
 
@@ -158,6 +163,22 @@ def fetch_cik_map():
     by_ticker = {}
     for entry in resp.json().values():
         by_ticker[entry["ticker"]] = "%010d" % entry["cik_str"]
+    return by_ticker
+
+
+def load_cik_map():
+    """Ticker -> 10-digit CIK from the committed cik_map.json.
+
+    The live SEC ticker->CIK file 403s automated access from cloud IPs, so
+    the committed map is the primary source and the live fetch only fills
+    gaps. Values are stored as 10-digit zero-padded strings; they are
+    normalised here so an integer in the file still works.
+    """
+    with open(CIK_MAP_FILE) as fh:
+        raw = json.load(fh)
+    by_ticker = {}
+    for ticker, cik in raw.items():
+        by_ticker[ticker] = "%010d" % int(cik)
     return by_ticker
 
 
@@ -297,11 +318,32 @@ def main():
     except (OSError, ValueError):
         previous = {}
 
+    # Ticker->CIK map: the committed cik_map.json is the primary source,
+    # because the live SEC file 403s automated access from cloud IPs
+    # ("Request Rate Threshold Exceeded") and a failed map fetch used to
+    # kill the whole run before any price was fetched. The live fetch only
+    # fills gaps; if it fails too, the run proceeds and tickers without a
+    # CIK get null fundamentals (never a guess), per the honesty rules.
     try:
-        cik_map = fetch_cik_map()
+        cik_map = load_cik_map()
     except Exception as exc:
-        log("ERROR: could not fetch SEC ticker->CIK map: %s" % exc)
-        return 1
+        log("WARNING: could not load committed cik_map.json: %s" % exc)
+        cik_map = {}
+    missing = [t for t in TICKERS if t not in cik_map]
+    if missing:
+        try:
+            live_map = fetch_cik_map()
+            filled = [t for t in missing if t in live_map]
+            for t in filled:
+                cik_map[t] = live_map[t]
+            log("  CIK map: %d from cik_map.json, %d filled from live SEC fetch"
+                % (len(TICKERS) - len(missing), len(filled)))
+        except Exception as exc:
+            log("WARNING: live SEC ticker->CIK fetch failed (%s); proceeding "
+                "with committed map only — %d ticker(s) without a CIK will "
+                "have null EDGAR fields." % (exc, len(missing)))
+    else:
+        log("  CIK map: all %d tickers from cik_map.json" % len(TICKERS))
 
     today = date.today().isoformat()
     stocks = []
