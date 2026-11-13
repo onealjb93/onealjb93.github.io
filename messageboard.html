@@ -47,6 +47,23 @@
         margin: 0 0 1.2rem;
     }
 .topic-current strong { color: var(--text-color); }
+
+    /* Conversation finder (2026-11-13): X-style search + tag chips so a
+       visitor can find any of the 70 threads without scrolling the boards.
+       Sits below the sticky tab bar; purely additive — the topic pickers
+       and the giscus widget are untouched. */
+    .topic-search { margin: 0 0 1rem; }
+    .topic-search input { width: 100%; max-width: 420px; font: inherit; font-size: 0.9rem; padding: 0.5rem 0.75rem; border-radius: 20px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); }
+    .topic-search input:focus { outline: 2px solid var(--link-color); outline-offset: 1px; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+    .tag-chip { padding: 0.3rem 0.8rem; border-radius: 20px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .tag-chip.active { background: var(--link-color); border-color: var(--link-color); color: var(--bg-color); }
+    .topic-results { margin-top: 0.6rem; display: flex; flex-direction: column; gap: 0.25rem; }
+    .topic-result { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; text-align: left; width: 100%; padding: 0.45rem 0.6rem; border-radius: 8px; border: 1px solid transparent; background: none; color: var(--text-color); font: inherit; font-size: 0.9rem; cursor: pointer; }
+    .topic-result:hover { border-color: var(--border-color); background: var(--card-bg); }
+    .topic-result .tag { font-size: 0.8rem; color: var(--subtext-color); white-space: nowrap; }
+    .topic-results-empty { font-size: 0.9rem; color: var(--subtext-color); padding: 0.45rem 0.6rem; }
+    .topic-results-count { font-size: 0.8rem; color: var(--subtext-color); padding: 0 0.6rem 0.25rem; }
 </style>
 
 </head>
@@ -124,6 +141,11 @@
         <button type="button" class="board-tab" data-board="bitcoin" role="tab" aria-selected="false">Bitcoin</button>
         <button type="button" class="board-tab" data-board="cooking" role="tab" aria-selected="false">Cooking</button>
         <button type="button" class="board-tab" data-board="general" role="tab" aria-selected="false">General</button>
+    </div>
+    <div class="topic-search">
+        <input type="search" id="topic-search" placeholder="Search conversations&hellip;" aria-label="Search conversations" autocomplete="off">
+        <div class="tag-row" id="tag-row" role="group" aria-label="Filter conversations by tag"></div>
+        <div class="topic-results" id="topic-results" hidden></div>
     </div>
     <section class="board-panel" id="board-finance" data-category="Finance" data-category-id="DIC_kwDOVlVNR84DK-nK" role="tabpanel" aria-label="Finance board">
         <h2>Finance</h2>
@@ -336,6 +358,95 @@
                 }
                 return { board: 'finance', slug: 'general-finance' };
             }
+
+            // Conversation finder: X-style search + tag chips over all 70
+            // topics. Additive only — it calls the same applyTopic() the
+            // pickers use, so the giscus widget, per-tab memory and deep
+            // links behave exactly as before.
+            (function () {
+                var searchInput = document.getElementById('topic-search');
+                var tagRow = document.getElementById('tag-row');
+                var resultsBox = document.getElementById('topic-results');
+                if (!searchInput || !tagRow || !resultsBox) return;
+                var activeTag = '';
+                function decode(str) { return str.replace(/&amp;/g, '&'); }
+                var tagOrder = [];
+                Object.keys(TOPICS).forEach(function (b) {
+                    TOPICS[b].forEach(function (t) {
+                        if (tagOrder.indexOf(t.group) === -1) tagOrder.push(t.group);
+                    });
+                });
+                function allTopics() {
+                    var out = [];
+                    Object.keys(TOPICS).forEach(function (b) {
+                        TOPICS[b].forEach(function (t) { out.push({ board: b, topic: t }); });
+                    });
+                    return out;
+                }
+                function renderChips() {
+                    tagRow.innerHTML = '';
+                    var all = document.createElement('button');
+                    all.type = 'button';
+                    all.className = 'tag-chip' + (activeTag === '' ? ' active' : '');
+                    all.textContent = 'All';
+                    all.addEventListener('click', function () { activeTag = ''; renderChips(); renderResults(); });
+                    tagRow.appendChild(all);
+                    tagOrder.forEach(function (g) {
+                        var chip = document.createElement('button');
+                        chip.type = 'button';
+                        chip.className = 'tag-chip' + (activeTag === g ? ' active' : '');
+                        chip.textContent = '#' + g;
+                        chip.setAttribute('aria-pressed', activeTag === g ? 'true' : 'false');
+                        chip.addEventListener('click', function () {
+                            activeTag = (activeTag === g) ? '' : g;
+                            renderChips(); renderResults();
+                        });
+                        tagRow.appendChild(chip);
+                    });
+                }
+                function renderResults() {
+                    var q = searchInput.value.trim().toLowerCase();
+                    if (!q && !activeTag) { resultsBox.hidden = true; resultsBox.innerHTML = ''; return; }
+                    var matches = allTopics().filter(function (item) {
+                        if (activeTag && item.topic.group !== activeTag) return false;
+                        if (!q) return true;
+                        var hay = (decode(item.topic.label) + ' ' + item.topic.term + ' ' + item.topic.group + ' ' + CATEGORIES[item.board].name).toLowerCase();
+                        return hay.indexOf(q) !== -1;
+                    });
+                    resultsBox.innerHTML = '';
+                    resultsBox.hidden = false;
+                    var count = document.createElement('div');
+                    count.className = 'topic-results-count';
+                    count.textContent = matches.length + (matches.length === 1 ? ' conversation' : ' conversations');
+                    resultsBox.appendChild(count);
+                    if (!matches.length) {
+                        var empty = document.createElement('div');
+                        empty.className = 'topic-results-empty';
+                        empty.textContent = 'No conversations match — try a different word or tag.';
+                        resultsBox.appendChild(empty);
+                        return;
+                    }
+                    matches.forEach(function (item) {
+                        var btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'topic-result';
+                        var name = document.createElement('span');
+                        name.textContent = decode(item.topic.label);
+                        var tag = document.createElement('span');
+                        tag.className = 'tag';
+                        tag.textContent = '#' + item.topic.group + ' \u00b7 ' + CATEGORIES[item.board].name;
+                        btn.appendChild(name);
+                        btn.appendChild(tag);
+                        btn.addEventListener('click', function () {
+                            applyTopic(item.board, item.topic.slug, { send: true, url: true });
+                            embed.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        });
+                        resultsBox.appendChild(btn);
+                    });
+                }
+                searchInput.addEventListener('input', renderResults);
+                renderChips();
+            })();
 
             populatePickers();
             var initial = resolveInitial();
