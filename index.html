@@ -158,7 +158,7 @@
     body.home header .syn-about-mission { text-align: center; font-size: 1.08rem; line-height: 1.65; max-width: 40rem; margin: 1rem auto 0; }
     .syn-heroimg { border-radius: 16px; overflow: hidden; margin: 0 0 1.25rem; border: 1px solid var(--tline); }
     .syn-heroimg img { display: block; width: 100%; height: auto; aspect-ratio: 1179 / 485; object-fit: cover; object-position: 50% 50%; }
-    /* Greenhouse window effect (desktop, motion-safe): the photo is
+    /* Greenhouse window effect (motion-safe, all widths): the photo is
        fixed to the viewport and the hero band clips it (clip-path), so
        the band is a window the page scrolls past. The band carries its
        own height explicitly (1179/485 of the column width), independent
@@ -166,8 +166,8 @@
        the viewport at the content-column width (body max-width 1140px
        minus 2x40px padding = 1060px), so when the band crosses the
        viewport centre the composition is exactly the static crop.
-       Reduced motion: neither this nor the mobile drift applies; the
-       plain in-flow image remains. */
+       Reduced motion: the effect does not apply; the plain in-flow
+       image remains. */
     @media (min-width: 761px) and (prefers-reduced-motion: no-preference) {
         .syn-heroimg { clip-path: inset(0 round 16px); aspect-ratio: 1179 / 485; height: calc(min(1060px, 100vw - 80px) * 0.411365); }
         .syn-heroimg img { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(1060px, calc(100vw - 80px)); max-width: none; }
@@ -176,16 +176,16 @@
         .syn-heroimg { height: calc((100vw - 36px) * 0.411365); }
         .syn-heroimg img { width: calc(100vw - 36px); }
     }
-    /* Mobile: gentle JS drift only (script at the end of the body). The
-       img box is 40px taller than the band and centred on it, so a
-       +/-20px transform drift never exposes an edge; transforms do not
-       affect layout, so there is no layout shift. */
+    /* Mobile: the same window effect as desktop — the img is fixed to
+       the viewport at the mobile column width (100vw - 36px) and the
+       band clips it (clip-path), so the reveal is compositor-driven at
+       exactly scroll pace, with no JavaScript involved. */
     @media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
-        .syn-heroimg { position: relative; aspect-ratio: 1179 / 485; height: calc((100vw - 36px) * 0.411365); }
-        .syn-heroimg img { position: absolute; left: 0; top: -20px; width: 100%; height: calc(100% + 40px); max-width: none; }
+        .syn-heroimg { clip-path: inset(0 round 16px); aspect-ratio: 1179 / 485; height: calc((100vw - 36px) * 0.411365); }
+        .syn-heroimg img { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: calc(100vw - 36px); max-width: none; }
     }
     .syn-proof { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--tline); border-bottom: 1px solid var(--tline); margin-bottom: 2.8rem; }
-    @media (max-width: 700px) { .syn-proof { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 700px) { .syn-proof { grid-template-columns: repeat(2, 1fr); } .syn-proof div { text-align: center; padding-right: 0; } .syn-proof div:last-child { grid-column: 1 / -1; } }
     .syn-proof div { padding: 1.1rem 1rem 1.1rem 0; }
     .syn-proof .n { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; display: block; }
     .syn-proof .l { font-size: 0.82rem; color: var(--tink3); line-height: 1.45; display: block; margin-top: 0.3rem; }
@@ -1369,35 +1369,6 @@
             });
         }, { threshold: 0.4 });
         io.observe(el);
-    })();
-    </script>
-    <script>
-    /* Greenhouse photo, mobile only: gentle scroll drift (+/-20px,
-       transform-only, so no layout shift). Desktop uses the CSS window
-       effect instead; reduced motion gets neither. */
-    (function () {
-        var wrap = document.querySelector('.syn-heroimg');
-        if (!wrap) return;
-        var img = wrap.querySelector('img');
-        if (!img) return;
-        var mq = window.matchMedia('(max-width: 760px)');
-        var rm = window.matchMedia('(prefers-reduced-motion: reduce)');
-        var ticking = false;
-        function update() {
-            ticking = false;
-            if (!mq.matches || rm.matches) { img.style.transform = ''; return; }
-            var r = wrap.getBoundingClientRect();
-            if (r.bottom < -40 || r.top > window.innerHeight + 40) return;
-            var offset = (window.innerHeight / 2) - (r.top + r.height / 2);
-            var d = Math.max(-20, Math.min(20, offset * 0.08));
-            img.style.transform = 'translateY(' + d.toFixed(1) + 'px)';
-        }
-        function onScroll() {
-            if (!ticking) { ticking = true; window.requestAnimationFrame(update); }
-        }
-        window.addEventListener('scroll', onScroll, { passive: true });
-        window.addEventListener('resize', onScroll);
-        update();
     })();
     </script>
 </body>
