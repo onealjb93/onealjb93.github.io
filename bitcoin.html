@@ -33,9 +33,14 @@
         .pl-value { font-size: 1.25rem; font-weight: 700; line-height: 1.3; }
         .pl-note { font-size: 0.78rem; color: var(--text-muted, #94a3b8); }
         .pl-chart-wrap { position: relative; background: #0b1220; border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }
-        .pl-chart-wrap canvas { display: block; width: 100%; height: 420px; touch-action: pan-y; }
+        .pl-chart-wrap canvas { display: block; width: 100%; height: 420px; touch-action: pan-y; cursor: grab; }
         .pl-tip { position: absolute; pointer-events: none; background: rgba(2, 6, 23, 0.94); color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; font-size: 0.82rem; line-height: 1.45; white-space: nowrap; z-index: 5; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
         .pl-tip strong { color: #fbbf24; }
+        .pl-zoom { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 6; }
+        .pl-zoom button { appearance: none; -webkit-appearance: none; border: 1px solid #334155; background: rgba(2, 6, 23, 0.82); color: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; font-size: 16px; font-weight: 600; line-height: 1; min-width: 34px; height: 34px; padding: 0 8px; border-radius: 8px; cursor: pointer; }
+        .pl-zoom button:hover { background: rgba(30, 41, 59, 0.92); }
+        .pl-zoom button:focus-visible { outline: 2px solid #f7931a; outline-offset: 1px; }
+        .pl-zoom .pl-zreset { font-size: 12.5px; letter-spacing: 0.02em; }
         .pl-legend { font-size: 0.85rem; color: var(--text-muted, #94a3b8); margin: 12px 2px 0; }
         .pl-sw { display: inline-block; width: 22px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 2px; }
         .pl-sw-price { background: #f7931a; }
@@ -145,8 +150,13 @@
         <div class="pl-chart-wrap">
             <canvas id="pl-chart" height="420" aria-label="Log-log chart of Bitcoin price against the power-law trend, support and ceiling bands"></canvas>
             <div class="pl-tip" id="pl-tip" hidden></div>
+            <div class="pl-zoom" role="group" aria-label="Power law chart zoom controls">
+                <button type="button" id="pl-zin" aria-label="Zoom in" title="Zoom in">+</button>
+                <button type="button" id="pl-zout" aria-label="Zoom out" title="Zoom out">&minus;</button>
+                <button type="button" id="pl-zreset" class="pl-zreset" aria-label="Reset view" title="Reset view">Reset</button>
+            </div>
         </div>
-        <p class="pl-legend"><span class="pl-sw pl-sw-price"></span> Actual price &nbsp; <span class="pl-sw pl-sw-trend"></span> Fair value &nbsp; <span class="pl-sw pl-sw-floor"></span> Support &nbsp; <span class="pl-sw pl-sw-ceil"></span> Ceiling &nbsp; <span class="pl-sw pl-sw-today"></span> Today</p>
+        <p class="pl-legend"><span class="pl-sw pl-sw-price"></span> Actual price &nbsp; <span class="pl-sw pl-sw-trend"></span> Fair value &nbsp; <span class="pl-sw pl-sw-floor"></span> Support &nbsp; <span class="pl-sw pl-sw-ceil"></span> Ceiling &nbsp; <span class="pl-sw pl-sw-today"></span> Today &nbsp;·&nbsp; Scroll or pinch to zoom, drag to pan.</p>
         <p class="pl-fine">Formula: price = 10<sup>−16.493</sup> × (days since the genesis block, Jan 3, 2009)<sup>5.688</sup>. Bands are the ±2σ corridor (support ≈ 0.40× trend, ceiling ≈ 2.51× trend) — price has closed below the floor only briefly, three times in fifteen years. Price history: blockchain.info market-price index, every 4 days, Aug 2010 – Nov 10, 2026. Spot price: ~$68,700 on Nov 13, 2026 (Bitstamp / Kraken). A refit on the same data gives an exponent of ≈ 5.6 with R² ≈ 0.96 — the same picture; the exact exponent drifts as new data arrives (about 5.8 in 2022, about 5.6–5.7 today). Live daily-refit chart: <a href="https://bitcoinpowerlaw.com/" target="_blank">bitcoinpowerlaw.com</a>.</p>
     </div>
 
@@ -236,21 +246,78 @@
         set('pl-floor', money(Math.round(fl / 100) * 100));
         set('pl-ceil', money(Math.round(ce / 100) * 100));
 
-        /* --- Canvas chart --- */
+        /* --- Canvas chart, with zoom + pan inspection ---
+           The view is a window in log10 space (VX = days, VY = price) that
+           starts at the full range X0..X1 / Y0..Y1. Wheel zooms toward the
+           cursor, a two-finger pinch zooms toward its midpoint, drag pans,
+           and the + / - / Reset buttons give touch users the same controls. */
         var cv = document.getElementById('pl-chart');
         var tip = document.getElementById('pl-tip');
         if (!cv) return;
         var ctx = cv.getContext('2d');
         var hover = -1;
+        var LAST_DAY = START_DAY + (PRICES.length - 1) * STEP;
+        var VX0 = X0, VX1 = X1, VY0 = Y0, VY1 = Y1;
+        var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
         function geom(w, h) {
             var padL = w < 520 ? 52 : 64, padR = 14, padT = 14, padB = 28;
+            var iw = w - padL - padR, ih = h - padT - padB;
             return {
-                padL: padL, padR: padR, padT: padT, padB: padB,
-                iw: w - padL - padR, ih: h - padT - padB,
-                x: function (days) { return padL + (Math.log10(days) - X0) / (X1 - X0) * (w - padL - padR); },
-                y: function (price) { return padT + (Y1 - Math.log10(price)) / (Y1 - Y0) * (h - padT - padB); }
+                padL: padL, padR: padR, padT: padT, padB: padB, iw: iw, ih: ih,
+                x: function (days) { return padL + (Math.log10(days) - VX0) / (VX1 - VX0) * iw; },
+                y: function (price) { return padT + (VY1 - Math.log10(price)) / (VY1 - VY0) * ih; },
+                logDaysAt: function (px) { return VX0 + (px - padL) / iw * (VX1 - VX0); },
+                logPriceAt: function (py) { return VY1 - (py - padT) / ih * (VY1 - VY0); }
             };
+        }
+
+        function trimNum(x) { return String(Math.round(x * 10) / 10).replace(/\.0$/, ''); }
+        function tickLabel(v) {
+            if (v >= 1e6) return '$' + trimNum(v / 1e6) + 'M';
+            if (v >= 1e3) return '$' + trimNum(v / 1e3) + 'K';
+            if (v >= 100) return '$' + Math.round(v);
+            if (v >= 10) return '$' + trimNum(v);
+            if (v >= 1) return '$' + v.toFixed(2).replace(/\.?0+$/, '');
+            return '$' + v.toFixed(2);
+        }
+        function yTickStep() {
+            /* largest log step that keeps roughly 5-11 ticks on the axis:
+               whole decades zoomed out, finer steps as you zoom in */
+            var range = VY1 - VY0, steps = [1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01];
+            for (var i = 0; i < steps.length; i++) {
+                if (range / steps[i] <= 11) {
+                    while (i + 1 < steps.length && range / steps[i] < 5 && range / steps[i + 1] <= 11) i++;
+                    return steps[i];
+                }
+            }
+            return 0.01;
+        }
+        function xTicks(dMin, dMax) {
+            var out = [], span = dMax - dMin, days;
+            if (span > 1400) {
+                for (var yr = 2010; yr <= 2036; yr++) {
+                    days = (Date.UTC(yr, 0, 1) - GENESIS) / DAY;
+                    if (days >= dMin && days <= dMax) out.push({ days: days, label: String(yr), major: true });
+                }
+                return out;
+            }
+            var monthStep = span > 300 ? 3 : 1;
+            var start = dateOf(dMin), y = start.getUTCFullYear();
+            var m = Math.floor(start.getUTCMonth() / monthStep) * monthStep;
+            for (var i = 0; i < 240; i++) {
+                days = (Date.UTC(y, m, 1) - GENESIS) / DAY;
+                if (days > dMax) break;
+                if (days >= dMin) out.push({ days: days, label: MONTHS[m] + ' ' + String(y).slice(2), major: m === 0 });
+                m += monthStep; if (m > 11) { m -= 12; y++; }
+            }
+            return out;
+        }
+        function samples(a, b, n) {
+            var arr = [a], f = Math.pow(b / a, 1 / n), d = a;
+            for (var i = 1; i < n; i++) { d *= f; arr.push(d); }
+            arr.push(b);
+            return arr;
         }
 
         function draw() {
@@ -264,68 +331,78 @@
             var small = w < 520;
             ctx.font = (small ? 10 : 11) + 'px system-ui, -apple-system, sans-serif';
             ctx.textBaseline = 'middle';
+            var dMin = Math.pow(10, VX0), dMax = Math.pow(10, VX1);
 
-            /* grid + y labels */
-            var yTicks = [[-2, '$0.01'], [-1, '$0.10'], [0, '$1'], [1, '$10'], [2, '$100'], [3, '$1K'], [4, '$10K'], [5, '$100K'], [6, '$1M'], [7, '$10M']];
-            yTicks.forEach(function (t) {
-                var y = g.y(Math.pow(10, t[0]));
-                ctx.strokeStyle = 'rgba(148,163,184,0.16)';
+            /* grid + y labels: whole decades zoomed out, finer log steps in */
+            var step = yTickStep();
+            ctx.textAlign = 'right';
+            for (var k = Math.ceil(VY0 / step - 1e-9); k * step <= VY1 + 1e-9; k++) {
+                var t = k * step, yv = Math.pow(10, t), y = g.y(yv);
+                var major = Math.abs(t - Math.round(t)) < 1e-9;
+                ctx.strokeStyle = major ? 'rgba(148,163,184,0.16)' : 'rgba(148,163,184,0.07)';
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
                 ctx.fillStyle = '#94a3b8';
-                ctx.textAlign = 'right';
-                ctx.fillText(t[1], g.padL - 8, y);
-            });
-            /* x labels: Jan 1 of each year; log time crowds later years together,
-               so only label a year when it clears the previous label */
+                ctx.fillText(tickLabel(yv), g.padL - 8, y);
+            }
+            /* grid + x labels: years zoomed out, months zoomed in; a label is
+               still only drawn when it clears the previous one */
             ctx.textAlign = 'center';
             var minGap = small ? 42 : 56, lastLabelX = -1e9;
-            for (var yr = 2010; yr <= 2036; yr++) {
-                var days = (Date.UTC(yr, 0, 1) - GENESIS) / DAY;
-                if (days < 100 || days > 10000) continue;
-                var x = g.x(days);
-                ctx.strokeStyle = 'rgba(148,163,184,0.12)';
+            xTicks(dMin, dMax).forEach(function (tk) {
+                var x = g.x(tk.days);
+                ctx.strokeStyle = tk.major ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.06)';
+                ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
                 if (x - lastLabelX >= minGap) {
                     ctx.fillStyle = '#94a3b8';
-                    ctx.fillText(String(yr), x, h - g.padB + 14);
+                    ctx.fillText(tk.label, x, h - g.padB + 14);
                     lastLabelX = x;
                 }
-            }
+            });
+
+            /* plot content, clipped to the plot box so zoomed lines never
+               spill over the axis labels */
+            ctx.save();
+            ctx.beginPath(); ctx.rect(g.padL, g.padT, g.iw, g.ih); ctx.clip();
 
             /* corridor fill between the bands */
             ctx.beginPath();
-            for (var d = 100; d <= 10000; d *= 1.05) { var px = g.x(d), py = g.y(fair(d) * HI); d === 100 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
-            for (var d2 = 10000; d2 >= 100; d2 /= 1.05) { ctx.lineTo(g.x(d2), g.y(fair(d2) * LO)); }
+            samples(dMin, dMax, 120).forEach(function (d, i) { var px = g.x(d), py = g.y(fair(d) * HI); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
+            samples(dMax, dMin, 120).forEach(function (d) { ctx.lineTo(g.x(d), g.y(fair(d) * LO)); });
             ctx.closePath();
             ctx.fillStyle = 'rgba(247,147,26,0.05)';
             ctx.fill();
 
-            function bandLine(mult, color, dash) {
-                ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.setLineDash(dash || []);
+            function bandLine(mult, color) {
+                ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
                 ctx.beginPath();
-                for (var d = 100; d <= 10000; d *= 1.02) { var px = g.x(d), py = g.y(fair(d) * mult); d === 100 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
+                samples(dMin, dMax, 240).forEach(function (d, i) { var px = g.x(d), py = g.y(fair(d) * mult); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
                 ctx.stroke(); ctx.setLineDash([]);
             }
-            bandLine(HI, '#ef4444', [5, 4]);   /* ceiling */
-            bandLine(LO, '#22c55e', [5, 4]);   /* support */
+            bandLine(HI, '#ef4444');   /* ceiling */
+            bandLine(LO, '#22c55e');   /* support */
 
             /* trend: solid to today, dashed projection after */
-            ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 2;
-            ctx.beginPath();
-            for (var d = 100; d <= SPOT.days; d *= 1.02) { var px = g.x(d), py = g.y(fair(d)); d === 100 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
-            ctx.lineTo(g.x(SPOT.days), g.y(fair(SPOT.days))); ctx.stroke();
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath(); ctx.moveTo(g.x(SPOT.days), g.y(fair(SPOT.days)));
-            for (var d = SPOT.days; d <= 10000; d *= 1.02) { ctx.lineTo(g.x(d), g.y(fair(d))); }
-            ctx.stroke(); ctx.setLineDash([]);
+            if (dMax > dMin && SPOT.days > dMin) {
+                ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 2;
+                ctx.beginPath();
+                samples(dMin, Math.min(dMax, SPOT.days), 240).forEach(function (d, i) { var px = g.x(d), py = g.y(fair(d)); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
+                ctx.stroke();
+            }
+            if (dMax > SPOT.days) {
+                ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                samples(Math.max(dMin, SPOT.days), dMax, 240).forEach(function (d, i) { var px = g.x(d), py = g.y(fair(d)); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
+                ctx.stroke(); ctx.setLineDash([]);
+            }
 
             /* actual price */
             ctx.strokeStyle = '#f7931a'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
             ctx.beginPath();
             for (var i = 0; i < PRICES.length; i++) {
-                var days = START_DAY + i * STEP, px = g.x(days), py = g.y(PRICES[i]);
-                i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                var pd = START_DAY + i * STEP, px2 = g.x(pd), py2 = g.y(PRICES[i]);
+                i === 0 ? ctx.moveTo(px2, py2) : ctx.lineTo(px2, py2);
             }
             ctx.stroke();
 
@@ -338,48 +415,210 @@
                 ctx.beginPath(); ctx.arc(g.x(hd), g.y(PRICES[hover]), 2.5, 0, Math.PI * 2); ctx.fill();
             }
 
-            /* today dot + label */
+            /* today dot */
             var tx = g.x(SPOT.days), ty = g.y(SPOT.price);
             ctx.fillStyle = '#f7931a';
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
-            ctx.fillStyle = '#f1f5f9';
-            ctx.textAlign = tx > w - 170 ? 'right' : 'left';
-            ctx.fillText('Today ' + money(SPOT.price), tx > w - 170 ? tx - 12 : tx + 12, ty - 14);
+            ctx.restore();
+
+            /* today label, only while the point itself is in view */
+            if (tx >= g.padL && tx <= w - g.padR && ty >= g.padT && ty <= h - g.padB) {
+                ctx.fillStyle = '#f1f5f9';
+                ctx.textAlign = tx > w - 170 ? 'right' : 'left';
+                ctx.fillText('Today ' + money(SPOT.price), tx > w - 170 ? tx - 12 : tx + 12, ty - 14);
+            }
+        }
+
+        function hideTip() {
+            if (!tip.hidden) tip.hidden = true;
+            if (hover !== -1) { hover = -1; draw(); }
         }
 
         function showTip(e) {
             var rect = cv.getBoundingClientRect();
             var w = rect.width, h = rect.height;
             var g = geom(w, h);
-            var mx = (e.clientX - rect.left - g.padL) / g.iw;
-            if (mx < 0 || mx > 1) { tip.hidden = true; hover = -1; draw(); return; }
-            var logDays = X0 + mx * (X1 - X0);
-            var days = Math.pow(10, logDays);
-            var idx = Math.round((days - START_DAY) / STEP);
-            if (idx < 0) idx = 0;
-            if (idx >= PRICES.length) idx = PRICES.length - 1;
-            var d = START_DAY + idx * STEP, p = PRICES[idx], f = fair(d);
-            var pct = (p / f - 1) * 100;
-            tip.innerHTML = '<strong>' + dateStr(d) + '</strong><br>Price ' + money(p) +
-                '<br>Fair value ' + money(Math.round(f)) +
-                '<br>' + (pct >= 0 ? '+' : '') + pct.toFixed(0) + '% vs. trend';
+            var px = e.clientX - rect.left;
+            if (px < g.padL || px > w - g.padR) { hideTip(); return; }
+            var days = Math.pow(10, g.logDaysAt(px));
+            var f = fair(days), html, aDays, aPrice, newHover = -1;
+            if (days > LAST_DAY && days <= SPOT.days + STEP / 2) {
+                /* the spot point sits just past the last index sample */
+                var fvS = fair(SPOT.days), sp = (SPOT.price / fvS - 1) * 100;
+                html = '<strong>' + dateStr(SPOT.days) + '</strong><br>Price ' + money(SPOT.price) +
+                    '<br>Fair value ' + money(Math.round(fvS)) +
+                    '<br>' + (sp >= 0 ? '+' : '') + sp.toFixed(0) + '% vs. trend';
+                aDays = SPOT.days; aPrice = SPOT.price;
+            } else if (days < START_DAY) {
+                html = '<strong>' + dateStr(days) + '</strong><br>Fair value ' + money(Math.round(f)) +
+                    '<br><span style="color:#94a3b8">before the price record</span>';
+                aDays = days; aPrice = f;
+            } else if (days > LAST_DAY) {
+                html = '<strong>' + dateStr(days) + '</strong><br>Fair value ' + money(Math.round(f)) +
+                    '<br><span style="color:#94a3b8">model projection — no price yet</span>';
+                aDays = days; aPrice = f;
+            } else {
+                var idx = Math.round((days - START_DAY) / STEP);
+                if (idx < 0) idx = 0;
+                if (idx >= PRICES.length) idx = PRICES.length - 1;
+                var d = START_DAY + idx * STEP, p = PRICES[idx], fv2 = fair(d);
+                var pct = (p / fv2 - 1) * 100;
+                html = '<strong>' + dateStr(d) + '</strong><br>Price ' + money(p) +
+                    '<br>Fair value ' + money(Math.round(fv2)) +
+                    '<br>' + (pct >= 0 ? '+' : '') + pct.toFixed(0) + '% vs. trend';
+                aDays = d; aPrice = p; newHover = idx;
+            }
+            tip.innerHTML = html;
             tip.hidden = false;
-            var tx = g.x(d), ty = g.y(p);
+            var tx = g.x(aDays), ty = g.y(aPrice);
             var tw = tip.offsetWidth, th = tip.offsetHeight;
             var lx = tx + 14, ly = ty - th - 10;
             if (lx + tw > w - 8) lx = tx - tw - 14;
             if (ly < 8) ly = ty + 16;
             tip.style.left = Math.max(8, lx) + 'px';
             tip.style.top = Math.max(8, ly) + 'px';
-            if (hover !== idx) { hover = idx; draw(); }
+            if (hover !== newHover) { hover = newHover; draw(); }
         }
 
-        cv.addEventListener('pointermove', showTip);
-        cv.addEventListener('pointerleave', function () { tip.hidden = true; hover = -1; draw(); });
+        /* --- zoom + pan --- */
+        function clampView() {
+            if (VX1 - VX0 >= X1 - X0) { VX0 = X0; VX1 = X1; }
+            else if (VX0 < X0) { VX1 += X0 - VX0; VX0 = X0; }
+            else if (VX1 > X1) { VX0 -= VX1 - X1; VX1 = X1; }
+            if (VY1 - VY0 >= Y1 - Y0) { VY0 = Y0; VY1 = Y1; }
+            else if (VY0 < Y0) { VY1 += Y0 - VY0; VY0 = Y0; }
+            else if (VY1 > Y1) { VY0 -= VY1 - Y1; VY1 = Y1; }
+        }
+        function zoomViewAt(px, py, w, h, factor) {
+            var g = geom(w, h);
+            var ax = g.logDaysAt(px), ay = g.logPriceAt(py);
+            var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
+            var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
+            if (nx1 - nx0 < 0.01 || ny1 - ny0 < 0.01) return false;
+            VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
+            return true;
+        }
+        function panByPixels(dx, dy, w, h) {
+            var g = geom(w, h);
+            var dlx = -dx / g.iw * (VX1 - VX0), dly = dy / g.ih * (VY1 - VY0);
+            VX0 += dlx; VX1 += dlx; VY0 += dly; VY1 += dly;
+        }
+        function zoomCenter(factor) {
+            var w = cv.clientWidth, h = cv.clientHeight;
+            if (!w || !h) return;
+            var g = geom(w, h);
+            hideTip();
+            if (zoomViewAt(g.padL + g.iw / 2, g.padT + g.ih / 2, w, h, factor)) clampView();
+            draw();
+        }
+        function resetView() {
+            VX0 = X0; VX1 = X1; VY0 = Y0; VY1 = Y1;
+            hideTip();
+            draw();
+        }
+
+        cv.addEventListener('wheel', function (e) {
+            e.preventDefault();
+            var rect = cv.getBoundingClientRect();
+            var dy = e.deltaY * (e.deltaMode === 1 ? 33 : 1);
+            hideTip();
+            if (zoomViewAt(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height, Math.exp(dy * 0.0016))) clampView();
+            draw();
+        }, { passive: false });
+
+        var pointers = {}, nPointers = 0;
+        var dragStart = null, pinchStart = null, dragMoved = false;
+        function localPos(e) {
+            var r = cv.getBoundingClientRect();
+            return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height };
+        }
+        function ptrList() { var out = []; for (var id in pointers) out.push(pointers[id]); return out; }
+        function snapshot() { return { vx0: VX0, vx1: VX1, vy0: VY0, vy1: VY1 }; }
+        function restore(s) { VX0 = s.vx0; VX1 = s.vx1; VY0 = s.vy0; VY1 = s.vy1; }
+
+        cv.addEventListener('pointerdown', function (e) {
+            var p = localPos(e);
+            if (!pointers[e.pointerId]) nPointers++;
+            pointers[e.pointerId] = p;
+            try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic event */ }
+            if (nPointers === 1) {
+                dragStart = { x: p.x, y: p.y, view: snapshot() };
+                dragMoved = false;
+            } else if (nPointers === 2) {
+                var pts = ptrList();
+                pinchStart = {
+                    dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+                    midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2,
+                    w: p.w, h: p.h, view: snapshot()
+                };
+                dragStart = null;
+                hideTip();
+            }
+        });
+
+        cv.addEventListener('pointermove', function (e) {
+            if (pointers[e.pointerId]) {
+                var p = localPos(e);
+                pointers[e.pointerId] = p;
+                if (pinchStart && nPointers === 2) {
+                    var pts = ptrList();
+                    var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                    var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+                    restore(pinchStart.view);
+                    if (d > 0 && pinchStart.dist > 0) zoomViewAt(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchStart.dist / d);
+                    panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
+                    clampView();
+                    draw();
+                    return;
+                }
+                if (dragStart) {
+                    var dx = p.x - dragStart.x, dy = p.y - dragStart.y;
+                    if (dragMoved || Math.abs(dx) + Math.abs(dy) > 3) {
+                        dragMoved = true;
+                        restore(dragStart.view);
+                        panByPixels(dx, dy, p.w, p.h);
+                        clampView();
+                        hideTip();
+                        cv.style.cursor = 'grabbing';
+                        draw();
+                    }
+                    return;
+                }
+                return;
+            }
+            showTip(e);
+        });
+
+        function endPointer(e) {
+            if (pointers[e.pointerId]) { delete pointers[e.pointerId]; nPointers--; }
+            if (nPointers < 2) pinchStart = null;
+            if (nPointers === 1) {
+                var pt = ptrList()[0];
+                dragStart = { x: pt.x, y: pt.y, view: snapshot() };
+                dragMoved = true;   /* lifting one pinch finger is not a tap */
+            } else if (nPointers === 0) {
+                var wasTap = dragStart && !dragMoved && e.type === 'pointerup';
+                dragStart = null;
+                cv.style.cursor = '';
+                if (wasTap) showTip(e);
+            }
+        }
+        cv.addEventListener('pointerup', endPointer);
+        cv.addEventListener('pointercancel', endPointer);
+        cv.addEventListener('pointerleave', function () { if (!nPointers) hideTip(); });
+
+        var zin = document.getElementById('pl-zin');
+        var zout = document.getElementById('pl-zout');
+        var zreset = document.getElementById('pl-zreset');
+        if (zin) zin.addEventListener('click', function () { zoomCenter(0.55); });
+        if (zout) zout.addEventListener('click', function () { zoomCenter(1 / 0.55); });
+        if (zreset) zreset.addEventListener('click', resetView);
+
         var rt;
         window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(draw, 120); });
+        draw();
         draw();
     })();
     </script>
