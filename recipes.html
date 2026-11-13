@@ -281,6 +281,33 @@
     body.combiner-bar-visible { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
     body.combiner-bar-visible.cook-bar-visible { padding-bottom: calc(148px + env(safe-area-inset-bottom, 0px)); }
     body.cook-bar-visible #combinerBar { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+    /* Serving multiplier (combiner), dish-size scaler, sticky recipe name (added 2026-11-12) */
+    .serv-stepper { display: none; align-items: center; gap: 0.1rem; border: 1px solid var(--border-color); border-radius: 999px; padding: 0.08rem 0.2rem; background: var(--badge-bg); }
+    .combiner-list label.checked .serv-stepper { display: inline-flex; }
+    .serv-stepper button { background: none; border: 0; color: var(--link-color); font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; padding: 0.1rem 0.3rem; min-width: 1.35rem; min-height: 1.35rem; line-height: 1; border-radius: 999px; }
+    .serv-stepper button:hover { background: var(--hover-bg); }
+    .serv-stepper .serv-mult { color: var(--text-color); min-width: 1.6rem; text-align: center; font-size: 0.78rem; }
+    .dish-scaler { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0.55rem 0 0.35rem; font-size: 0.82rem; }
+    .dish-scaler-label { font-weight: 600; color: var(--text-color); }
+    .dish-scaler .dish-scale { font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; background: var(--badge-bg); color: var(--text-color); border: 1px solid var(--border-color); padding: 4px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 500; cursor: pointer; }
+    .dish-scaler .dish-scale:hover { border-color: var(--link-color); }
+    .dish-scaler .dish-scale.active { color: var(--link-color); border-color: var(--link-color); }
+    .recipe-wrapper { scroll-margin-top: 70px; }
+    .recipe-content { scroll-margin-top: 70px; }
+    /* Sticky cooking-tips group names (added 2026-11-12): the open group's
+       <summary> pins below the frozen site header. Tap it to close the
+       group (it IS the toggle -- no new button). Only the open group sticks.
+       .explainer-wrapper has overflow:hidden in style.css, which silently
+       disables position:sticky for everything inside it (it becomes a scroll
+       container); overflow:clip keeps the corner clipping without that. */
+    .explainer-wrapper { overflow: clip; }
+    .tip-group[open] > summary { position: sticky; top: 55px; z-index: 900; background: var(--bg-color); border-bottom: 1px solid var(--border-color); padding: 0.35rem 0; }
+    #recipeStickyName { position: fixed; left: 0; right: 0; z-index: 950; display: none; appearance: none; -webkit-appearance: none; background: var(--bg-color); border: 0; border-bottom: 1px solid var(--border-color); padding: 0; cursor: pointer; text-align: left; font: inherit; }
+    #recipeStickyName.show { display: block; }
+    #recipeStickyName .recipe-sticky-inner { max-width: 1140px; margin: 0 auto; padding: 0.6rem 40px; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+    #recipeStickyName .recipe-sticky-title { font-size: 0.92rem; font-weight: 700; line-height: 1.3; color: var(--text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #recipeStickyName .recipe-sticky-hint { font-size: 0.8rem; color: var(--subtext-color); flex: none; }
+    @media (max-width: 768px) { #recipeStickyName .recipe-sticky-inner { padding: 0.55rem 18px; } }
     #combiner-list { scroll-margin-top: 70px; }
 </style>
 </head>
@@ -335,7 +362,7 @@
     <!-- Recipe Archive Container -->
     <div class="explainer-wrapper">
         <button class="info-toggle" onclick="toggleExplainer('recipeCard', 'recipeArrow')">
-            <span id="recipeArrow">▼</span> 🍳 Curated Kitchen Collection
+            <span id="recipeArrow">▼</span> 🍳 Johnny's Recipes
         </button>
         <div class="explainer-card active" id="recipeCard">
             <h4>Home-Tested Custom Recipes</h4>
@@ -1617,7 +1644,7 @@
         </button>
         <div class="explainer-card active" id="nutritionToolCard">
             <h4>What each recipe covers — and what it doesn't</h4>
-            <p>Every recipe now shows estimated nutrition per serving, scored 0–5 against your daily target, with the exact % alongside. By default the target is the FDA Daily Values (2,000 kcal reference) — enter your details below to personalize it. Pick one serving of each recipe you're eating below to see the combined intake — what the meal covers for the day, and what it doesn't.</p>
+            <p>Every recipe now shows estimated nutrition per serving, scored 0–5 against your daily target, with the exact % alongside. By default the target is the FDA Daily Values (2,000 kcal reference) — enter your details below to personalize it. Pick the recipes you're eating below \u2014 and how many servings of each \u2014 to see the combined intake — what the meal covers for the day, and what it doesn't.</p>
             <p class="nutrition-legend">How to read the scores: 0–5 dots per nutrient — 0 is under 5% of your daily target, 1 is 5–19%, 2 is 20–49%, 3 is 50–79%, 4 is 80–119%, 5 is 120% or more. The exact % sits next to the dots. For sodium, saturated fat and cholesterol the target is a daily limit — more dots means closer to the limit, not better.</p>
             <div class="nutrition-profile" id="nutrition-profile">
                 <h5>Your daily targets</h5>
@@ -1799,6 +1826,7 @@
         { id: 'cookiesRecipe', name: 'Browned Butter Coconut Chocolate Chip Cookies', serving: '1 cookie' }
     ];
     var iceVariant = 'peach';
+    var servMult = {}; /* combiner serving multipliers, by recipe id (1 = one serving, default) */
     var icePanelWrap = null;
     var panelWraps = {};
 
@@ -2013,37 +2041,86 @@
                     '<option value="peach">Peach</option><option value="strawberry">Strawberry</option></select>';
             }
             html += ' <span class="combiner-serving">(' + esc(r.serving) + ')</span>';
+            html += ' <span class="serv-stepper" data-recipe="' + r.id + '" role="group" aria-label="Servings of ' + esc(r.name) + '">' +
+                '<button type="button" class="serv-step" data-d="-1" aria-label="One fewer serving">\u2212</button>' +
+                '<button type="button" class="serv-mult" title="Tap to reset to 1 serving" aria-label="Servings: 1. Tap to reset to 1 serving">\u00d71</button>' +
+                '<button type="button" class="serv-step" data-d="1" aria-label="One more serving">+</button></span>';
             label.innerHTML = html;
             listEl.appendChild(label);
         });
         listEl.addEventListener('change', function (e) {
             var sel = e.target && e.target.closest ? e.target.closest('select.combiner-variant') : null;
             if (sel) { setIceVariant(sel.value); return; }
+            var cb = e.target && e.target.closest ? e.target.closest('input[type="checkbox"]') : null;
+            if (cb && !cb.checked) {
+                /* Unchecking resets that recipe to one serving. */
+                servMult[cb.getAttribute('data-recipe')] = 1;
+            }
+            updateCombiner();
+        });
+        /* Serving stepper: \u2212 / + (1-4 servings); tapping \u00d7N resets to 1.
+           The buttons sit inside the <label>, so the click must not toggle
+           the checkbox (preventDefault stops the label's activation behavior). */
+        listEl.addEventListener('click', function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest('.serv-step, .serv-mult') : null;
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            var stepper = btn.closest('.serv-stepper');
+            if (!stepper) return;
+            var rid = stepper.getAttribute('data-recipe');
+            var cur = servMult[rid] || 1;
+            if (btn.classList.contains('serv-mult')) cur = 1;
+            else cur = Math.min(4, Math.max(1, cur + parseInt(btn.getAttribute('data-d'), 10)));
+            servMult[rid] = cur;
+            syncServSteppers();
             updateCombiner();
         });
         updateCombiner();
     }
+    function syncServSteppers() {
+        if (!listEl) return;
+        listEl.querySelectorAll('label').forEach(function (lab) {
+            var cb = lab.querySelector('input[type="checkbox"]');
+            var st = lab.querySelector('.serv-stepper');
+            if (!cb || !st) return;
+            lab.classList.toggle('checked', cb.checked);
+            var m = servMult[cb.getAttribute('data-recipe')] || 1;
+            var mid = st.querySelector('.serv-mult');
+            if (mid) {
+                mid.textContent = '\u00d7' + m;
+                mid.setAttribute('aria-label', 'Servings: ' + m + '. Tap to reset to 1 serving');
+            }
+        });
+    }
     function updateCombiner() {
         if (!listEl || !resultsEl) return;
         var checked = listEl.querySelectorAll('input[type="checkbox"]:checked');
+        syncServSteppers();
         if (!checked.length) {
-            resultsEl.innerHTML = '<p class="combiner-empty">Select one or more recipes to see the combined intake for one serving of each.</p>';
+            resultsEl.innerHTML = '<p class="combiner-empty">Select one or more recipes to see the combined intake \u2014 set servings with the \u2212 / + buttons next to each recipe.</p>';
             updateCombinerBar(0, null);
             return;
         }
         var totals = {};
         DV_ORDER.forEach(function (num) { totals[num] = 0; });
         var names = [];
+        var totalServings = 0, anyScaled = false;
         checked.forEach(function (cb) {
             var rid = cb.getAttribute('data-recipe');
             var d = NUTRI.recipes[dataKey(rid)];
             if (!d) return;
             var r = RECIPES.find(function (x) { return x.id === rid; });
-            names.push(r ? r.name : rid);
-            DV_ORDER.forEach(function (num) { totals[num] += d.perServing[num].value; });
+            var m = servMult[rid] || 1;
+            if (m > 1) anyScaled = true;
+            totalServings += m;
+            names.push(m > 1 ? m + '\u00d7 ' + (r ? r.name : rid) : (r ? r.name : rid));
+            DV_ORDER.forEach(function (num) { totals[num] += d.perServing[num].value * m; });
         });
         var targets = activeTargets();
-        var h = '<p class="combiner-total">One serving of each — <strong>' + names.length + ' recipe' + (names.length > 1 ? 's' : '') + '</strong>: ' + esc(names.join(' · ')) + '</p>';
+        var h = anyScaled
+            ? '<p class="combiner-total">Your selection — <strong>' + totalServings + ' serving' + (totalServings > 1 ? 's' : '') + '</strong> from ' + names.length + ' recipe' + (names.length > 1 ? 's' : '') + ': ' + esc(names.join(' · ')) + '</p>'
+            : '<p class="combiner-total">One serving of each — <strong>' + names.length + ' recipe' + (names.length > 1 ? 's' : '') + '</strong>: ' + esc(names.join(' · ')) + '</p>';
         h += '<div class="nutri-bars">';
         DV_ORDER.forEach(function (num) {
             var val = Math.round(totals[num] * 10) / 10;
@@ -2065,13 +2142,13 @@
         if (low.length) h += '<p><strong>Still low:</strong> ' + esc(low.join(', ')) + '.</p>';
         h += '</div>';
         if (checked.length === 1) h += pairsHTML(checked[0].getAttribute('data-recipe'));
-        h += '<p class="nutrition-note">Combined values are the sum of one serving of each selected recipe. ' + esc(NUTRI.method) + '</p>';
-        updateCombinerBar(names.length, totals);
+        h += '<p class="nutrition-note">' + (anyScaled ? 'Combined values are the sum of the selected servings of each recipe. ' : 'Combined values are the sum of one serving of each selected recipe. ') + esc(NUTRI.method) + '</p>';
+        updateCombinerBar(names.length, totals, totalServings);
         resultsEl.innerHTML = h;
     }
 
     /* Sticky combiner footer bar: live totals, the same numbers updateCombiner() computed. */
-    function updateCombinerBar(count, totals) {
+    function updateCombinerBar(count, totals, servings) {
         var bar = document.getElementById('combinerBar');
         var txt = document.getElementById('combinerBarText');
         if (!bar || !txt) return;
@@ -2085,7 +2162,13 @@
         }
         var kcal = Math.round(totals['208'] * 10) / 10;
         var protein = Math.round(totals['203'] * 10) / 10;
-        txt.textContent = count + ' recipe' + (count === 1 ? '' : 's') + ' \u00b7 ' + barNum(kcal) + ' kcal \u00b7 ' + barNum(protein) + ' g protein';
+        /* When servings are scaled the servings count is the headline and
+           replaces the recipe count -- "6 servings · ..." stays short enough
+           for the mobile bar, where "3 recipes · 6 servings · ..." would
+           truncate the protein value. */
+        txt.textContent = (servings && servings > count)
+            ? servings + ' serving' + (servings > 1 ? 's' : '') + ' \u00b7 ' + barNum(kcal) + ' kcal \u00b7 ' + barNum(protein) + ' g protein'
+            : count + ' recipe' + (count === 1 ? '' : 's') + ' \u00b7 ' + barNum(kcal) + ' kcal \u00b7 ' + barNum(protein) + ' g protein';
         /* Expanded panel: every nutrient, rendered with the combiner's own
            dotRow so values, % and dots always match the full panel. */
         var grid = document.getElementById('combinerBarGrid');
@@ -2164,6 +2247,7 @@
         var clr = e.target && e.target.closest ? e.target.closest('#combinerBarClear') : null;
         if (clr && listEl) {
             listEl.querySelectorAll('input[type="checkbox"]:checked').forEach(function (cb) { cb.checked = false; });
+            Object.keys(servMult).forEach(function (k) { servMult[k] = 1; });
             updateCombiner();
         }
     });
@@ -2253,6 +2337,379 @@
     }
 })();
 
+    </script>
+
+    <script>
+    /* Dish-size scaler + sticky recipe name (added 2026-11-12).
+       Dish scaler: display-only. The recipe text stays exactly as written;
+       every scalable line's original text is stored in a data attribute on
+       first use, so 1x restores it exactly (never a reverse calculation).
+       Per-serving nutrition does NOT change when a dish scales (servings
+       scale with it) -- only the combiner's serving multiplier scales
+       nutrition, and that lives in the nutrition script, not here.
+       Sticky name: one slim fixed bar under the site header showing the
+       expanded recipe in view. The card toggle is a full photo card, so
+       pinning it would cover a third of the screen; the name bar is the
+       same toggle (tap it to collapse) without the bulk. */
+    (function () {
+        'use strict';
+
+        /* ---------- fraction helpers ---------- */
+        var FRAC_UNICODE = {'1/2': '\u00bd', '1/3': '\u2153', '2/3': '\u2154', '1/4': '\u00bc', '3/4': '\u00be', '1/5': '\u2155', '2/5': '\u2156', '3/5': '\u2157', '4/5': '\u2158', '1/6': '\u2159', '5/6': '\u215a', '1/8': '\u215b', '3/8': '\u215c', '5/8': '\u215d', '7/8': '\u215e'};
+        var FRAC = {};
+        Object.keys(FRAC_UNICODE).forEach(function (k) {
+            var parts = k.split('/');
+            FRAC[FRAC_UNICODE[k]] = (+parts[0]) / (+parts[1]);
+        });
+        var FC = Object.keys(FRAC_UNICODE).map(function (k) { return FRAC_UNICODE[k]; }).join('');
+        function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+        /* One shared quantity pattern: "1 1/2", "1 \u00bd", "1\u00bd", "1/2", "1.5", "12", "\u00bd". */
+        var QTY_SRC = '(?:\\d+\\s+\\d+\\/\\d+|\\d+\\s+[' + FC + ']|\\d+[' + FC + ']|\\d+\\/\\d+|\\d+(?:\\.\\d+)?|[' + FC + '])';
+        var reLeadQty = new RegExp('^(' + QTY_SRC + ')');
+        var reRangeSep = /^(?:\s+to\s+|\s*[\u2013-]\s*)/;
+        function parseQtyToken(s) {
+            var m;
+            if ((m = /^(\d+)\s+(\d+)\/(\d+)$/.exec(s))) return (+m[1]) + (+m[2]) / (+m[3]);
+            if ((m = /^(\d+)\/(\d+)$/.exec(s))) return (+m[1]) / (+m[2]);
+            if ((m = new RegExp('^(\\d+)\\s+([' + FC + '])$').exec(s))) return (+m[1]) + FRAC[m[2]];
+            if ((m = new RegExp('^(\\d+)([' + FC + '])$').exec(s))) return (+m[1]) + FRAC[m[2]];
+            if ((m = /^(\d+(?:\.\d+)?)$/.exec(s))) return parseFloat(m[1]);
+            if ((m = new RegExp('^([' + FC + '])$').exec(s))) return FRAC[m[1]];
+            return null;
+        }
+        /* Clean fraction rendering: integers plain, everything else the
+           nearest clean fraction (denominators 2,3,4,5,6,8) as a unicode
+           vulgar fraction, mixed numbers glued like the source ("1\u00bd").
+           Falls back to one decimal only if no clean fraction fits. */
+        function fmtQty(v, grams) {
+            if (grams) {
+                if (v >= 10) return String(Math.round(v / 5) * 5);
+                return String(Math.round(v));
+            }
+            if (Math.abs(v - Math.round(v)) < 0.001) return String(Math.round(v));
+            var whole = Math.floor(v), frac = v - whole;
+            var best = null, bestErr = 1e9;
+            [2, 3, 4, 5, 6, 8].forEach(function (d) {
+                var n = Math.round(frac * d);
+                if (n <= 0 || n >= d) return;
+                var err = Math.abs(frac - n / d);
+                if (err < bestErr) { bestErr = err; best = { n: n, d: d }; }
+            });
+            if (!best || bestErr > 0.03) {
+                var r = Math.round(v * 10) / 10;
+                return (r % 1 === 0) ? String(r) : r.toFixed(1);
+            }
+            var g = gcd(best.n, best.d);
+            best.n /= g; best.d /= g;
+            var f = FRAC_UNICODE[best.n + '/' + best.d] || (best.n + '/' + best.d);
+            return whole > 0 ? whole + f : f;
+        }
+
+        /* ---------- noun number: only the 1 boundary changes a noun ---------- */
+        var NOUN = { cup: 'cups', tablespoon: 'tablespoons', teaspoon: 'teaspoons', quart: 'quarts', pound: 'pounds', stick: 'sticks', can: 'cans', package: 'packages', bunch: 'bunches', sprig: 'sprigs', clove: 'cloves', egg: 'eggs', potato: 'potatoes', onion: 'onions', breast: 'breasts', thigh: 'thighs', carrot: 'carrots', roll: 'rolls', cookie: 'cookies', serving: 'servings', piece: 'pieces', slice: 'slices', head: 'heads', stalk: 'stalks', rib: 'ribs', fillet: 'fillets', steak: 'steaks', chop: 'chops', drumstick: 'drumsticks', wing: 'wings', bulb: 'bulbs', wedge: 'wedges', yolk: 'yolks', white: 'whites', banana: 'bananas', apple: 'apples', lemon: 'lemons', lime: 'limes', avocado: 'avocados', tomato: 'tomatoes', pepper: 'peppers', chicken: 'chickens', 'jalape\u00f1o': 'jalape\u00f1os' };
+        var NOUN_PLURAL = {};
+        Object.keys(NOUN).forEach(function (s) { NOUN_PLURAL[NOUN[s]] = s; });
+        var ABBREV = { tsp: 1, tbsp: 1, oz: 1, lb: 1, lbs: 1, g: 1, kg: 1, mg: 1, mcg: 1, ml: 1, l: 1, dl: 1, qt: 1 };
+        function adjustNoun(rest, origV, newV) {
+            if (!((origV === 1 && newV > 1) || (newV === 1 && origV !== 1))) return rest;
+            var words = rest.split(/(\s+|\(|\)|,)/);
+            for (var i = 0; i < words.length; i++) {
+                var w = words[i];
+                if (!w || /^\s+$/.test(w) || w === '(' || w === ')' || w === ',') continue;
+                var low = w.toLowerCase().replace(/[^a-z\u00c0-\u024f]/g, '');
+                if (!low) continue;
+                if (ABBREV[low]) return rest;
+                if (NOUN[low]) {
+                    words[i] = w.replace(new RegExp(low, 'i'), newV === 1 ? low : NOUN[low]);
+                    return words.join('');
+                }
+                if (NOUN_PLURAL[low]) {
+                    words[i] = w.replace(new RegExp(low, 'i'), newV === 1 ? NOUN_PLURAL[low] : low);
+                    return words.join('');
+                }
+            }
+            return rest;
+        }
+
+        /* ---------- scale one text segment ---------- */
+        /* A segment is one sub-ingredient (split on " & " and ", "). Scale its
+           leading quantity (or a range), plus a parenthetical that is exactly
+           "(number unit)" -- e.g. "(2 sticks)", "(225 g)". Anything else in
+           the segment (alternatives like "(or \u00bc tsp dried)", "about",
+           "~") is left alone. Returns the scaled segment, or the original
+           when there is no leading quantity. */
+        function scaleSegment(seg, factor) {
+            var label = '';
+            var lm = /^([A-Za-z][A-Za-z ]*):\s+/.exec(seg);
+            var rest = seg;
+            if (lm) {
+                var after = seg.slice(lm[0].length);
+                if (reLeadQty.test(after)) { label = lm[0]; rest = after; }
+            }
+            var qm = reLeadQty.exec(rest);
+            if (!qm) return seg;
+            var q1 = parseQtyToken(qm[1]);
+            if (q1 === null) return seg;
+            var afterQty = rest.slice(qm[1].length);
+            var rm = reRangeSep.exec(afterQty);
+            var q2 = null, sep = '';
+            if (rm) {
+                var q2m = reLeadQty.exec(afterQty.slice(rm[0].length));
+                if (q2m) {
+                    q2 = parseQtyToken(q2m[1]);
+                    if (q2 !== null) { sep = rm[0]; afterQty = afterQty.slice(rm[0].length + q2m[1].length); }
+                    else q2 = null;
+                }
+            }
+            var out;
+            if (q2 !== null) {
+                var tail = adjustNoun(afterQty, q2, q2 * factor);
+                out = fmtQty(q1 * factor) + sep + fmtQty(q2 * factor) + tail;
+            } else {
+                var tail1 = adjustNoun(afterQty, q1, q1 * factor);
+                out = fmtQty(q1 * factor) + tail1;
+            }
+            /* Exact parenthetical "(number unit)": scale it too. */
+            out = out.replace(new RegExp('\\((' + QTY_SRC + ')\\s+([A-Za-z]+)\\)'), function (m, num, unit) {
+                var pv = parseQtyToken(num);
+                if (pv === null) return m;
+                var low = unit.toLowerCase();
+                var grams = (low === 'g' || low === 'kg' || low === 'ml' || low === 'l');
+                var nv = pv * factor;
+                var nq = fmtQty(nv, grams);
+                if (grams) return '(' + nq + ' ' + unit + ')';
+                return '(' + nq + adjustNoun(' ' + unit, pv, nv) + ')';
+            });
+            return label + out;
+        }
+        function scaleLine(text, factor) {
+            /* Split into sub-ingredients on " & " and on ", " -- but only when
+               the comma is followed by a new quantity (or "Label: quantity").
+               A comma inside one ingredient ("1 whole air-chilled,
+               pasture-raised chicken") must NOT split it, or the noun after
+               the comma would never get its number adjusted. */
+            var reSplit = new RegExp('(\\s*&\\s*|\\s*,\\s*(?=(?:[A-Za-z][A-Za-z ]*:)?\\s*' + QTY_SRC + '))');
+            var parts = text.split(reSplit);
+            for (var i = 0; i < parts.length; i += 2) parts[i] = scaleSegment(parts[i], factor);
+            return parts.join('');
+        }
+
+        /* ---------- yield / serves scaling ---------- */
+        /* Servings, rolls and cookies round to whole numbers (round half up);
+           a volume yield (quarts) scales as a fraction. */
+        var reYield = new RegExp('(Yield|Servings):\\s*(About\\s+|Approximately\\s+)?(' + QTY_SRC + ')(\\s*(?:to|[\\u2013-])\\s*(' + QTY_SRC + '))?(?:\\s*((?:summer\\s+)?)(servings?|rolls?|cookies?|quarts?))?', 'i');
+        var reServes = new RegExp('Serves\\s+(' + QTY_SRC + ')(\\s*(?:to|[\\u2013-])\\s*(' + QTY_SRC + '))?', 'i');
+        function scaleYieldText(text, factor) {
+            return text.replace(reYield, function (m, word, approx, q1s, rangePart, q2s, prefix, unit) {
+                var q1 = parseQtyToken(q1s);
+                if (q1 === null) return m;
+                var hadUnit = !!unit;
+                unit = unit || 'servings';
+                prefix = prefix || '';
+                var volume = /quart/i.test(unit);
+                function scaleCount(v) {
+                    if (volume) return fmtQty(v);
+                    return String(Math.floor(v + 0.5));
+                }
+                var low = unit.toLowerCase();
+                function unitFor(v) {
+                    if (volume) return v <= 1 ? 'quart' : 'quarts';
+                    if (/serving/i.test(low)) return v <= 1 ? 'serving' : 'servings';
+                    if (/roll/i.test(low)) return v <= 1 ? 'roll' : 'rolls';
+                    return v <= 1 ? 'cookie' : 'cookies';
+                }
+                var n1 = q1 * factor;
+                var unitSuffix = function (v) { return hadUnit ? ' ' + prefix + unitFor(v) : ''; };
+                if (rangePart && q2s) {
+                    var q2 = parseQtyToken(q2s);
+                    if (q2 === null) return m;
+                    var n2 = q2 * factor;
+                    var sep = rangePart.slice(0, rangePart.length - q2s.length);
+                    return word + ': ' + (approx || '') + scaleCount(n1) + sep + scaleCount(n2) + unitSuffix(n2);
+                }
+                return word + ': ' + (approx || '') + scaleCount(n1) + unitSuffix(n1);
+            });
+        }
+        function scaleServesText(text, factor) {
+            return text.replace(reServes, function (m, q1s, rangePart, q2s) {
+                var q1 = parseQtyToken(q1s);
+                if (q1 === null) return m;
+                function sc(v) { return String(Math.floor(v + 0.5)); }
+                if (rangePart && q2s) {
+                    var q2 = parseQtyToken(q2s);
+                    if (q2 === null) return m;
+                    var sep = rangePart.slice(0, rangePart.length - q2s.length);
+                    return 'Serves ' + sc(q1 * factor) + sep + sc(q2 * factor);
+                }
+                return 'Serves ' + sc(q1 * factor);
+            });
+        }
+
+        /* ---------- dish scaler: build + apply ---------- */
+        var FACTORS = [0.5, 1, 1.5, 2];
+        function factorLabel(f) { return f === 0.5 ? '\u00bd\u00d7' : f === 1.5 ? '1\u00bd\u00d7' : f + '\u00d7'; }
+        function ingredientLists(content) {
+            /* The dish-scaler bar is inserted between the Ingredients title
+               and its list, so the list is not always the title's immediate
+               next sibling -- walk forward to the first UL, stopping at the
+               next section title. (A plain nextElementSibling check breaks
+               the moment the bar is inserted.) */
+            var lists = [];
+            var titles = content.querySelectorAll('.recipe-section-title');
+            titles.forEach(function (t) {
+                var sib = t.nextElementSibling;
+                while (sib && !(sib.tagName === 'UL' && sib.classList.contains('recipe-list')) && !sib.classList.contains('recipe-section-title')) sib = sib.nextElementSibling;
+                if (sib && sib.tagName === 'UL') lists.push(sib);
+            });
+            return lists;
+        }
+        function storeOriginals(wrapper, content) {
+            ingredientLists(content).forEach(function (ul) {
+                ul.querySelectorAll('li').forEach(function (li) {
+                    if (!li.hasAttribute('data-orig')) li.setAttribute('data-orig', li.textContent);
+                });
+            });
+            [content.querySelector('.recipe-meta'), wrapper.querySelector('.recipe-card-meta')].forEach(function (el) {
+                if (el && !el.hasAttribute('data-orig')) el.setAttribute('data-orig', el.textContent);
+            });
+            var em = content.querySelector('em');
+            if (em && /Serves\s/i.test(em.textContent) && !em.hasAttribute('data-orig')) em.setAttribute('data-orig', em.textContent);
+        }
+        function applyScale(wrapper, content, factor) {
+            storeOriginals(wrapper, content);
+            if (factor === 1) {
+                ingredientLists(content).forEach(function (ul) {
+                    ul.querySelectorAll('li').forEach(function (li) { li.textContent = li.getAttribute('data-orig'); });
+                });
+                [content.querySelector('.recipe-meta'), wrapper.querySelector('.recipe-card-meta')].forEach(function (el) {
+                    if (el) el.textContent = el.getAttribute('data-orig');
+                });
+                var em = content.querySelector('em');
+                if (em && em.hasAttribute('data-orig')) em.textContent = em.getAttribute('data-orig');
+                return;
+            }
+            ingredientLists(content).forEach(function (ul) {
+                ul.querySelectorAll('li').forEach(function (li) {
+                    li.textContent = scaleLine(li.getAttribute('data-orig'), factor);
+                });
+            });
+            [content.querySelector('.recipe-meta'), wrapper.querySelector('.recipe-card-meta')].forEach(function (el) {
+                if (el) el.textContent = scaleYieldText(el.getAttribute('data-orig'), factor);
+            });
+            var em2 = content.querySelector('em');
+            if (em2 && em2.hasAttribute('data-orig')) em2.textContent = scaleServesText(em2.getAttribute('data-orig'), factor);
+        }
+        document.querySelectorAll('.recipe-wrapper').forEach(function (wrapper) {
+            var content = wrapper.querySelector('.recipe-content');
+            if (!content) return;
+            var lists = ingredientLists(content);
+            if (!lists.length) return;
+            var firstTitle = lists[0].previousElementSibling;
+            var bar = document.createElement('div');
+            bar.className = 'dish-scaler';
+            bar.setAttribute('role', 'group');
+            bar.setAttribute('aria-label', 'Dish size');
+            var lab = document.createElement('span');
+            lab.className = 'dish-scaler-label';
+            lab.textContent = 'Dish size';
+            bar.appendChild(lab);
+            FACTORS.forEach(function (f) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'dish-scale' + (f === 1 ? ' active' : '');
+                b.setAttribute('data-factor', String(f));
+                b.textContent = factorLabel(f);
+                if (f === 1) b.title = 'Back to the original recipe';
+                bar.appendChild(b);
+            });
+            content.insertBefore(bar, firstTitle.nextSibling);
+        });
+        /* Delegated on document so the control also works in cook-mode
+           clones (cloneNode does not copy listeners). */
+        document.addEventListener('click', function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest('.dish-scale') : null;
+            if (!btn) return;
+            var barEl = btn.closest('.dish-scaler');
+            if (!barEl) return;
+            var f = parseFloat(btn.getAttribute('data-factor'));
+            barEl.querySelectorAll('.dish-scale').forEach(function (x) { x.classList.toggle('active', x === btn); });
+            var w = barEl.closest('.recipe-wrapper');
+            var c = w ? w.querySelector('.recipe-content') : null;
+            if (w && c) applyScale(w, c, f);
+        });
+
+        /* ---------- sticky recipe name ---------- */
+        var bar = document.createElement('button');
+        bar.type = 'button';
+        bar.id = 'recipeStickyName';
+        bar.setAttribute('aria-label', 'Collapse the recipe you are reading');
+        bar.innerHTML = '<span class="recipe-sticky-inner"><span class="recipe-sticky-title"></span><span class="recipe-sticky-hint" aria-hidden="true">\u25b2 Close</span></span>';
+        document.body.appendChild(bar);
+        var titleEl = bar.querySelector('.recipe-sticky-title');
+        var currentId = null;
+        var currentWrapper = null;
+        function navHeight() {
+            var nav = document.querySelector('.site-nav');
+            return nav ? nav.offsetHeight : 56;
+        }
+        function placeBar() { bar.style.top = navHeight() + 'px'; }
+        function updateSticky() {
+            var cookView = document.getElementById('cookView');
+            if (cookView && cookView.classList.contains('open')) { bar.classList.remove('show'); currentId = null; currentWrapper = null; return; }
+            var navH = navHeight();
+            var found = null, foundWrapper = null;
+            document.querySelectorAll('.recipe-wrapper.expanded').forEach(function (w) {
+                var content = w.querySelector('.recipe-content');
+                if (!content) return;
+                var r = content.getBoundingClientRect();
+                if (r.top < navH + 1 && r.bottom > navH + 1) {
+                    found = content.id;
+                    foundWrapper = w;
+                }
+            });
+            if (found) {
+                var t = foundWrapper.querySelector('.recipe-card-title');
+                var name = t ? t.textContent.trim() : found;
+                if (currentId !== found || titleEl.textContent !== name) {
+                    titleEl.textContent = name;
+                    bar.setAttribute('aria-label', 'Collapse ' + name);
+                }
+                currentId = found;
+                currentWrapper = foundWrapper;
+                bar.classList.add('show');
+            } else {
+                currentId = null;
+                currentWrapper = null;
+                bar.classList.remove('show');
+            }
+        }
+        var ticking = false;
+        function onScroll() {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(function () { ticking = false; updateSticky(); });
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', function () { placeBar(); updateSticky(); });
+        document.addEventListener('click', function (e) {
+            var tog = e.target && e.target.closest ? e.target.closest('.recipe-toggle') : null;
+            if (tog) requestAnimationFrame(updateSticky);
+        });
+        bar.addEventListener('click', function () {
+            if (!currentId || !currentWrapper) return;
+            var wrapper = currentWrapper;
+            var arrowId = currentId.replace('Recipe', 'Arrow');
+            if (typeof toggleNestedRecipe === 'function') toggleNestedRecipe(currentId, arrowId);
+            bar.classList.remove('show');
+            currentId = null;
+            currentWrapper = null;
+            /* Collapsing from deep inside would otherwise leave the page
+               scrolled past vanished content -- glide back to the card. */
+            wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        placeBar();
+        updateSticky();
+    })();
     </script>
 
     <!-- Cook mode: floating action bar + full-screen overlay (content is cloned from the cards by script; nothing is duplicated in the source) -->
