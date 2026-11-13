@@ -7676,5 +7676,39 @@
         };
     })();
     </script>
+<button type="button" class="back-to-top" id="backToTop" aria-label="Back to top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 15l7-7 7 7"/></svg></button>
+<script>
+    // Back to top: the floating button appears once the page is scrolled;
+    // tapping it returns to the top (instant under reduced-motion). On
+    // this page it also lifts above the combiner / cook bars when either
+    // is showing, so it never covers them.
+    (function () {
+        var btn = document.getElementById('backToTop');
+        if (!btn) return;
+        var ticking = false;
+        function update() {
+            ticking = false;
+            btn.classList.toggle('show', window.scrollY > 600);
+        }
+        window.addEventListener('scroll', function () {
+            if (!ticking) { ticking = true; window.requestAnimationFrame(update); }
+        }, { passive: true });
+        update();
+        var liftBars = [document.getElementById('combinerBar'), document.getElementById('cookBar')].filter(Boolean);
+        if (liftBars.length) {
+            var syncLift = function () {
+                var lifted = liftBars.some(function (bar) { return bar.classList.contains('show'); });
+                btn.classList.toggle('lifted', lifted);
+            };
+            var mo = new MutationObserver(syncLift);
+            liftBars.forEach(function (bar) { mo.observe(bar, { attributes: true, attributeFilter: ['class'] }); });
+            syncLift();
+        }
+        btn.addEventListener('click', function () {
+            var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+        });
+    })();
+</script>
 </body>
 </html>
