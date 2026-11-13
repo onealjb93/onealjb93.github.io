@@ -412,8 +412,50 @@
             padding: 1.5rem 1.25rem 0.75rem;
         }
         body:has(.explainer-card.active) .experts-tier,
-        body:has(.explainer-card.active) .agree-block.agree-sticky h3 {
+        body:has(.explainer-card.active) .agree-block.agree-sticky h3,
+        body:has(.explainer-card.active) .products-sticky {
             position: static;
+        }
+        /* Tier sub-lines + pinned-bar tier tags (2026-11-12): every
+           checklist names its tier, so the agreement list is never
+           mistaken for another tier's. The sub-line sits under the
+           heading in resting state; the pill tag appears inside the
+           heading only while it is stuck (JS .is-stuck class below),
+           so the resting heading is unchanged and the stuck bar never
+           grows a line — the tag fits on the heading's last line. */
+        .agree-block .agree-tier { color: var(--subtext-color); font-size: 0.8rem; font-weight: 600; margin: 0 0 0.5rem 0; }
+        .agree-block.agree-sticky h3 .tier-tag {
+            display: none;
+            margin-left: 0.5rem;
+            padding: 0.1rem 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--subtext-color);
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        .agree-block.agree-sticky h3.is-stuck .tier-tag { display: inline-block; }
+        /* Pinned Products & Services heading (2026-11-12): same
+           freeze-pane pattern as the tier headings. The 60px gap above
+           it moves from the h2's margin-top to .committee-tiers'
+           margin-bottom, so the stuck bar is short (margin area is
+           transparent and would show scrolling content above a stuck
+           bar); the resting gap is unchanged at 60px. The h2's own
+           border-bottom is the hairline. It is the last section, so
+           near the document end it rides the body's bottom edge —
+           correct sticky behavior, same as the last expert card. */
+        .committee-tiers { margin-bottom: 60px; }
+        .products-sticky {
+            position: sticky;
+            top: 55px;
+            z-index: 90;
+            margin-top: 0;
+            padding-top: 1.5rem;
+            background: var(--bg-color);
         }
     </style>
 
@@ -455,8 +497,9 @@
     </div>
 
     <div class="agree-block agree-sticky">
-        <h3>Where My Health Committee Agrees: A Daily Checklist</h3>
-        <p>Fifteen experts, different methods — but they converge on the same daily habits:</p>
+        <h3>Where My Health Committee Agrees: A Daily Checklist<span class="tier-tag">Basic Health</span></h3>
+        <p class="agree-tier">What the 15 Basic Health experts agree on.</p>
+        <p>Different methods — but they converge on the same daily habits:</p>
         <ol>
             <li>Move daily; lift 2–3 times a week; add regular cardio.</li>
             <li>Eat mostly whole, minimally processed foods, lots of plants — and oily fish a couple of times a week.</li>
@@ -648,8 +691,8 @@
         </div>
     </div>
 
-    <div class="agree-block">
-        <h3>Where They Disagree</h3>
+    <div class="agree-block agree-sticky">
+        <h3>Where They Disagree<span class="tier-tag">Athletic Health</span></h3>
         <p>Even the athletic experts don't agree on everything:</p>
         <ol>
             <li>Zone 2 vs. more intensity — most agree you need both; the argument is the exact balance and definition.</li>
@@ -659,8 +702,9 @@
         </ol>
     </div>
 
-    <div class="agree-block">
-        <h3>Advanced Athlete Checklist</h3>
+    <div class="agree-block agree-sticky">
+        <h3>Advanced Athlete Checklist<span class="tier-tag">Athletic</span></h3>
+        <p class="agree-tier">From the 10 Athletic Health experts.</p>
         <p>The Athletic Health experts, in training order:</p>
         <ol>
             <li>Periodize: base, build, peak, recover; rotate focus.</li>
@@ -810,8 +854,9 @@
         </div>
     </div>
 
-    <div class="agree-block">
-        <h3>Quick Wins</h3>
+    <div class="agree-block agree-sticky">
+        <h3>Quick Wins<span class="tier-tag">Modern Living</span></h3>
+        <p class="agree-tier">From the 8 Modern Living experts.</p>
         <p>Small habits most of these experts would back:</p>
         <ol>
             <li>Take a short walk after meals (even 5–10 minutes helps blood sugar).</li>
@@ -834,7 +879,7 @@
 
 
     <!-- 3. PRODUCTS & SERVICES CATEGORY -->
-    <h2>Products & Services</h2>
+    <h2 class="products-sticky">Products &amp; Services</h2>
 
     <div class="resource-grid resource-grid--compact">
         <a href="https://hubermanlab.com" target="_blank" class="resource-card">
@@ -908,6 +953,34 @@
                 arrow.textContent = '▼';
             }
         }
+        // Sticky-heading tier tags (2026-11-12): the .tier-tag pill inside
+        // a pinned checklist/disagree heading shows only while that heading
+        // is actually stuck at top:55px. Pure CSS has no :stuck selector,
+        // so this rAF-throttled scroll check toggles .is-stuck. A heading
+        // counts as stuck when its top edge sits at 55px (within 0.5px)
+        // and no expert card is open — when a card is open the headings
+        // are position:static and the card's name owns the slot instead.
+        // While a stuck bar rides up past its container's end its top
+        // drops below 55, so the tag hides with it; no layout shift,
+        // because the tag is inline and fits on the heading's last line.
+        (function () {
+            var headings = Array.prototype.slice.call(document.querySelectorAll('.agree-block.agree-sticky h3'));
+            if (!headings.length || !('requestAnimationFrame' in window)) return;
+            var ticking = false;
+            function update() {
+                ticking = false;
+                var anyOpen = !!document.querySelector('.explainer-card.active');
+                headings.forEach(function (h) {
+                    var r = h.getBoundingClientRect();
+                    var stuck = !anyOpen && Math.abs(r.top - 55) < 0.5 && r.bottom > 55;
+                    h.classList.toggle('is-stuck', stuck);
+                });
+            }
+            function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(update); } }
+            window.addEventListener('scroll', onScroll, { passive: true });
+            window.addEventListener('resize', onScroll);
+            update();
+        })();
     </script>
 </body>
 </html>
