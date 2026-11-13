@@ -404,6 +404,13 @@
         .cook-recipe .cook-pane-head .recipe-card-photo { display: none; }
         @media (max-width: 1100px) { .cook-recipe .cook-pane-head { margin: 0 -0.9rem 1rem; padding: 0.7rem 0.9rem 0.55rem; width: calc(100% + 1.8rem); } }
         @media (max-width: 1250px) { .cook-score-nums { display: none; } }
+        /* ---- Cook mode pane serving steppers + serving-basis labels (2026-11-13) ---- */
+        .cook-recipe .cook-pane-head .serv-stepper { display: inline-flex; }
+        .cook-pane-servrow { display: flex; align-items: center; gap: 0.55rem; margin-top: 0.5rem; }
+        .cook-pane-servlabel { font-size: 0.78rem; font-weight: 600; color: var(--subtext-color); }
+        .cook-score-basis { font-weight: 600; color: var(--text-color); }
+        .healthy-day-basis { font-weight: 600; }
+        .daily-summary { font-size: 0.95rem; line-height: 1.5; margin: 0 0 0.75rem; }
     </style>
 
 </head>
@@ -5535,7 +5542,7 @@
                     <div class="recipe-section-title">Generate daily meals</div>
                     <button type="button" id="dailyGenerate">✨ Generate daily meals</button>
                 </div>
-                <p class="daily-note">Builds on Pairs well with: one tap drafts a full day of eating from the archive — recipes and portion sizes chosen to get every nutrient as close to 5 dots as the archive allows, scored with the same daily targets as the combiner above. Sauces and cocktails are never meal components; a dessert appears only as a small treat, if at all. Nothing is applied until you say so, and the manual combiner stays exactly as it is.</p>
+                <p class="daily-note">Builds on Pairs well with: one tap drafts a full day of eating from the archive — recipes and portion sizes chosen to get every nutrient as close to 5 dots as the archive allows, scored with the same daily targets as the combiner above. Sauces and cocktails are never meal components; a dessert appears only as a small treat, if at all. Plans keep to two or three dishes: a real breakfast, then one main dish cooked once and eaten for both lunch and dinner, with portion sizes — not extra cooking — doing the rest of the work. Nothing is applied until you say so, and the manual combiner stays exactly as it is.</p>
                 <div class="daily-results" id="dailyResults" aria-live="polite"></div>
             </div>
             <p class="nutrition-note">All values are estimates from USDA FoodData Central data — not laboratory analysis. Where an ingredient has no USDA entry it is left out and noted on the recipe; where a recipe doesn't state a quantity, standard amounts are assumed and noted. Salt to taste is not counted, so sodium may be higher.</p>
@@ -6020,6 +6027,8 @@
                 mid.setAttribute('aria-label', 'Servings: ' + m + '. Tap to reset to 1 serving');
             }
         });
+        /* Cook mode panes show the same multipliers; keep them in step. */
+        if (window.__jboPaneServSync) window.__jboPaneServSync();
     }
     function updateCombiner() {
         if (!listEl || !resultsEl) return;
@@ -6037,7 +6046,7 @@
         var ids = [];
         var hdIds = [];
         var vitCount = 0, recipeCount = 0;
-        var totalServings = 0, anyScaled = false;
+        var totalServings = 0, anyScaled = false, allOne = true;
         checked.forEach(function (cb) {
             var rid = cb.getAttribute('data-recipe');
             var d = NUTRI.recipes[dataKey(rid)] || (NUTRI.vitamins ? NUTRI.vitamins[rid] : null);
@@ -6047,6 +6056,7 @@
             if (isVit) vitCount++; else recipeCount++;
             var m = servMult[rid] || 1;
             if (m > 1) anyScaled = true;
+            if (m !== 1) allOne = false;
             totalServings += m;
             names.push(m > 1 ? m + '\u00d7 ' + (r ? r.name : (NUTRI.vitamins && NUTRI.vitamins[rid] ? NUTRI.vitamins[rid].name : rid)) : (r ? r.name : (NUTRI.vitamins && NUTRI.vitamins[rid] ? NUTRI.vitamins[rid].name : rid)));
             ids.push(rid);
@@ -6084,7 +6094,7 @@
         h += '<p class="nutrition-note">' + (anyScaled ? 'Combined values are the sum of the selected servings of each ' + (vitCount ? 'item' : 'recipe') + '. ' : 'Combined values are the sum of one serving of each selected ' + (vitCount ? 'item' : 'recipe') + '. ') + esc(NUTRI.method) + '</p>';
         var barLabel = null;
         if (vitCount) { barLabel = selParts.join(' \u00b7 '); if (totalServings > names.length) barLabel += ' \u00b7 ' + totalServings + ' serving' + (totalServings > 1 ? 's' : ''); }
-        updateCombinerBar(names.length, totals, totalServings, hdIds, barLabel);
+        updateCombinerBar(names.length, totals, totalServings, hdIds, barLabel, allOne);
         resultsEl.innerHTML = h;
     }
 
@@ -6130,8 +6140,18 @@
         return 'Healthy Day ' + h + ' ' + score + '/5';
     }
 
+    /* Serving-count display: integers plain, halves as a vulgar fraction
+       (2.5 -> "2½"), anything else one decimal. */
+    function fmtServQty(n) {
+        if (typeof n !== 'number' || isNaN(n)) return String(n);
+        if (Math.abs(n - Math.round(n)) < 0.001) return String(Math.round(n));
+        var whole = Math.floor(n);
+        if (Math.abs(n - whole - 0.5) < 0.001) return whole > 0 ? whole + '½' : '½';
+        return String(Math.round(n * 10) / 10);
+    }
+
     /* Sticky combiner footer bar: live totals, the same numbers updateCombiner() computed. */
-    function updateCombinerBar(count, totals, servings, recipeIds, labelOverride) {
+    function updateCombinerBar(count, totals, servings, recipeIds, labelOverride, allOne) {
         var bar = document.getElementById('combinerBar');
         var txt = document.getElementById('combinerBarText');
         if (!bar || !txt) return;
@@ -6162,7 +6182,12 @@
             grid.innerHTML = gh;
         }
         var hd = document.getElementById('healthyDayScore');
-        if (hd && totals) hd.innerHTML = healthyDayHTML(healthyDayScore(totals, recipeIds || []));
+        if (hd && totals) {
+            var hdBasis = allOne === false
+                ? 'based on ' + fmtServQty(servings) + ' serving' + (servings === 1 ? '' : 's') + ' total'
+                : 'based on 1 serving each';
+            hd.innerHTML = healthyDayHTML(healthyDayScore(totals, recipeIds || [])) + '<span class="healthy-day-basis"> · ' + hdBasis + '</span>';
+        }
         var wasHidden = !bar.classList.contains('show');
         bar.classList.add('show');
         document.body.classList.add('combiner-bar-visible');
@@ -6303,17 +6328,21 @@
         });
     }
 
-    /* --- Generate daily meals (added 2026-11-13) ---
-       Drafts a full day of eating from the archive: recipes + portion sizes
-       chosen by a randomized greedy search (restarts + local swaps, capped)
-       scored with the SAME dot logic (scoreFromPct) and the SAME active
-       daily targets (activeTargets) the combiner uses, so the numbers it
-       shows are the numbers the combiner will show when the plan is loaded.
-       Portions are serving multipliers in the combiner's own semantics
-       (servMult): 0.5 steps from 0.5 to 3 (desserts 0.5-1, as a treat only).
-       Cocktails and sauces are never meal components, and neither are
-       component recipes (doughs, crusts, broths, glazes, butters, oils,
-       dusts) -- they are accompaniments, not dishes. Nothing here touches
+    /* --- Generate daily meals (added 2026-11-13; realism rework same day) ---
+       Drafts a full day of eating from the archive, structured the way a
+       person actually cooks and eats: Breakfast - Lunch - Dinner, at most
+       3 distinct dishes. Breakfast is a genuine breakfast dish; lunch and
+       dinner are ONE anchor dish cooked once at a combined portion (the
+       batch link); a side, an extra salad/soup or a small dessert may join
+       dinner. Portions (the combiner's own servMult semantics: 0.5 steps,
+       up to 3) do the rest of the work -- the objective pays a per-dish
+       penalty past two dishes, so a plan grows servings before it adds
+       cooking. Scoring is the page's own: the same dot logic (scoreFromPct),
+       the same active daily targets (activeTargets) and the same Healthy
+       Day criteria the combiner uses, so the numbers it shows are the
+       numbers the combiner shows when the plan is loaded. Cocktails,
+       sauces and component recipes (doughs, crusts, broths, glazes,
+       butters, oils, dusts) are never meal components. Nothing here touches
        the manual combiner; "Use this combination" only sets the same
        checkboxes and servMult values the user could set by hand. */
     var GEN_COMPONENTS = {
@@ -6353,6 +6382,18 @@
         var role = genRole(r.id);
         if (role) GEN_POOLS[role].push(r.id);
     });
+    /* Meal-slot realism (2026-11-13): the day is Breakfast - Lunch - Dinner.
+       Breakfast comes only from dishes that are genuinely breakfast food in
+       this archive: Cacio e Pepe Grits, and Crispy Ginger Rice with a fried
+       egg. (Deviled eggs are a party appetizer and cornbread an
+       accompaniment -- neither is a breakfast plate, so neither is in the
+       pool.) Lunch and dinner share ONE anchor dish (a main, soup or salad)
+       cooked once at a combined portion; a side, an extra salad/soup or a
+       dessert may accompany dinner, never anchor a meal. */
+    var GEN_BREAKFAST = ['cacioGritsRecipe', 'gingerRiceRecipe'].filter(function (id) { return !!GEN_VEC[id]; });
+    var GEN_ANCHORS = GEN_POOLS.main.concat(GEN_POOLS.soup, GEN_POOLS.salad).filter(function (id) { return GEN_BREAKFAST.indexOf(id) === -1; });
+    var GEN_EXTRAS = GEN_POOLS.side.concat(GEN_POOLS.salad, GEN_POOLS.soup).filter(function (id) { return GEN_BREAKFAST.indexOf(id) === -1; });
+    function genIsBreakfast(id) { return GEN_BREAKFAST.indexOf(id) !== -1; }
     function genTotalsArr(plan) {
         var t = DV_ORDER.map(function () { return 0; });
         Object.keys(plan).forEach(function (id) {
@@ -6387,6 +6428,9 @@
         if (over <= 1 && (!kcal || sugarKcal / kcal * 100 < 10)) score++;
         return score;
     }
+    /* Realism rework (2026-11-13): every dish past the second costs real
+       points, so the search grows portions before it adds another dish. */
+    var GEN_DISH_PENALTY = 3.5;
     /* Objective: sum of per-nutrient contributions (max ~5 each).
        Goal nutrients earn their dot score, with a growing penalty far past
        150% of target; calories are scored on closeness to 100% of target;
@@ -6407,7 +6451,7 @@
             else c = scoreFromPct(pct) - Math.max(0, pct - 150) / 75;
             s += Math.max(-5, c);
         });
-        return s + 2 * genHealthyFast(totArr, ids);
+        return s + 2 * genHealthyFast(totArr, ids) - GEN_DISH_PENALTY * Math.max(0, ids.length - 2);
     }
     function genScoreOf(plan) {
         var t = genTotalsArr(plan);
@@ -6422,62 +6466,73 @@
     }
     function genGreedy() {
         var plan = {};
-        var mains = genShuffle(GEN_POOLS.main.slice());
-        plan[mains[0]] = 1;
-        plan[mains[1]] = 1;
-        var starters = GEN_POOLS.soup.concat(GEN_POOLS.salad);
-        plan[starters[Math.floor(Math.random() * starters.length)]] = 1;
+        var bf = GEN_BREAKFAST[Math.floor(Math.random() * GEN_BREAKFAST.length)];
+        plan[bf] = 1;
+        var anchor = GEN_ANCHORS[Math.floor(Math.random() * GEN_ANCHORS.length)];
+        plan[anchor] = 2;
         var best = genScoreOf(plan).score;
+        function capOf(id) {
+            if (genIsBreakfast(id)) return 1.5;
+            if (genRole(id) === 'dessert') return 1;
+            return 3;
+        }
+        function minOf(id) {
+            if (id === anchor) return 1.5;
+            if (genIsBreakfast(id)) return 1;
+            return 0.5;
+        }
         var guard = 0, improved = true;
-        while (improved && guard++ < 80) {
+        while (improved && guard++ < 60) {
             improved = false;
             var trials = [];
-            ['main', 'soup', 'salad', 'side'].forEach(function (role) {
-                GEN_POOLS[role].forEach(function (id) {
-                    if (!(id in plan)) [0.5, 1, 1.5, 2].forEach(function (p) { trials.push([id, p]); });
+            Object.keys(plan).forEach(function (id) {
+                [-0.5, 0.5].forEach(function (d) {
+                    var nm = plan[id] + d;
+                    if (nm >= minOf(id) && nm <= capOf(id)) trials.push([id, nm]);
                 });
             });
-            GEN_POOLS.dessert.forEach(function (id) { if (!(id in plan)) trials.push([id, 0.5]); });
-            Object.keys(plan).forEach(function (id) {
-                var cap = genRole(id) === 'dessert' ? 1 : 3;
-                if (plan[id] < cap) trials.push([id, plan[id] + 0.5]);
-            });
+            if (Object.keys(plan).length < 3) {
+                GEN_EXTRAS.forEach(function (id) { if (!(id in plan)) [0.5, 1].forEach(function (p) { trials.push([id, p]); }); });
+                GEN_POOLS.dessert.forEach(function (id) { if (!(id in plan)) trials.push([id, 0.5]); });
+            }
             genShuffle(trials);
             for (var k = 0; k < trials.length; k++) {
-                var id = trials[k][0], p = trials[k][1];
-                var isNew = !(id in plan);
-                if (isNew && Object.keys(plan).length >= 9) continue;
-                var old = plan[id];
-                plan[id] = p;
+                var tid = trials[k][0], tp = trials[k][1];
+                var isNew = !(tid in plan);
+                if (isNew && Object.keys(plan).length >= 3) continue;
+                var old = plan[tid];
+                plan[tid] = tp;
                 var tot = genTotalsArr(plan);
                 var kcalT = activeTargets()['208'];
                 if (kcalT && tot[0] > kcalT * 1.3) {
-                    if (isNew) delete plan[id]; else plan[id] = old;
+                    if (isNew) delete plan[tid]; else plan[tid] = old;
                     continue;
                 }
                 var s = genObjective(tot, Object.keys(plan));
                 if (s > best + 0.01) { best = s; improved = true; }
-                else { if (isNew) delete plan[id]; else plan[id] = old; }
+                else { if (isNew) delete plan[tid]; else plan[tid] = old; }
             }
         }
-        /* Local swaps: same role, same portion, up to 2 passes. */
-        for (var pass = 0; pass < 2; pass++) {
-            var swapped = false;
-            Object.keys(plan).forEach(function (id) {
-                var role = genRole(id);
-                if (!role) return;
-                GEN_POOLS[role].forEach(function (cand) {
-                    if (cand in plan) return;
-                    var m = plan[id];
-                    delete plan[id];
-                    plan[cand] = m;
-                    var s2 = genScoreOf(plan).score;
-                    if (s2 > best + 0.01) { best = s2; swapped = true; id = cand; }
-                    else { delete plan[cand]; plan[id] = m; }
-                });
+        /* Swaps: breakfast within its pool, the anchor within the anchor
+           pool, a third dish within its own kind -- portions unchanged. */
+        function trySwap(outId, candidates) {
+            candidates.forEach(function (cand) {
+                if (cand === outId || (cand in plan)) return;
+                var m = plan[outId];
+                delete plan[outId];
+                plan[cand] = m;
+                var s2 = genScoreOf(plan).score;
+                if (s2 > best + 0.01) { best = s2; outId = cand; }
+                else { delete plan[cand]; plan[outId] = m; }
             });
-            if (!swapped) break;
+            return outId;
         }
+        anchor = trySwap(anchor, GEN_ANCHORS);
+        trySwap(bf, GEN_BREAKFAST);
+        Object.keys(plan).forEach(function (id) {
+            if (id === anchor || genIsBreakfast(id)) return;
+            trySwap(id, genRole(id) === 'dessert' ? GEN_POOLS.dessert : GEN_EXTRAS);
+        });
         return { plan: plan, score: best };
     }
     function genPlanKey(plan) {
@@ -6499,10 +6554,18 @@
             found.push({ plan: g.plan, score: g.score, key: key });
         }
         found.sort(function (a, b) { return b.score - a.score; });
-        var pick = found[0];
+        /* Prefer the fewest dishes among near-best plans: portions, not
+           another cooking session, should do the work. */
+        var topScore = found.length ? found[0].score : 0;
+        var near = found.filter(function (f) { return f.score >= topScore - 1.5; });
+        near.sort(function (a, b) {
+            var dd = Object.keys(a.plan).length - Object.keys(b.plan).length;
+            return dd !== 0 ? dd : b.score - a.score;
+        });
+        var pick = near[0];
         if (pick && pick.key === lastDailyKey) {
-            for (var i = 1; i < found.length; i++) {
-                if (found[i].score >= pick.score - 1.5) { pick = found[i]; break; }
+            for (var i = 1; i < near.length; i++) {
+                if (near[i].key !== lastDailyKey) { pick = near[i]; break; }
             }
         }
         lastDailyMs = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
@@ -6527,33 +6590,41 @@
         var entries = Object.keys(plan).map(function (id) {
             return { id: id, mult: plan[id], role: genRole(id), kcal: GEN_VEC[id][0] * plan[id], name: byId[id] ? byId[id].name : id };
         });
+        var breakfast = entries.filter(function (e) { return genIsBreakfast(e.id); });
+        var desserts = entries.filter(function (e) { return e.role === 'dessert'; });
+        var rest = entries.filter(function (e) { return !genIsBreakfast(e.id) && e.role !== 'dessert'; }).sort(function (a, b) { return b.kcal - a.kcal; });
+        var anchorE = rest.length ? rest[0] : null;
+        var extras = rest.slice(1);
+        /* The anchor's combined portion splits across lunch and dinner:
+           lunch takes the larger share, both in half steps. */
+        var lunchMult = 0, dinnerMult = 0;
+        if (anchorE) {
+            dinnerMult = Math.floor((anchorE.mult / 2) * 2) / 2;
+            if (dinnerMult < 0.5) dinnerMult = 0.5;
+            if (dinnerMult > anchorE.mult - 0.5) dinnerMult = anchorE.mult - 0.5;
+            lunchMult = anchorE.mult - dinnerMult;
+        }
         var groups = [
-            { label: 'Start of the day', items: [] },
-            { label: 'Midday', items: [] },
-            { label: 'Evening', items: [] },
+            { label: 'Breakfast', items: [] },
+            { label: 'Lunch', items: [] },
+            { label: 'Dinner', items: [] },
             { label: 'Treat', items: [] }
         ];
-        var mains = entries.filter(function (e) { return e.role === 'main'; }).sort(function (a, b) { return b.kcal - a.kcal; });
-        var desserts = entries.filter(function (e) { return e.role === 'dessert'; });
-        var others = entries.filter(function (e) { return e.role !== 'main' && e.role !== 'dessert'; }).sort(function (a, b) { return a.kcal - b.kcal; });
-        mains.forEach(function (e, i) {
-            if (i === 0) groups[2].items.push(e);
-            else if (i === 1) groups[1].items.push(e);
-            else if (i === 2) groups[0].items.push(e);
-            else groups[2].items.push(e);
-        });
-        others.forEach(function (e, i) {
-            if (i === 0 && !groups[0].items.length) groups[0].items.push(e);
-            else if (i % 2 === 0) groups[2].items.push(e);
-            else groups[1].items.push(e);
-        });
-        desserts.forEach(function (e) { groups[3].items.push(e); });
-        var h = '';
+        breakfast.forEach(function (e) { groups[0].items.push({ e: e, mult: e.mult, note: '' }); });
+        if (anchorE) {
+            groups[1].items.push({ e: anchorE, mult: lunchMult, note: 'cook once \u2014 the same dish is dinner too' });
+            groups[2].items.push({ e: anchorE, mult: dinnerMult, note: 'from the same batch as lunch' });
+        }
+        extras.forEach(function (e) { groups[2].items.push({ e: e, mult: e.mult, note: '' }); });
+        desserts.forEach(function (e) { groups[3].items.push({ e: e, mult: e.mult, note: '' }); });
+        var order = breakfast.concat(anchorE ? [anchorE] : []).concat(extras).concat(desserts);
+        var h = '<p class="daily-summary"><strong>' + entries.length + ' dish' + (entries.length === 1 ? '' : 'es') + '</strong> \u00b7 ' +
+            order.map(function (e) { return esc(e.name) + ' \u00d7' + fmtMult(e.mult); }).join(', ') + '</p>';
         groups.forEach(function (g) {
             if (!g.items.length) return;
             h += '<div class="daily-meal"><p class="daily-meal-title">' + g.label + '</p><ul>';
-            g.items.forEach(function (e) {
-                h += '<li><span class="daily-mult">' + esc(portionText(byId[e.id], e.mult)) + '</span> · ' + esc(e.name) + '</li>';
+            g.items.forEach(function (it) {
+                h += '<li><span class="daily-mult">' + esc(portionText(byId[it.e.id], it.mult)) + '</span> \u00b7 ' + esc(it.e.name) + (it.note ? ' <span class="daily-serving">(' + it.note + ')</span>' : '') + '</li>';
             });
             h += '</ul></div>';
         });
@@ -6620,14 +6691,31 @@
         var totals = {};
         DV_ORDER.forEach(function (num) { totals[num] = 0; });
         var ok = [];
+        var servTotal = 0, servAllOne = true;
         (ids || []).forEach(function (rid) {
             var d = NUTRI.recipes[dataKey(rid)] || (NUTRI.vitamins ? NUTRI.vitamins[rid] : null);
             if (!d) return;
             ok.push(rid);
             var m = servMult[rid] || 1;
+            servTotal += m;
+            if (m !== 1) servAllOne = false;
             DV_ORDER.forEach(function (num) { totals[num] += d.perServing[num].value * m; });
         });
-        return { totals: totals, score: healthyDayScore(totals, ok), kcal: Math.round(totals['208']), protein: Math.round(totals['203']) };
+        return { totals: totals, score: healthyDayScore(totals, ok), kcal: Math.round(totals['208']), protein: Math.round(totals['203']), servings: servTotal, allOne: servAllOne };
+    };
+    /* Serving hooks for the cook-mode pane steppers: they read and drive
+       the exact servMult state and follow-up calls the combiner's own
+       steppers use (same +-1 step, same 1-4 clamp, same reset, same sync
+       and recompute), so a serving changed in a pane is the same serving
+       in the combiner, and vice versa. */
+    window.__jboServGet = function (rid) { return servMult[rid] || 1; };
+    window.__jboStepServ = function (rid, d) {
+        var cur = servMult[rid] || 1;
+        if (d === 0) cur = 1;
+        else cur = Math.min(4, Math.max(1, cur + d));
+        servMult[rid] = cur;
+        syncServSteppers();
+        updateCombiner();
     };
     window.__jboDaily = {
         generate: generateDaily,
@@ -7026,7 +7114,7 @@
     <!-- Sticky combiner footer: live totals while recipes are selected (mobile + desktop) -->
     <div id="combinerBar" role="group" aria-label="Combined nutrition totals">
         <div id="combinerBarPanel">
-            <div class="combiner-panel-head"><span>Combined nutrition</span><span class="healthy-day" id="healthyDayScore" aria-live="polite"></span><span class="combiner-panel-head-actions"><button type="button" id="combinerBarDetails" aria-expanded="false" aria-controls="combinerBarGrid">Details <span class="combiner-details-chevron" aria-hidden="true">&#8964;</span></button></span></div>
+            <div class="combiner-panel-head"><span>Combined nutrition</span><span class="healthy-day" id="healthyDayScore" aria-live="polite" title="Healthy Day scores everything selected, at the servings shown, against a full day's nutrition targets."></span><span class="combiner-panel-head-actions"><button type="button" id="combinerBarDetails" aria-expanded="false" aria-controls="combinerBarGrid">Details <span class="combiner-details-chevron" aria-hidden="true">&#8964;</span></button></span></div>
             <p class="healthy-day-note">Healthy Day: 1 dot each for protein ≥50% · fiber ≥50% · 4 of 6 (calcium, iron, potassium, vitamins D, C, A) ≥50% · 3+ dishes incl. a salad, side or soup · limits kept (2 of 3 in range: sat. fat, sodium, cholesterol; total sugars under 10% of calories).</p>
             <div class="combiner-panel-grid" id="combinerBarGrid"></div>
         </div>
@@ -7037,7 +7125,7 @@
     </div>
     <div id="cookView" role="dialog" aria-modal="true" aria-label="Cook mode">
         <div class="cook-view-head">
-            <div class="cook-head-left"><h2 id="cookViewTitle">Cook mode</h2><span class="cook-score" id="cookScore" aria-live="polite"></span></div>
+            <div class="cook-head-left"><h2 id="cookViewTitle">Cook mode</h2><span class="cook-score" id="cookScore" aria-live="polite" title="Healthy Day scores everything selected, at the servings shown, against a full day's nutrition targets."></span></div>
             <div class="cook-head-actions">
                 <button type="button" id="cookViewClear">Clear selection</button>
                 <button type="button" id="cookViewClose">&times; Close</button>
@@ -7210,6 +7298,32 @@
             });
         });
         window.__jboCookIds = function () { return selected.slice(); };
+        /* Pane serving steppers: display syncs from the nutrition script's
+           single servMult state (it calls this after every change, wherever
+           the change came from); clicks drive that same state through the
+           nutrition script's own stepper entry point. */
+        window.__jboPaneServSync = function () {
+            if (!cookRecipes || !window.__jboServGet) return;
+            cookRecipes.querySelectorAll('.cook-pane-serv').forEach(function (st) {
+                var m = window.__jboServGet(st.getAttribute('data-recipe'));
+                var mid = st.querySelector('.serv-mult');
+                if (mid) {
+                    mid.textContent = '×' + m;
+                    mid.setAttribute('aria-label', 'Servings: ' + m + '. Tap to reset to 1 serving');
+                }
+            });
+        };
+        if (cookRecipes) cookRecipes.addEventListener('click', function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest('.cook-pane-serv .serv-step, .cook-pane-serv .serv-mult') : null;
+            if (!btn || !window.__jboStepServ) return;
+            e.preventDefault();
+            e.stopPropagation();
+            var st = btn.closest('.serv-stepper');
+            if (!st) return;
+            var rid = st.getAttribute('data-recipe');
+            if (btn.classList.contains('serv-mult')) window.__jboStepServ(rid, 0);
+            else window.__jboStepServ(rid, parseInt(btn.getAttribute('data-d'), 10));
+        });
         function openCook() {
             if (!isDesktop.matches || selected.length === 0 || !cookView) return;
             cookRecipes.innerHTML = '';
@@ -7237,6 +7351,20 @@
                     if (panePhoto && paneContent) paneContent.insertBefore(panePhoto, paneContent.firstChild);
                     cookHead = paneHead;
                     paneHead.remove();
+                }
+                if (cookHead && window.__jboServGet) {
+                    var titleEl = cookHead.querySelector('.recipe-card-title');
+                    var m0 = window.__jboServGet(id);
+                    var servRow = document.createElement('div');
+                    servRow.className = 'cook-pane-servrow';
+                    servRow.innerHTML = '<span class="cook-pane-servlabel">Servings</span>' +
+                        '<span class="serv-stepper cook-pane-serv" data-recipe="' + id + '" role="group">' +
+                        '<button type="button" class="serv-step" data-d="-1" aria-label="One fewer serving">−</button>' +
+                        '<button type="button" class="serv-mult" title="Tap to reset to 1 serving">×' + m0 + '</button>' +
+                        '<button type="button" class="serv-step" data-d="1" aria-label="One more serving">+</button></span>';
+                    servRow.querySelector('.serv-stepper').setAttribute('aria-label', 'Servings of ' + (titleEl ? titleEl.textContent : 'this recipe'));
+                    servRow.querySelector('.serv-mult').setAttribute('aria-label', 'Servings: ' + m0 + '. Tap to reset to 1 serving');
+                    cookHead.appendChild(servRow);
                 }
                 clone.querySelectorAll('[id]').forEach(function (el) { el.removeAttribute('id'); });
                 clone.querySelectorAll('a').forEach(function (a) {
@@ -7440,6 +7568,13 @@
 
         /* Cook mode header: combined score for the cook selection, computed
            by the nutrition script's own hook (same data + scoring). */
+        function fmtCookServ(n) {
+            if (typeof n !== 'number' || isNaN(n)) return String(n);
+            if (Math.abs(n - Math.round(n)) < 0.001) return String(Math.round(n));
+            var whole = Math.floor(n);
+            if (Math.abs(n - whole - 0.5) < 0.001) return whole > 0 ? whole + '\u00bd' : '\u00bd';
+            return String(Math.round(n * 10) / 10);
+        }
         window.__jboRenderCookScore = function (ids) {
             var el = document.getElementById('cookScore');
             if (!el) return;
@@ -7447,7 +7582,10 @@
             var r = window.__jboCombo(ids);
             var dots = '';
             for (var i = 0; i < 5; i++) dots += '<span class="nutri-dot' + (i < r.score ? ' filled' : '') + '"></span>';
-            el.innerHTML = '<span class="cook-score-label">Healthy Day</span> <span class="nutri-dots" role="img" aria-label="Healthy Day: ' + r.score + ' out of 5">' + dots + '</span> ' + r.score + '/5 <span class="cook-score-nums">\u00b7 ' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 ' + r.protein + ' g protein</span>';
+            var basis = r.allOne
+                ? '1 serving each'
+                : fmtCookServ(r.servings) + ' serving' + (r.servings === 1 ? '' : 's') + ' total';
+            el.innerHTML = '<span class="cook-score-basis">' + basis + '</span> <span aria-hidden="true">\u00b7</span> <span class="cook-score-label">Healthy Day</span> <span class="nutri-dots" role="img" aria-label="Healthy Day: ' + r.score + ' out of 5">' + dots + '</span> ' + r.score + '/5 <span class="cook-score-nums">\u00b7 ' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 ' + r.protein + ' g protein</span>';
         };
         window.__jboCookRefresh = function () {
             var view = document.getElementById('cookView');
