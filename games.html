@@ -58,17 +58,17 @@
         .lr-toolbar {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 12px;
+            gap: 6px;
+            margin-bottom: 8px;
         }
         .lr-btn {
-            padding: 8px 16px;
+            padding: 6px 12px;
             border-radius: 999px;
             border: 1px solid var(--border-color);
             background: var(--card-bg);
             color: var(--text-color);
             font: inherit;
-            font-size: 0.95rem;
+            font-size: 0.875rem;
             cursor: pointer;
         }
         .lr-btn:hover { border-color: var(--accent-color); }
@@ -82,12 +82,12 @@
         #lr-canvas {
             display: block;
             width: 100%;
-            height: 560px;
+            height: 624px; /* grew by the 64px the compact toolbar freed */
             border: 1px solid var(--border-color);
             border-radius: 12px;
             background: var(--bg-color);
             touch-action: none;
-            cursor: crosshair;
+            cursor: none; /* custom canvas cursor is drawn in JS */
         }
         .lr-help {
             color: var(--subtext-color);
@@ -97,17 +97,17 @@
         .lr-zoom-label {
             align-self: center;
             color: var(--subtext-color);
-            font-size: 0.95rem;
+            font-size: 0.875rem;
             min-width: 52px;
             text-align: center;
         }
         .lr-howto ol { margin: 0; padding-left: 1.25rem; }
         .lr-howto li { margin-bottom: 6px; }
         @media (max-width: 700px) {
-            #lr-canvas { height: 420px; }
+            #lr-canvas { height: 519px; /* grew by the 99px the compact toolbar freed */ }
             .lr-status { margin-left: 0; width: 100%; }
-            /* Big tap targets on phones: Draw / Move / zoom must be easy to hit. */
-            .lr-btn { padding: 12px 18px; min-height: 44px; }
+            /* Compact but still comfortably tappable on phones (36px min). */
+            .lr-btn { padding: 8px 12px; min-height: 36px; }
         }
     </style>
     <!-- Umami Analytics Script -->
@@ -187,7 +187,7 @@
 
         <canvas id="lr-canvas" aria-label="Line Rider game canvas. Draw a track with your mouse or finger, switch to Move to slide the view without drawing, then press Play."></canvas>
 
-        <p class="lr-help">Tip: tap ✋ Move and drag to slide the view around without drawing — the view stays exactly where you leave it. Zoom out (−, scroll, or pinch) to see the whole track, or press "Fit track". Drag on the canvas to draw track — downhill for speed, ramps for air. Press Play (or Space) to ride, Pause (or Space) to stop and draw more, Restart (or R) to go back to the start. While airborne, ← and → spin him — land on your wheels, not your head. Works with mouse or touch.</p>
+        <p class="lr-help">Tip: tap ✋ Move and drag to slide the view around without drawing — the view stays exactly where you leave it. Zoom out (−, scroll, or pinch) to see the whole track, or press "Fit track". Drag on the canvas to draw track — downhill for speed, ramps for air. In Erase mode the red ring shows exactly what will be wiped. Press Play (or Space) to ride, Pause (or Space) to stop and draw more, Restart (or R) to go back to the start. While airborne, ← and → spin him — land on your wheels, not your head. Works with mouse or touch.</p>
     </section>
 
     <section class="lr-howto" aria-labelledby="how-to-play-heading">
@@ -248,6 +248,8 @@
         var panLast = null;     // last pointer position while panning
         var curLine = null;
         var lastPt = null;
+        var ERASE_PX = 20;      // erase radius in SCREEN px (constant at any zoom)
+        var cursorPos = null;   // {x, y} in canvas CSS px, or null when hidden
         var crashMsg = '';
         var best = 0;
         try { best = parseFloat(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { best = 0; }
@@ -532,6 +534,39 @@
                 ctx.fill();
             }
             if (rider) drawRider();
+            drawCursor();
+        }
+        /* Custom canvas cursor: one clear indicator, matching the tool.
+           Erase ring radius == erase radius on screen, so the ring shows
+           exactly what will be wiped. Drawn in screen space (CSS px). */
+        function drawCursor() {
+            if (!cursorPos) return;
+            if (mode !== 'edit' && mode !== 'paused') return;
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            var x = cursorPos.x, y = cursorPos.y;
+            if (tool === 'erase') {
+                ctx.strokeStyle = '#e5484d';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(x, y, ERASE_PX, 0, Math.PI * 2); ctx.stroke();
+                ctx.fillStyle = '#e5484d';
+                ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+            } else if (tool === 'draw') {
+                ctx.strokeStyle = colors.accent;
+                ctx.lineWidth = 1.5;
+                var L = 8;
+                ctx.beginPath();
+                ctx.moveTo(x - L, y); ctx.lineTo(x + L, y);
+                ctx.moveTo(x, y - L); ctx.lineTo(x, y + L);
+                ctx.stroke();
+                ctx.fillStyle = colors.accent;
+                ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill();
+            } else { // move: small ring + dot (grab-style indicator)
+                ctx.strokeStyle = colors.text;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.stroke();
+                ctx.fillStyle = colors.text;
+                ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+            }
         }
         function drawRider() {
             var r = rider;
@@ -584,7 +619,7 @@
             btnDraw.classList.toggle('active', tool === 'draw');
             btnMove.classList.toggle('active', tool === 'move');
             btnErase.classList.toggle('active', tool === 'erase');
-            canvas.style.cursor = tool === 'move' ? 'grab' : (tool === 'erase' ? 'cell' : 'crosshair');
+            canvas.style.cursor = 'none'; // the custom cursor is drawn in drawCursor()
             btnPlay.disabled = (mode === 'playing') || !lines.length;
             btnPause.disabled = mode !== 'playing';
             btnRestart.disabled = !lines.length;
@@ -688,7 +723,11 @@
             return { x: (e.clientX - rect.left) / zoom + cam.x, y: (e.clientY - rect.top) / zoom + cam.y };
         }
         function eraseAt(w) {
-            var R = 20, out = [];
+            // Screen-constant radius: at fit zoom (0.13 on a phone) a fixed
+            // 20 world-unit radius was ~2.5 screen px — nearly impossible to
+            // erase with. ERASE_PX/zoom keeps the eraser the same size on
+            // screen at any zoom, so the ring always shows what will be wiped.
+            var R = ERASE_PX / zoom, out = [];
             for (var i = 0; i < lines.length; i++) {
                 var pts = lines[i], cur = [];
                 for (var j = 0; j < pts.length; j++) {
@@ -703,12 +742,18 @@
         }
         var pointers = new Map();   // active pointers on the canvas (for pinch zoom)
         var pinch = null;           // {d0, z0, mx, my} while two fingers are down
+        function setCursorPos(e) {
+            var rect = canvas.getBoundingClientRect();
+            cursorPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
         canvas.addEventListener('pointerdown', function (e) {
             if (mode === 'playing' || mode === 'crashed') return;
+            setCursorPos(e);
             e.preventDefault();
             try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             if (pointers.size === 2) {
+                cursorPos = null; // hide the ring while pinching
                 // Second finger down: stop drawing and start a pinch zoom.
                 if (curLine && curLine.length < 2) { lines.splice(lines.indexOf(curLine), 1); }
                 drawing = false; panning = false; curLine = null;
@@ -731,7 +776,9 @@
             updateUI();
         });
         canvas.addEventListener('pointermove', function (e) {
+            if (e.pointerType !== 'touch' || drawing || panning) setCursorPos(e);
             if (pinch && pointers.has(e.pointerId)) {
+                cursorPos = null;
                 pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
                 var pp = Array.from(pointers.values());
                 var d = Math.hypot(pp[0].x - pp[1].x, pp[0].y - pp[1].y);
@@ -760,6 +807,7 @@
             }
         });
         function endPointer(e) {
+            cursorPos = null; // ring disappears on release (touch) / pointer up
             if (e && e.pointerId !== undefined) pointers.delete(e.pointerId);
             if (pointers.size < 2) pinch = null;
             // Releasing a touch changes nothing about the view: no snap-back.
@@ -767,6 +815,7 @@
         }
         canvas.addEventListener('pointerup', endPointer);
         canvas.addEventListener('pointercancel', endPointer);
+        canvas.addEventListener('pointerleave', function () { cursorPos = null; });
 
         /* ---------- keyboard ---------- */
         document.addEventListener('keydown', function (e) {
