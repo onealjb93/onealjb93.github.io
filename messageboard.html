@@ -23,7 +23,15 @@
     <link rel="apple-touch-icon" href="JBO%20Logo.%20green%20background.png">
     <link rel="stylesheet" href="style.css">
 
-    </head>
+    <style>
+.topic-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+.topic-label { font-size: 0.9rem; font-weight: 600; }
+.topic-picker { font: inherit; font-size: 0.9rem; padding: 0.45rem 0.6rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); max-width: 100%; }
+.topic-current { font-size: 0.9rem; color: var(--subtext-color); margin: 1rem 0 0.5rem; }
+.topic-current strong { color: var(--text-color); }
+</style>
+
+</head>
 <body>
     <script>
         // Theme before first paint: stored choice wins, dark is the default.
@@ -80,9 +88,17 @@
          Sustainability DIC_kwDOVlVNR84DK-nM, Bitcoin DIC_kwDOVlVNR84DK-nN,
          Cooking DIC_kwDOVlVNR84DK-nO, General DIC_kwDOVlVNR84DK5gb.
          Repo ID R_kgDOVlVNRw. giscus allows only ONE widget instance per page,
-         so a single widget is loaded once below and switching tabs reconfigures
-         it with a setConfig message (category + categoryId) — see
-         https://github.com/giscus/giscus/blob/main/ADVANCED-USAGE.md. -->
+         so a single widget is loaded once below and switching tabs/topics
+         reconfigures it with a setConfig message (category + categoryId +
+         term) — see https://github.com/giscus/giscus/blob/main/ADVANCED-USAGE.md.
+         Per-item threads (verified 2026-11-13 against giscus source):
+         mapping="specific" + strict="1"; the term is the Discussion title
+         and strict search uses the SHA-1 hash giscus writes into the body
+         of every discussion it creates, so similar titles cannot mismatch.
+         No discussions exist in the repo yet, so nothing is orphaned by the
+         switch from pathname mapping; the giscus bot creates each Discussion
+         automatically the first time someone comments or reacts in a thread.
+         Deep links: messageboard.html?topic=<slug>&category=<tab-key>. -->
     <div class="board-tabs" role="tablist" aria-label="Message boards">
         <button type="button" class="board-tab active" data-board="finance" role="tab" aria-selected="true">Finance</button>
         <button type="button" class="board-tab" data-board="health" role="tab" aria-selected="false">Health and Cooking</button>
@@ -94,56 +110,112 @@
     <section class="board-panel" id="board-finance" data-category="Finance" data-category-id="DIC_kwDOVlVNR84DK-nK" role="tabpanel" aria-label="Finance board">
         <h2>Finance</h2>
         <p>Investing, markets, and the finance page.</p>
+        <div class="topic-row">
+            <label class="topic-label" for="topic-finance">Topic:</label>
+            <select class="topic-picker" id="topic-finance" data-board="finance" aria-label="Choose a discussion topic"></select>
+        </div>
     </section>
     <section class="board-panel" id="board-health" data-category="Health" data-category-id="DIC_kwDOVlVNR84DK-nL" role="tabpanel" aria-label="Health and Cooking board" hidden>
         <h2>Health and Cooking</h2>
         <p>Food, training, sleep, and longevity.</p>
+        <div class="topic-row">
+            <label class="topic-label" for="topic-health">Topic:</label>
+            <select class="topic-picker" id="topic-health" data-board="health" aria-label="Choose a discussion topic"></select>
+        </div>
     </section>
     <section class="board-panel" id="board-sustainability" data-category="Sustainability" data-category-id="DIC_kwDOVlVNR84DK-nM" role="tabpanel" aria-label="Sustainability board" hidden>
         <h2>Sustainability</h2>
         <p>Growing, energy, and living lighter.</p>
+        <div class="topic-row">
+            <label class="topic-label" for="topic-sustainability">Topic:</label>
+            <select class="topic-picker" id="topic-sustainability" data-board="sustainability" aria-label="Choose a discussion topic"></select>
+        </div>
     </section>
     <section class="board-panel" id="board-bitcoin" data-category="Bitcoin" data-category-id="DIC_kwDOVlVNR84DK-nN" role="tabpanel" aria-label="Bitcoin board" hidden>
         <h2>Bitcoin</h2>
         <p>Bitcoin — questions, resources, and discussion.</p>
+        <div class="topic-row">
+            <label class="topic-label" for="topic-bitcoin">Topic:</label>
+            <select class="topic-picker" id="topic-bitcoin" data-board="bitcoin" aria-label="Choose a discussion topic"></select>
+        </div>
     </section>
     <section class="board-panel" id="board-cooking" data-category="Cooking" data-category-id="DIC_kwDOVlVNR84DK-nO" role="tabpanel" aria-label="Cooking board" hidden>
         <h2>Cooking</h2>
         <p>Recipes, techniques, and what you cooked.</p>
+        <div class="topic-row">
+            <label class="topic-label" for="topic-cooking">Topic:</label>
+            <select class="topic-picker" id="topic-cooking" data-board="cooking" aria-label="Choose a discussion topic"></select>
+        </div>
     </section>
     <section class="board-panel" id="board-general" data-category="General" data-category-id="DIC_kwDOVlVNR84DK5gb" role="tabpanel" aria-label="General board" hidden>
         <h2>General</h2>
         <p>Anything else — introductions welcome.</p>
     </section>
+    <p class="topic-current" id="topic-current">Discussing: <strong id="topic-current-label">General — Finance</strong></p>
     <div class="board-embed" id="board-embed"></div>
 
     <script>
-        // Board tabs: ONE giscus widget for all six Discussion categories.
-        // giscus allows only one widget instance per page: injecting
-        // client.js again does not create a new iframe, it silently
-        // reconfigures the first one — so a single instance is loaded
-        // once (Finance) and tab switches reconfigure it via setConfig.
+        // Message board: ONE giscus widget, one thread per topic.
+        // Tabs switch the Discussion category; the topic picker inside each
+        // tab switches the Discussion term (the thread). Both go through
+        // the same setConfig message to the single iframe — giscus merges
+        // setConfig into the widget config and re-fetches the discussion
+        // for the new term (verified against giscus source, 2026-11-13).
         (function () {
+            var CATEGORIES = {
+                finance: { name: 'Finance', id: 'DIC_kwDOVlVNR84DK-nK' },
+                health: { name: 'Health', id: 'DIC_kwDOVlVNR84DK-nL' },
+                sustainability: { name: 'Sustainability', id: 'DIC_kwDOVlVNR84DK-nM' },
+                bitcoin: { name: 'Bitcoin', id: 'DIC_kwDOVlVNR84DK-nN' },
+                cooking: { name: 'Cooking', id: 'DIC_kwDOVlVNR84DK-nO' },
+                general: { name: 'General', id: 'DIC_kwDOVlVNR84DK5gb' }
+            };
+            // Topics by board. Single source of truth for the picker, the
+            // deep links and the widget config. Generated 2026-11-13 from
+            // the live pages: 17 recipes, 33 experts, 7 frameworks, 2
+            // organizations, 5 projects (stocks + investors follow later).
+            var TOPICS = {"finance": [{"slug": "general-finance", "label": "General — Finance", "term": "General: Finance", "group": "General"}, {"slug": "project-finance", "label": "Finance", "term": "Project: Finance", "group": "Projects"}], "health": [{"slug": "general-health", "label": "General — Health", "term": "General: Health", "group": "General"}, {"slug": "project-health", "label": "Health", "term": "Project: Health", "group": "Projects"}, {"slug": "expert-peter-attia", "label": "Peter Attia", "term": "Expert: Peter Attia", "group": "Experts"}, {"slug": "expert-andrew-huberman", "label": "Andrew Huberman", "term": "Expert: Andrew Huberman", "group": "Experts"}, {"slug": "expert-rhonda-patrick", "label": "Rhonda Patrick", "term": "Expert: Rhonda Patrick", "group": "Experts"}, {"slug": "expert-eric-topol", "label": "Eric Topol", "term": "Expert: Eric Topol", "group": "Experts"}, {"slug": "expert-walter-willett", "label": "Walter Willett", "term": "Expert: Walter Willett", "group": "Experts"}, {"slug": "expert-dariush-mozaffarian", "label": "Dariush Mozaffarian", "term": "Expert: Dariush Mozaffarian", "group": "Experts"}, {"slug": "expert-kevin-hall", "label": "Kevin Hall", "term": "Expert: Kevin Hall", "group": "Experts"}, {"slug": "expert-christopher-gardner", "label": "Christopher Gardner", "term": "Expert: Christopher Gardner", "group": "Experts"}, {"slug": "expert-stuart-phillips", "label": "Stuart Phillips", "term": "Expert: Stuart Phillips", "group": "Experts"}, {"slug": "expert-frank-hu", "label": "Frank Hu", "term": "Expert: Frank Hu", "group": "Experts"}, {"slug": "expert-satchin-panda", "label": "Satchin Panda", "term": "Expert: Satchin Panda", "group": "Experts"}, {"slug": "expert-matt-kaeberlein", "label": "Matt Kaeberlein", "term": "Expert: Matt Kaeberlein", "group": "Experts"}, {"slug": "expert-bryan-johnson", "label": "Bryan Johnson", "term": "Expert: Bryan Johnson", "group": "Experts"}, {"slug": "expert-layne-norton", "label": "Layne Norton", "term": "Expert: Layne Norton", "group": "Experts"}, {"slug": "expert-david-sinclair", "label": "David Sinclair", "term": "Expert: David Sinclair", "group": "Experts"}, {"slug": "expert-stephen-seiler", "label": "Stephen Seiler", "term": "Expert: Stephen Seiler", "group": "Experts"}, {"slug": "expert-inigo-san-millan", "label": "Iñigo San Millán", "term": "Expert: Iñigo San Millán", "group": "Experts"}, {"slug": "expert-louise-burke-amp-asker-jeukendrup", "label": "Louise Burke &amp; Asker Jeukendrup", "term": "Expert: Louise Burke &amp; Asker Jeukendrup", "group": "Experts"}, {"slug": "expert-brad-schoenfeld", "label": "Brad Schoenfeld", "term": "Expert: Brad Schoenfeld", "group": "Experts"}, {"slug": "expert-andy-galpin", "label": "Andy Galpin", "term": "Expert: Andy Galpin", "group": "Experts"}, {"slug": "expert-stacy-sims", "label": "Stacy Sims", "term": "Expert: Stacy Sims", "group": "Experts"}, {"slug": "expert-benjamin-levine-amp-aaron-baggish", "label": "Benjamin Levine &amp; Aaron Baggish", "term": "Expert: Benjamin Levine &amp; Aaron Baggish", "group": "Experts"}, {"slug": "expert-cheri-mah", "label": "Cheri Mah", "term": "Expert: Cheri Mah", "group": "Experts"}, {"slug": "expert-julien-periard", "label": "Julien Périard", "term": "Expert: Julien Périard", "group": "Experts"}, {"slug": "expert-ross-tucker-amp-alex-hutchinson", "label": "Ross Tucker &amp; Alex Hutchinson", "term": "Expert: Ross Tucker &amp; Alex Hutchinson", "group": "Experts"}, {"slug": "expert-i-min-lee", "label": "I-Min Lee", "term": "Expert: I-Min Lee", "group": "Experts"}, {"slug": "expert-keith-diaz", "label": "Keith Diaz", "term": "Expert: Keith Diaz", "group": "Experts"}, {"slug": "expert-robert-waldinger", "label": "Robert Waldinger", "term": "Expert: Robert Waldinger", "group": "Experts"}, {"slug": "expert-judson-brewer", "label": "Judson Brewer", "term": "Expert: Judson Brewer", "group": "Experts"}, {"slug": "expert-bj-fogg", "label": "BJ Fogg", "term": "Expert: BJ Fogg", "group": "Experts"}, {"slug": "expert-peter-osullivan-amp-stuart-mcgill", "label": "Peter O'Sullivan &amp; Stuart McGill", "term": "Expert: Peter O'Sullivan &amp; Stuart McGill", "group": "Experts"}, {"slug": "expert-justin-sonnenburg", "label": "Justin Sonnenburg", "term": "Expert: Justin Sonnenburg", "group": "Experts"}, {"slug": "expert-tim-naimi", "label": "Tim Naimi", "term": "Expert: Tim Naimi", "group": "Experts"}], "sustainability": [{"slug": "general-sustainability", "label": "General — Sustainability", "term": "General: Sustainability", "group": "General"}, {"slug": "project-the-crystal-coast-sanctuary", "label": "The Crystal Coast Sanctuary", "term": "Project: The Crystal Coast Sanctuary", "group": "Projects"}, {"slug": "project-sustainable-development", "label": "Sustainable Development", "term": "Project: Sustainable Development", "group": "Projects"}, {"slug": "framework-the-three-es", "label": "The Three E's", "term": "Framework: The Three E's", "group": "Frameworks"}, {"slug": "framework-regenerative-agriculture-applied-technologies", "label": "Regenerative Agriculture & Applied Technologies", "term": "Framework: Regenerative Agriculture & Applied Technologies", "group": "Frameworks"}, {"slug": "framework-biomimicry", "label": "Biomimicry", "term": "Framework: Biomimicry", "group": "Frameworks"}, {"slug": "framework-circular-economy", "label": "Circular Economy", "term": "Framework: Circular Economy", "group": "Frameworks"}, {"slug": "framework-leed", "label": "LEED", "term": "Framework: LEED", "group": "Frameworks"}, {"slug": "framework-passive-house", "label": "Passive House", "term": "Framework: Passive House", "group": "Frameworks"}, {"slug": "framework-cradle-to-cradle-certified", "label": "Cradle to Cradle Certified®", "term": "Framework: Cradle to Cradle Certified®", "group": "Frameworks"}, {"slug": "organization-row-7-seed-company", "label": "Row 7 Seed Company", "term": "Organization: Row 7 Seed Company", "group": "Organizations"}, {"slug": "organization-selva-negra-ecovillage", "label": "Selva Negra EcoVillage", "term": "Organization: Selva Negra EcoVillage", "group": "Organizations"}], "bitcoin": [{"slug": "general-bitcoin", "label": "General — Bitcoin", "term": "General: Bitcoin", "group": "General"}, {"slug": "project-bitcoin", "label": "Bitcoin", "term": "Project: Bitcoin", "group": "Projects"}], "cooking": [{"slug": "general-cooking", "label": "General — Cooking", "term": "General: Cooking", "group": "General"}, {"slug": "recipe-miso-sheetpan-chicken-brussels", "label": "Miso Sheetpan Chicken & Brussels", "term": "Recipe: Miso Sheetpan Chicken & Brussels", "group": "Recipes"}, {"slug": "recipe-yamitsuki-cabbage-salad", "label": "Yamitsuki Cabbage Salad", "term": "Recipe: Yamitsuki Cabbage Salad", "group": "Recipes"}, {"slug": "recipe-chicken-au-poivre", "label": "Chicken au Poivre", "term": "Recipe: Chicken au Poivre", "group": "Recipes"}, {"slug": "recipe-peruvian-chicken-with-cilantro-lime-green-sauce", "label": "Peruvian Chicken with Cilantro-Lime Green Sauce", "term": "Recipe: Peruvian Chicken with Cilantro-Lime Green Sauce", "group": "Recipes"}, {"slug": "recipe-french-roasted-leeks", "label": "French Roasted Leeks", "term": "Recipe: French Roasted Leeks", "group": "Recipes"}, {"slug": "recipe-classic-italian-arugula-salad", "label": "Classic Italian Arugula Salad", "term": "Recipe: Classic Italian Arugula Salad", "group": "Recipes"}, {"slug": "recipe-my-favorite-chicken-rice-soup", "label": "My Favorite Chicken & Rice Soup", "term": "Recipe: My Favorite Chicken & Rice Soup", "group": "Recipes"}, {"slug": "recipe-classic-italian-bucatini-carbonara", "label": "Classic Italian Bucatini Carbonara", "term": "Recipe: Classic Italian Bucatini Carbonara", "group": "Recipes"}, {"slug": "recipe-eastern-north-carolina-pulled-pork", "label": "Eastern North Carolina Pulled Pork", "term": "Recipe: Eastern North Carolina Pulled Pork", "group": "Recipes"}, {"slug": "recipe-senate-bean-soup", "label": "Senate Bean Soup", "term": "Recipe: Senate Bean Soup", "group": "Recipes"}, {"slug": "recipe-classic-ultra-creamy-peach-or-strawberry-ice-cream", "label": "Classic Ultra-Creamy Peach or Strawberry Ice Cream", "term": "Recipe: Classic Ultra-Creamy Peach or Strawberry Ice Cream", "group": "Recipes"}, {"slug": "recipe-vietnamese-shrimp-summer-rolls", "label": "Vietnamese Shrimp Summer Rolls", "term": "Recipe: Vietnamese Shrimp Summer Rolls", "group": "Recipes"}, {"slug": "recipe-the-best-double-baked-style-crispy-baked-potato", "label": "The Best Double-Baked-Style Crispy Baked Potato", "term": "Recipe: The Best Double-Baked-Style Crispy Baked Potato", "group": "Recipes"}, {"slug": "recipe-low-slow-baked-salmon-with-homemade-tzatziki", "label": "Low & Slow Baked Salmon with Homemade Tzatziki", "term": "Recipe: Low & Slow Baked Salmon with Homemade Tzatziki", "group": "Recipes"}, {"slug": "recipe-potatoes-au-gratin", "label": "Potatoes au Gratin", "term": "Recipe: Potatoes au Gratin", "group": "Recipes"}, {"slug": "recipe-sticky-pineapple-ribs", "label": "Sticky Pineapple Ribs", "term": "Recipe: Sticky Pineapple Ribs", "group": "Recipes"}, {"slug": "recipe-browned-butter-coconut-chocolate-chip-cookies", "label": "Browned Butter Coconut Chocolate Chip Cookies", "term": "Recipe: Browned Butter Coconut Chocolate Chip Cookies", "group": "Recipes"}], "general": [{"slug": "general-general", "label": "General — General", "term": "General: General", "group": "General"}]};
             var tabs = document.querySelectorAll('.board-tab');
             var embed = document.getElementById('board-embed');
-            var current = { category: 'Finance', categoryId: 'DIC_kwDOVlVNR84DK-nK' };
+            var topicLabel = document.getElementById('topic-current-label');
+            var current = { board: 'finance', slug: 'general-finance' };
+            var lastTopic = {}; // board -> slug (each tab remembers its topic)
             var pending = null; // switch requested before the widget is ready
             var frameReady = false;
 
             function getFrame() { return document.querySelector('iframe.giscus-frame'); }
-
-            function sendConfig(category, categoryId) {
+            function findTopic(board, slug) {
+                var list = TOPICS[board] || [];
+                for (var i = 0; i < list.length; i++) {
+                    if (list[i].slug === slug) return list[i];
+                }
+                return null;
+            }
+            function findTopicAnywhere(slug) {
+                for (var b in TOPICS) {
+                    var t = findTopic(b, slug);
+                    if (t) return { board: b, topic: t };
+                }
+                return null;
+            }
+            function topicConfig(topic, board) {
+                var cat = CATEGORIES[board];
+                return { category: cat.name, categoryId: cat.id, term: topic.term };
+            }
+            function sendConfig(topic, board) {
                 var frame = getFrame();
-                if (!frame || !frameReady) { pending = { category: category, categoryId: categoryId }; return; }
+                if (!frame || !frameReady) { pending = { topic: topic, board: board }; return; }
                 frame.contentWindow.postMessage(
-                    { giscus: { setConfig: { category: category, categoryId: categoryId } } },
+                    { giscus: { setConfig: topicConfig(topic, board) } },
                     'https://giscus.app'
                 );
             }
             function flushPending() {
                 if (!pending) return;
-                var p = pending; pending = null;
-                sendConfig(p.category, p.categoryId);
+                var p = pending;
+                if (!getFrame() || !frameReady) return;
+                pending = null;
+                sendConfig(p.topic, p.board);
             }
             // The widget posts messages to the parent once it boots; that
             // is the signal it is ready to receive setConfig.
@@ -156,32 +228,112 @@
             // Fallback: if no message arrives (e.g. the widget is slow),
             // try anyway after 3s rather than dropping the switch.
             setTimeout(function () { frameReady = true; flushPending(); }, 3000);
+            // The widget loads lazily, so the iframe may appear later:
+            // flush a queued switch shortly after it shows up.
+            if ('MutationObserver' in window) {
+                new MutationObserver(function () {
+                    if (getFrame()) setTimeout(function () { frameReady = true; flushPending(); }, 1000);
+                }).observe(embed, { childList: true });
+            }
+
+            function populatePickers() {
+                Object.keys(TOPICS).forEach(function (board) {
+                    var sel = document.getElementById('topic-' + board);
+                    if (!sel) return; // General tab has no picker (one topic)
+                    var groups = {};
+                    var order = [];
+                    TOPICS[board].forEach(function (t) {
+                        if (!groups[t.group]) { groups[t.group] = []; order.push(t.group); }
+                        groups[t.group].push(t);
+                    });
+                    order.forEach(function (g) {
+                        var og = document.createElement('optgroup');
+                        og.label = g;
+                        groups[g].forEach(function (t) {
+                            var opt = document.createElement('option');
+                            opt.value = t.slug;
+                            opt.textContent = t.label;
+                            og.appendChild(opt);
+                        });
+                        sel.appendChild(og);
+                    });
+                    sel.addEventListener('change', function () {
+                        applyTopic(board, sel.value, { send: true, url: true });
+                    });
+                });
+            }
+
+            function applyTopic(board, slug, opts) {
+                opts = opts || {};
+                var topic = findTopic(board, slug) || findTopic(board, 'general-' + board);
+                if (!topic) return;
+                if (board === current.board && topic.slug === current.slug && opts.send !== false) return;
+                current = { board: board, slug: topic.slug };
+                lastTopic[board] = topic.slug;
+                tabs.forEach(function (b) {
+                    var on = b.getAttribute('data-board') === board;
+                    b.classList.toggle('active', on);
+                    b.setAttribute('aria-selected', on ? 'true' : 'false');
+                });
+                document.querySelectorAll('.board-panel').forEach(function (p) {
+                    p.hidden = p.id !== 'board-' + board;
+                });
+                var sel = document.getElementById('topic-' + board);
+                if (sel) sel.value = topic.slug;
+                if (topicLabel) topicLabel.textContent = topic.label;
+                if (opts.url) {
+                    try {
+                        history.replaceState(null, '', 'messageboard.html?topic=' + encodeURIComponent(topic.slug) + '&category=' + encodeURIComponent(board));
+                    } catch (e) { /* file:// or blocked: topic still applies */ }
+                }
+                if (opts.send !== false) sendConfig(topic, board);
+            }
 
             tabs.forEach(function (btn) {
                 btn.addEventListener('click', function () {
-                    tabs.forEach(function (b) { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
-                    document.querySelectorAll('.board-panel').forEach(function (p) { p.hidden = true; });
-                    btn.classList.add('active');
-                    btn.setAttribute('aria-selected', 'true');
-                    var panel = document.getElementById('board-' + btn.getAttribute('data-board'));
-                    if (!panel) return;
-                    panel.hidden = false;
-                    var category = panel.getAttribute('data-category');
-                    var categoryId = panel.getAttribute('data-category-id');
-                    if (category === current.category && categoryId === current.categoryId) return;
-                    current = { category: category, categoryId: categoryId };
-                    sendConfig(category, categoryId);
+                    var board = btn.getAttribute('data-board');
+                    applyTopic(board, lastTopic[board] || ('general-' + board), { send: true, url: true });
                 });
             });
 
-            // Load the single giscus instance once, for the default Finance board.
+            // Deep link: ?topic=<slug>&category=<tab-key>. Unknown topic or
+            // category falls back to that category's General thread, then
+            // to Finance General. No params = Finance General, URL untouched.
+            function resolveInitial() {
+                var q = {};
+                try {
+                    var params = new URLSearchParams(location.search);
+                    q.topic = params.get('topic') || '';
+                    q.category = params.get('category') || '';
+                } catch (e) { /* very old browser: default below */ }
+                if (q.category && TOPICS[q.category]) {
+                    if (q.topic && findTopic(q.category, q.topic)) {
+                        return { board: q.category, slug: q.topic };
+                    }
+                    return { board: q.category, slug: 'general-' + q.category };
+                }
+                if (q.topic) {
+                    var found = findTopicAnywhere(q.topic);
+                    if (found) return { board: found.board, slug: found.topic.slug };
+                }
+                return { board: 'finance', slug: 'general-finance' };
+            }
+
+            populatePickers();
+            var initial = resolveInitial();
+            applyTopic(initial.board, initial.slug, { send: false, url: false });
+            var initialTopic = findTopic(initial.board, initial.slug);
+
+            // Load the single giscus instance once, for the initial topic.
             var s = document.createElement('script');
             s.src = 'https://giscus.app/client.js';
             s.setAttribute('data-repo', 'onealjb93/onealjb93.github.io');
             s.setAttribute('data-repo-id', 'R_kgDOVlVNRw');
-            s.setAttribute('data-category', 'Finance');
-            s.setAttribute('data-category-id', 'DIC_kwDOVlVNR84DK-nK');
-            s.setAttribute('data-mapping', 'pathname');
+            s.setAttribute('data-category', CATEGORIES[initial.board].name);
+            s.setAttribute('data-category-id', CATEGORIES[initial.board].id);
+            s.setAttribute('data-mapping', 'specific');
+            s.setAttribute('data-term', initialTopic.term);
+            s.setAttribute('data-strict', '1');
             s.setAttribute('data-theme', 'preferred_color_scheme');
             s.setAttribute('data-reactions-enabled', '1');
             s.setAttribute('data-emit-metadata', '0');
