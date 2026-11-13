@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <meta name="darkreader-lock">
+    <title>Random Generator - Johnny O'Neal</title>
+    <meta name="description" content="One tap, something new: lesser-known sea creatures, classic oil paintings, gorgeous architecture, and the newest views of space — 30 of each, no repeats until you have seen them all.">
+    <link rel="canonical" href="https://johnny-oneal.com/random.html">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Johnny O'Neal">
+    <meta property="og:title" content="Random Generator - Johnny O'Neal">
+    <meta property="og:description" content="One tap, something new: lesser-known sea creatures, classic oil paintings, gorgeous architecture, and the newest views of space — 30 of each, no repeats until you have seen them all.">
+    <meta property="og:url" content="https://johnny-oneal.com/random.html">
+    <meta property="og:image" content="https://johnny-oneal.com/JBO%20Logo.%20green%20background.png">
+    <meta property="og:image:alt" content="Johnny O'Neal logo">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Random Generator - Johnny O'Neal">
+    <meta name="twitter:description" content="One tap, something new: lesser-known sea creatures, classic oil paintings, gorgeous architecture, and the newest views of space — 30 of each, no repeats until you have seen them all.">
+    <meta name="twitter:image" content="https://johnny-oneal.com/JBO%20Logo.%20green%20background.png">
+    <link rel="icon" type="image/png" href="JBO%20Logo.%20green%20background.png">
+    <link rel="apple-touch-icon" href="JBO%20Logo.%20green%20background.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <script>
+        // Theme before first paint: stored choice wins, dark is the default.
+        // Never follows the OS setting. Storage failure falls back to dark.
+        (function () {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'light') { document.body.classList.add('light-mode'); }
+                document.documentElement.style.colorScheme = (t === 'light') ? 'light' : 'dark';
+            } catch (e) { /* storage blocked: stay on the dark default */ }
+        })();
+    </script>
+
+    <nav class="site-nav" aria-label="Site pages">
+        <a class="site-brand" href="/" aria-label="Johnny O'Neal — home">
+            <img class="site-brand-logo" src="jbo-logo.svg" alt="Johnny O'Neal logo" width="32" height="32">
+        </a>
+        <div class="site-nav-right">
+            <div class="site-nav-menu">
+                <button class="site-nav-toggle" id="nav-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="nav-menu">Explore ▾</button>
+                <div class="site-nav-dropdown" id="nav-menu" role="menu">
+                    <a href="/" role="menuitem">Home</a>
+                    <a href="health.html" role="menuitem">Health</a>
+                    <a href="recipes.html" role="menuitem">Cooking</a>
+                    <a href="finance.html" role="menuitem">Finance</a>
+                    <a href="bitcoin.html" role="menuitem">Bitcoin</a>
+                    <a href="sustainability.html" role="menuitem">Sustainability</a>
+                    <a href="media.html" role="menuitem">Media</a>
+                    <a href="games.html" role="menuitem">Games</a>
+                    <a href="random.html" role="menuitem">Random Generator</a>
+                    <a href="messageboard.html" role="menuitem">Message Board</a>
+                </div>
+            </div>
+            <div class="theme-switch-wrapper">
+                <label class="switch">
+                    <input type="checkbox" id="theme-toggle" aria-label="Toggle light and dark mode" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </nav>
+
+
+    <a href="/" class="back-link">&larr; Back to Home</a>
+
+    <header class="page-header">
+        <h1>Random Generator</h1>
+        <p class="subtitle">One tap, something new — lesser-known sea creatures, classic oil paintings, gorgeous architecture, and the newest views of space.</p>
+    </header>
+
+    <style>
+        /* Random Generator — scoped to this page. Same collapsible + freeze-pane
+           pattern as the recipes and health pages: the section header is the
+           toggle, it pins at top: 55px (below the frozen header) while you
+           scroll its section, and only one header ever pins at a time
+           (sticky paint-over). overflow: clip keeps the rounded corners
+           without disabling sticky (overflow: hidden would break it). */
+        .gen-section {
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: var(--card-bg);
+            margin-bottom: 1.5rem;
+            overflow: clip;
+        }
+        .gen-summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            padding: 0.85rem 1rem;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-color);
+            background: var(--bg-color);
+            position: sticky;
+            top: 55px;
+            z-index: 900;
+        }
+        .gen-summary::-webkit-details-marker { display: none; }
+        .gen-summary:hover { background: var(--hover-bg); }
+        .gen-section[open ] > .gen-summary { border-bottom: 1px solid var(--border-color); }
+        .gen-chev {
+            display: inline-block;
+            transition: transform 0.2s;
+            color: var(--link-color);
+            font-size: 0.85rem;
+        }
+        .gen-section[open ] > .gen-summary .gen-chev { transform: rotate(90deg); }
+        .gen-count {
+            margin-left: auto;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--subtext-color);
+            white-space: nowrap;
+        }
+        .gen-body { padding: 1.25rem 1rem 1.5rem; }
+        .gen-intro { margin: 0 0 1rem 0; color: var(--subtext-color); font-size: 0.9rem; }
+        .gen-stage { text-align: center; }
+        .gen-img {
+            display: block;
+            max-width: 100%;
+            max-height: 62vh;
+            width: auto;
+            height: auto;
+            margin: 0 auto;
+            border-radius: 8px;
+            opacity: 1;
+            transition: opacity 0.25s ease;
+        }
+        .gen-img.fading { opacity: 0; }
+        .gen-img-error {
+            display: block;
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 1.5rem 1rem;
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            color: var(--subtext-color);
+            font-size: 0.95rem;
+        }
+        .gen-caption { margin: 1rem auto 0; max-width: 640px; text-align: left; }
+        .gen-name { font-size: 1.15rem; font-weight: 600; color: var(--text-color); margin: 0 0 0.15rem 0; }
+        .gen-sub { font-size: 0.9rem; color: var(--subtext-color); margin: 0 0 0.5rem 0; }
+        .gen-sub em { font-style: italic; }
+        .gen-line { font-size: 0.95rem; color: var(--text-color); margin: 0 0 0.75rem 0; }
+        .gen-source { font-size: 0.78rem; color: var(--subtext-color); opacity: 0.8; }
+        .gen-source a { color: var(--subtext-color); }
+        .gen-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-top: 1.25rem;
+        }
+        .gen-btn {
+            background: var(--link-color);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 0.65rem 1.25rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .gen-btn:hover { opacity: 0.9; }
+        .gen-btn:active { transform: scale(0.98); }
+        .gen-counter { font-size: 0.85rem; color: var(--subtext-color); font-weight: 600; }
+        .gen-note { font-size: 0.8rem; color: var(--subtext-color); opacity: 0.85; width: 100%; margin: 0; }
+        .gen-empty { color: var(--subtext-color); font-size: 0.95rem; margin: 0; }
+        @media (max-width: 600px) {
+            .gen-summary { font-size: 0.98rem; padding: 0.75rem 0.85rem; }
+            .gen-body { padding: 1rem 0.75rem 1.25rem; }
+            .gen-img { max-height: 52vh; }
+        }
+    </style>
+
+    <details class="gen-section" id="gen-sea">
+        <summary class="gen-summary"><span class="gen-chev">&#9656;</span> &#127754; Random Sea Creatures <span class="gen-count">30 creatures</span></summary>
+        <div class="gen-body">
+            <p class="gen-intro">Lesser-known wonders of the deep — transparent octopuses, living fossils, and animals that look invented. No clownfish, no great whites.</p>
+            <div class="gen-stage" aria-live="polite">
+                <p class="gen-empty" id="sea-empty">Tap &#127922; New creature to meet your first one.</p>
+                <img class="gen-img" id="sea-img" alt="" hidden>
+                <div class="gen-img-error" id="sea-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-caption" id="sea-caption" hidden>
+                    <p class="gen-name" id="sea-name"></p>
+                    <p class="gen-sub" id="sea-sub"></p>
+                    <p class="gen-line" id="sea-line"></p>
+                    <p class="gen-source">Image: <a id="sea-source" href="#" target="_blank" rel="noopener">Wikimedia Commons</a></p>
+                </div>
+            </div>
+            <div class="gen-controls">
+                <button class="gen-btn" id="sea-btn" type="button">&#127922; New creature</button>
+                <span class="gen-counter" id="sea-counter"></span>
+                <p class="gen-note" id="sea-note">No repeats until you have seen all 30.</p>
+            </div>
+        </div>
+    </details>
+
+    <details class="gen-section" id="gen-art">
+        <summary class="gen-summary"><span class="gen-chev">&#9656;</span> &#127912; Random Oil Paintings <span class="gen-count">30 paintings</span></summary>
+        <div class="gen-body">
+            <p class="gen-intro">Landscapes, classics, and great color — from Van Gogh's night skies to Bierstadt's Sierra light. All public-domain works.</p>
+            <div class="gen-stage" aria-live="polite">
+                <p class="gen-empty" id="art-empty">Tap &#127922; New painting to see your first one.</p>
+                <img class="gen-img" id="art-img" alt="" hidden>
+                <div class="gen-img-error" id="art-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-caption" id="art-caption" hidden>
+                    <p class="gen-name" id="art-name"></p>
+                    <p class="gen-sub" id="art-sub"></p>
+                    <p class="gen-line" id="art-line"></p>
+                    <p class="gen-source">Image: <a id="art-source" href="#" target="_blank" rel="noopener">Wikimedia Commons</a></p>
+                </div>
+            </div>
+            <div class="gen-controls">
+                <button class="gen-btn" id="art-btn" type="button">&#127922; New painting</button>
+                <span class="gen-counter" id="art-counter"></span>
+                <p class="gen-note" id="art-note">No repeats until you have seen all 30.</p>
+            </div>
+        </div>
+    </details>
+
+    <details class="gen-section" id="gen-arch">
+        <summary class="gen-summary"><span class="gen-chev">&#9656;</span> &#127963; Random Architecture <span class="gen-count">30 buildings</span></summary>
+        <div class="gen-body">
+            <p class="gen-intro">Gorgeous buildings from every age — classical, modern, and moody. Cathedrals, castles, and glass towers.</p>
+            <div class="gen-stage" aria-live="polite">
+                <p class="gen-empty" id="arch-empty">Tap &#127922; New building to see your first one.</p>
+                <img class="gen-img" id="arch-img" alt="" hidden>
+                <div class="gen-img-error" id="arch-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-caption" id="arch-caption" hidden>
+                    <p class="gen-name" id="arch-name"></p>
+                    <p class="gen-sub" id="arch-sub"></p>
+                    <p class="gen-line" id="arch-line"></p>
+                    <p class="gen-source">Photo: <a id="arch-source" href="#" target="_blank" rel="noopener">Wikimedia Commons</a></p>
+                </div>
+            </div>
+            <div class="gen-controls">
+                <button class="gen-btn" id="arch-btn" type="button">&#127922; New building</button>
+                <span class="gen-counter" id="arch-counter"></span>
+                <p class="gen-note" id="arch-note">No repeats until you have seen all 30.</p>
+            </div>
+        </div>
+    </details>
+
+    <details class="gen-section" id="gen-space">
+        <summary class="gen-summary"><span class="gen-chev">&#9656;</span> &#128301; Random Space <span class="gen-count">30 wonders</span></summary>
+        <div class="gen-body">
+            <p class="gen-intro">Stars, planets, nebulae, galaxies, and black holes — the newest views where they exist, from the James Webb Space Telescope (2022 onward) and Hubble, alongside Juno, Cassini, and the first black-hole photos.</p>
+            <div class="gen-stage" aria-live="polite">
+                <p class="gen-empty" id="space-empty">Tap &#127922; New wonder to see your first one.</p>
+                <img class="gen-img" id="space-img" alt="" hidden>
+                <div class="gen-img-error" id="space-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-caption" id="space-caption" hidden>
+                    <p class="gen-name" id="space-name"></p>
+                    <p class="gen-sub" id="space-sub"></p>
+                    <p class="gen-line" id="space-line"></p>
+                    <p class="gen-source">Image: <a id="space-source" href="#" target="_blank" rel="noopener">Wikimedia Commons</a></p>
+                </div>
+            </div>
+            <div class="gen-controls">
+                <button class="gen-btn" id="space-btn" type="button">&#127922; New wonder</button>
+                <span class="gen-counter" id="space-counter"></span>
+                <p class="gen-note" id="space-note">No repeats until you have seen all 30.</p>
+            </div>
+        </div>
+    </details>
+
+    <script>
+        // Random Generator pools: 30 real entries each. Shuffle-without-repeats:
+        // a shuffled deck is drawn down; when it empties it reshuffles (never
+        // repeating back-to-back across the reshuffle boundary).
+        var POOLS = {"creatures": [{"id": "barreleye", "name": "Barreleye", "sub": "Macropinna microstoma", "line": "Its head is a transparent dome — you can see its green, barrel-shaped eyes swivel inside it.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b5/Barreleye-fish_GoK.jpg/1280px-Barreleye-fish_GoK.jpg", "source": "https://commons.wikimedia.org/wiki/File:Barreleye-fish_GoK.jpg"}, {"id": "glass-octopus", "name": "Glass octopus", "sub": "Vitreledonella richardi", "line": "Almost entirely transparent — only its eyes, optic nerve and digestive tract are visible.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/31/Vitreledonella_richardi.jpg/1280px-Vitreledonella_richardi.jpg", "source": "https://commons.wikimedia.org/wiki/File:Vitreledonella_richardi.jpg"}, {"id": "sea-angel", "name": "Sea angel", "sub": "Clione limacina", "line": "A shell-less sea snail that “flies” underwater on wing-like feet, hunting tiny sea butterflies.", "img": "https://upload.wikimedia.org/wikipedia/commons/7/78/Clione_limacina_by_NOAA.jpg", "source": "https://commons.wikimedia.org/wiki/File:Clione_limacina_by_NOAA.jpg"}, {"id": "christmas-tree-worm", "name": "Christmas tree worm", "sub": "Spirobranchus giganteus", "line": "Two feathery, tree-shaped crowns that vanish into their tube at the slightest touch.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ef/Spirobranchus_giganteus_%28Red_and_white_christmas_tree_worm%29.jpg/1280px-Spirobranchus_giganteus_%28Red_and_white_christmas_tree_worm%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Spirobranchus_giganteus_(Red_and_white_christmas_tree_worm).jpg"}, {"id": "leafy-seadragon", "name": "Leafy seadragon", "sub": "Phycodurus eques", "line": "A seahorse cousin dressed as drifting seaweed — the leafy lobes are camouflage, not fins.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e4/Leafy_Seadragon_on_Kangaroo_Island.jpg/1280px-Leafy_Seadragon_on_Kangaroo_Island.jpg", "source": "https://commons.wikimedia.org/wiki/File:Leafy_Seadragon_on_Kangaroo_Island.jpg"}, {"id": "psychedelic-frogfish", "name": "Psychedelic frogfish", "sub": "Histiophryne psychedelica", "line": "Swirls of pink and white like a fingerprint; it walks on its fins and fishes with a fleshy lure.", "img": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Psychedelic_frogfish_08Am6A1b.jpg", "source": "https://commons.wikimedia.org/wiki/File:Psychedelic_frogfish_08Am6A1b.jpg"}, {"id": "blob-sculpin", "name": "Blob sculpin", "sub": "Psychrolutes phrictus", "line": "A deep-sea blob with a tadpole tail, filmed by ROVs lounging on the abyssal plain.", "img": "https://upload.wikimedia.org/wikipedia/commons/9/97/Psychrolutes_phrictus_1.jpg", "source": "https://commons.wikimedia.org/wiki/File:Psychrolutes_phrictus_1.jpg"}, {"id": "vampire-squid", "name": "Vampire squid", "sub": "Vampyroteuthis infernalis", "line": "Neither vampire nor squid — when threatened it turns itself inside out into a spiky “pineapple posture”.", "img": "https://upload.wikimedia.org/wikipedia/commons/1/12/MBNMS_juvenile_vampire_squid_%2849041024167%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:MBNMS_juvenile_vampire_squid_(49041024167).jpg"}, {"id": "pink-fantasia", "name": "Pink see-through fantasia", "sub": "Enypniastes eximia", "line": "A swimming sea cucumber, pink and translucent, that swims up off the seafloor to escape predators.", "img": "https://upload.wikimedia.org/wikipedia/commons/c/cf/Enypniastes_sp.jpg", "source": "https://commons.wikimedia.org/wiki/File:Enypniastes_sp.jpg"}, {"id": "viperfish", "name": "Viperfish", "sub": "Chauliodus sloani", "line": "Hinged jaws and needle teeth too big for its mouth, plus a glowing lure in the dark.", "img": "https://upload.wikimedia.org/wikipedia/commons/8/86/NOAA_Ocean_Exploration_Viperfish_Chauliodus_danae.jpg", "source": "https://commons.wikimedia.org/wiki/File:NOAA_Ocean_Exploration_Viperfish_Chauliodus_danae.jpg"}, {"id": "goblin-shark", "name": "Goblin shark", "sub": "Mitsukurina owstoni", "line": "A living fossil whose jaw shoots forward off its face to snatch prey.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e4/Goblin_shark_%28Mitsukurina_owstoni%29.jpg/1280px-Goblin_shark_%28Mitsukurina_owstoni%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Goblin_shark_(Mitsukurina_owstoni).jpg"}, {"id": "sea-pig", "name": "Sea pig", "sub": "Scotoplanes globosa", "line": "A plump pink sea cucumber that “walks” the abyss on tube feet, vacuuming the seafloor.", "img": "https://upload.wikimedia.org/wikipedia/commons/c/c0/Scotoplanes_globosa1.jpg", "source": "https://commons.wikimedia.org/wiki/File:Scotoplanes_globosa1.jpg"}, {"id": "yeti-crab", "name": "Yeti crab", "sub": "Kiwa hirsuta", "line": "A ghost-white crab with hairy, bacteria-farming arms, found at hydrothermal vents.", "img": "https://upload.wikimedia.org/wikipedia/commons/a/aa/Yeti_crab.jpg", "source": "https://commons.wikimedia.org/wiki/File:Yeti_crab.jpg"}, {"id": "atolla-jellyfish", "name": "Atolla jellyfish", "sub": "Atolla wyvillei", "line": "The alarm jelly — attacked, it erupts in a blue pinwheel light show to summon bigger predators.", "img": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Atolla_wyvillei_%28Operation_Deep_Scope_2004%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Atolla_wyvillei_(Operation_Deep_Scope_2004).jpg"}, {"id": "bloodybelly-comb-jelly", "name": "Bloodybelly comb jelly", "sub": "Lampocteis cruentiventer", "line": "A deep-red comb jelly whose rows of cilia shimmer rainbow as it swims.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9f/Lampocteis_at_the_Monterey_Bay_Aquarium.jpg/1280px-Lampocteis_at_the_Monterey_Bay_Aquarium.jpg", "source": "https://commons.wikimedia.org/wiki/File:Lampocteis_at_the_Monterey_Bay_Aquarium.jpg"}, {"id": "venus-flytrap-anemone", "name": "Venus flytrap sea anemone", "sub": "Actinoscyphia aurelia", "line": "A deep-sea anemone that closes like a flytrap around food drifting past.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b7/Actinoscyphia_aurelia_1.jpg/1280px-Actinoscyphia_aurelia_1.jpg", "source": "https://commons.wikimedia.org/wiki/File:Actinoscyphia_aurelia_1.jpg"}, {"id": "dumbo-octopus", "name": "Dumbo octopus", "sub": "Grimpoteuthis sp.", "line": "Flaps its ear-like fins to “fly” through the deep — the deepest-living octopus known.", "img": "https://upload.wikimedia.org/wikipedia/commons/b/b0/Dumbo-hires_%28cropped%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Dumbo-hires_(cropped).jpg"}, {"id": "flamingo-tongue", "name": "Flamingo tongue snail", "sub": "Cyphoma gibbosum", "line": "Its shell looks painted, but the color is a living patterned mantle wrapped around the shell.", "img": "https://upload.wikimedia.org/wikipedia/commons/d/d1/Cyphoma_gibbosum_%28living%29_2.jpg", "source": "https://commons.wikimedia.org/wiki/File:Cyphoma_gibbosum_(living)_2.jpg"}, {"id": "spanish-dancer", "name": "Spanish dancer", "sub": "Hexabranchus sanguineus", "line": "A giant red nudibranch that swims by rippling its body like a flamenco skirt.", "img": "https://upload.wikimedia.org/wikipedia/commons/b/b8/Spanish_dancer_Dahab.jpg", "source": "https://commons.wikimedia.org/wiki/File:Spanish_dancer_Dahab.jpg"}, {"id": "blue-dragon", "name": "Blue dragon", "sub": "Glaucus atlanticus", "line": "A tiny blue sea slug that steals stinging cells from its prey and wears them as weapons.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/21/Glaucus_atlanticus_1_cropped.jpg/1280px-Glaucus_atlanticus_1_cropped.jpg", "source": "https://commons.wikimedia.org/wiki/File:Glaucus_atlanticus_1_cropped.jpg"}, {"id": "sea-bunny", "name": "Sea bunny", "sub": "Jorunna parva", "line": "A fluffy-looking sea slug with bunny-ear rhinophores — cute, but it eats sponges.", "img": "https://upload.wikimedia.org/wikipedia/commons/5/5c/Jorunna_parva%2C_Osezaki.jpg", "source": "https://commons.wikimedia.org/wiki/File:Jorunna_parva,_Osezaki.jpg"}, {"id": "harlequin-shrimp", "name": "Harlequin shrimp", "sub": "Hymenocera picta", "line": "A spotted shrimp that hunts starfish in pairs, flipping them over to eat them.", "img": "https://upload.wikimedia.org/wikipedia/commons/9/9c/Hymenocera_picta_en_train_de_retourner_Fromia_milleporella.JPG", "source": "https://commons.wikimedia.org/wiki/File:Hymenocera_picta_en_train_de_retourner_Fromia_milleporella.JPG"}, {"id": "peacock-mantis-shrimp", "name": "Peacock mantis shrimp", "sub": "Odontodactylus scyllarus", "line": "A punch that accelerates faster than a speeding bullet — and can shatter aquarium glass.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1e/Odontodactylus_scyllarus_R%C3%A9union.jpg/1280px-Odontodactylus_scyllarus_R%C3%A9union.jpg", "source": "https://commons.wikimedia.org/wiki/File:Odontodactylus_scyllarus_Réunion.jpg"}, {"id": "sarcastic-fringehead", "name": "Sarcastic fringehead", "sub": "Neoclinus blanchardi", "line": "A grumpy fish that opens a huge, colorful mouth to shout down rivals for its burrow.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/49/Sarcastic_Fringehead_California_ScienCenter.jpg/1280px-Sarcastic_Fringehead_California_ScienCenter.jpg", "source": "https://commons.wikimedia.org/wiki/File:Sarcastic_Fringehead_California_ScienCenter.jpg"}, {"id": "red-lipped-batfish", "name": "Red-lipped batfish", "sub": "Ogcocephalus darwini", "line": "A fish with bright red lips that walks the Galápagos seafloor on its fins.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/48/Ogcocephalus_darwini_426721656.jpg/1280px-Ogcocephalus_darwini_426721656.jpg", "source": "https://commons.wikimedia.org/wiki/File:Ogcocephalus_darwini_426721656.jpg"}, {"id": "ribbon-eel", "name": "Ribbon eel", "sub": "Rhinomuraena quaesita", "line": "Born male and black, turns blue, then yellow and female — three colors in one lifetime.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/03/Ribbon_Moray_%28Rhinomuraena_quaesita%29_%286052858389%29_%28cropped%29.jpg/1280px-Ribbon_Moray_%28Rhinomuraena_quaesita%29_%286052858389%29_%28cropped%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Ribbon_Moray_(Rhinomuraena_quaesita)_(6052858389)_(cropped).jpg"}, {"id": "fangtooth", "name": "Fangtooth", "sub": "Anoplogaster cornuta", "line": "The largest teeth of any fish relative to its body — it cannot even close its mouth.", "img": "https://upload.wikimedia.org/wikipedia/commons/8/8e/Anoplogaster_cornuta_2012.jpg", "source": "https://commons.wikimedia.org/wiki/File:Anoplogaster_cornuta_2012.jpg"}, {"id": "glass-squid", "name": "Glass squid", "sub": "Teuthowenia pellucida", "line": "A transparent squid that drifts in the deep, its glowing photophores the only hint of its shape.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/90/Teuthowenia_pellucida.jpg/1280px-Teuthowenia_pellucida.jpg", "source": "https://commons.wikimedia.org/wiki/File:Teuthowenia_pellucida.jpg"}, {"id": "giant-siphonophore", "name": "Giant siphonophore", "sub": "Praya dubia", "line": "Not one animal but a colony — up to 50 metres long, longer than a blue whale.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Praya_dubia_%28Giant_siphonophore%29.jpg/1280px-Praya_dubia_%28Giant_siphonophore%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Praya_dubia_(Giant_siphonophore).jpg"}, {"id": "flying-gurnard", "name": "Flying gurnard", "sub": "Dactylopterus volitans", "line": "Spreads huge spotted “wings” to look bigger — it never flies, it just looks like it could.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5f/Flughahn.jpg/1280px-Flughahn.jpg", "source": "https://commons.wikimedia.org/wiki/File:Flughahn.jpg"}], "paintings": [{"id": "starry-night", "name": "The Starry Night", "sub": "Vincent van Gogh, 1889", "line": "A swirling night sky over Saint-Rémy — the most famous night ever painted.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg", "source": "https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg"}, {"id": "wanderer", "name": "Wanderer above the Sea of Fog", "sub": "Caspar David Friedrich, 1818", "line": "A lone figure above a sea of mist — the Romantic sublime in a single frame.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/Caspar_David_Friedrich_-_Wanderer_above_the_Sea_of_Fog.jpeg/1280px-Caspar_David_Friedrich_-_Wanderer_above_the_Sea_of_Fog.jpeg", "source": "https://commons.wikimedia.org/wiki/File:Caspar_David_Friedrich_-_Wanderer_above_the_Sea_of_Fog.jpeg"}, {"id": "hay-wain", "name": "The Hay Wain", "sub": "John Constable, 1821", "line": "An English country summer, painted with a sky Constable studied for years.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5e/John_Constable_-_The_Hay_Wain_%281821%29.jpg/1280px-John_Constable_-_The_Hay_Wain_%281821%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:John_Constable_-_The_Hay_Wain_(1821).jpg"}, {"id": "fighting-temeraire", "name": "The Fighting Temeraire", "sub": "J.M.W. Turner, 1839", "line": "A ghostly warship towed to its end at sunset — Turner's elegy for the age of sail.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/30/The_Fighting_Temeraire%2C_JMW_Turner%2C_National_Gallery.jpg/1280px-The_Fighting_Temeraire%2C_JMW_Turner%2C_National_Gallery.jpg", "source": "https://commons.wikimedia.org/wiki/File:The_Fighting_Temeraire,_JMW_Turner,_National_Gallery.jpg"}, {"id": "slave-ship", "name": "The Slave Ship", "sub": "J.M.W. Turner, 1840", "line": "A burning sunset over a terrible sea — Turner's protest in paint.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/Slave-ship.jpg/1280px-Slave-ship.jpg", "source": "https://commons.wikimedia.org/wiki/File:Slave-ship.jpg"}, {"id": "impression-sunrise", "name": "Impression, Sunrise", "sub": "Claude Monet, 1872", "line": "The painting that gave Impressionism its name — Le Havre at dawn.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/59/Monet_-_Impression%2C_Sunrise.jpg/1280px-Monet_-_Impression%2C_Sunrise.jpg", "source": "https://commons.wikimedia.org/wiki/File:Monet_-_Impression,_Sunrise.jpg"}, {"id": "water-lilies", "name": "Bridge over a Pond of Water Lilies", "sub": "Claude Monet, 1899", "line": "The Japanese bridge at Giverny, drowned in green and reflected light.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/%27White_Water_Lilies%27_by_Claude_Monet%2C_1899%2C_Pushkin_Museum.JPG/1280px-%27White_Water_Lilies%27_by_Claude_Monet%2C_1899%2C_Pushkin_Museum.JPG", "source": "https://commons.wikimedia.org/wiki/File:'White_Water_Lilies'_by_Claude_Monet,_1899,_Pushkin_Museum.JPG"}, {"id": "oxbow", "name": "The Oxbow", "sub": "Thomas Cole, 1836", "line": "A storm breaking over the Connecticut River — wilderness and farmland in one view.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Cole_Thomas_The_Oxbow_%28The_Connecticut_River_near_Northampton_1836%29.jpg/1280px-Cole_Thomas_The_Oxbow_%28The_Connecticut_River_near_Northampton_1836%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Cole_Thomas_The_Oxbow_(The_Connecticut_River_near_Northampton_1836).jpg"}, {"id": "sierra-nevada", "name": "Among the Sierra Nevada, California", "sub": "Albert Bierstadt, 1868", "line": "A cathedral of light in the high Sierra — Bierstadt at his most luminous.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5f/Bierstadt_-_Among_the_Sierra_Nevada_Mountains_-_1868.jpg/1280px-Bierstadt_-_Among_the_Sierra_Nevada_Mountains_-_1868.jpg", "source": "https://commons.wikimedia.org/wiki/File:Bierstadt_-_Among_the_Sierra_Nevada_Mountains_-_1868.jpg"}, {"id": "heart-of-the-andes", "name": "The Heart of the Andes", "sub": "Frederic Edwin Church, 1859", "line": "An entire continent in one canvas — a waterfall, a cross, and the Andes.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/78/Church_Heart_of_the_Andes.jpg/1280px-Church_Heart_of_the_Andes.jpg", "source": "https://commons.wikimedia.org/wiki/File:Church_Heart_of_the_Andes.jpg"}, {"id": "landers-peak", "name": "The Rocky Mountains, Lander's Peak", "sub": "Albert Bierstadt, 1863", "line": "The West as Eden — a Shoshone camp beneath impossible peaks.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/45/Albert_Bierstadt_-_The_Rocky_Mountains%2C_Lander%27s_Peak.jpg/1280px-Albert_Bierstadt_-_The_Rocky_Mountains%2C_Lander%27s_Peak.jpg", "source": "https://commons.wikimedia.org/wiki/File:Albert_Bierstadt_-_The_Rocky_Mountains,_Lander's_Peak.jpg"}, {"id": "middelharnis", "name": "The Avenue at Middelharnis", "sub": "Meindert Hobbema, 1689", "line": "A straight road, tall trees, huge sky — the Dutch landscape at its calmest.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Meindert_Hobbema_001.jpg/1280px-Meindert_Hobbema_001.jpg", "source": "https://commons.wikimedia.org/wiki/File:Meindert_Hobbema_001.jpg"}, {"id": "wijk-mill", "name": "The Mill at Wijk bij Duurstede", "sub": "Jacob van Ruisdael, c. 1670", "line": "A windmill against a towering sky — Ruisdael's monument to Dutch light.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/df/The_Mill.jpg/1280px-The_Mill.jpg", "source": "https://commons.wikimedia.org/wiki/File:The_Mill.jpg"}, {"id": "wheatfield-cypresses", "name": "Wheatfield with Cypresses", "sub": "Vincent van Gogh, 1889", "line": "A golden field under a sky that seems to move — painted at Saint-Rémy.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ce/Wheat-Field-with-Cypresses-%281889%29-Vincent-van-Gogh-Met.jpg/1280px-Wheat-Field-with-Cypresses-%281889%29-Vincent-van-Gogh-Met.jpg", "source": "https://commons.wikimedia.org/wiki/File:Wheat-Field-with-Cypresses-(1889)-Vincent-van-Gogh-Met.jpg"}, {"id": "hunters-in-the-snow", "name": "The Hunters in the Snow", "sub": "Pieter Bruegel the Elder, 1565", "line": "Winter in the Low Countries — hunters, skaters, and a whole world in white.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d8/Pieter_Bruegel_the_Elder_-_Hunters_in_the_Snow_%28Winter%29_-_Google_Art_Project.jpg/1280px-Pieter_Bruegel_the_Elder_-_Hunters_in_the_Snow_%28Winter%29_-_Google_Art_Project.jpg", "source": "https://commons.wikimedia.org/wiki/File:Pieter_Bruegel_the_Elder_-_Hunters_in_the_Snow_(Winter)_-_Google_Art_Project.jpg"}, {"id": "mont-sainte-victoire", "name": "Mont Sainte-Victoire", "sub": "Paul Cézanne, 1904–06", "line": "Cézanne painted this mountain eighty times — geometry hiding inside a landscape.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/00/Paul_C%C3%A9zanne_-_Montagne_Saint-victoire_-_Google_Art_Project.jpg/1280px-Paul_C%C3%A9zanne_-_Montagne_Saint-victoire_-_Google_Art_Project.jpg", "source": "https://commons.wikimedia.org/wiki/File:Paul_Cézanne_-_Montagne_Saint-victoire_-_Google_Art_Project.jpg"}, {"id": "parliament-sunset", "name": "Houses of Parliament, London", "sub": "Claude Monet, 1904", "line": "London fog dissolving the Houses of Parliament into color and light.", "img": "https://upload.wikimedia.org/wikipedia/commons/4/49/Brouillard%2C_London_Parliament%2C_Claude_Monet.jpg", "source": "https://commons.wikimedia.org/wiki/File:File:Brouillard,_London_Parliament,_Claude_Monet.jpg"}, {"id": "irises", "name": "Irises", "sub": "Vincent van Gogh, 1889", "line": "Blue irises against a yellow ground — Van Gogh's color at full voltage.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/Irises-Vincent_van_Gogh.jpg/1280px-Irises-Vincent_van_Gogh.jpg", "source": "https://commons.wikimedia.org/wiki/File:Irises-Vincent_van_Gogh.jpg"}, {"id": "sunday-afternoon", "name": "A Sunday Afternoon on the Island of La Grande Jatte", "sub": "Georges Seurat, 1884–86", "line": "A whole Parisian Sunday built dot by dot — pointillism's masterpiece.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7d/A_Sunday_on_La_Grande_Jatte%2C_Georges_Seurat%2C_1884.jpg/1280px-A_Sunday_on_La_Grande_Jatte%2C_Georges_Seurat%2C_1884.jpg", "source": "https://commons.wikimedia.org/wiki/File:A_Sunday_on_La_Grande_Jatte,_Georges_Seurat,_1884.jpg"}, {"id": "scream", "name": "The Scream", "sub": "Edvard Munch, 1893", "line": "Anxiety made visible — a figure, a fjord, and a sky on fire.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c5/Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg/1280px-Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg", "source": "https://commons.wikimedia.org/wiki/File:Edvard_Munch,_1893,_The_Scream,_oil,_tempera_and_pastel_on_cardboard,_91_x_73_cm,_National_Gallery_of_Norway.jpg"}, {"id": "kiss", "name": "The Kiss", "sub": "Gustav Klimt, 1908", "line": "Two lovers wrapped in gold — Klimt's most beloved embrace.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/40/The_Kiss_-_Gustav_Klimt_-_Google_Cultural_Institute.jpg/1280px-The_Kiss_-_Gustav_Klimt_-_Google_Cultural_Institute.jpg", "source": "https://commons.wikimedia.org/wiki/File:The_Kiss_-_Gustav_Klimt_-_Google_Cultural_Institute.jpg"}, {"id": "sunflowers", "name": "Sunflowers", "sub": "Vincent van Gogh, 1889", "line": "Fifteen sunflowers in a vase — Van Gogh's hymn to yellow.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/46/Vincent_Willem_van_Gogh_127.jpg/1280px-Vincent_Willem_van_Gogh_127.jpg", "source": "https://commons.wikimedia.org/wiki/File:Vincent_Willem_van_Gogh_127.jpg"}, {"id": "night-watch", "name": "The Night Watch", "sub": "Rembrandt van Rijn, 1642", "line": "A militia company bursting out of the dark — Rembrandt's biggest stage.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/La_ronda_de_noche%2C_por_Rembrandt_van_Rijn.jpg/1280px-La_ronda_de_noche%2C_por_Rembrandt_van_Rijn.jpg", "source": "https://commons.wikimedia.org/wiki/File:La_ronda_de_noche,_por_Rembrandt_van_Rijn.jpg"}, {"id": "pearl-earring", "name": "Girl with a Pearl Earring", "sub": "Johannes Vermeer, c. 1665", "line": "A girl turns over her shoulder — the “Mona Lisa of the North”.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/1280px-1665_Girl_with_a_Pearl_Earring.jpg", "source": "https://commons.wikimedia.org/wiki/File:1665_Girl_with_a_Pearl_Earring.jpg"}, {"id": "raft-of-the-medusa", "name": "The Raft of the Medusa", "sub": "Théodore Géricault, 1819", "line": "Shipwreck survivors on a raft — a pyramid of hope and despair.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/15/JEAN_LOUIS_TH%C3%89ODORE_G%C3%89RICAULT_-_La_Balsa_de_la_Medusa_%28Museo_del_Louvre%2C_1818-19%29.jpg/1280px-JEAN_LOUIS_TH%C3%89ODORE_G%C3%89RICAULT_-_La_Balsa_de_la_Medusa_%28Museo_del_Louvre%2C_1818-19%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:JEAN_LOUIS_THÉODORE_GÉRICAULT_-_La_Balsa_de_la_Medusa_(Museo_del_Louvre,_1818-19).jpg"}, {"id": "liberty-leading", "name": "Liberty Leading the People", "sub": "Eugène Delacroix, 1830", "line": "Liberty over the barricades — revolution as a living allegory.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/02/La_Libert%C3%A9_guidant_le_peuple_-_Eug%C3%A8ne_Delacroix_-_Mus%C3%A9e_du_Louvre_Peintures_RF_129_-_apr%C3%A8s_restauration_2024.jpg/1280px-La_Libert%C3%A9_guidant_le_peuple_-_Eug%C3%A8ne_Delacroix_-_Mus%C3%A9e_du_Louvre_Peintures_RF_129_-_apr%C3%A8s_restauration_2024.jpg", "source": "https://commons.wikimedia.org/wiki/File:La_Liberté_guidant_le_peuple_-_Eugène_Delacroix_-_Musée_du_Louvre_Peintures_RF_129_-_après_restauration_2024.jpg"}, {"id": "arnolfini", "name": "The Arnolfini Portrait", "sub": "Jan van Eyck, 1434", "line": "A merchant and his wife, a dog, and a mirror holding the whole room.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/53/The_Arnolfini_portrait_%281434%29.jpg/1280px-The_Arnolfini_portrait_%281434%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:The_Arnolfini_portrait_(1434).jpg"}, {"id": "tower-of-babel", "name": "The Tower of Babel", "sub": "Pieter Bruegel the Elder, 1563", "line": "Human ambition stacked to the clouds — and already crumbling.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fc/Pieter_Bruegel_the_Elder_-_The_Tower_of_Babel_%28Vienna%29_-_Google_Art_Project_-_edited.jpg/1280px-Pieter_Bruegel_the_Elder_-_The_Tower_of_Babel_%28Vienna%29_-_Google_Art_Project_-_edited.jpg", "source": "https://commons.wikimedia.org/wiki/File:Pieter_Bruegel_the_Elder_-_The_Tower_of_Babel_(Vienna)_-_Google_Art_Project_-_edited.jpg"}, {"id": "almond-blossom", "name": "Almond Blossom", "sub": "Vincent van Gogh, 1890", "line": "Branches against a blue sky — painted for his newborn nephew, a symbol of new life.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/68/Vincent_van_Gogh_-_Almond_blossom_-_Google_Art_Project.jpg/1280px-Vincent_van_Gogh_-_Almond_blossom_-_Google_Art_Project.jpg", "source": "https://commons.wikimedia.org/wiki/File:Vincent_van_Gogh_-_Almond_blossom_-_Google_Art_Project.jpg"}, {"id": "cafe-terrace", "name": "Café Terrace at Night", "sub": "Vincent van Gogh, 1888", "line": "A yellow café under a starry blue night — the first night sky Van Gogh painted outdoors.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/86/Van_Gogh_-_Terrace_of_a_Caf%C3%A9_at_Night_%28Place_du_Forum%29_1888.jpg/1280px-Van_Gogh_-_Terrace_of_a_Caf%C3%A9_at_Night_%28Place_du_Forum%29_1888.jpg", "source": "https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Terrace_of_a_Café_at_Night_(Place_du_Forum)_1888.jpg"}], "architecture": [{"id": "sagrada-familia", "name": "Sagrada Família", "sub": "Barcelona, Spain — Antoni Gaudí, begun 1882", "line": "A forest of stone columns rising into a basilica still being built after 140 years.", "img": "https://upload.wikimedia.org/wikipedia/commons/e/ef/SF_maig_2_cropped.jpg", "source": "https://commons.wikimedia.org/wiki/File:SF_maig_2_cropped.jpg"}, {"id": "taj-mahal", "name": "Taj Mahal", "sub": "Agra, India — Ustad Ahmad Lahauri, 1632–53", "line": "A marble monument to love, perfect at dawn and mirrored in its pool.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1d/Taj_Mahal_%28Edited%29.jpeg/1280px-Taj_Mahal_%28Edited%29.jpeg", "source": "https://commons.wikimedia.org/wiki/File:Taj_Mahal_(Edited).jpeg"}, {"id": "sydney-opera-house", "name": "Sydney Opera House", "sub": "Sydney, Australia — Jørn Utzon, 1973", "line": "Sails in the harbor — shells of concrete that redefined a city.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Sydney_Opera_House_2026.jpg/1280px-Sydney_Opera_House_2026.jpg", "source": "https://commons.wikimedia.org/wiki/File:Sydney_Opera_House_2026.jpg"}, {"id": "fallingwater", "name": "Fallingwater", "sub": "Pennsylvania, USA — Frank Lloyd Wright, 1939", "line": "A house cantilevered over a waterfall — architecture dissolved into nature.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bc/Fallingwater3.jpg/1280px-Fallingwater3.jpg", "source": "https://commons.wikimedia.org/wiki/File:Fallingwater3.jpg"}, {"id": "neuschwanstein", "name": "Neuschwanstein Castle", "sub": "Bavaria, Germany — Christian Jank, 1869–86", "line": "The fairy-tale castle that inspired Disney — a king's dream in stone.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/Schloss_Neuschwanstein_2013.jpg/1280px-Schloss_Neuschwanstein_2013.jpg", "source": "https://commons.wikimedia.org/wiki/File:Schloss_Neuschwanstein_2013.jpg"}, {"id": "st-peters-basilica", "name": "St. Peter's Basilica", "sub": "Vatican City — Michelangelo and others, 1506–1626", "line": "The largest church in the world — a dome that still dominates Rome.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f5/Basilica_di_San_Pietro_in_Vaticano_September_2015-1a.jpg/1280px-Basilica_di_San_Pietro_in_Vaticano_September_2015-1a.jpg", "source": "https://commons.wikimedia.org/wiki/File:Basilica_di_San_Pietro_in_Vaticano_September_2015-1a.jpg"}, {"id": "hagia-sophia", "name": "Hagia Sophia", "sub": "Istanbul, Türkiye — Anthemius and Isidore, 537", "line": "A dome that seemed to float — church, mosque, and museum in one.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4a/Hagia_Sophia_%28228968325%29.jpeg/1280px-Hagia_Sophia_%28228968325%29.jpeg", "source": "https://commons.wikimedia.org/wiki/File:Hagia_Sophia_(228968325).jpeg"}, {"id": "guggenheim-bilbao", "name": "Guggenheim Museum Bilbao", "sub": "Bilbao, Spain — Frank Gehry, 1997", "line": "Titanium waves on the river — the building that put Bilbao on the map.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Museo_Guggenheim%2C_Bilbao_%2831273245344%29.jpg/1280px-Museo_Guggenheim%2C_Bilbao_%2831273245344%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Museo_Guggenheim,_Bilbao_(31273245344).jpg"}, {"id": "eiffel-tower", "name": "Eiffel Tower", "sub": "Paris, France — Gustave Eiffel, 1889", "line": "Built for a fair, kept for a city — iron lace 330 metres tall.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/85/Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg/1280px-Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Tour_Eiffel_Wikimedia_Commons_(cropped).jpg"}, {"id": "colosseum", "name": "Colosseum", "sub": "Rome, Italy — Vespasian and Titus, 70–80 AD", "line": "An arena for 50,000 — the greatest amphitheatre Rome ever built.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/1280px-Colosseo_2020.jpg", "source": "https://commons.wikimedia.org/wiki/File:Colosseo_2020.jpg"}, {"id": "parthenon", "name": "Parthenon", "sub": "Athens, Greece — Iktinos and Kallikrates, 447–432 BC", "line": "The temple on the Acropolis — the measure of classical beauty.", "img": "https://upload.wikimedia.org/wikipedia/commons/d/da/The_Parthenon_in_Athens.jpg", "source": "https://commons.wikimedia.org/wiki/File:The_Parthenon_in_Athens.jpg"}, {"id": "angkor-wat", "name": "Angkor Wat", "sub": "Siem Reap, Cambodia — Suryavarman II, c. 1150", "line": "The largest religious monument on Earth, rising from the jungle at dawn.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/41/Angkor_Wat.jpg/1280px-Angkor_Wat.jpg", "source": "https://commons.wikimedia.org/wiki/File:Angkor_Wat.jpg"}, {"id": "shard", "name": "The Shard", "sub": "London, England — Renzo Piano, 2012", "line": "A shard of glass over the Thames — London's tallest, sharp against the sky.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9a/The_Shard_at_sunset_2017_%28cropped%29.jpg/1280px-The_Shard_at_sunset_2017_%28cropped%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:The_Shard_at_sunset_2017_(cropped).jpg"}, {"id": "burj-khalifa", "name": "Burj Khalifa", "sub": "Dubai, UAE — Adrian Smith (SOM), 2010", "line": "The tallest building ever built — a needle of glass 828 metres high.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/90/Burj_Khalifa_%28worlds_tallest_building%29_and_the_Dubai_skyline_%2825781049892%29.jpg/1280px-Burj_Khalifa_%28worlds_tallest_building%29_and_the_Dubai_skyline_%2825781049892%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Burj_Khalifa_(worlds_tallest_building)_and_the_Dubai_skyline_(25781049892).jpg"}, {"id": "notre-dame", "name": "Notre-Dame de Paris", "sub": "Paris, France — begun 1163", "line": "Eight centuries of Gothic — spires, gargoyles, and rose windows over the Seine.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f7/Notre-Dame_de_Paris%2C_4_October_2017.jpg/1280px-Notre-Dame_de_Paris%2C_4_October_2017.jpg", "source": "https://commons.wikimedia.org/wiki/File:Notre-Dame_de_Paris,_4_October_2017.jpg"}, {"id": "st-basils", "name": "Saint Basil's Cathedral", "sub": "Moscow, Russia — Postnik Yakovlev, 1555–61", "line": "Candy-striped onion domes on Red Square — Russia's most joyful building.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/18/Saint_Basil%27s_Cathedral_in_Moscow.jpg/1280px-Saint_Basil%27s_Cathedral_in_Moscow.jpg", "source": "https://commons.wikimedia.org/wiki/File:Saint_Basil's_Cathedral_in_Moscow.jpg"}, {"id": "chambord", "name": "Château de Chambord", "sub": "Loire Valley, France — Domenico da Cortona, 1519–47", "line": "A hunting lodge with 440 rooms and a roofline like a skyline of chimneys.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1f/Aerial_image_of_Ch%C3%A2teau_de_Chambord_%28view_from_the_southeast%29.jpg/1280px-Aerial_image_of_Ch%C3%A2teau_de_Chambord_%28view_from_the_southeast%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Aerial_image_of_Château_de_Chambord_(view_from_the_southeast).jpg"}, {"id": "mont-saint-michel", "name": "Mont Saint-Michel", "sub": "Normandy, France — begun 8th century", "line": "A Gothic abbey rising from the sea — an island when the tide comes in.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/78/Mont-Saint-Michel_vu_du_ciel.jpg/1280px-Mont-Saint-Michel_vu_du_ciel.jpg", "source": "https://commons.wikimedia.org/wiki/File:Mont-Saint-Michel_vu_du_ciel.jpg"}, {"id": "villa-savoye", "name": "Villa Savoye", "sub": "Poissy, France — Le Corbusier, 1931", "line": "A white box on stilts — the manifesto of modern architecture.", "img": "https://upload.wikimedia.org/wikipedia/en/3/3c/VillaSavoye.jpg", "source": "https://commons.wikimedia.org/wiki/File:VillaSavoye.jpg"}, {"id": "farnsworth-house", "name": "Farnsworth House", "sub": "Illinois, USA — Ludwig Mies van der Rohe, 1951", "line": "A glass box in a meadow — almost nothing, and exactly enough.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0b/Farnsworth_House_by_Mies_Van_Der_Rohe_-_exterior-8.jpg/1280px-Farnsworth_House_by_Mies_Van_Der_Rohe_-_exterior-8.jpg", "source": "https://commons.wikimedia.org/wiki/File:Farnsworth_House_by_Mies_Van_Der_Rohe_-_exterior-8.jpg"}, {"id": "casa-batllo", "name": "Casa Batlló", "sub": "Barcelona, Spain — Antoni Gaudí, 1906", "line": "A house like a dragon's back — no straight lines, all color and curve.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bf/Casa_Batllo_Overview_Barcelona_Spain_cut.jpg/1280px-Casa_Batllo_Overview_Barcelona_Spain_cut.jpg", "source": "https://commons.wikimedia.org/wiki/File:Casa_Batllo_Overview_Barcelona_Spain_cut.jpg"}, {"id": "louvre-pyramid", "name": "Louvre Pyramid", "sub": "Paris, France — I. M. Pei, 1989", "line": "A glass pyramid in a palace courtyard — modern geometry against old stone.", "img": "https://thumb.wikimedia.org/wikipedia/en/thumb/4/42/Louvre_Pyramid.jpg/1280px-Louvre_Pyramid.jpg", "source": "https://commons.wikimedia.org/wiki/File:Louvre_Pyramid.jpg"}, {"id": "golden-gate", "name": "Golden Gate Bridge", "sub": "San Francisco, USA — Joseph Strauss, 1937", "line": "International Orange against the fog — the most photographed bridge on Earth.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bf/Golden_Gate_Bridge_as_seen_from_Battery_East.jpg/1280px-Golden_Gate_Bridge_as_seen_from_Battery_East.jpg", "source": "https://commons.wikimedia.org/wiki/File:Golden_Gate_Bridge_as_seen_from_Battery_East.jpg"}, {"id": "tower-bridge", "name": "Tower Bridge", "sub": "London, England — Horace Jones, 1894", "line": "A working drawbridge dressed as a fairy-tale castle over the Thames.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/59/Tower_Bridge_at_Dawn.jpg/1280px-Tower_Bridge_at_Dawn.jpg", "source": "https://commons.wikimedia.org/wiki/File:Tower_Bridge_at_Dawn.jpg"}, {"id": "st-pauls", "name": "St. Paul's Cathedral", "sub": "London, England — Christopher Wren, 1710", "line": "Wren's great dome — rebuilt after the Great Fire, still the heart of the City.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cb/St_Pauls_aerial_%28cropped%29.jpg/1280px-St_Pauls_aerial_%28cropped%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:St_Pauls_aerial_(cropped).jpg"}, {"id": "milan-cathedral", "name": "Milan Cathedral", "sub": "Milan, Italy — begun 1386", "line": "A forest of marble spires — the Duomo took six centuries to finish.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Milan_Cathedral_from_Piazza_del_Duomo.jpg/1280px-Milan_Cathedral_from_Piazza_del_Duomo.jpg", "source": "https://commons.wikimedia.org/wiki/File:Milan_Cathedral_from_Piazza_del_Duomo.jpg"}, {"id": "chartres", "name": "Chartres Cathedral", "sub": "Chartres, France — 1194–1220", "line": "The great Gothic cathedral — its blue windows glow like the sky itself.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/28/Notre_Dame_de_Chartres.jpg/1280px-Notre_Dame_de_Chartres.jpg", "source": "https://commons.wikimedia.org/wiki/File:Notre_Dame_de_Chartres.jpg"}, {"id": "marina-bay-sands", "name": "Marina Bay Sands", "sub": "Singapore — Moshe Safdie, 2010", "line": "Three towers with a ship on top — a sky park floating over the bay.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Marina_Bay_Sands_%28I%29.jpg/1280px-Marina_Bay_Sands_%28I%29.jpg", "source": "https://commons.wikimedia.org/wiki/File:Marina_Bay_Sands_(I).jpg"}, {"id": "pantheon", "name": "Pantheon", "sub": "Rome, Italy — Hadrian, c. 126 AD", "line": "A dome with a hole in the roof — the oculus, open to the sky for 1,900 years.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7b/Pantheon_%28Rome%29_-_Right_side_and_front.jpg/1280px-Pantheon_%28Rome%29_-_Right_side_and_front.jpg", "source": "https://commons.wikimedia.org/wiki/File:Pantheon_(Rome)_-_Right_side_and_front.jpg"}, {"id": "treasury-petra", "name": "The Treasury, Petra", "sub": "Petra, Jordan — 1st century BC", "line": "Al-Khazneh, carved from the cliff — the rose-red city revealed at the end of the Siq.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ed/Al_khazneh.jpg/1280px-Al_khazneh.jpg", "source": "https://commons.wikimedia.org/wiki/File:Al_khazneh.jpg"}], "space": [{"id": "pillars", "name": "Pillars of Creation", "sub": "Emission nebula, Serpens — ~6,500 light-years away", "line": "Towers of gas and dust where new stars are being born — Webb's 2022 view is the sharpest ever.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/Pillars_of_Creation_%28NIRCam_Image%29.png/1280px-Pillars_of_Creation_%28NIRCam_Image%29.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Pillars_of_Creation_(NIRCam_Image).png", "credit": "NASA, ESA, CSA, STScI (JWST, 2022)", "img_date": "JWST NIRCam, October 2022", "file_date": ""}, {"id": "carina", "name": "Cosmic Cliffs, Carina Nebula", "sub": "Star-forming region — ~7,600 light-years away", "line": "A craggy wall of gas in the Carina Nebula, with newborn stars bursting out of its peaks.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/44/NASA%E2%80%99s_Webb_Reveals_Cosmic_Cliffs%2C_Glittering_Landscape_of_Star_Birth.jpg/1280px-NASA%E2%80%99s_Webb_Reveals_Cosmic_Cliffs%2C_Glittering_Landscape_of_Star_Birth.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:NASA%E2%80%99s_Webb_Reveals_Cosmic_Cliffs,_Glittering_Landscape_of_Star_Birth.jpg", "credit": "NASA, ESA, CSA, STScI (JWST, 2022)", "img_date": "JWST NIRCam, July 2022", "file_date": ""}, {"id": "tarantula", "name": "Tarantula Nebula", "sub": "Emission nebula, Large Magellanic Cloud — ~160,000 light-years away", "line": "The largest star-forming region in our galactic neighbourhood, seen by Webb in 2022.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7e/Tarantula_Nebula_by_JWST.jpg/1280px-Tarantula_Nebula_by_JWST.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Tarantula_Nebula_by_JWST.jpg", "credit": "NASA, ESA, CSA, STScI (JWST, 2022)", "img_date": "JWST NIRCam, September 2022", "file_date": ""}, {"id": "orion", "name": "Orion Nebula", "sub": "Emission nebula — ~1,344 light-years away", "line": "The nearest stellar nursery to Earth, visible to the naked eye as a smudge in Orion's sword.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6b/Orion_Nebula_in_NIRCam_short-wavelength_channel_ESA25105094.png/1280px-Orion_Nebula_in_NIRCam_short-wavelength_channel_ESA25105094.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Orion_Nebula_in_NIRCam_short-wavelength_channel_ESA25105094.png", "credit": "NASA, ESA, CSA, STScI (JWST, 2022)", "img_date": "JWST NIRCam, September 2022", "file_date": ""}, {"id": "ring", "name": "Ring Nebula", "sub": "Planetary nebula, Lyra — ~2,300 light-years away", "line": "The glowing remains of a dying star — Webb's 2023 view reveals its intricate inner rings.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4b/Ring_Nebula_%28M57%29_seen_by_JWST%27s_NIRCAM.png/1280px-Ring_Nebula_%28M57%29_seen_by_JWST%27s_NIRCAM.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Ring_Nebula_(M57)_seen_by_JWST%27s_NIRCAM.png", "credit": "NASA, ESA, CSA, STScI (JWST, 2023)", "img_date": "JWST NIRCam, August 2023", "file_date": ""}, {"id": "cats-eye", "name": "Cat's Eye Nebula", "sub": "Planetary nebula, Draco — ~3,300 light-years away", "line": "One of the most complex planetary nebulae known — eleven rings of gas from a dying star.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9c/Cat%27s_Eye_Nebula_%283882%29.jpg/1280px-Cat%27s_Eye_Nebula_%283882%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Cat%27s_Eye_Nebula_(3882).jpg", "credit": "NASA, ESA, Hubble", "img_date": "Hubble, 2004", "file_date": ""}, {"id": "butterfly", "name": "Butterfly Nebula", "sub": "Planetary nebula, Scorpius — ~3,800 light-years away", "line": "A dying star's gas blown into two vast wings — the central star is one of the hottest known.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/NGC_6302_Hubble_2009.full.jpg/1280px-NGC_6302_Hubble_2009.full.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:NGC_6302_Hubble_2009.full.jpg", "credit": "NASA, ESA, Hubble", "img_date": "Hubble, 2009", "file_date": ""}, {"id": "horsehead", "name": "Horsehead Nebula", "sub": "Dark nebula, Orion — ~1,500 light-years away", "line": "A dark cloud silhouetted against glowing gas — Webb's 2024 view is the sharpest ever taken.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Horsehead_Nebula_%28NIRCam_image%29_%28weic2411a%29.jpg/1280px-Horsehead_Nebula_%28NIRCam_image%29_%28weic2411a%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Horsehead_Nebula_(NIRCam_image)_(weic2411a).jpg", "credit": "NASA, ESA, CSA, STScI (JWST, 2024)", "img_date": "JWST NIRCam, April 2024", "file_date": ""}, {"id": "crab", "name": "Crab Nebula", "sub": "Supernova remnant, Taurus — ~6,500 light-years away", "line": "The remains of a star seen exploding in 1054 — a pulsar still spins at its heart.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0d/The_Crab_Nebula_%28weic2326a%29.jpg/1280px-The_Crab_Nebula_%28weic2326a%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:The_Crab_Nebula_(weic2326a).jpg", "credit": "NASA, ESA, CSA, STScI (JWST, 2023)", "img_date": "JWST NIRCam/MIRI, October 2023", "file_date": ""}, {"id": "cas-a", "name": "Cassiopeia A", "sub": "Supernova remnant — ~11,000 light-years away", "line": "The youngest known supernova remnant in our galaxy, glowing in Webb's infrared.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Cassiopeia_A_%28NIRCam_Image%29_%282023-149%29.png/1280px-Cassiopeia_A_%28NIRCam_Image%29_%282023-149%29.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Cassiopeia_A_(NIRCam_Image)_(2023-149).png", "credit": "NASA, ESA, CSA, STScI (JWST, 2023)", "img_date": "JWST NIRCam, December 2023", "file_date": ""}, {"id": "andromeda", "name": "Andromeda Galaxy", "sub": "Spiral galaxy — ~2.5 million light-years away", "line": "Our nearest large galactic neighbour — on a slow collision course with the Milky Way.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/98/Andromeda_Galaxy_%28with_h-alpha%29.jpg/1280px-Andromeda_Galaxy_%28with_h-alpha%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Andromeda_Galaxy_(with_h-alpha).jpg", "credit": "Adam Evans (CC BY 2.0)", "img_date": "September 2010", "file_date": ""}, {"id": "sombrero", "name": "Sombrero Galaxy", "sub": "Spiral galaxy, Virgo — ~29 million light-years away", "line": "A galaxy with a brilliant core and a dark dust lane — one of the most photographed galaxies in the sky.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5e/M104_ngc4594_sombrero_galaxy_hi-res.jpg/1280px-M104_ngc4594_sombrero_galaxy_hi-res.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:M104_ngc4594_sombrero_galaxy_hi-res.jpg", "credit": "NASA, ESA, Hubble", "img_date": "Hubble, 2003", "file_date": ""}, {"id": "cartwheel", "name": "Cartwheel Galaxy", "sub": "Ring galaxy, Sculptor — ~500 million light-years away", "line": "A galaxy smashed into a ring by a collision — Webb's 2022 view shows two rings of stars.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Cartwheel_Galaxy_JWST_NIRCam%2BMIRI_Full_Res.png/1280px-Cartwheel_Galaxy_JWST_NIRCam%2BMIRI_Full_Res.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Cartwheel_Galaxy_JWST_NIRCam%2BMIRI_Full_Res.png", "credit": "NASA, ESA, CSA, STScI (JWST, 2022)", "img_date": "JWST NIRCam/MIRI, August 2022", "file_date": ""}, {"id": "stephans", "name": "Stephan's Quintet", "sub": "Compact galaxy group, Pegasus — ~290 million light-years away", "line": "Five galaxies locked in a gravitational dance — Webb's largest image to date when released.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Stephan%27s_Quintet_taken_by_James_Webb_Space_Telescope.jpg/1280px-Stephan%27s_Quintet_taken_by_James_Webb_Space_Telescope.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Stephan%27s_Quintet_taken_by_James_Webb_Space_Telescope.jpg", "credit": "NASA, ESA, CSA, STScI (JWST, 2022)", "img_date": "JWST NIRCam/MIRI, July 2022", "file_date": ""}, {"id": "hoags", "name": "Hoag's Object", "sub": "Ring galaxy — ~600 million light-years away", "line": "A perfect ring of young blue stars around an old yellow core — and another ring galaxy hides behind it.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/da/Hoag%27s_object.jpg/1280px-Hoag%27s_object.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Hoag%27s_object.jpg", "credit": "NASA, ESA, Hubble", "img_date": "Hubble, 2001", "file_date": ""}, {"id": "whirlpool", "name": "Whirlpool Galaxy", "sub": "Spiral galaxy — ~23 million light-years away", "line": "A grand-design spiral in mid-collision with a smaller companion galaxy.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/Messier51_sRGB.jpg/1280px-Messier51_sRGB.jpg", "source": "https://commons.wikimedia.org/wiki/File:Messier51_sRGB.jpg", "credit": "NASA, ESA, Hubble", "img_date": "Hubble, 2005", "file_date": ""}, {"id": "phantom", "name": "Phantom Galaxy", "sub": "Spiral galaxy, Pisces — ~32 million light-years away", "line": "A face-on spiral so faint it's called the Phantom — Webb revealed its dust web in 2022.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/22/M74_Galaxy_JWST_MIRI.jpg/1280px-M74_Galaxy_JWST_MIRI.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:M74_Galaxy_JWST_MIRI.jpg", "credit": "NASA, ESA, CSA, STScI (JWST, 2022)", "img_date": "JWST MIRI, July 2022", "file_date": ""}, {"id": "jupiter", "name": "Jupiter", "sub": "Gas giant — ~5.2 AU from the Sun", "line": "The largest planet in the solar system, with auroras towering over its poles — Webb, 2022.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fb/Jupiter_Showcases_Auroras%2C_Hazes_%28NIRCam_Widefield_View%29.png/1280px-Jupiter_Showcases_Auroras%2C_Hazes_%28NIRCam_Widefield_View%29.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Jupiter_Showcases_Auroras,_Hazes_(NIRCam_Widefield_View).png", "credit": "NASA, ESA, CSA, STScI (JWST, 2022)", "img_date": "JWST NIRCam, July 2022", "file_date": ""}, {"id": "saturn", "name": "Saturn", "sub": "Ringed gas giant — ~9.5 AU from the Sun", "line": "Webb's 2023 view: the rings glow while the planet itself goes dark in infrared.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1f/Saturn%E2%80%99s_Rings_Shine_in_Webb%E2%80%99s_Observations_of_Ringed_Planet_%28Unlabeled%29_%2853013132440%29.png/1280px-Saturn%E2%80%99s_Rings_Shine_in_Webb%E2%80%99s_Observations_of_Ringed_Planet_%28Unlabeled%29_%2853013132440%29.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Saturn%E2%80%99s_Rings_Shine_in_Webb%E2%80%99s_Observations_of_Ringed_Planet_(Unlabeled)_(53013132440).png", "credit": "NASA, ESA, CSA, STScI (JWST, 2023)", "img_date": "JWST NIRCam, June 2023", "file_date": ""}, {"id": "neptune", "name": "Neptune", "sub": "Ice giant — ~30 AU from the Sun", "line": "Webb's 2022 image shows its rings clearly for the first time in over 30 years.", "img": "https://upload.wikimedia.org/wikipedia/commons/8/81/Neptune_Close-Up_%28NIRCam_Image%29_%28weic2214a%29.jpeg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled", "source": "https://commons.wikimedia.org/wiki/File:Neptune_Close-Up_(NIRCam_Image)_(weic2214a).jpeg", "credit": "NASA, ESA, CSA, STScI (JWST, 2022)", "img_date": "JWST NIRCam, September 2022", "file_date": ""}, {"id": "uranus", "name": "Uranus", "sub": "Ice giant — ~19 AU from the Sun", "line": "Tipped on its side, with a polar cap and rings — Webb's 2023 view is the clearest yet.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/18/Uranus_%28NIRCam_Image%29_%282023-117-01GWQD6PSGTBK7VQBZST09YYKW%29.tiff/lossy-page1-960px-Uranus_%28NIRCam_Image%29_%282023-117-01GWQD6PSGTBK7VQBZST09YYKW%29.tiff.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Uranus_(NIRCam_Image)_(2023-117-01GWQD6PSGTBK7VQBZST09YYKW).tiff", "credit": "NASA, ESA, CSA, STScI (JWST, 2023)", "img_date": "JWST NIRCam, February 2023", "file_date": ""}, {"id": "mars", "name": "Mars", "sub": "Rocky planet — ~1.5 AU from the Sun", "line": "The red planet at its closest in 2016 — Hubble's sharpest view of its deserts and polar cap.", "img": "https://upload.wikimedia.org/wikipedia/commons/9/9e/Mars_in_opposition_2016.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled", "source": "https://commons.wikimedia.org/wiki/File:Mars_in_opposition_2016.jpg", "credit": "NASA, ESA, Hubble", "img_date": "Hubble, May 2016", "file_date": ""}, {"id": "europa", "name": "Europa", "sub": "Moon of Jupiter — ~390 million miles from the Sun", "line": "An ice-covered ocean world that may hold more water than all of Earth's oceans combined.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cc/Europa_Flyby_-_Nasa%27s_Juno_PJ_45_%2852401392707%29.png/1280px-Europa_Flyby_-_Nasa%27s_Juno_PJ_45_%2852401392707%29.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Europa_Flyby_-_Nasa%27s_Juno_PJ_45_(52401392707).png", "credit": "NASA/JPL-Caltech (Juno, 2022)", "img_date": "Juno, September 2022", "file_date": ""}, {"id": "titan", "name": "Titan", "sub": "Moon of Saturn — ~890 million miles from the Sun", "line": "A moon with a thick orange atmosphere and lakes of liquid methane — seen here from Cassini, with Saturn's rings behind it.", "img": "https://upload.wikimedia.org/wikipedia/commons/4/4a/Titan_and_rings_PIA14909.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled", "source": "https://commons.wikimedia.org/wiki/File:Titan_and_rings_PIA14909.jpg", "credit": "NASA/JPL-Caltech/Space Science Institute (Cassini)", "img_date": "Cassini, December 2011", "file_date": ""}, {"id": "sun", "name": "The Sun", "sub": "G-type star — 93 million miles away", "line": "Our star, seen up close by Solar Orbiter — the source of nearly all light and heat on Earth.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Solar_Orbiter%E2%80%99s_widest_high-res_view_of_the_Sun_ESA508430.jpg/1280px-Solar_Orbiter%E2%80%99s_widest_high-res_view_of_the_Sun_ESA508430.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Solar_Orbiter%E2%80%99s_widest_high-res_view_of_the_Sun_ESA508430.jpg", "credit": "ESA/NASA (Solar Orbiter)", "img_date": "Solar Orbiter, 2023", "file_date": ""}, {"id": "vy-cma", "name": "VY Canis Majoris", "sub": "Red hypergiant star — ~3,900 light-years away", "line": "One of the largest stars known — about 1,400 times the Sun's radius.", "img": "https://upload.wikimedia.org/wikipedia/commons/1/18/VY_Canis_Majoris.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled", "source": "https://commons.wikimedia.org/wiki/File:VY_Canis_Majoris.jpg", "credit": "NASA, ESA, Hubble", "img_date": "Hubble, 2015", "file_date": ""}, {"id": "moon", "name": "The Moon", "sub": "Earth's moon — ~239,000 miles away", "line": "The only world beyond Earth humans have walked on, photographed by the Lunar Reconnaissance Orbiter.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b3/LRO_Tycho_Central_Peak.jpg/1280px-LRO_Tycho_Central_Peak.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:LRO_Tycho_Central_Peak.jpg", "credit": "NASA/GSFC/ASU (LRO)", "img_date": "LRO, June 2011", "file_date": ""}, {"id": "earthrise", "name": "Earthrise", "sub": "Earth from lunar orbit — Apollo 8, December 1968", "line": "The first photo of Earth rising over the Moon — the image that launched the environmental movement.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a8/NASA-Apollo8-Dec24-Earthrise.jpg/1280px-NASA-Apollo8-Dec24-Earthrise.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:NASA-Apollo8-Dec24-Earthrise.jpg", "credit": "NASA (Apollo 8, 1968)", "img_date": "Apollo 8, December 1968", "file_date": "Taken on 24 December 1968, 16:40 UTC<a rel=\"nofollow\" class=\"external autonumber\" href=\"https://svs.gsfc.nasa.gov/cgi-bin/details.cgi?aid=3936\">[10]</a>"}, {"id": "m87", "name": "M87* — the first black hole photographed", "sub": "Supermassive black hole — ~55 million light-years away", "line": "A ring of light around a shadow 6.5 billion times the Sun's mass — the first black-hole photo, 2019.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4f/Black_hole_-_Messier_87_crop_max_res.jpg/1280px-Black_hole_-_Messier_87_crop_max_res.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Black_hole_-_Messier_87_crop_max_res.jpg", "credit": "Event Horizon Telescope Collaboration (2019)", "img_date": "EHT, April 2019", "file_date": ""}, {"id": "sgra", "name": "Sagittarius A*", "sub": "Supermassive black hole at the Milky Way's centre — ~26,000 light-years away", "line": "The black hole at the heart of our own galaxy, photographed in 2022.", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/15/Sag_A%2A.jpg/1280px-Sag_A%2A.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail", "source": "https://commons.wikimedia.org/wiki/File:Sag_A*.jpg", "credit": "Event Horizon Telescope Collaboration (2022)", "img_date": "EHT, May 2022", "file_date": ""}]};
+
+        function shuffle(arr) {
+            for (var i = arr.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+            }
+            return arr;
+        }
+
+        var GEN = {};
+        function setup(prefix, poolKey) {
+            var pool = POOLS[poolKey];
+            var st = { pool: pool, deck: [], shown: 0, lastId: null, started: false };
+            GEN[prefix] = st;
+            var btn = document.getElementById(prefix + '-btn');
+            btn.addEventListener('click', function () { draw(prefix); });
+            document.getElementById(prefix + '-counter').textContent = '0 of ' + pool.length + ' seen';
+        }
+
+        function draw(prefix) {
+            var st = GEN[prefix];
+            var pool = st.pool;
+            if (st.deck.length === 0) {
+                st.deck = shuffle(pool.map(function (e, i) { return i; }));
+                // never repeat back-to-back across a reshuffle
+                if (st.lastId !== null && pool[st.deck[0]].id === st.lastId && st.deck.length > 1) {
+                    var t = st.deck[0]; st.deck[0] = st.deck[1]; st.deck[1] = t;
+                }
+                st.shown = 0;
+                if (st.started) {
+                    var note = document.getElementById(prefix + '-note');
+                    note.textContent = "That's all " + pool.length + " — reshuffled, starting fresh.";
+                    setTimeout(function () {
+                        note.textContent = 'No repeats until you have seen all ' + pool.length + '.';
+                    }, 3500);
+                }
+            }
+            var entry = pool[st.deck.shift()];
+            st.lastId = entry.id;
+            st.shown += 1;
+            st.started = true;
+
+            var img = document.getElementById(prefix + '-img');
+            var empty = document.getElementById(prefix + '-empty');
+            var cap = document.getElementById(prefix + '-caption');
+            var err = document.getElementById(prefix + '-imgerr');
+            // Text first: the card is complete even while the image loads —
+            // and it stays complete if the image fails, instead of silently
+            // burning through the deck looking for one that loads.
+            img.alt = entry.name;
+            document.getElementById(prefix + '-name').textContent = entry.name;
+            var sub = document.getElementById(prefix + '-sub');
+            if (prefix === 'sea') { sub.innerHTML = '<em>' + entry.sub + '</em>'; }
+            else { sub.textContent = entry.sub; }
+            document.getElementById(prefix + '-line').textContent = entry.line;
+            var src = document.getElementById(prefix + '-source');
+            src.href = entry.source;
+            src.textContent = entry.credit || 'Wikimedia Commons';
+            empty.hidden = true;
+            cap.hidden = false;
+            err.hidden = true;
+            document.getElementById(prefix + '-counter').textContent =
+                st.shown + ' of ' + pool.length + ' seen';
+            img.classList.add('fading');
+            // Generation guard: a rapid Generate tap can supersede a load
+            // still in flight; the superseded load's error event must not
+            // show the error box under the new image (its onload un-hides
+            // the img, but nothing would re-hide the box).
+            var gen = (st.gen = (st.gen || 0) + 1);
+            if (img.getAttribute('src') === entry.img && !img.hidden) {
+                img.classList.remove('fading');
+                return;
+            }
+            img.onload = function () {
+                if (gen !== st.gen) { return; }
+                img.hidden = false; img.classList.remove('fading');
+            };
+            img.onerror = function () {
+                if (gen !== st.gen) { return; }
+                img.classList.remove('fading');
+                img.hidden = true;
+                err.hidden = false;
+            };
+            img.hidden = false;
+            img.src = entry.img;
+        }
+
+        setup('sea', 'creatures');
+        setup('art', 'paintings');
+        setup('arch', 'architecture');
+        setup('space', 'space');
+
+        // First open of a section shows its first random entry automatically.
+        ['sea', 'art', 'arch', 'space'].forEach(function (prefix) {
+            var section = document.getElementById('gen-' + prefix);
+            section.addEventListener('toggle', function () {
+                if (section.open && !GEN[prefix].started) { draw(prefix); }
+            });
+        });
+    </script>
+
+    <!-- Professional Bottom Footer Section -->
+    <footer class="site-footer">
+        <div>© 2026 Johnny O'Neal</div>
+        <div class="footer-links">
+            <span style="font-size: 1rem;">Get in Touch:</span>
+            <a href="https://x.com/JohnnyONeal93" target="_blank">X</a>
+            <span style="opacity: 0.3;">•</span>
+            <a href="https://www.goodreads.com/user/show/55201896-johnny-o-neal" target="_blank">Goodreads</a>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
