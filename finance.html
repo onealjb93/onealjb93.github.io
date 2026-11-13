@@ -844,6 +844,62 @@
     </div>
 
     <!-- Curated Financial Resources Section Positioned Below the Stock Table -->
+
+    <!-- Portfolio Backtest -->
+    <div class="backtest-section">
+        <h2>Portfolio Backtest</h2>
+        <p>How would this portfolio have performed? Start from equal weight, change the weights, pick a time frame, and compare against an index or a single holding — plus the baskets built from each testable investor framework.</p>
+        <p id="backtestLoading" class="empty-state">Loading price history&hellip;</p>
+        <div id="backtestApp" hidden>
+            <div class="chip-row" id="backtestTimeframes" role="group" aria-label="Backtest time frame">
+                <button class="filter-pill" data-tf="1">1Y</button>
+                <button class="filter-pill" data-tf="3">3Y</button>
+                <button class="filter-pill active" data-tf="5">5Y</button>
+                <button class="filter-pill" data-tf="10">10Y</button>
+                <button class="filter-pill" data-tf="max">Max</button>
+            </div>
+            <div class="chip-row">
+                <div class="selector-group" style="max-width: 320px;">
+                    <label for="backtestBenchmark">Compare against</label>
+                    <select id="backtestBenchmark"></select>
+                </div>
+                <button class="filter-pill" id="backtestResetWeights" type="button">Reset to equal weight</button>
+            </div>
+            <div class="backtest-chart-wrap">
+                <canvas id="backtestChart" aria-label="Portfolio growth chart, $10,000 invested"></canvas>
+                <div class="backtest-legend" id="backtestLegend"></div>
+                <div class="backtest-readout" id="backtestReadout">Hover the chart to read values.</div>
+            </div>
+            <div class="spreadsheet-container">
+                <table>
+                    <thead>
+                        <tr><th>Portfolio</th><th>Total return</th><th>CAGR</th><th>Max drawdown</th><th>Volatility (ann.)</th><th>Sharpe (rf 0%)</th></tr>
+                    </thead>
+                    <tbody id="backtestStats">
+                        <tr><td colspan="6" class="empty-state">Computing&hellip;</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--subtext-color);" id="backtestLateNote"></p>
+            <h3>Holdings &amp; weights</h3>
+            <p style="font-size: 0.85rem; color: var(--subtext-color);">Uncheck to remove a holding. Weights are percentages and are normalised to 100% — the normalised column is what the backtest uses. The dividend column is the holding&rsquo;s stated annual rate; the returns already include reinvested dividends.</p>
+            <div class="spreadsheet-container backtest-holdings">
+                <table>
+                    <thead>
+                        <tr><th aria-label="Include">✓</th><th>Holding</th><th>Weight %</th><th>Normalised</th><th>Data since</th><th>Dividend</th></tr>
+                    </thead>
+                    <tbody id="backtestHoldings">
+                        <tr><td colspan="6" class="empty-state">Loading holdings&hellip;</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <h3>Investor framework baskets</h3>
+            <p style="font-size: 0.85rem; color: var(--subtext-color);">Each basket is an equal-weight portfolio of the stocks that pass that investor&rsquo;s testable rule, using the same audited rules as the scoreboard above. Toggle a basket to overlay it on the chart.</p>
+            <div class="chip-row" id="backtestFrameworks" role="group" aria-label="Framework baskets to overlay"></div>
+            <p style="font-size: 0.85rem; color: var(--subtext-color);" id="backtestFrameworkNote"></p>
+            <p style="font-size: 0.85rem; color: var(--subtext-color);">Method &amp; honesty: total return from weekly adjusted closes (Yahoo Finance), so dividends are reinvested — including the preferreds&rsquo; ~12% (STRC) and 15% (SATS) payouts. $10,000, rebalanced weekly to your weights among holdings that have started trading; before a holding&rsquo;s first trading date it holds cash at 0%. Price history last updated <span id="backtestAsOf">loading&hellip;</span>, refreshed each weekday. Past performance is not a prediction of future results.</p>
+        </div>
+    </div>
     <div class="resources-section" style="margin-top: 3rem; margin-bottom: 3rem;">
         <h2>Curated Financial Resources & Tools</h2>
         <div class="resource-grid">
@@ -1172,6 +1228,496 @@
                 tbody.appendChild(row);
             });
         }
+// ---- Portfolio Backtest ----
+// Data: finance-history.json (weekly ADJUSTED closes from Yahoo Finance =
+// TOTAL return, dividends reinvested) and finance-data.json (fundamentals,
+// for the framework baskets). Reuses the page's SCOREBOARD_RULES so the
+// framework baskets always agree with the scoreboard above.
+//
+// Method (stated on the page, not hidden): $10,000, rebalanced weekly to
+// your weights among the holdings that have started trading. A holding
+// joins only from its first trading date (SpaceX Jun 2026, STRC Jul 2025,
+// Strive SATS Oct 2026); before that it holds cash at 0%.
+// Sharpe uses a 0% risk-free rate, labelled on the page.
+const BACKTEST_TICKERS = ["GOOGL", "ASST", "CIFR", "SPCX", "NBIS", "IREN", "AAOI", "NVDA", "AMD", "PLTR", "MU", "TSLA", "MSTR", "TSM", "LLY", "WM", "COST", "JPM", "WMT", "STRC", "SATS", "BTC-USD"];
+const BACKTEST_BENCHMARKS = ["QQQ", "VOO", "SPY"];
+const BACKTEST_TF_YEARS = { "1": 1, "3": 3, "5": 5, "10": 10, "max": null };
+const BACKTEST_FRAMEWORKS = {
+    druckenmiller: { label: "Druckenmiller", color: "#f59e0b" },
+    buffett: { label: "Buffett", color: "#22c55e" },
+    tepper: { label: "Tepper", color: "#a78bfa" },
+    alden: { label: "Alden", color: "#38bdf8" },
+    oshaughnessy: { label: "O\u2019Shaughnessy", color: "#f472b6" },
+    baker: { label: "Baker", color: "#fb923c" },
+};
+// Investors with no testable basket: Alfred (rule has no pass/fail line) and
+// the nine not scored from this data (Simons, Thiel, Ives, Soros, Dalio,
+// Klarman, Visser, Lavish, Sacks). They are listed on the page, never faked.
+const BACKTEST_NOT_SCORED = ["Simons", "Thiel", "Ives", "Soros", "Dalio", "Klarman", "Visser", "Lavish", "Sacks"];
+
+let backtestHistory = null;
+let backtestTF = "5";
+let backtestBenchmark = "VOO";
+let backtestFrameworks = new Set();
+let backtestSelected = {};
+let backtestWeights = {};
+BACKTEST_TICKERS.forEach(t => { backtestSelected[t] = true; backtestWeights[t] = 100 / BACKTEST_TICKERS.length; });
+
+// Last price on or before `date` from a sorted [[date, price], ...] series.
+function btPriceAt(prices, date) {
+    let lo = 0, hi = prices.length - 1, ans = -1;
+    while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (prices[mid][0] <= date) { ans = mid; lo = mid + 1; }
+        else hi = mid - 1;
+    }
+    return ans === -1 ? null : prices[ans][1];
+}
+
+// Weekly-rebalanced portfolio, $10,000 start. weights: {ticker: rawWeight}.
+// Returns [[date, value], ...] along the given date axis.
+function btCompute(weights, dates) {
+    const active = Object.keys(weights).filter(t => weights[t] > 0);
+    const series = {};
+    active.forEach(t => {
+        const s = backtestHistory.series[t];
+        if (s && s.prices && s.prices.length) series[t] = s;
+    });
+    let value = 10000;
+    const values = [];
+    const prev = {};
+    dates.forEach((d, i) => {
+        const avail = active.filter(t => series[t] && series[t].first_date <= d);
+        if (i === 0 || avail.length === 0) {
+            values.push([d, value]);
+            avail.forEach(t => { prev[t] = btPriceAt(series[t].prices, d); });
+            return;
+        }
+        let wsum = 0;
+        avail.forEach(t => { wsum += weights[t]; });
+        let ret = 0;
+        avail.forEach(t => {
+            const p = btPriceAt(series[t].prices, d);
+            const pp = prev[t];
+            if (p !== null && pp !== null && pp > 0) ret += (weights[t] / wsum) * (p / pp - 1);
+            if (p !== null) prev[t] = p;
+        });
+        value = value * (1 + ret);
+        values.push([d, value]);
+    });
+    return values;
+}
+
+function btStats(values) {
+    if (!values || values.length < 2) return null;
+    const start = values[0][1], end = values[values.length - 1][1];
+    const total = end / start - 1;
+    const ms = new Date(values[values.length - 1][0]) - new Date(values[0][0]);
+    const years = ms / (365.25 * 24 * 3600 * 1000);
+    const cagr = years > 0 ? Math.pow(end / start, 1 / years) - 1 : null;
+    let peak = -Infinity, mdd = 0;
+    values.forEach(v => {
+        if (v[1] > peak) peak = v[1];
+        const dd = v[1] / peak - 1;
+        if (dd < mdd) mdd = dd;
+    });
+    const rets = [];
+    for (let i = 1; i < values.length; i++) rets.push(values[i][1] / values[i - 1][1] - 1);
+    const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+    const sd = Math.sqrt(rets.reduce((a, b) => a + (b - mean) * (b - mean), 0) / rets.length);
+    const vol = sd * Math.sqrt(52);
+    const sharpe = sd === 0 ? null : (mean / sd) * Math.sqrt(52);
+    return { total: total, cagr: cagr, mdd: mdd, vol: vol, sharpe: sharpe, end: end };
+}
+
+// Date axis: union of all series dates within [start, end], sorted.
+function btDateAxis(start, end) {
+    const set = new Set();
+    Object.values(backtestHistory.series).forEach(s => {
+        if (!s.prices) return;
+        s.prices.forEach(p => { if (p[0] >= start && p[0] <= end) set.add(p[0]); });
+    });
+    return Array.from(set).sort();
+}
+
+function btTimeframeRange() {
+    let end = null, first = null;
+    Object.values(backtestHistory.series).forEach(s => {
+        if (!s.prices || !s.prices.length) return;
+        const last = s.prices[s.prices.length - 1][0];
+        if (!end || last > end) end = last;
+        if (!first || s.prices[0][0] < first) first = s.prices[0][0];
+    });
+    if (!end) return null;
+    const years = BACKTEST_TF_YEARS[backtestTF];
+    if (years === null) return { start: first, end: end };
+    const d = new Date(end + "T00:00:00Z");
+    d.setUTCFullYear(d.getUTCFullYear() - years);
+    const start = d.toISOString().slice(0, 10);
+    return { start: start > first ? start : first, end: end };
+}
+
+// Framework basket members, using the page's own audited scoreboard rules.
+// Returns an array of tickers, [] when nothing qualifies, or a string
+// ('not-testable' / 'not-scored' / 'no-data') when there is no basket.
+function btFrameworkMembers(id) {
+    if (!marketDataLoaded) return "no-data";
+    if (id === "alfred") return "not-testable";
+    const rule = (typeof SCOREBOARD_RULES !== "undefined") ? SCOREBOARD_RULES[id] : null;
+    if (!rule) return "not-scored";
+    return tickerData.filter(t => rule.test(t, tickerData) === true).map(t => t.ticker);
+}
+
+function btCurrentWeights() {
+    const w = {};
+    BACKTEST_TICKERS.forEach(t => {
+        if (backtestSelected[t] && backtestWeights[t] > 0) w[t] = backtestWeights[t];
+    });
+    return w;
+}
+
+function btSeriesLabel(sym) {
+    const s = backtestHistory.series[sym];
+    return s ? s.name + " (" + sym + ")" : sym;
+}
+
+function btRender() {
+    const app = document.getElementById("backtestApp");
+    if (!app || !backtestHistory) return;
+    const range = btTimeframeRange();
+    const statsBody = document.getElementById("backtestStats");
+    const legendEl = document.getElementById("backtestLegend");
+    const noteEl = document.getElementById("backtestLateNote");
+    if (!range) {
+        statsBody.innerHTML = '<tr><td colspan="6" class="empty-state">Price history is empty.</td></tr>';
+        return;
+    }
+    const dates = btDateAxis(range.start, range.end);
+    const lines = [];
+    const rows = [];
+
+    const weights = btCurrentWeights();
+    if (Object.keys(weights).length === 0) {
+        statsBody.innerHTML = '<tr><td colspan="6" class="empty-state">Select at least one holding with a weight above 0.</td></tr>';
+        legendEl.innerHTML = "";
+        btDrawChart([]);
+        return;
+    }
+    const portValues = btCompute(weights, dates);
+    const portStats = btStats(portValues);
+    lines.push({ label: "Your portfolio", color: btAccentColor(), values: portValues, width: 2.5 });
+    rows.push({ label: "Your portfolio", stats: portStats });
+
+    // Benchmark: 100% in one symbol (an index ETF or a single holding).
+    const benchValues = btCompute({ [backtestBenchmark]: 100 }, dates);
+    const benchStats = btStats(benchValues);
+    lines.push({ label: btSeriesLabel(backtestBenchmark), color: "#94a3b8", values: benchValues, width: 2, dashed: true });
+    rows.push({ label: btSeriesLabel(backtestBenchmark) + " (benchmark)", stats: benchStats });
+
+    // Framework baskets, equal-weighted over the stocks passing that rule.
+    backtestFrameworks.forEach(id => {
+        const members = btFrameworkMembers(id);
+        const fw = BACKTEST_FRAMEWORKS[id];
+        if (!Array.isArray(members) || members.length === 0) return;
+        const w = {};
+        members.forEach(t => { w[t] = 100 / members.length; });
+        const vals = btCompute(w, dates);
+        const st = btStats(vals);
+        lines.push({ label: fw.label + " basket (" + members.length + ")", color: fw.color, values: vals, width: 2 });
+        rows.push({ label: fw.label + " basket — " + members.join(", "), stats: st });
+    });
+
+    statsBody.innerHTML = rows.map(r => {
+        const s = r.stats;
+        if (!s) return "<tr><td><strong>" + r.label + "</strong></td><td colspan=\"5\" class=\"empty-state\">Not enough data.</td></tr>";
+        return "<tr><td><strong>" + r.label + "</strong></td>"
+            + "<td>" + fmtPct(s.total * 100, 1, true) + "</td>"
+            + "<td>" + (s.cagr === null ? "—" : fmtPct(s.cagr * 100, 1, true)) + "</td>"
+            + "<td>" + fmtPct(s.mdd * 100, 1) + "</td>"
+            + "<td>" + fmtPct(s.vol * 100, 1) + "</td>"
+            + "<td>" + (s.sharpe === null ? "—" : s.sharpe.toFixed(2)) + "</td></tr>";
+    }).join("");
+
+    legendEl.innerHTML = lines.map(l => {
+        const last = l.values.length ? l.values[l.values.length - 1][1] : null;
+        return "<span><span class=\"legend-dot\" style=\"background:" + l.color + "\"></span>"
+            + l.label + (last !== null ? " — " + fmtMoney(last) : "") + "</span>";
+    }).join("");
+
+    // Which holdings joined late in this window (short histories, stated plainly).
+    const late = BACKTEST_TICKERS.filter(t => {
+        const s = backtestHistory.series[t];
+        return s && s.prices && s.first_date > range.start && backtestSelected[t];
+    });
+    noteEl.textContent = late.length
+        ? "Joined during this window (first trading date): " + late.map(t => t + " " + backtestHistory.series[t].first_date).join(" · ") + ". Before that they hold cash at 0%."
+        : "All selected holdings traded for the full window.";
+
+    btDrawChart(lines, dates);
+    btRenderHoldings();
+}
+
+function btAccentColor() {
+    try {
+        const v = getComputedStyle(document.documentElement).getPropertyValue("--accent-color").trim();
+        return v || "#4da6ff";
+    } catch (e) { return "#4da6ff"; }
+}
+
+function btDrawChart(lines, dates) {
+    const canvas = document.getElementById("backtestChart");
+    if (!canvas) return;
+    const wrap = canvas.parentElement;
+    const dpr = window.devicePixelRatio || 1;
+    const w = wrap.clientWidth;
+    const h = canvas.clientHeight || 320;
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const cs = getComputedStyle(document.body);
+    const textColor = (cs.getPropertyValue("--subtext-color") || "#888").trim();
+    const gridColor = (cs.getPropertyValue("--border-color") || "#ccc").trim();
+    const padL = 64, padR = 12, padT = 12, padB = 28;
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+    if (!lines.length || !dates || dates.length < 2) {
+        ctx.fillStyle = textColor;
+        ctx.font = "13px -apple-system, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("No data to chart.", w / 2, h / 2);
+        return;
+    }
+    let min = Infinity, max = -Infinity;
+    lines.forEach(l => l.values.forEach(v => { if (v[1] < min) min = v[1]; if (v[1] > max) max = v[1]; }));
+    if (!isFinite(min) || !isFinite(max) || min === max) { min = 9000; max = 11000; }
+    const span = max - min;
+    min -= span * 0.05; max += span * 0.05;
+    const xFor = d => padL + ((new Date(d) - new Date(dates[0])) / (new Date(dates[dates.length - 1]) - new Date(dates[0]))) * plotW;
+    const yFor = v => padT + (1 - (v - min) / (max - min)) * plotH;
+    // Gridlines + y labels.
+    ctx.strokeStyle = gridColor;
+    ctx.fillStyle = textColor;
+    ctx.font = "11px -apple-system, sans-serif";
+    ctx.textAlign = "right";
+    ctx.lineWidth = 1;
+    for (let g = 0; g <= 4; g++) {
+        const v = min + (max - min) * g / 4;
+        const y = yFor(v);
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+        ctx.fillText("$" + Math.round(v).toLocaleString("en-US"), padL - 8, y + 4);
+    }
+    // X labels: one per year.
+    ctx.textAlign = "center";
+    const yearsSeen = {};
+    dates.forEach(d => {
+        const y = d.slice(0, 4);
+        if (!yearsSeen[y]) { yearsSeen[y] = d; ctx.fillText(y, xFor(d), h - 8); }
+    });
+    // Lines.
+    lines.forEach(l => {
+        ctx.strokeStyle = l.color;
+        ctx.lineWidth = l.width || 2;
+        ctx.setLineDash(l.dashed ? [6, 4] : []);
+        ctx.beginPath();
+        l.values.forEach((v, i) => {
+            const x = xFor(v[0]), y = yFor(v[1]);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    // Hover readout.
+    canvas.onmousemove = function (e) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const frac = Math.min(1, Math.max(0, (mx - padL) / plotW));
+        const idx = Math.round(frac * (dates.length - 1));
+        const d = dates[idx];
+        const readout = document.getElementById("backtestReadout");
+        if (readout) {
+            readout.textContent = d + " — " + lines.map(l => {
+                const v = l.values[idx] ? l.values[idx][1] : null;
+                return l.label + ": " + (v === null ? "—" : fmtMoney(v));
+            }).join(" · ");
+        }
+        btDrawChart(lines, dates);
+        const ctx2 = canvas.getContext("2d");
+        ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx2.strokeStyle = textColor;
+        ctx2.lineWidth = 1;
+        ctx2.setLineDash([3, 3]);
+        ctx2.beginPath();
+        ctx2.moveTo(xFor(d), padT);
+        ctx2.lineTo(xFor(d), h - padB);
+        ctx2.stroke();
+        ctx2.setLineDash([]);
+        lines.forEach(l => {
+            const v = l.values[idx] ? l.values[idx][1] : null;
+            if (v === null) return;
+            ctx2.fillStyle = l.color;
+            ctx2.beginPath();
+            ctx2.arc(xFor(d), yFor(v), 3.5, 0, Math.PI * 2);
+            ctx2.fill();
+        });
+    };
+    canvas.onmouseleave = function () {
+        const readout = document.getElementById("backtestReadout");
+        if (readout) readout.textContent = "Hover the chart to read values.";
+        btDrawChart(lines, dates);
+    };
+}
+
+function btRenderHoldings() {
+    const body = document.getElementById("backtestHoldings");
+    if (!body) return;
+    const wsum = BACKTEST_TICKERS.reduce((a, t) => a + (backtestSelected[t] ? backtestWeights[t] : 0), 0);
+    body.innerHTML = BACKTEST_TICKERS.map(t => {
+        const s = backtestHistory.series[t] || {};
+        const hasData = !!(s.prices && s.prices.length);
+        const norm = (backtestSelected[t] && wsum > 0) ? (backtestWeights[t] / wsum * 100) : 0;
+        const div = s.dividend_rate ? s.dividend_rate + "%" : "—";
+        return "<tr><td><input type=\"checkbox\" data-bt-ticker=\"" + t + "\""
+            + (backtestSelected[t] ? " checked" : "") + " aria-label=\"Include " + t + "\"></td>"
+            + "<td><strong>" + (s.name || t) + "</strong> (" + t + ")"
+            + (s.kind === "preferred" ? " <small>preferred</small>" : s.kind === "crypto" ? " <small>crypto</small>" : "") + "</td>"
+            + "<td><input type=\"number\" min=\"0\" max=\"100\" step=\"0.5\" value=\"" + backtestWeights[t].toFixed(1) + "\" data-bt-weight=\"" + t + "\""
+            + (backtestSelected[t] ? "" : " disabled") + " aria-label=\"Weight for " + t + " (percent)\"></td>"
+            + "<td>" + (backtestSelected[t] ? norm.toFixed(1) + "%" : "—") + "</td>"
+            + "<td>" + (hasData ? s.first_date : "no data") + "</td>"
+            + "<td>" + div + "</td></tr>";
+    }).join("");
+    body.querySelectorAll("[data-bt-ticker]").forEach(cb => {
+        cb.addEventListener("change", () => {
+            backtestSelected[cb.dataset.btTicker] = cb.checked;
+            btRender();
+        });
+    });
+    body.querySelectorAll("[data-bt-weight]").forEach(inp => {
+        inp.addEventListener("change", () => {
+            const v = parseFloat(inp.value);
+            backtestWeights[inp.dataset.btWeight] = isNaN(v) || v < 0 ? 0 : v;
+            btRender();
+        });
+    });
+}
+
+function btRenderFrameworks() {
+    const wrap = document.getElementById("backtestFrameworks");
+    if (!wrap) return;
+    let html = "";
+    Object.keys(BACKTEST_FRAMEWORKS).forEach(id => {
+        const fw = BACKTEST_FRAMEWORKS[id];
+        const members = btFrameworkMembers(id);
+        const disabled = !Array.isArray(members) || members.length === 0;
+        const title = disabled
+            ? (members === "no-data" ? "Needs market data" : "No qualifying stocks")
+            : members.length + " qualifying: " + members.join(", ");
+        html += "<button class=\"filter-pill" + (backtestFrameworks.has(id) ? " active" : "") + "\" data-bt-fw=\"" + id + "\""
+            + (disabled ? " disabled" : "") + " title=\"" + title.replace(/"/g, "&quot;") + "\">" + fw.label
+            + (Array.isArray(members) ? " (" + members.length + ")" : "") + "</button>";
+    });
+    html += "<button class=\"filter-pill\" data-bt-fw=\"alfred\" disabled title=\"Not scored from this data — debt direction only, no pass/fail line\">Alfred</button>";
+    wrap.innerHTML = html;
+    wrap.querySelectorAll("[data-bt-fw]:not(:disabled)").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.btFw;
+            if (backtestFrameworks.has(id)) backtestFrameworks.delete(id);
+            else backtestFrameworks.add(id);
+            btRender();
+            btRenderFrameworks();
+        });
+    });
+    const note = document.getElementById("backtestFrameworkNote");
+    if (note) {
+        note.textContent = "Only the six testable frameworks have baskets (same audited rules as the scoreboard). Alfred has no pass/fail line, and "
+            + BACKTEST_NOT_SCORED.join(", ") + " are not scored from this data — their frameworks cannot be tested from the table\u2019s fields, so no basket is shown for them.";
+    }
+}
+
+function btInit() {
+    const app = document.getElementById("backtestApp");
+    const loading = document.getElementById("backtestLoading");
+    if (!app) return;
+    // Timeframe pills.
+    document.querySelectorAll("#backtestTimeframes .filter-pill").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll("#backtestTimeframes .filter-pill").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            backtestTF = btn.dataset.tf;
+            btRender();
+        });
+    });
+    // Benchmark picker.
+    const benchSel = document.getElementById("backtestBenchmark");
+    BACKTEST_BENCHMARKS.forEach(b => {
+        const opt = document.createElement("option");
+        opt.value = b;
+        opt.textContent = btSeriesLabel(b);
+        if (b === backtestBenchmark) opt.selected = true;
+        benchSel.appendChild(opt);
+    });
+    const grp = document.createElement("optgroup");
+    grp.label = "Single holding";
+    BACKTEST_TICKERS.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = btSeriesLabel(t);
+        grp.appendChild(opt);
+    });
+    benchSel.appendChild(grp);
+    benchSel.addEventListener("change", () => { backtestBenchmark = benchSel.value; btRender(); });
+    // Reset weights.
+    document.getElementById("backtestResetWeights").addEventListener("click", () => {
+        BACKTEST_TICKERS.forEach(t => { backtestSelected[t] = true; backtestWeights[t] = 100 / BACKTEST_TICKERS.length; });
+        btRender();
+    });
+    // Redraw the chart when the theme flips or the window resizes.
+    const themeToggle = document.getElementById("theme-toggle");
+    if (themeToggle) themeToggle.addEventListener("change", () => setTimeout(btRender, 60));
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(btRender, 200);
+    });
+    // Unhide BEFORE the first render: btDrawChart measures the chart wrapper,
+    // which is 0 wide while #backtestApp is hidden, so the first paint drew
+    // into a 1px-wide bitmap (fixed during re-base, Nov 12, 2026).
+    if (loading) loading.style.display = "none";
+    app.hidden = false;
+    // Framework pills + holdings render, then the first chart.
+    btRenderFrameworks();
+    btRender();
+    const asOf = document.getElementById("backtestAsOf");
+    if (asOf) asOf.textContent = backtestHistory.last_updated || "unavailable";
+}
+
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+    window.addEventListener("DOMContentLoaded", () => {
+        if (!document.getElementById("backtestApp")) return;
+        Promise.all([
+            fetch("finance-history.json").then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }),
+            fetch("finance-data.json").then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).catch(() => null)
+        ]).then(([hist, finData]) => {
+            backtestHistory = hist;
+            if (finData) {
+                tickerData = (finData.stocks || []).slice().sort((x, y) => x.ticker.localeCompare(y.ticker));
+                marketDataLoaded = true;
+            }
+            btInit();
+        }).catch(() => {
+            const loading = document.getElementById("backtestLoading");
+            if (loading) loading.textContent = "Price history unavailable — could not load finance-history.json.";
+        });
+    });
+}
+
+// Node test hook: `node -e` can require this file's math via eval with a
+// window/document stub; the DOMContentLoaded block is skipped when
+// `document` has no getElementById-backed backtestApp.
+if (typeof module !== "undefined") {
+    module.exports = { btPriceAt: btPriceAt, btCompute: btCompute, btStats: btStats, btDateAxis: btDateAxis, BACKTEST_TICKERS: BACKTEST_TICKERS };
+}
     </script>
 </body>
 </html>
