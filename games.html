@@ -294,7 +294,8 @@
         var pops = [];       // [{x, y, t}] pickup pop rings, t counts down from 0.35
         var MUSHROOM_SNAP_SCREEN = 40; // snap radius in screen px when placing a mushroom
         var MUSHROOM_TRIGGER_PX = 18;  // trigger radius in screen px (rider within this eats it)
-        var BOOST_MULT = 1.8, BOOST_DUR = 1.5; // mushroom burst: 1.8x, fading over 1.5 s
+        var BOOST_MULT = 1.8, BOOST_DUR = 1.5; // mushroom burst: 1.8x velocity impulse, speed lines show for 1.5 s
+        var BOOST_MIN = 250; // minimum speed after a mushroom kick (px/s) — lets it unstick a near-stopped rider
         var GLIDER_TRIGGER_PX = 26; // pickup radius in screen px (airborne rider only)
         var GLIDE_MAX = 7;          // max glide duration, seconds
         var GLIDE_STALL = 120;      // px/s: horizontal speed below this stalls the glider
@@ -663,12 +664,11 @@
                 var speed = r.vx * dx + r.vy * dy;
                 if (speed < 0) { dx = -dx; dy = -dy; speed = -speed; }
                 speed += G * dy * dt;  // gravity component along the line
-                // Mushroom boost: a fading 1.8x multiplier on the speed used
-                // for this step only — the stored velocity stays the base
-                // speed, so the boost wears off instead of compounding.
-                var boost = 1;
-                if (r.boostT > 0) { boost = 1 + (BOOST_MULT - 1) * (r.boostT / BOOST_DUR); r.boostT -= dt; }
-                var nx = hit.x + dx * speed * boost * dt, ny = hit.y + dy * speed * boost * dt;
+                // Mushroom boost timer ticks down here (it only drives the
+                // speed lines + HUD now — the boost itself is a real velocity
+                // impulse applied on pickup, so it survives the physics step).
+                if (r.boostT > 0) r.boostT -= dt;
+                var nx = hit.x + dx * speed * dt, ny = hit.y + dy * speed * dt;
                 // Did the advance carry the rider past the end of this segment?
                 // (The closest point on a segment is clamped to its ends, so a
                 // plain nearest-segment lookup would stick him to the endpoint
@@ -762,9 +762,8 @@
                 r.omega *= Math.exp(-0.6 * dt);
                 r.vy += G * dt;
                 var px = r.x, py = r.y;
-                var boostA = 1;
-                if (r.boostT > 0) { boostA = 1 + (BOOST_MULT - 1) * (r.boostT / BOOST_DUR); r.boostT -= dt; }
-                var nx2 = r.x + r.vx * boostA * dt, ny2 = r.y + r.vy * boostA * dt;
+                if (r.boostT > 0) r.boostT -= dt;  // boost timer only (see pickup)
+                var nx2 = r.x + r.vx * dt, ny2 = r.y + r.vy * dt;
                 r.angle += r.omega * dt;
                 // Landing first: if the sled's path crosses a line, he lands
                 // on it. The crash check must not run first on that step —
@@ -827,6 +826,19 @@
                         var mm = mushrooms.splice(mi, 1)[0];
                         pops.push({ x: mm.x, y: mm.y, t: 0.35 });
                         r.boostT = BOOST_DUR;
+                        // Real burst: multiply his actual velocity by 1.8x.
+                        // The old code only multiplied the position advance
+                        // each step, leaving his stored speed behind — so he
+                        // covered ground faster but gained less speed from
+                        // gravity, launched off the kicker SLOWER than with
+                        // no mushroom, and fell short of the next line.
+                        // (A near-stopped rider gets a minimum kick along
+                        // the way he's facing, so a mushroom can unstick him.)
+                        var bsp = Math.hypot(r.vx, r.vy);
+                        if (bsp > 1) { r.vx *= BOOST_MULT; r.vy *= BOOST_MULT; }
+                        else { r.vx = Math.cos(r.angle) * BOOST_MIN; r.vy = Math.sin(r.angle) * BOOST_MIN; }
+                        bsp = Math.hypot(r.vx, r.vy);
+                        if (bsp < BOOST_MIN) { var bk = BOOST_MIN / bsp; r.vx *= bk; r.vy *= bk; }
                         autosaveSoon();
                     }
                 }
@@ -1056,8 +1068,7 @@
             lastHud = now;
             var d = distanceM();
             elDist.textContent = d.toFixed(1) + ' m (' + (d * 3.28084).toFixed(1) + ' ft)';
-            var spd = rider ? Math.hypot(rider.vx, rider.vy) / PX_PER_M : 0;
-            if (rider && rider.boostT > 0) spd *= 1 + (BOOST_MULT - 1) * (rider.boostT / BOOST_DUR);  // effective speed while boosting
+            var spd = rider ? Math.hypot(rider.vx, rider.vy) / PX_PER_M : 0;  // stored speed is genuinely boosted now — no extra factor
             elSpeed.textContent = spd.toFixed(1) + ' m/s (' + (spd * 2.23694).toFixed(1) + ' mph)';
             if (d > best) { best = d; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
             elBest.textContent = best.toFixed(1) + ' m (' + (best * 3.28084).toFixed(1) + ' ft)';
