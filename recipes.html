@@ -307,6 +307,37 @@
     #recipeStickyName .recipe-sticky-title { font-size: 0.92rem; font-weight: 700; line-height: 1.3; color: var(--text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #recipeStickyName .recipe-sticky-hint { font-size: 0.8rem; color: var(--subtext-color); flex: none; }
     @media (max-width: 768px) { #recipeStickyName .recipe-sticky-inner { padding: 0.55rem 18px; } }
+
+    /* Sticky section accordions + outer-section summaries (2026-11-13,
+       site-wide pinning).
+       - The three section accordions (Johnny's Recipes archive, Dietary
+         Guidelines, Nutrition Comparison Tool) follow the health pattern:
+         when a card is open, its toggle pins below the frozen 55px header
+         and takes the slot alone. The archive toggle pins for the whole
+         recipe grid; the expanded recipe's own name bar (z-index 950)
+         paints over it while a recipe is open, and the toggle returns when
+         the recipe closes. (.explainer-wrapper already has overflow: clip
+         above, so sticky works.)
+       - The two outer-section summaries (Nutrition & Dietary Guidelines,
+         Evidence-Informed Cooking & Nutrition Tips) pin when their details
+         is open. Their background + hairline appear only while stuck (JS
+         .is-stuck, end of body): at rest they sit inside the .cooking-tips
+         card, so a permanent solid background would paint a visible band in
+         the card. The open tip-group summary (z-index 900) paints over the
+         outer summary, so the nearest heading always wins the slot.
+       - While the DGA card is open, its own details' summary stops sticking
+         and the DGA toggle takes the slot. */
+    .explainer-wrapper:has(> .explainer-card.active) > .info-toggle {
+        position: sticky; top: 55px; z-index: 100;
+        background: var(--bg-color);
+        box-shadow: 0 1px 0 var(--border-color);
+    }
+    .tips-outer[open] > summary { position: sticky; top: 55px; z-index: 90; }
+    .tips-outer[open] > summary.is-stuck {
+        background: var(--bg-color);
+        box-shadow: 0 1px 0 var(--border-color);
+    }
+    .tips-outer:has(.explainer-card.active) > summary { position: static; }
     #combiner-list { scroll-margin-top: 70px; }
 </style>
 <style>
@@ -2955,6 +2986,38 @@
         document.addEventListener('keydown', function (ev) {
             if (ev.key === 'Escape' && cookView && cookView.classList.contains('open')) closeCook();
         });
+    })();
+    </script>
+
+
+    <script>
+    (function () {
+        'use strict';
+        /* Sticky outer-section summaries (2026-11-13): the two .tips-outer
+           summaries pin below the header, but their background + hairline
+           only appear while stuck (.is-stuck) — at rest they sit inside the
+           .cooking-tips card, so a permanent solid background would paint a
+           visible band in the card. Same rAF-throttled pattern as the health
+           page's tier tags. */
+        var sums = Array.prototype.slice.call(document.querySelectorAll('.tips-outer > summary'));
+        if (!sums.length) return;
+        function update() {
+            sums.forEach(function (s) {
+                var det = s.parentElement;
+                var stuck = det.open && Math.abs(s.getBoundingClientRect().top - 55) < 1.5;
+                s.classList.toggle('is-stuck', stuck);
+            });
+        }
+        var ticking = false;
+        function onScroll() {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(function () { ticking = false; update(); });
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+        document.querySelectorAll('.tips-outer').forEach(function (d) { d.addEventListener('toggle', onScroll); });
+        update();
     })();
     </script>
 
