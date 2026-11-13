@@ -230,7 +230,7 @@
         }
     
     /* Sticky combiner footer bar (mobile + desktop) */
-    #combinerBar { position: fixed; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 900; display: none; align-items: center; gap: 0.5rem; width: min(720px, calc(100vw - 2rem)); background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 0.5rem 0.55rem 0.5rem 0.9rem; }
+    #combinerBar { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 900; display: none; align-items: center; gap: 0.5rem; width: min(720px, calc(100vw - 2rem)); background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 10px 10px 0 0; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 0.5rem 0.55rem calc(0.5rem + env(safe-area-inset-bottom, 0px)) 0.9rem; }
     #combinerBar.show { display: block; }
     #combinerBarRow { display: flex; align-items: center; gap: 0.5rem; }
     #combinerBarJump { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.35rem; background: none; border: 0; padding: 0; color: var(--text-color); font: inherit; font-size: 0.9rem; font-weight: 600; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; }
@@ -2160,15 +2160,12 @@
             document.body.classList.remove('combiner-bar-visible');
             return;
         }
-        var kcal = Math.round(totals['208'] * 10) / 10;
-        var protein = Math.round(totals['203'] * 10) / 10;
-        /* When servings are scaled the servings count is the headline and
-           replaces the recipe count -- "6 servings · ..." stays short enough
-           for the mobile bar, where "3 recipes · 6 servings · ..." would
-           truncate the protein value. */
+        /* Compact bar shows the count only -- no kcal/protein values here
+           (they live in Details mode and the full breakdown). When servings
+           are scaled, show both counts: "3 recipes · 6 servings". */
         txt.textContent = (servings && servings > count)
-            ? servings + ' serving' + (servings > 1 ? 's' : '') + ' \u00b7 ' + barNum(kcal) + ' kcal \u00b7 ' + barNum(protein) + ' g protein'
-            : count + ' recipe' + (count === 1 ? '' : 's') + ' \u00b7 ' + barNum(kcal) + ' kcal \u00b7 ' + barNum(protein) + ' g protein';
+            ? count + ' recipe' + (count === 1 ? '' : 's') + ' \u00b7 ' + servings + ' serving' + (servings > 1 ? 's' : '')
+            : count + ' recipe' + (count === 1 ? '' : 's');
         /* Expanded panel: every nutrient, rendered with the combiner's own
            dotRow so values, % and dots always match the full panel. */
         var grid = document.getElementById('combinerBarGrid');
@@ -2192,10 +2189,6 @@
             if (jump) jump.setAttribute('aria-expanded', 'true');
             resetBarDetails();
         }
-    }
-    function barNum(v) {
-        var r = Math.round(v * 10) / 10;
-        return (r % 1 === 0) ? String(r) : r.toFixed(1);
     }
 
     /* Sticky combiner footer bar: tap the bar to expand/collapse the
