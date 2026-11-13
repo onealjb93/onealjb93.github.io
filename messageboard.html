@@ -24,46 +24,63 @@
     <link rel="stylesheet" href="style.css">
 
     <style>
-.topic-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
-.topic-label { font-size: 0.9rem; font-weight: 600; }
-.topic-picker { font: inherit; font-size: 0.9rem; padding: 0.45rem 0.6rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); max-width: 100%; }
-.topic-current { font-size: 0.9rem; color: var(--subtext-color); margin: 1rem 0 0.5rem; }
+/* Board redesign (2026-11-13): the board reads as a conversation, not a
+   form. Slim opening (hero de-carded), an X-style tab bar — text tabs with
+   an accent underline and search on the same row — pinned in the single
+   slot under the 55px header, topics as a tappable feed, and the thread
+   framed as one card. Giscus, categories and topic data are untouched. */
 
-    /* Sticky board tabs (2026-11-13, site-wide pinning): the six category
-       tabs pin below the frozen 55px site header while you scroll a thread,
-       so you can always switch boards without scrolling back up. Single
-       slot: top: 55px, z-index 90, solid var(--bg-color) + 1px hairline.
-       margin-top becomes 0 (the 16px top gap is now provided entirely by
-       the hero header's 35px margin-bottom, so the resting gap is unchanged
-       at 35px); margin-bottom stays 1.2rem. The tab pills keep their own
-       translucent card background — they sit on the tab row's solid
-       background, so no scrolling text can bleed through. The per-panel h2
-       is skipped (it duplicates the active tab's name) and the topic picker
-       row scrolls with its thread. */
-    .board-tabs {
-        position: sticky; top: 55px; z-index: 90;
-        background: var(--bg-color);
-        box-shadow: 0 1px 0 var(--border-color);
-        margin: 0 0 1.2rem;
-    }
-.topic-current strong { color: var(--text-color); }
+/* Slim opening: no card — just the title and his line, with air. */
+.hero-header { background: none; border: none; border-radius: 0; box-shadow: none; padding: 0.25rem 0 0; margin-bottom: 1.5rem; }
+.hero-header h1 { font-size: 2rem; margin: 0 0 0.35rem; }
+.hero-header p { color: var(--subtext-color); font-weight: 400; }
 
-    /* Conversation finder (2026-11-13): X-style search + tag chips so a
-       visitor can find any of the 70 threads without scrolling the boards.
-       Sits below the sticky tab bar; purely additive — the topic pickers
-       and the giscus widget are untouched. */
-    .topic-search { margin: 0 0 1rem; }
-    .topic-search input { width: 100%; max-width: 420px; font: inherit; font-size: 0.9rem; padding: 0.5rem 0.75rem; border-radius: 20px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); }
-    .topic-search input:focus { outline: 2px solid var(--link-color); outline-offset: 1px; }
-    .tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
-    .tag-chip { padding: 0.3rem 0.8rem; border-radius: 20px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
-    .tag-chip.active { background: var(--link-color); border-color: var(--link-color); color: var(--bg-color); }
-    .topic-results { margin-top: 0.6rem; display: flex; flex-direction: column; gap: 0.25rem; }
-    .topic-result { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; text-align: left; width: 100%; padding: 0.45rem 0.6rem; border-radius: 8px; border: 1px solid transparent; background: none; color: var(--text-color); font: inherit; font-size: 0.9rem; cursor: pointer; }
-    .topic-result:hover { border-color: var(--border-color); background: var(--card-bg); }
-    .topic-result .tag { font-size: 0.8rem; color: var(--subtext-color); white-space: nowrap; }
-    .topic-results-empty { font-size: 0.9rem; color: var(--subtext-color); padding: 0.45rem 0.6rem; }
-    .topic-results-count { font-size: 0.8rem; color: var(--subtext-color); padding: 0 0.6rem 0.25rem; }
+/* Tab bar: pinned, single slot (top: 55px, solid bg + hairline). */
+.board-bar { position: sticky; top: 55px; z-index: 90; background: var(--bg-color); box-shadow: 0 1px 0 var(--border-color); margin: 0 0 1.1rem; }
+.board-bar-row { display: flex; align-items: flex-end; gap: 1.25rem; }
+.board-tabs { display: flex; flex-wrap: nowrap; gap: 0.15rem; margin: 0; flex: 1 1 auto; overflow-x: auto; scrollbar-width: none; }
+.board-tabs::-webkit-scrollbar { display: none; }
+.board-tab { background: none; border: none; border-radius: 0; padding: 0.7rem 0.75rem 0.6rem; font-size: 0.95rem; font-weight: 600; color: var(--subtext-color); white-space: nowrap; box-shadow: inset 0 -2px 0 transparent; }
+.board-tab:hover { color: var(--text-color); }
+.board-tab.active { background: none; color: var(--text-color); box-shadow: inset 0 -2px 0 var(--link-color); }
+.board-search { flex: 0 0 230px; padding-bottom: 0.5rem; }
+.board-search input { width: 100%; font: inherit; font-size: 0.9rem; padding: 0.45rem 0.85rem; border-radius: 20px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); }
+.board-search input:focus { outline: 2px solid var(--link-color); outline-offset: 1px; }
+@media (max-width: 720px) {
+    .board-bar-row { flex-wrap: wrap; gap: 0; }
+    .board-tabs { flex: 1 1 100%; }
+    .board-search { flex: 1 1 100%; padding: 0.3rem 0 0.6rem; }
+}
+
+/* Finder: tag chips + live results under the pinned bar. */
+.topic-finder { margin: 0 0 1.4rem; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.tag-chip { padding: 0.3rem 0.8rem; border-radius: 20px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+.tag-chip.active { background: var(--link-color); border-color: var(--link-color); color: var(--bg-color); }
+.topic-results { margin-top: 0.6rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.topic-result { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; text-align: left; width: 100%; padding: 0.45rem 0.6rem; border-radius: 8px; border: 1px solid transparent; background: none; color: var(--text-color); font: inherit; font-size: 0.9rem; cursor: pointer; }
+.topic-result:hover { border-color: var(--border-color); background: var(--card-bg); }
+.topic-result .tag { font-size: 0.8rem; color: var(--subtext-color); white-space: nowrap; }
+.topic-results-empty { font-size: 0.9rem; color: var(--subtext-color); padding: 0.45rem 0.6rem; }
+.topic-results-count { font-size: 0.8rem; color: var(--subtext-color); padding: 0 0.6rem 0.25rem; }
+
+/* Topic feed: one tappable row per conversation. */
+.board-panel { margin: 0 0 1.5rem; }
+.topic-feed { display: flex; flex-direction: column; border-top: 1px solid var(--border-color); }
+.topic-item { display: flex; align-items: center; gap: 0.75rem; width: 100%; text-align: left; padding: 0.7rem 0.6rem; background: none; border: none; border-bottom: 1px solid var(--border-color); color: var(--text-color); font: inherit; font-size: 0.98rem; cursor: pointer; }
+.topic-item:hover { background: var(--card-bg); }
+.topic-item .t-name { flex: 1 1 auto; font-weight: 500; }
+.topic-item .t-tag { font-size: 0.8rem; color: var(--subtext-color); white-space: nowrap; }
+.topic-item .t-go { color: var(--subtext-color); font-size: 1.1rem; line-height: 1; }
+.topic-item.active { box-shadow: inset 3px 0 0 var(--link-color); }
+.topic-item.active .t-name { color: var(--link-color); font-weight: 600; }
+
+/* The conversation itself, framed as one card. */
+.thread-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.1rem 1.25rem 1.25rem; scroll-margin-top: 118px; }
+.thread-title { margin: 0 0 0.2rem; font-size: 1.25rem; }
+.thread-sub { margin: 0 0 0.75rem; color: var(--subtext-color); font-size: 0.9rem; }
+.board-embed { scroll-margin-top: 118px; }
+@media (max-width: 720px) { .thread-card, .board-embed { scroll-margin-top: 168px; } }
 </style>
 
 </head>
@@ -134,69 +151,58 @@
          switch from pathname mapping; the giscus bot creates each Discussion
          automatically the first time someone comments or reacts in a thread.
          Deep links: messageboard.html?topic=<slug>&category=<tab-key>. -->
-    <div class="board-tabs" role="tablist" aria-label="Message boards">
+    <div class="board-bar">
+        <div class="board-bar-row">
+            <div class="board-tabs" role="tablist" aria-label="Message boards">
         <button type="button" class="board-tab active" data-board="finance" role="tab" aria-selected="true">Finance</button>
         <button type="button" class="board-tab" data-board="health" role="tab" aria-selected="false">Health and Cooking</button>
         <button type="button" class="board-tab" data-board="sustainability" role="tab" aria-selected="false">Sustainability</button>
         <button type="button" class="board-tab" data-board="bitcoin" role="tab" aria-selected="false">Bitcoin</button>
         <button type="button" class="board-tab" data-board="cooking" role="tab" aria-selected="false">Cooking</button>
         <button type="button" class="board-tab" data-board="general" role="tab" aria-selected="false">General</button>
+            </div>
+            <div class="board-search">
+                <input type="search" id="topic-search" placeholder="Search conversations&hellip;" aria-label="Search conversations" autocomplete="off">
+            </div>
+        </div>
     </div>
-    <div class="topic-search">
-        <input type="search" id="topic-search" placeholder="Search conversations&hellip;" aria-label="Search conversations" autocomplete="off">
+    <div class="topic-finder">
         <div class="tag-row" id="tag-row" role="group" aria-label="Filter conversations by tag"></div>
         <div class="topic-results" id="topic-results" hidden></div>
     </div>
     <section class="board-panel" id="board-finance" data-category="Finance" data-category-id="DIC_kwDOVlVNR84DK-nK" role="tabpanel" aria-label="Finance board">
-        <h2>Finance</h2>
         <p>Investing, markets, and the finance page.</p>
-        <div class="topic-row">
-            <label class="topic-label" for="topic-finance">Topic:</label>
-            <select class="topic-picker" id="topic-finance" data-board="finance" aria-label="Choose a discussion topic"></select>
-        </div>
+        <div class="topic-feed" id="feed-finance"></div>
     </section>
     <section class="board-panel" id="board-health" data-category="Health" data-category-id="DIC_kwDOVlVNR84DK-nL" role="tabpanel" aria-label="Health and Cooking board" hidden>
-        <h2>Health and Cooking</h2>
         <p>Food, training, sleep, and longevity.</p>
-        <div class="topic-row">
-            <label class="topic-label" for="topic-health">Topic:</label>
-            <select class="topic-picker" id="topic-health" data-board="health" aria-label="Choose a discussion topic"></select>
-        </div>
+        <div class="topic-feed" id="feed-health"></div>
     </section>
     <section class="board-panel" id="board-sustainability" data-category="Sustainability" data-category-id="DIC_kwDOVlVNR84DK-nM" role="tabpanel" aria-label="Sustainability board" hidden>
-        <h2>Sustainability</h2>
         <p>Growing, energy, and living lighter.</p>
-        <div class="topic-row">
-            <label class="topic-label" for="topic-sustainability">Topic:</label>
-            <select class="topic-picker" id="topic-sustainability" data-board="sustainability" aria-label="Choose a discussion topic"></select>
-        </div>
+        <div class="topic-feed" id="feed-sustainability"></div>
     </section>
     <section class="board-panel" id="board-bitcoin" data-category="Bitcoin" data-category-id="DIC_kwDOVlVNR84DK-nN" role="tabpanel" aria-label="Bitcoin board" hidden>
-        <h2>Bitcoin</h2>
         <p>Bitcoin — questions, resources, and discussion.</p>
-        <div class="topic-row">
-            <label class="topic-label" for="topic-bitcoin">Topic:</label>
-            <select class="topic-picker" id="topic-bitcoin" data-board="bitcoin" aria-label="Choose a discussion topic"></select>
-        </div>
+        <div class="topic-feed" id="feed-bitcoin"></div>
     </section>
     <section class="board-panel" id="board-cooking" data-category="Cooking" data-category-id="DIC_kwDOVlVNR84DK-nO" role="tabpanel" aria-label="Cooking board" hidden>
-        <h2>Cooking</h2>
         <p>Recipes, techniques, and what you cooked.</p>
-        <div class="topic-row">
-            <label class="topic-label" for="topic-cooking">Topic:</label>
-            <select class="topic-picker" id="topic-cooking" data-board="cooking" aria-label="Choose a discussion topic"></select>
-        </div>
+        <div class="topic-feed" id="feed-cooking"></div>
     </section>
     <section class="board-panel" id="board-general" data-category="General" data-category-id="DIC_kwDOVlVNR84DK5gb" role="tabpanel" aria-label="General board" hidden>
-        <h2>General</h2>
         <p>Anything else — introductions welcome.</p>
+        <div class="topic-feed" id="feed-general"></div>
     </section>
-    <p class="topic-current" id="topic-current">Discussing: <strong id="topic-current-label">General — Finance</strong></p>
-    <div class="board-embed" id="board-embed"></div>
+    <section class="thread-card" id="thread-card">
+        <h2 class="thread-title" id="topic-current-label">General — Finance</h2>
+        <p class="thread-sub">Join the conversation — sign in with GitHub to post.</p>
+        <div class="board-embed" id="board-embed"></div>
+    </section>
 
     <script>
         // Message board: ONE giscus widget, one thread per topic.
-        // Tabs switch the Discussion category; the topic picker inside each
+        // Tabs switch the Discussion category; the topic feed inside each
         // tab switches the Discussion term (the thread). Both go through
         // the same setConfig message to the single iframe — giscus merges
         // setConfig into the widget config and re-fetches the discussion
@@ -210,7 +216,7 @@
                 cooking: { name: 'Cooking', id: 'DIC_kwDOVlVNR84DK-nO' },
                 general: { name: 'General', id: 'DIC_kwDOVlVNR84DK5gb' }
             };
-            // Topics by board. Single source of truth for the picker, the
+            // Topics by board. Single source of truth for the feeds, the
             // deep links and the widget config. Generated 2026-11-13 from
             // the live pages: 17 recipes, 33 experts, 7 frameworks, 2
             // organizations, 5 projects (stocks + investors follow later).
@@ -276,29 +282,34 @@
                 }).observe(embed, { childList: true });
             }
 
-            function populatePickers() {
+            function populateFeeds() {
                 Object.keys(TOPICS).forEach(function (board) {
-                    var sel = document.getElementById('topic-' + board);
-                    if (!sel) return; // General tab has no picker (one topic)
-                    var groups = {};
-                    var order = [];
+                    var feed = document.getElementById('feed-' + board);
+                    if (!feed) return;
                     TOPICS[board].forEach(function (t) {
-                        if (!groups[t.group]) { groups[t.group] = []; order.push(t.group); }
-                        groups[t.group].push(t);
-                    });
-                    order.forEach(function (g) {
-                        var og = document.createElement('optgroup');
-                        og.label = g;
-                        groups[g].forEach(function (t) {
-                            var opt = document.createElement('option');
-                            opt.value = t.slug;
-                            opt.textContent = t.label;
-                            og.appendChild(opt);
+                        var row = document.createElement('button');
+                        row.type = 'button';
+                        row.className = 'topic-item';
+                        row.setAttribute('data-slug', t.slug);
+                        var name = document.createElement('span');
+                        name.className = 't-name';
+                        name.textContent = t.label.replace(/&amp;/g, '&');
+                        var tag = document.createElement('span');
+                        tag.className = 't-tag';
+                        tag.textContent = '#' + t.group;
+                        var go = document.createElement('span');
+                        go.className = 't-go';
+                        go.setAttribute('aria-hidden', 'true');
+                        go.textContent = '›';
+                        row.appendChild(name);
+                        row.appendChild(tag);
+                        row.appendChild(go);
+                        row.addEventListener('click', function () {
+                            applyTopic(board, t.slug, { send: true, url: true });
+                            var card = document.getElementById('thread-card');
+                            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         });
-                        sel.appendChild(og);
-                    });
-                    sel.addEventListener('change', function () {
-                        applyTopic(board, sel.value, { send: true, url: true });
+                        feed.appendChild(row);
                     });
                 });
             }
@@ -318,9 +329,16 @@
                 document.querySelectorAll('.board-panel').forEach(function (p) {
                     p.hidden = p.id !== 'board-' + board;
                 });
-                var sel = document.getElementById('topic-' + board);
-                if (sel) sel.value = topic.slug;
-                if (topicLabel) topicLabel.textContent = topic.label;
+                var feed = document.getElementById('feed-' + board);
+                if (feed) {
+                    feed.querySelectorAll('.topic-item').forEach(function (row) {
+                        var on = row.getAttribute('data-slug') === topic.slug;
+                        row.classList.toggle('active', on);
+                        if (on) { row.setAttribute('aria-current', 'true'); }
+                        else { row.removeAttribute('aria-current'); }
+                    });
+                }
+                if (topicLabel) topicLabel.textContent = topic.label.replace(/&amp;/g, '&');
                 if (opts.url) {
                     try {
                         history.replaceState(null, '', 'messageboard.html?topic=' + encodeURIComponent(topic.slug) + '&category=' + encodeURIComponent(board));
@@ -361,7 +379,7 @@
 
             // Conversation finder: X-style search + tag chips over all 70
             // topics. Additive only — it calls the same applyTopic() the
-            // pickers use, so the giscus widget, per-tab memory and deep
+            // feeds use, so the giscus widget, per-tab memory and deep
             // links behave exactly as before.
             (function () {
                 var searchInput = document.getElementById('topic-search');
@@ -448,7 +466,7 @@
                 renderChips();
             })();
 
-            populatePickers();
+            populateFeeds();
             var initial = resolveInitial();
             applyTopic(initial.board, initial.slug, { send: false, url: false });
             var initialTopic = findTopic(initial.board, initial.slug);
