@@ -72,23 +72,171 @@
         <p class="subtitle">Curated frameworks, protocols, and educational resources trusted for physical optimization and biological longevity.</p>
     </header>
 
-    <!-- 2. COOKING & CULINARY NUTRITION CATEGORY -->
-    <h2>Cooking & Culinary Nutrition</h2>
+    <style>
+        .experts-tier { color: var(--text-color); font-size: 1.05rem; margin: 0; padding: 1.5rem 0 0.75rem 0; position: sticky; top: 55px; z-index: 90; background: var(--bg-color); box-shadow: 0 1px 0 var(--border-color); }
+        .agree-block { border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); padding: 1rem 1.25rem 1.25rem 1.25rem; margin-top: 1.5rem; }
+        .agree-block h3 { color: var(--text-color); font-size: 1.05rem; margin: 0 0 0.5rem 0; }
+        .agree-block p { color: var(--subtext-color); font-size: 0.875rem; margin: 0 0 0.75rem 0; }
+        .agree-block ol { color: var(--subtext-color); font-size: 0.875rem; margin: 0 0 0.75rem 0; padding-left: 1.25rem; line-height: 1.6; }
+        .agree-block .agree-disclaimer { color: var(--text-color); font-size: 0.85rem; font-weight: 600; margin: 0; }
+        /* Sticky expert name (2026-11-12): when an expert card is open, its
+           toggle (the expert's name) freezes below the sticky site header
+           while the card scrolls, so you always know whose card you're
+           reading. Tapping the frozen name collapses the card — it's the
+           same toggle button, no scrolling back up. Only the open card's
+           toggle sticks; closed cards scroll normally and nothing floats
+           once collapsed.
+           - top: 55px = measured sticky header height on desktop AND mobile
+             (8px top padding + 32px logo row + 14px bottom padding + 1px
+             border). The header sticks at top: 0, so the name sits flush
+             below it.
+           - overflow: clip (not hidden) on the wrapper: overflow: hidden
+             creates a scroll container that breaks position: sticky on the
+             toggle; clip still clips the rounded corners but lets the toggle
+             stick to the viewport. Verified in headless Chromium.
+           - background: var(--bg-color), NOT var(--card-bg): --card-bg is
+             translucent (0.75 dark / 0.85 light), so scrolled text would
+             bleed through. --bg-color is solid in both themes. The hairline
+             box-shadow separates the frozen bar from the scrolling content. */
+        .explainer-wrapper { overflow: clip; }
+        .explainer-wrapper:has(> .explainer-card.active) > .info-toggle {
+            position: sticky;
+            top: 55px;
+            z-index: 100;
+            background: var(--bg-color);
+            box-shadow: 0 1px 0 var(--border-color);
+        }
+        /* Sticky tier + checklist headings (2026-11-12): freeze-pane for the
+           committee — the tier heading pins below the sticky site header
+           while you scroll that tier, so you always know what category
+           you're in. Single-slot rule: at most ONE pinned bar below the
+           header, never stacked.
+           - .committee-tiers wraps all three tiers; the headings stick
+             only inside it, so "Modern Living" releases when you leave the
+             committee and never pins over Products & Services.
+           - Tier swap by paint-over: all three stick at top: 55px in the
+             same container; the later one paints over the earlier one
+             (same z-index, DOM order wins), so the current tier is shown.
+           - The checklist heading pins inside its own .agree-block and
+             paints over the tier heading (higher z-index); it releases
+             when its block ends, so the tier heading returns and the next
+             tier swaps in cleanly.
+           - When any expert card is open, the headings stop sticking
+             entirely (body:has(.explainer-card.active)) and the open
+             card's name takes the slot alone — the toggle rule above is
+             untouched. Closing the card restores the correct heading.
+           - Margins became padding on the tier headings: sticky offsets
+             from the margin box, so a margin-top would leave a transparent
+             strip above the stuck bar. Padding keeps the resting gaps
+             identical — "Basic Health" gets 0.25rem top padding because
+             the subtitle's 20px margin-bottom no longer collapses with
+             it (20px + 4px = 24px, as before). One knock-on: the gap
+             above the Attia card grows 20px to 32px (its inline
+             margin-top no longer collapses with the heading's margin).
+           - Solid var(--bg-color) backgrounds + 1px hairline, same as the
+             sticky name. The hairline also shows in resting state as a
+             divider under each heading — intentional. */
+        .experts-tier-first { padding-top: 0.25rem; }
+        .agree-block.agree-sticky { padding-top: 0; }
+        .agree-block.agree-sticky h3 {
+            position: sticky;
+            top: 55px;
+            z-index: 95;
+            background: var(--bg-color);
+            box-shadow: 0 1px 0 var(--border-color);
+            margin: 0 -1.25rem;
+            padding: 1.5rem 1.25rem 0.75rem;
+        }
+        body:has(.explainer-card.active) .experts-tier,
+        body:has(.explainer-card.active) .agree-block.agree-sticky h3,
+        body:has(.explainer-card.active) .products-sticky {
+            position: static;
+        }
+        /* Tier sub-lines + pinned-bar tier tags (2026-11-12): every
+           checklist names its tier, so the agreement list is never
+           mistaken for another tier's. The sub-line sits under the
+           heading in resting state; the pill tag appears inside the
+           heading only while it is stuck (JS .is-stuck class below),
+           so the resting heading is unchanged and the stuck bar never
+           grows a line — the tag fits on the heading's last line. */
+        .agree-block .agree-tier { color: var(--subtext-color); font-size: 0.8rem; font-weight: 600; margin: 0 0 0.5rem 0; }
+        .agree-block.agree-sticky h3 .tier-tag {
+            display: none;
+            margin-left: 0.5rem;
+            padding: 0.1rem 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--subtext-color);
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        .agree-block.agree-sticky h3.is-stuck .tier-tag { display: inline-block; }
+        /* Pinned Products & Services heading (2026-11-12): same
+           freeze-pane pattern as the tier headings. The 60px gap above
+           it moves from the h2's margin-top to .committee-tiers'
+           margin-bottom, so the stuck bar is short (margin area is
+           transparent and would show scrolling content above a stuck
+           bar); the resting gap is unchanged at 60px. The h2's own
+           border-bottom is the hairline. It is the last section, so
+           near the document end it rides the body's bottom edge —
+           correct sticky behavior, same as the last expert card. */
+        .committee-tiers { margin-bottom: 60px; }
+        .products-sticky {
+            position: sticky;
+            top: 55px;
+            z-index: 90;
+            margin-top: 0;
+            padding-top: 1.5rem;
+            background: var(--bg-color);
+        }
+        /* Consolidated committee tiers + start-here hub (2026-11-13):
+           the three tiers ship collapsed and expand on demand, so the
+           committee opens as a short, scannable block. The tier heading
+           becomes a toggle button (same sticky bar as before); the
+           one-line tier description under it is plain flow content, so
+           the pinned bar stays a single line tall. State persists in
+           localStorage ('health-tiers-v1'); no stored state = collapsed.
+           Hub anchor jumps need scroll-margin so the target heading is
+           not hidden under the 55px sticky site header. */
+        #committee, #products { scroll-margin-top: 64px; }
+        .tier-toggle { display: flex; align-items: baseline; gap: 0.5rem; width: 100%; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+        .tier-toggle:hover { text-decoration: underline; }
+        .tier-toggle .tier-arrow { font-size: 0.78em; }
+        .tier-toggle .tier-count { margin-left: auto; font-size: 0.8rem; font-weight: 600; color: var(--subtext-color); white-space: nowrap; }
+        .tier-desc { color: var(--subtext-color); font-size: 0.875rem; line-height: 1.5; margin: 0; padding: 0.1rem 0 0.9rem 0; }
+        .tier-body[hidden] { display: none; }
+    </style>
 
-    <div class="resource-grid" style="margin-top: 20px;">
+    <!-- START HERE: what this page offers -->
+    <nav class="resource-grid" aria-label="On this page" style="margin-top: 20px;">
+        <a href="#committee" class="resource-card">
+            <h3>My Health Committee</h3>
+            <p>33 experts in three tiers.</p>
+        </a>
+        <a href="#products" class="resource-card">
+            <h3>Products &amp; Services</h3>
+            <p>Nine apps, toolkits, and services.</p>
+        </a>
         <a href="recipes.html" class="resource-card resource-card--featured">
             <h3>🍳 Johnny's Recipes <span>↗</span></h3>
             <p>Explore home-tested custom recipes optimized for nutrient density, gut health, and exceptional flavor.</p>
             <p class="featured-meta">17 recipes · Chicken · Mains · Soups · Desserts · Seafood</p>
         </a>
-    </div>
+    </nav>
 
     <!-- 1. EXERCISE CATEGORY -->
-    <h2>My Health Committee</h2>
+    <h2 id="committee">My Health Committee</h2>
     <p class="subtitle">Their recommendations, verified against what each expert actually says.</p>
 
     <div class="committee-tiers">
-    <h3 class="experts-tier experts-tier-first">Basic Health</h3>
+    <div class="tier-block" data-tier="basic">
+    <h3 class="experts-tier experts-tier-first"><button type="button" class="tier-toggle" data-tier-btn="basic" aria-expanded="false" aria-controls="tier-basic"><span class="tier-arrow" aria-hidden="true">▶</span> Basic Health <span class="tier-count">15 experts</span></button></h3>
+    <p class="tier-desc">The daily habits the experts converge on — the checklist where the committee agrees.</p>
+    <div class="tier-body" id="tier-basic" hidden>
 
     <div class="explainer-wrapper" style="margin-top: 20px;">
         <button class="info-toggle" onclick="toggleExplainer('attiaCard', 'attiaArrow')">
@@ -344,128 +492,6 @@
         </div>
     </div>
 
-    <style>
-        .experts-tier { color: var(--text-color); font-size: 1.05rem; margin: 0; padding: 1.5rem 0 0.75rem 0; position: sticky; top: 55px; z-index: 90; background: var(--bg-color); box-shadow: 0 1px 0 var(--border-color); }
-        .agree-block { border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); padding: 1rem 1.25rem 1.25rem 1.25rem; margin-top: 1.5rem; }
-        .agree-block h3 { color: var(--text-color); font-size: 1.05rem; margin: 0 0 0.5rem 0; }
-        .agree-block p { color: var(--subtext-color); font-size: 0.875rem; margin: 0 0 0.75rem 0; }
-        .agree-block ol { color: var(--subtext-color); font-size: 0.875rem; margin: 0 0 0.75rem 0; padding-left: 1.25rem; line-height: 1.6; }
-        .agree-block .agree-disclaimer { color: var(--text-color); font-size: 0.85rem; font-weight: 600; margin: 0; }
-        /* Sticky expert name (2026-11-12): when an expert card is open, its
-           toggle (the expert's name) freezes below the sticky site header
-           while the card scrolls, so you always know whose card you're
-           reading. Tapping the frozen name collapses the card — it's the
-           same toggle button, no scrolling back up. Only the open card's
-           toggle sticks; closed cards scroll normally and nothing floats
-           once collapsed.
-           - top: 55px = measured sticky header height on desktop AND mobile
-             (8px top padding + 32px logo row + 14px bottom padding + 1px
-             border). The header sticks at top: 0, so the name sits flush
-             below it.
-           - overflow: clip (not hidden) on the wrapper: overflow: hidden
-             creates a scroll container that breaks position: sticky on the
-             toggle; clip still clips the rounded corners but lets the toggle
-             stick to the viewport. Verified in headless Chromium.
-           - background: var(--bg-color), NOT var(--card-bg): --card-bg is
-             translucent (0.75 dark / 0.85 light), so scrolled text would
-             bleed through. --bg-color is solid in both themes. The hairline
-             box-shadow separates the frozen bar from the scrolling content. */
-        .explainer-wrapper { overflow: clip; }
-        .explainer-wrapper:has(> .explainer-card.active) > .info-toggle {
-            position: sticky;
-            top: 55px;
-            z-index: 100;
-            background: var(--bg-color);
-            box-shadow: 0 1px 0 var(--border-color);
-        }
-        /* Sticky tier + checklist headings (2026-11-12): freeze-pane for the
-           committee — the tier heading pins below the sticky site header
-           while you scroll that tier, so you always know what category
-           you're in. Single-slot rule: at most ONE pinned bar below the
-           header, never stacked.
-           - .committee-tiers wraps all three tiers; the headings stick
-             only inside it, so "Modern Living" releases when you leave the
-             committee and never pins over Products & Services.
-           - Tier swap by paint-over: all three stick at top: 55px in the
-             same container; the later one paints over the earlier one
-             (same z-index, DOM order wins), so the current tier is shown.
-           - The checklist heading pins inside its own .agree-block and
-             paints over the tier heading (higher z-index); it releases
-             when its block ends, so the tier heading returns and the next
-             tier swaps in cleanly.
-           - When any expert card is open, the headings stop sticking
-             entirely (body:has(.explainer-card.active)) and the open
-             card's name takes the slot alone — the toggle rule above is
-             untouched. Closing the card restores the correct heading.
-           - Margins became padding on the tier headings: sticky offsets
-             from the margin box, so a margin-top would leave a transparent
-             strip above the stuck bar. Padding keeps the resting gaps
-             identical — "Basic Health" gets 0.25rem top padding because
-             the subtitle's 20px margin-bottom no longer collapses with
-             it (20px + 4px = 24px, as before). One knock-on: the gap
-             above the Attia card grows 20px to 32px (its inline
-             margin-top no longer collapses with the heading's margin).
-           - Solid var(--bg-color) backgrounds + 1px hairline, same as the
-             sticky name. The hairline also shows in resting state as a
-             divider under each heading — intentional. */
-        .experts-tier-first { padding-top: 0.25rem; }
-        .agree-block.agree-sticky { padding-top: 0; }
-        .agree-block.agree-sticky h3 {
-            position: sticky;
-            top: 55px;
-            z-index: 95;
-            background: var(--bg-color);
-            box-shadow: 0 1px 0 var(--border-color);
-            margin: 0 -1.25rem;
-            padding: 1.5rem 1.25rem 0.75rem;
-        }
-        body:has(.explainer-card.active) .experts-tier,
-        body:has(.explainer-card.active) .agree-block.agree-sticky h3,
-        body:has(.explainer-card.active) .products-sticky {
-            position: static;
-        }
-        /* Tier sub-lines + pinned-bar tier tags (2026-11-12): every
-           checklist names its tier, so the agreement list is never
-           mistaken for another tier's. The sub-line sits under the
-           heading in resting state; the pill tag appears inside the
-           heading only while it is stuck (JS .is-stuck class below),
-           so the resting heading is unchanged and the stuck bar never
-           grows a line — the tag fits on the heading's last line. */
-        .agree-block .agree-tier { color: var(--subtext-color); font-size: 0.8rem; font-weight: 600; margin: 0 0 0.5rem 0; }
-        .agree-block.agree-sticky h3 .tier-tag {
-            display: none;
-            margin-left: 0.5rem;
-            padding: 0.1rem 0.5rem;
-            border: 1px solid var(--border-color);
-            border-radius: 999px;
-            font-size: 0.7rem;
-            font-weight: 700;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: var(--subtext-color);
-            white-space: nowrap;
-            vertical-align: middle;
-        }
-        .agree-block.agree-sticky h3.is-stuck .tier-tag { display: inline-block; }
-        /* Pinned Products & Services heading (2026-11-12): same
-           freeze-pane pattern as the tier headings. The 60px gap above
-           it moves from the h2's margin-top to .committee-tiers'
-           margin-bottom, so the stuck bar is short (margin area is
-           transparent and would show scrolling content above a stuck
-           bar); the resting gap is unchanged at 60px. The h2's own
-           border-bottom is the hairline. It is the last section, so
-           near the document end it rides the body's bottom edge —
-           correct sticky behavior, same as the last expert card. */
-        .committee-tiers { margin-bottom: 60px; }
-        .products-sticky {
-            position: sticky;
-            top: 55px;
-            z-index: 90;
-            margin-top: 0;
-            padding-top: 1.5rem;
-            background: var(--bg-color);
-        }
-    </style>
 
     <div class="explainer-wrapper">
         <button class="info-toggle" onclick="toggleExplainer('nortonCard', 'nortonArrow')">
@@ -528,7 +554,13 @@
         <p class="agree-disclaimer">Not personal medical advice. Check with your doctor before changing exercise, diet, supplements, or medications.</p>
     </div>
 
-    <h3 class="experts-tier">Athletic Health</h3>
+        </div>
+    </div>
+
+    <div class="tier-block" data-tier="athletic">
+    <h3 class="experts-tier"><button type="button" class="tier-toggle" data-tier-btn="athletic" aria-expanded="false" aria-controls="tier-athletic"><span class="tier-arrow" aria-hidden="true">▶</span> Athletic Health <span class="tier-count">10 experts</span></button></h3>
+    <p class="tier-desc">Training, fueling, and recovery — plus where the experts disagree.</p>
+    <div class="tier-body" id="tier-athletic" hidden>
 
     <div class="explainer-wrapper">
         <button class="info-toggle" onclick="toggleExplainer('seilerCard', 'seilerArrow')">
@@ -731,7 +763,13 @@
         <p class="agree-disclaimer">Not personal medical advice. Check with a doctor or sports medicine physician before changing training or supplements.</p>
     </div>
 
-    <h3 class="experts-tier">Modern Living</h3>
+        </div>
+    </div>
+
+    <div class="tier-block" data-tier="modern">
+    <h3 class="experts-tier"><button type="button" class="tier-toggle" data-tier-btn="modern" aria-expanded="false" aria-controls="tier-modern"><span class="tier-arrow" aria-hidden="true">▶</span> Modern Living <span class="tier-count">8 experts</span></button></h3>
+    <p class="tier-desc">Small habits most of these experts would back.</p>
+    <div class="tier-body" id="tier-modern" hidden>
 
     <div class="explainer-wrapper">
         <button class="info-toggle" onclick="toggleExplainer('leeCard', 'leeArrow')">
@@ -884,11 +922,55 @@
         <p>Habit and lifestyle research often uses observational data; individual results vary. Mental health struggles or persistent pain deserve a clinician, not just tips.</p>
         <p class="agree-disclaimer">Not personal medical advice.</p>
     </div>
+        </div>
     </div>
+    </div>
+    <script>
+        // Consolidated committee tiers (2026-11-13): every tier starts
+        // collapsed on a first visit. The open/closed state is stored in
+        // localStorage ('health-tiers-v1') so a returning visitor keeps
+        // their setup. This script sits right after the committee markup
+        // so a stored-open tier is restored before the rest of the page
+        // renders. Collapsing a tier also closes any open expert card
+        // inside it, so the pinned-heading state stays sane.
+        (function () {
+            var KEY = 'health-tiers-v1';
+            function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+            function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+            function setTier(name, open) {
+                var body = document.getElementById('tier-' + name);
+                var btn = document.querySelector('[data-tier-btn="' + name + '"]');
+                if (!body || !btn) return;
+                body.hidden = !open;
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                var arrow = btn.querySelector('.tier-arrow');
+                if (arrow) arrow.textContent = open ? '▼' : '▶';
+                if (!open) {
+                    Array.prototype.forEach.call(body.querySelectorAll('.explainer-card.active'), function (card) {
+                        card.classList.remove('active');
+                        var a = document.getElementById(card.id.replace('Card', 'Arrow'));
+                        if (a) a.textContent = '▶';
+                    });
+                }
+            }
+            var state = load();
+            Object.keys(state).forEach(function (name) { if (state[name]) setTier(name, true); });
+            Array.prototype.forEach.call(document.querySelectorAll('[data-tier-btn]'), function (btn) {
+                btn.addEventListener('click', function () {
+                    var name = btn.getAttribute('data-tier-btn');
+                    var body = document.getElementById('tier-' + name);
+                    var open = !!(body && body.hidden);
+                    setTier(name, open);
+                    state[name] = open;
+                    save(state);
+                });
+            });
+        })();
+    </script>
 
 
     <!-- 3. PRODUCTS & SERVICES CATEGORY -->
-    <h2 class="products-sticky">Products &amp; Services</h2>
+    <h2 class="products-sticky" id="products">Products &amp; Services</h2>
 
     <div class="resource-grid resource-grid--compact">
         <a href="https://hubermanlab.com" target="_blank" class="resource-card">
