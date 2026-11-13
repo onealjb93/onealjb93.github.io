@@ -230,11 +230,28 @@
         }
     
     /* Sticky combiner footer bar (mobile + desktop) */
-    #combinerBar { position: fixed; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 900; display: none; align-items: center; gap: 0.5rem; width: min(720px, calc(100vw - 2rem)); background: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 0.5rem 0.55rem 0.5rem 0.9rem; }
-    #combinerBar.show { display: flex; }
+    #combinerBar { position: fixed; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 900; display: none; align-items: center; gap: 0.5rem; width: min(720px, calc(100vw - 2rem)); background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 0.5rem 0.55rem 0.5rem 0.9rem; }
+    #combinerBar.show { display: block; }
+    #combinerBarRow { display: flex; align-items: center; gap: 0.5rem; }
     #combinerBarJump { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.35rem; background: none; border: 0; padding: 0; color: var(--text-color); font: inherit; font-size: 0.9rem; font-weight: 600; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; }
     #combinerBarText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .combiner-bar-chevron { color: var(--link-color); font-size: 0.85rem; flex: none; }
+    .combiner-bar-chevron { color: var(--link-color); font-size: 0.85rem; flex: none; display: inline-block; transform: rotate(180deg); transition: transform 0.2s ease; }
+    #combinerBar.expanded .combiner-bar-chevron { transform: rotate(0deg); }
+    /* Expandable all-nutrients panel: collapsed bar stays slim; tapping the
+       bar opens this sheet upward with every nutrient the combiner tracks. */
+    #combinerBarPanel { display: none; margin: 0.1rem 0 0.55rem; padding-top: 0.6rem; border-top: 1px solid var(--border-color); max-height: min(45vh, 380px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    #combinerBar.expanded #combinerBarPanel { display: block; }
+    .combiner-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; margin: 0 0 0.5rem; font-size: 0.85rem; font-weight: 700; }
+    .combiner-panel-head a { font-size: 0.8rem; font-weight: 600; color: var(--link-color); white-space: nowrap; }
+    .combiner-panel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+    @media (min-width: 700px) { .combiner-panel-grid { grid-template-columns: repeat(5, 1fr); } }
+    /* Chips reuse the combiner's own dotRow markup; restyled stacked here. */
+    #combinerBarPanel .nutri-row { display: block; margin: 0; padding: 0.4rem 0.5rem; background: var(--badge-bg); border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.78rem; line-height: 1.35; }
+    #combinerBarPanel .nutri-label { display: block; font-weight: 600; }
+    #combinerBarPanel .nutri-value { text-align: left; }
+    #combinerBarPanel .nutri-dots { display: flex; margin: 0.15rem 0 0.1rem; }
+    #combinerBarPanel .nutri-dot { width: 9px; height: 9px; }
+    #combinerBarPanel .nutri-pct { text-align: left; }
     #combinerBarClear { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-color); background: transparent; color: var(--text-color); font-size: 1.05rem; line-height: 1; cursor: pointer; }
     #combinerBarClear:hover { border-color: var(--link-color); color: var(--link-color); }
     body.combiner-bar-visible { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
@@ -2035,13 +2052,25 @@
         var txt = document.getElementById('combinerBarText');
         if (!bar || !txt) return;
         if (!count || !totals) {
-            bar.classList.remove('show');
+            bar.classList.remove('show', 'expanded');
+            var jump0 = document.getElementById('combinerBarJump');
+            if (jump0) jump0.setAttribute('aria-expanded', 'false');
             document.body.classList.remove('combiner-bar-visible');
             return;
         }
         var kcal = Math.round(totals['208'] * 10) / 10;
         var protein = Math.round(totals['203'] * 10) / 10;
         txt.textContent = count + ' recipe' + (count === 1 ? '' : 's') + ' \u00b7 ' + barNum(kcal) + ' kcal \u00b7 ' + barNum(protein) + ' g protein';
+        /* Expanded panel: every nutrient, rendered with the combiner's own
+           dotRow so values, % and dots always match the full panel. */
+        var grid = document.getElementById('combinerBarGrid');
+        if (grid) {
+            var gh = '';
+            DV_ORDER.forEach(function (num) {
+                gh += dotRow(num, { value: Math.round(totals[num] * 10) / 10 });
+            });
+            grid.innerHTML = gh;
+        }
         bar.classList.add('show');
         document.body.classList.add('combiner-bar-visible');
     }
@@ -2050,14 +2079,30 @@
         return (r % 1 === 0) ? String(r) : r.toFixed(1);
     }
 
-    /* Sticky combiner footer bar: tap to jump to the combiner, \u00d7 to clear.
-       Delegated on document: the bar's HTML sits after this script in the
-       document, so the buttons do not exist yet when this code runs. */
+    /* Sticky combiner footer bar: tap the bar to expand/collapse the
+       all-nutrients panel; "Full breakdown" jumps to the combiner;
+       \u00d7 clears the selection. Delegated on document: the bar's HTML
+       sits after this script in the document, so the buttons do not exist
+       yet when this code runs. */
     document.addEventListener('click', function (e) {
-        var jump = e.target && e.target.closest ? e.target.closest('#combinerBarJump') : null;
-        if (jump) {
+        var full = e.target && e.target.closest ? e.target.closest('#combinerBarFull') : null;
+        if (full) {
+            e.preventDefault();
+            var barF = document.getElementById('combinerBar');
+            var jumpF = document.getElementById('combinerBarJump');
+            if (barF) barF.classList.remove('expanded');
+            if (jumpF) jumpF.setAttribute('aria-expanded', 'false');
             var target = document.getElementById('combiner-list');
             if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+        var jump = e.target && e.target.closest ? e.target.closest('#combinerBarJump') : null;
+        if (jump) {
+            var bar = document.getElementById('combinerBar');
+            if (bar) {
+                var open = bar.classList.toggle('expanded');
+                jump.setAttribute('aria-expanded', open ? 'true' : 'false');
+            }
             return;
         }
         var clr = e.target && e.target.closest ? e.target.closest('#combinerBarClear') : null;
@@ -2162,8 +2207,14 @@
     </div>
     <!-- Sticky combiner footer: live totals while recipes are selected (mobile + desktop) -->
     <div id="combinerBar" role="group" aria-label="Combined nutrition totals">
-        <button type="button" id="combinerBarJump"><span id="combinerBarText"></span> <span class="combiner-bar-chevron" aria-hidden="true">&#8964;</span></button>
-        <button type="button" id="combinerBarClear" aria-label="Clear the selected recipes">&times;</button>
+        <div id="combinerBarPanel">
+            <div class="combiner-panel-head"><span>Combined nutrition</span><a href="#combiner-list" id="combinerBarFull">Full breakdown</a></div>
+            <div class="combiner-panel-grid" id="combinerBarGrid"></div>
+        </div>
+        <div id="combinerBarRow">
+            <button type="button" id="combinerBarJump" aria-expanded="false" aria-controls="combinerBarPanel"><span id="combinerBarText"></span> <span class="combiner-bar-chevron" aria-hidden="true">&#8964;</span></button>
+            <button type="button" id="combinerBarClear" aria-label="Clear the selected recipes">&times;</button>
+        </div>
     </div>
     <div id="cookView" role="dialog" aria-modal="true" aria-label="Cook mode">
         <div class="cook-view-head">
