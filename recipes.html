@@ -241,8 +241,20 @@
        bar opens this sheet upward with every nutrient the combiner tracks. */
     #combinerBarPanel { display: none; margin: 0.1rem 0 0.55rem; padding-top: 0.6rem; border-top: 1px solid var(--border-color); max-height: min(45vh, 380px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
     #combinerBar.expanded #combinerBarPanel { display: block; }
-    .combiner-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; margin: 0 0 0.5rem; font-size: 0.85rem; font-weight: 700; }
+    .combiner-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin: 0 0 0.5rem; font-size: 0.85rem; font-weight: 700; }
     .combiner-panel-head a { font-size: 0.8rem; font-weight: 600; color: var(--link-color); white-space: nowrap; }
+    .combiner-panel-head-actions { display: flex; align-items: center; gap: 0.6rem; }
+    /* Details toggle: the panel opens compact (nutrient name + blue dots
+       only). Tapping Details reveals values + % DV; tapping again contracts. */
+    #combinerBarDetails { display: inline-flex; align-items: center; gap: 0.25rem; background: none; border: 1px solid var(--border-color); border-radius: 999px; padding: 0.15rem 0.6rem; color: var(--link-color); font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    #combinerBarDetails:hover { border-color: var(--link-color); }
+    .combiner-details-chevron { display: inline-block; font-size: 0.7rem; transition: transform 0.2s ease; }
+    #combinerBarPanel.details .combiner-details-chevron { transform: rotate(180deg); }
+    /* Compact chips: name + dots only; values, % and limit tags hidden. */
+    #combinerBarPanel:not(.details) .nutri-value,
+    #combinerBarPanel:not(.details) .nutri-pct,
+    #combinerBarPanel:not(.details) .nutri-limit { display: none; }
+    #combinerBarPanel:not(.details) .nutri-row { padding: 0.35rem 0.5rem; }
     .combiner-panel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
     @media (min-width: 700px) { .combiner-panel-grid { grid-template-columns: repeat(5, 1fr); } }
     /* Chips reuse the combiner's own dotRow markup; restyled stacked here. */
@@ -2055,6 +2067,7 @@
             bar.classList.remove('show', 'expanded');
             var jump0 = document.getElementById('combinerBarJump');
             if (jump0) jump0.setAttribute('aria-expanded', 'false');
+            resetBarDetails();
             document.body.classList.remove('combiner-bar-visible');
             return;
         }
@@ -2080,11 +2093,27 @@
     }
 
     /* Sticky combiner footer bar: tap the bar to expand/collapse the
-       all-nutrients panel; "Full breakdown" jumps to the combiner;
-       \u00d7 clears the selection. Delegated on document: the bar's HTML
-       sits after this script in the document, so the buttons do not exist
-       yet when this code runs. */
+       all-nutrients panel; "Details" toggles values + % DV inside the
+       panel (panel always opens compact: name + dots only); "Full
+       breakdown" jumps to the combiner; \u00d7 clears the selection.
+       Delegated on document: the bar's HTML sits after this script in
+       the document, so the buttons do not exist yet when this code runs. */
+    function resetBarDetails() {
+        var panel = document.getElementById('combinerBarPanel');
+        if (panel) panel.classList.remove('details');
+        var det = document.getElementById('combinerBarDetails');
+        if (det) det.setAttribute('aria-expanded', 'false');
+    }
     document.addEventListener('click', function (e) {
+        var det = e.target && e.target.closest ? e.target.closest('#combinerBarDetails') : null;
+        if (det) {
+            var panelD = document.getElementById('combinerBarPanel');
+            if (panelD) {
+                var show = panelD.classList.toggle('details');
+                det.setAttribute('aria-expanded', show ? 'true' : 'false');
+            }
+            return;
+        }
         var full = e.target && e.target.closest ? e.target.closest('#combinerBarFull') : null;
         if (full) {
             e.preventDefault();
@@ -2092,6 +2121,7 @@
             var jumpF = document.getElementById('combinerBarJump');
             if (barF) barF.classList.remove('expanded');
             if (jumpF) jumpF.setAttribute('aria-expanded', 'false');
+            resetBarDetails();
             var target = document.getElementById('combiner-list');
             if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
             return;
@@ -2102,6 +2132,7 @@
             if (bar) {
                 var open = bar.classList.toggle('expanded');
                 jump.setAttribute('aria-expanded', open ? 'true' : 'false');
+                if (open) resetBarDetails();
             }
             return;
         }
@@ -2208,7 +2239,7 @@
     <!-- Sticky combiner footer: live totals while recipes are selected (mobile + desktop) -->
     <div id="combinerBar" role="group" aria-label="Combined nutrition totals">
         <div id="combinerBarPanel">
-            <div class="combiner-panel-head"><span>Combined nutrition</span><a href="#combiner-list" id="combinerBarFull">Full breakdown</a></div>
+            <div class="combiner-panel-head"><span>Combined nutrition</span><span class="combiner-panel-head-actions"><button type="button" id="combinerBarDetails" aria-expanded="false" aria-controls="combinerBarGrid">Details <span class="combiner-details-chevron" aria-hidden="true">&#8964;</span></button><a href="#combiner-list" id="combinerBarFull">Full breakdown</a></span></div>
             <div class="combiner-panel-grid" id="combinerBarGrid"></div>
         </div>
         <div id="combinerBarRow">
