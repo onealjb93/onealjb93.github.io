@@ -198,8 +198,7 @@
 
         <div class="lr-toolbar" role="toolbar" aria-label="Line Rider tools">
             <button class="lr-btn" id="lr-restart" type="button">↺ Restart</button>
-            <button class="lr-btn" id="lr-play" type="button">▶ Play</button>
-            <button class="lr-btn" id="lr-pause" type="button" disabled>⏸ Pause</button>
+            <button class="lr-btn" id="lr-playpause" type="button">▶ Play</button>
             <span class="lr-sep" aria-hidden="true"></span>
             <button class="lr-btn active" id="lr-tool-draw" type="button">✏️ Draw</button>
             <button class="lr-btn" id="lr-tool-move" type="button">✋ Move</button>
@@ -225,7 +224,7 @@
 
         <canvas id="lr-canvas" aria-label="Line Rider game canvas. Draw a track with your mouse or finger, switch to Move to slide the view without drawing, then press Play."></canvas>
 
-        <p class="lr-help">Tip: tap ✋ Move and drag to slide the view around without drawing — the view stays exactly where you leave it. Zoom out (−, scroll, or pinch) to see the whole track, or press "Fit track". Drag on the canvas to draw track — downhill for speed, ramps for air. In Erase mode the red ring shows exactly what will be wiped. 🍄 Mushroom gives him a speed boost — tap to place one on the track. 🪂 Glider catches him mid-air — place one in his flight path and he'll glide instead of falling; faster in, farther he flies. Your track saves itself as you draw, and 💾 Save keeps a named setup to come back to. Press Play (or Space) to ride, Pause (or Space) to stop and draw more, Restart (or R) to go back to the start. While airborne, ← and → spin him — land on your wheels, not your head. Works with mouse or touch.</p>
+        <p class="lr-help">Tip: tap ✋ Move and drag to slide the view around without drawing — the view stays exactly where you leave it. Zoom out (−, scroll, or pinch) to see the whole track, or press "Fit track". Drag on the canvas to draw track — downhill for speed, ramps for air. In Erase mode the red ring shows exactly what will be wiped. 🍄 Mushroom gives him a speed boost — tap to place one on the track. 🪂 Glider catches him mid-air — place one in his flight path and he'll glide instead of falling; faster in, farther he flies. Your track saves itself as you draw, and 💾 Save keeps a named setup to come back to. Press Play/Pause (or Space) to ride and to stop and draw more, Restart (or R) to go back to the start. While airborne, ← and → spin him — land on your wheels, not your head. Works with mouse or touch.</p>
     </section>
 
     <section class="lr-howto" aria-labelledby="how-to-play-heading">
@@ -293,9 +292,11 @@
         var gliders = [];    // [{x, y}] placed hang gliders, floating in the air
         var pops = [];       // [{x, y, t}] pickup pop rings, t counts down from 0.35
         var MUSHROOM_SNAP_SCREEN = 40; // snap radius in screen px when placing a mushroom
-        var MUSHROOM_TRIGGER_PX = 18;  // trigger radius in screen px (rider within this eats it)
-        var BOOST_MULT = 1.8, BOOST_DUR = 1.5; // mushroom burst: 1.8x velocity impulse, speed lines show for 1.5 s
-        var BOOST_MIN = 250; // minimum speed after a mushroom kick (px/s) — lets it unstick a near-stopped rider
+        var MUSHROOM_TRIGGER_WORLD = 20;  // trigger radius in WORLD px, tested against the path swept this step (zoom-independent, tunnel-proof)
+        var BOOST_MULT = 1.8, BOOST_DUR = 1.5; // mushroom burst: 1.8x velocity kick, then a sustained push while boostT lasts (1.5 s, speed lines show)
+        var BOOST_MIN = 420; // minimum speed after a mushroom kick (px/s) — firmly unsticks a slow or stalled rider
+        var BOOST_ACCEL = 1200;      // sustained push along the line while boosted (px/s^2) — beats gravity's along-slope pull on all but near-vertical climbs
+        var BOOST_AIR_ACCEL = 700;   // sustained push along his flight while boosted (px/s^2)
         var GLIDER_TRIGGER_PX = 26; // pickup radius in screen px (airborne rider only)
         var GLIDE_MAX = 7;          // max glide duration, seconds
         var GLIDE_STALL = 120;      // px/s: horizontal speed below this stalls the glider
@@ -320,8 +321,7 @@
         var selSaves = document.getElementById('lr-saves');
         var btnClear = document.getElementById('lr-clear');
         var btnDefault = document.getElementById('lr-default');
-        var btnPlay = document.getElementById('lr-play');
-        var btnPause = document.getElementById('lr-pause');
+        var btnPlayPause = document.getElementById('lr-playpause');
         var btnRestart = document.getElementById('lr-restart');
 
         /* ---------- colours (read from the site theme, so both themes work) ---------- */
@@ -405,7 +405,7 @@
             for (var i = 0; i < lines.length; i++) {
                 var pts = lines[i];
                 for (var j = 0; j < pts.length - 1; j++) {
-                    if (skip && skip.pi === i && skip.si === j) continue;
+                    if (skip && skip.pi === i && (skip.si === j || (skip.uptosi && j < skip.si))) continue;
                     var h = segClosest(px, py, pts[j], pts[j + 1]);
                     if (h.d < maxD && (!bestH || h.d < bestH.d)) {
                         h.pi = i; h.si = j;
@@ -438,11 +438,8 @@
         function chestPos(r) {
             return { x: r.x + Math.sin(r.angle) * 17, y: r.y - Math.cos(r.angle) * 17 };
         }
-        function crashCheck(r) {
-            var hp = headPos(r), cp = chestPos(r);
-            return nearestSegment(hp.x, hp.y, 7) || nearestSegment(cp.x, cp.y, 7);
-        }
-        /* Airborne crash check: the head or chest hit a line — except a line
+        /* Crash check (airborne, and while riding via the call in stepRider):
+           the head or chest hit a line — except a line
            the body is already within SNAP of, which is one the rider is
            about to land on. His head swinging near the landing line (or
            grazing its tip) is part of landing, not a crash; a genuine
@@ -653,9 +650,49 @@
             updateUI();
         }
 
+        /* Mushroom pickup, tested against the path swept this step —
+           (sx, sy) is where the step started, (r.x, r.y) where it ended —
+           so a fast rider can never tunnel past a mushroom between steps,
+           at any zoom or frame rate. (The old check sampled only his
+           post-step position, inside a screen-px radius that shrank to
+           6 world px at zoom 3.) Not while gliding: the mushroom stays
+           for after he lands. */
+        function eatMushrooms(sx, sy) {
+            var r = rider;
+            if (!r || r.state === 'crashed' || r.state === 'gliding') return;
+            for (var mi = mushrooms.length - 1; mi >= 0; mi--) {
+                var mm = mushrooms[mi];
+                if (segClosest(mm.x, mm.y, { x: sx, y: sy }, { x: r.x, y: r.y }).d >= MUSHROOM_TRIGGER_WORLD) continue;
+                mushrooms.splice(mi, 1);
+                pops.push({ x: mm.x, y: mm.y, t: 0.35 });
+                r.boostT = BOOST_DUR;
+                // The kick. A rider genuinely moving along the track gets
+                // his velocity amplified (never less than BOOST_MIN). A
+                // slow, stalled, or rolled-back rider instead gets a firm
+                // push along the track as drawn (the mushroom's stored
+                // slope) — the old code scaled up whatever velocity he
+                // happened to have, so a rider who had stalled and rolled
+                // back got boosted BACKWARD, and on any hill gravity ate
+                // the one instant kick in well under a second. The kick
+                // alone was never the whole boost: boostT also drives a
+                // sustained push in stepRider (riding + air) for 1.5 s.
+                var tx = Math.cos(mm.a), ty = Math.sin(mm.a);
+                var sp = Math.hypot(r.vx, r.vy);
+                if (sp > 200 || (sp > 40 && (r.vx * tx + r.vy * ty) >= 0)) {
+                    var ns = Math.max(sp * BOOST_MULT, BOOST_MIN);
+                    r.vx = r.vx / sp * ns; r.vy = r.vy / sp * ns;
+                } else {
+                    r.vx = tx * BOOST_MIN; r.vy = ty * BOOST_MIN;
+                }
+                flashStatus('🍄 Boost!');
+                autosaveSoon();
+            }
+        }
+
         function stepRider(dt) {
             var r = rider;
             if (!r || r.state === 'crashed') return;
+            var sx = r.x, sy = r.y;  // step start, for the swept pickup check
             if (r.state === 'riding') {
                 var hit = nearestSegment(r.x, r.y, SNAP);
                 if (!hit) { r.state = 'air'; return; }  // ran off the end of a line
@@ -664,10 +701,11 @@
                 var speed = r.vx * dx + r.vy * dy;
                 if (speed < 0) { dx = -dx; dy = -dy; speed = -speed; }
                 speed += G * dy * dt;  // gravity component along the line
-                // Mushroom boost timer ticks down here (it only drives the
-                // speed lines + HUD now — the boost itself is a real velocity
-                // impulse applied on pickup, so it survives the physics step).
-                if (r.boostT > 0) r.boostT -= dt;
+                // Mushroom boost: while the burst lasts he also gets a
+                // sustained push along the line, on top of the pickup kick —
+                // a kick alone is reclaimed by gravity on any climb before
+                // it changes where he ends up.
+                if (r.boostT > 0) { speed += BOOST_ACCEL * dt; r.boostT -= dt; }
                 var nx = hit.x + dx * speed * dt, ny = hit.y + dy * speed * dt;
                 // Did the advance carry the rider past the end of this segment?
                 // (The closest point on a segment is clamped to its ends, so a
@@ -680,15 +718,20 @@
                 if (pastEnd > 0) {
                     // Ran off the end: look for a different segment to continue
                     // on (the next piece of the same track, or a nearby line).
-                    hit2 = nearestSegment(nx, ny, SNAP + 6, { pi: hit.pi, si: hit.si });
+                    // Segments of his own line at or behind the one he just
+                    // left don't count — snapping back onto his own track
+                    // behind him is how he used to snag at a line's end.
+                    hit2 = nearestSegment(nx, ny, SNAP + 6, { pi: hit.pi, si: hit.si, uptosi: true });
                     if (!hit2) {  // nothing there: airborne with tangential velocity
                         r.x = nx; r.y = ny; r.vx = dx * speed; r.vy = dy * speed; r.state = 'air';
+                        eatMushrooms(sx, sy);
                         return;
                     }
                 } else {
                     hit2 = nearestSegment(nx, ny, SNAP + 6);
                     if (!hit2) {  // line curved away: airborne
                         r.x = nx; r.y = ny; r.vx = dx * speed; r.vy = dy * speed; r.state = 'air';
+                        eatMushrooms(sx, sy);
                         return;
                     }
                 }
@@ -697,6 +740,25 @@
                 var ndx = hit2.dirx / dl2, ndy = hit2.diry / dl2;
                 if (ndx * dx + ndy * dy < 0) { ndx = -ndx; ndy = -ndy; }
                 var speed2 = speed * (dx * ndx + dy * ndy);
+                // End-of-line handling: if the segment he'd continue on
+                // turns back too sharply against his travel (a kink where
+                // two strokes meet, a flicked line end), re-projecting
+                // would throw away most of his speed at a stroke — and
+                // the crash check below then killed him against the joint
+                // at full speed. Same if he's already past the far end of
+                // that segment. A sled reaching the end of a line doesn't
+                // stop or snag: it launches, velocity preserved, and the
+                // normal flight/landing rules take it from there. Gentle
+                // joints are untouched — re-projection still applies, so
+                // the tuned glide feel (kinks eat some speed) is unchanged.
+                var end2X = (ndx * hit2.dirx + ndy * hit2.diry) > 0 ? hit2.bx : hit2.ax;
+                var end2Y = (ndx * hit2.dirx + ndy * hit2.diry) > 0 ? hit2.by : hit2.ay;
+                var pastEnd2 = (nx - end2X) * ndx + (ny - end2Y) * ndy;
+                if ((speed > 80 && speed2 < speed * 0.35) || pastEnd2 > 0) {
+                    r.x = nx; r.y = ny; r.vx = dx * speed; r.vy = dy * speed; r.state = 'air';
+                    eatMushrooms(sx, sy);
+                    return;
+                }
                 var targetAngle = Math.atan2(ndy, ndx);
                 var dA = angDiff(targetAngle, r.angle);
                 r.omega = Math.max(-5, Math.min(5, 0.6 * r.omega + 0.4 * (dA / Math.max(dt, 1e-4))));
@@ -707,7 +769,13 @@
                 if (Math.abs(speed2) < 8) { r.stuckT += dt; } else { r.stuckT = 0; }
                 // Head or chest hit a line while riding (e.g. a low ceiling
                 // or a wall ahead) — that is a crash too, not just in the air.
-                if (crashCheck(r)) { crash('head'); return; }
+                // Uses the airborne check's exemption: a line his body is
+                // already within SNAP of (the one he's riding, or the next
+                // stroke starting at this joint) is one he's riding onto,
+                // not a wall — the plain check killed him at full speed
+                // wherever two strokes met at a steep angle, because his
+                // head leans over the joint into the next stroke's space.
+                if (airCrashCheck(r.x, r.y, r.angle)) { crash('head'); return; }
             } else if (r.state === 'gliding') {
                 // Hang glider: entry momentum is preserved — fast in, fast
                 // and far; slow in, slow and short. Lift eases the fall
@@ -761,6 +829,10 @@
                 if (keys.ArrowRight || keys.KeyD) r.omega += 4.0 * dt;
                 r.omega *= Math.exp(-0.6 * dt);
                 r.vy += G * dt;
+                if (r.boostT > 0) {  // mushroom boost: sustained push along his flight while the burst lasts
+                    var bsp = Math.hypot(r.vx, r.vy);
+                    if (bsp > 1) { r.vx += r.vx / bsp * BOOST_AIR_ACCEL * dt; r.vy += r.vy / bsp * BOOST_AIR_ACCEL * dt; }
+                }
                 var px = r.x, py = r.y;
                 if (r.boostT > 0) r.boostT -= dt;  // boost timer only (see pickup)
                 var nx2 = r.x + r.vx * dt, ny2 = r.y + r.vy * dt;
@@ -817,32 +889,8 @@
                     }
                 }
             }
-            // Mushroom boost: riding or flying within trigger range of one
-            // eats it and starts a 1.8x burst that fades over 1.5 s.
-            // (Not while gliding — the mushroom stays for after he lands.)
-            if (r.state !== 'crashed' && r.state !== 'gliding') {
-                for (var mi = mushrooms.length - 1; mi >= 0; mi--) {
-                    if (Math.hypot(r.x - mushrooms[mi].x, r.y - mushrooms[mi].y) < MUSHROOM_TRIGGER_PX / zoom) {
-                        var mm = mushrooms.splice(mi, 1)[0];
-                        pops.push({ x: mm.x, y: mm.y, t: 0.35 });
-                        r.boostT = BOOST_DUR;
-                        // Real burst: multiply his actual velocity by 1.8x.
-                        // The old code only multiplied the position advance
-                        // each step, leaving his stored speed behind — so he
-                        // covered ground faster but gained less speed from
-                        // gravity, launched off the kicker SLOWER than with
-                        // no mushroom, and fell short of the next line.
-                        // (A near-stopped rider gets a minimum kick along
-                        // the way he's facing, so a mushroom can unstick him.)
-                        var bsp = Math.hypot(r.vx, r.vy);
-                        if (bsp > 1) { r.vx *= BOOST_MULT; r.vy *= BOOST_MULT; }
-                        else { r.vx = Math.cos(r.angle) * BOOST_MIN; r.vy = Math.sin(r.angle) * BOOST_MIN; }
-                        bsp = Math.hypot(r.vx, r.vy);
-                        if (bsp < BOOST_MIN) { var bk = BOOST_MIN / bsp; r.vx *= bk; r.vy *= bk; }
-                        autosaveSoon();
-                    }
-                }
-            }
+            // Mushroom pickup (swept path check — see eatMushrooms).
+            eatMushrooms(sx, sy);
             if (r.y > 4500 || r.x < -800) crash('fell');
         }
 
@@ -1047,9 +1095,9 @@
             if (r.boostT > 0) {  // speed lines while the mushroom boost lasts
                 ctx.strokeStyle = '#ffcf3f';
                 ctx.lineWidth = 2.5 / zoom;
-                for (var sl = 0; sl < 3; sl++) {
-                    var sy = -16 + sl * 11;
-                    ctx.beginPath(); ctx.moveTo(-26 - sl * 5, sy); ctx.lineTo(-42 - sl * 5, sy); ctx.stroke();
+                for (var sl = 0; sl < 4; sl++) {
+                    var sy = -21 + sl * 11;
+                    ctx.beginPath(); ctx.moveTo(-28 - sl * 6, sy); ctx.lineTo(-54 - sl * 6, sy); ctx.stroke();
                 }
             }
             ctx.restore();
@@ -1093,8 +1141,8 @@
             btnMushroom.classList.toggle('active', tool === 'mushroom');
             btnGlider.classList.toggle('active', tool === 'glider');
             canvas.style.cursor = 'none'; // the custom cursor is drawn in drawCursor()
-            btnPlay.disabled = (mode === 'playing') || !lines.length;
-            btnPause.disabled = mode !== 'playing';
+            btnPlayPause.disabled = !lines.length;
+            btnPlayPause.textContent = (mode === 'playing') ? '⏸ Pause' : '▶ Play';
             btnRestart.disabled = !lines.length;
             btnSaveDelete.disabled = !selSaves.value;
         }
@@ -1151,8 +1199,10 @@
         btnGlider.addEventListener('click', function () { setTool('glider'); this.blur(); });
         btnClear.addEventListener('click', function () { clearAll(); this.blur(); });
         btnDefault.addEventListener('click', function () { defaultTrack(); this.blur(); });
-        btnPlay.addEventListener('click', function () { play(); this.blur(); });
-        btnPause.addEventListener('click', function () { pause(); this.blur(); });
+        btnPlayPause.addEventListener('click', function () {
+            if (mode === 'playing') pause(); else play();
+            this.blur();
+        });
         btnRestart.addEventListener('click', function () { restart(); this.blur(); });
         btnSave.addEventListener('click', function () { saveNamed(); this.blur(); });
         btnSaveDelete.addEventListener('click', function () { deleteNamed(); this.blur(); });
