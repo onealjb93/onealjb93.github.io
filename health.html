@@ -86,7 +86,8 @@
     <h2>My Health Committee</h2>
     <p class="subtitle">Their recommendations, verified against what each expert actually says.</p>
 
-    <h3 class="experts-tier">Basic Health</h3>
+    <div class="committee-tiers">
+    <h3 class="experts-tier experts-tier-first">Basic Health</h3>
 
     <div class="explainer-wrapper" style="margin-top: 20px;">
         <button class="info-toggle" onclick="toggleExplainer('attiaCard', 'attiaArrow')">
@@ -336,7 +337,7 @@
     </div>
 
     <style>
-        .experts-tier { color: var(--text-color); font-size: 1.05rem; margin: 1.5rem 0 0.75rem 0; }
+        .experts-tier { color: var(--text-color); font-size: 1.05rem; margin: 0; padding: 1.5rem 0 0.75rem 0; position: sticky; top: 55px; z-index: 90; background: var(--bg-color); box-shadow: 0 1px 0 var(--border-color); }
         .agree-block { border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); padding: 1rem 1.25rem 1.25rem 1.25rem; margin-top: 1.5rem; }
         .agree-block h3 { color: var(--text-color); font-size: 1.05rem; margin: 0 0 0.5rem 0; }
         .agree-block p { color: var(--subtext-color); font-size: 0.875rem; margin: 0 0 0.75rem 0; }
@@ -368,6 +369,51 @@
             z-index: 100;
             background: var(--bg-color);
             box-shadow: 0 1px 0 var(--border-color);
+        }
+        /* Sticky tier + checklist headings (2026-11-12): freeze-pane for the
+           committee — the tier heading pins below the sticky site header
+           while you scroll that tier, so you always know what category
+           you're in. Single-slot rule: at most ONE pinned bar below the
+           header, never stacked.
+           - .committee-tiers wraps all three tiers; the headings stick
+             only inside it, so "Modern Living" releases when you leave the
+             committee and never pins over Products & Services.
+           - Tier swap by paint-over: all three stick at top: 55px in the
+             same container; the later one paints over the earlier one
+             (same z-index, DOM order wins), so the current tier is shown.
+           - The checklist heading pins inside its own .agree-block and
+             paints over the tier heading (higher z-index); it releases
+             when its block ends, so the tier heading returns and the next
+             tier swaps in cleanly.
+           - When any expert card is open, the headings stop sticking
+             entirely (body:has(.explainer-card.active)) and the open
+             card's name takes the slot alone — the toggle rule above is
+             untouched. Closing the card restores the correct heading.
+           - Margins became padding on the tier headings: sticky offsets
+             from the margin box, so a margin-top would leave a transparent
+             strip above the stuck bar. Padding keeps the resting gaps
+             identical — "Basic Health" gets 0.25rem top padding because
+             the subtitle's 20px margin-bottom no longer collapses with
+             it (20px + 4px = 24px, as before). One knock-on: the gap
+             above the Attia card grows 20px to 32px (its inline
+             margin-top no longer collapses with the heading's margin).
+           - Solid var(--bg-color) backgrounds + 1px hairline, same as the
+             sticky name. The hairline also shows in resting state as a
+             divider under each heading — intentional. */
+        .experts-tier-first { padding-top: 0.25rem; }
+        .agree-block.agree-sticky { padding-top: 0; }
+        .agree-block.agree-sticky h3 {
+            position: sticky;
+            top: 55px;
+            z-index: 95;
+            background: var(--bg-color);
+            box-shadow: 0 1px 0 var(--border-color);
+            margin: 0 -1.25rem;
+            padding: 1.5rem 1.25rem 0.75rem;
+        }
+        body:has(.explainer-card.active) .experts-tier,
+        body:has(.explainer-card.active) .agree-block.agree-sticky h3 {
+            position: static;
         }
     </style>
 
@@ -408,7 +454,7 @@
         </div>
     </div>
 
-    <div class="agree-block">
+    <div class="agree-block agree-sticky">
         <h3>Where My Health Committee Agrees: A Daily Checklist</h3>
         <p>Fifteen experts, different methods — but they converge on the same daily habits:</p>
         <ol>
@@ -783,6 +829,7 @@
         </ol>
         <p>Habit and lifestyle research often uses observational data; individual results vary. Mental health struggles or persistent pain deserve a clinician, not just tips.</p>
         <p class="agree-disclaimer">Not personal medical advice.</p>
+    </div>
     </div>
 
 
