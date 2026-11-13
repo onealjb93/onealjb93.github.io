@@ -37,6 +37,48 @@
         margin-top: 0; padding-top: 40px;
     }
     body > h2:has(+ .book-list-container) { padding-top: 20px; }
+
+    /* Expand all / Collapse all (2026-11-13): one segmented pair per
+       perimeter, styled to match .book-controls select in style.css
+       (same font, colours, border, radius, padding). Books: the pair
+       lifts the list card's 380px cap so all 120 books show at once.
+       Podcasts: the pair drives the Spotify embed's height — 800px
+       shows the whole playlist, 152px is Spotify's compact player;
+       the resting 352px default is untouched. */
+    .expand-all-toggle {
+        display: inline-flex;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+    .expand-all-toggle button {
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+        background: var(--bg-color);
+        color: var(--text-color);
+        border: none;
+        padding: 6px 12px;
+        font-size: 0.85rem;
+        cursor: pointer;
+    }
+    .expand-all-toggle button + button { border-left: 1px solid var(--border-color); }
+    .expand-all-toggle button:hover { color: var(--link-color); }
+    .expand-all-toggle button[aria-pressed="true"] {
+        background: var(--link-color);
+        color: var(--bg-color);
+        font-weight: 600;
+    }
+    .expand-all-toggle button:focus-visible {
+        outline: 2px solid var(--link-color);
+        outline-offset: -2px;
+    }
+    .book-list-container.list-expanded { max-height: none; overflow-y: visible; }
+    .podcast-controls {
+        display: flex;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
     </style>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -107,6 +149,10 @@
                     <option value="rating-desc">Rating: High to Low</option>
                     <option value="title-asc">Title: A to Z</option>
                 </select>
+            </div>
+            <div class="expand-all-toggle" role="group" aria-label="Book list size">
+                <button type="button" id="books-expand" aria-pressed="false">Expand all</button>
+                <button type="button" id="books-collapse" aria-pressed="true">Collapse all</button>
             </div>
         </div>
         <ul id="book-list">
@@ -236,8 +282,14 @@
 
     <h2>A Curated Podcast List</h2>
     <div class="card" style="padding: 16px 20px;">
+        <div class="podcast-controls">
+            <div class="expand-all-toggle" role="group" aria-label="Podcast list size">
+                <button type="button" id="podcasts-expand" aria-pressed="false">Expand all</button>
+                <button type="button" id="podcasts-collapse" aria-pressed="false">Collapse all</button>
+            </div>
+        </div>
         <!-- Universal Mobile-Friendly Native Spotify Embed -->
-        <iframe style="border-radius:12px; width:100%; height:352px;" src="https://open.spotify.com/embed/playlist/5Y0IoAjVwXBLNAOiOdnqPw?utm_source=generator&theme=0" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+        <iframe id="podcast-frame" style="border-radius:12px; width:100%; height:352px;" src="https://open.spotify.com/embed/playlist/5Y0IoAjVwXBLNAOiOdnqPw?utm_source=generator&theme=0" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
     </div>
 
     <!-- Professional Bottom Footer Section -->
@@ -281,6 +333,43 @@
             });
             items.forEach(item => list.appendChild(item));
         }
+    </script>
+    <script>
+        // Expand all / Collapse all — one pair per perimeter, independent.
+        // Books: toggles .list-expanded on the list card (lifts its 380px
+        // cap; the class lives on the container, so filter/sort, which only
+        // touch the items, never disturb it). Podcasts: sets the Spotify
+        // embed height — 800px shows the full playlist, 152px is Spotify's
+        // compact player. Page load changes nothing: defaults preserved.
+        (function () {
+            function wire(expandId, collapseId, apply) {
+                var expandBtn = document.getElementById(expandId);
+                var collapseBtn = document.getElementById(collapseId);
+                if (!expandBtn || !collapseBtn) return;
+                expandBtn.addEventListener('click', function () {
+                    apply(true);
+                    expandBtn.setAttribute('aria-pressed', 'true');
+                    collapseBtn.setAttribute('aria-pressed', 'false');
+                });
+                collapseBtn.addEventListener('click', function () {
+                    apply(false);
+                    expandBtn.setAttribute('aria-pressed', 'false');
+                    collapseBtn.setAttribute('aria-pressed', 'true');
+                });
+            }
+            var bookBox = document.querySelector('.book-list-container');
+            if (bookBox) {
+                wire('books-expand', 'books-collapse', function (expand) {
+                    bookBox.classList.toggle('list-expanded', expand);
+                });
+            }
+            var podFrame = document.getElementById('podcast-frame');
+            if (podFrame) {
+                wire('podcasts-expand', 'podcasts-collapse', function (expand) {
+                    podFrame.style.height = expand ? '800px' : '152px';
+                });
+            }
+        })();
     </script>
 <button type="button" class="back-to-top" id="backToTop" aria-label="Back to top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 15l7-7 7 7"/></svg></button>
 <script>
