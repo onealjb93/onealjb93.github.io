@@ -58,17 +58,18 @@
         .lr-toolbar {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px;
-            margin-bottom: 8px;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 6px;
         }
         .lr-btn {
-            padding: 6px 12px;
+            padding: 5px 10px;
             border-radius: 999px;
             border: 1px solid var(--border-color);
             background: var(--card-bg);
             color: var(--text-color);
             font: inherit;
-            font-size: 0.875rem;
+            font-size: 0.85rem;
             cursor: pointer;
         }
         .lr-btn:hover { border-color: var(--accent-color); }
@@ -79,10 +80,28 @@
         }
         .lr-btn:disabled { opacity: 0.45; cursor: default; }
         .lr-btn:disabled:hover { border-color: var(--border-color); }
+        /* Thin divider between control groups (playback / tools / track / view / saves). */
+        .lr-sep {
+            width: 1px;
+            align-self: stretch;
+            background: var(--border-color);
+            margin: 2px 3px;
+        }
+        .lr-save-name, .lr-saves-select {
+            padding: 5px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
+            font: inherit;
+            font-size: 0.85rem;
+        }
+        .lr-save-name { width: 110px; }
+        .lr-saves-select { max-width: 170px; }
         #lr-canvas {
             display: block;
             width: 100%;
-            height: 624px; /* grew by the 64px the compact toolbar freed */
+            height: 640px;
             border: 1px solid var(--border-color);
             border-radius: 12px;
             background: var(--bg-color);
@@ -104,10 +123,16 @@
         .lr-howto ol { margin: 0; padding-left: 1.25rem; }
         .lr-howto li { margin-bottom: 6px; }
         @media (max-width: 700px) {
-            #lr-canvas { height: 519px; /* grew by the 99px the compact toolbar freed */ }
+            #lr-canvas { height: 580px; }
             .lr-status { margin-left: 0; width: 100%; }
             /* Compact but still comfortably tappable on phones (36px min). */
-            .lr-btn { padding: 8px 12px; min-height: 36px; }
+            .lr-btn { padding: 7px 10px; min-height: 36px; }
+            .lr-save-name, .lr-saves-select { padding: 7px 8px; min-height: 36px; }
+            /* Saves row goes icon-only on phones so it fits one row: the name
+               field beside it ("Setup name") makes 💾 / 🗑 self-explanatory. */
+            .lr-save-name { width: 84px; }
+            .lr-saves-select { max-width: 120px; }
+            .lr-btn .lr-btn-label { display: none; }
         }
     </style>
     <!-- Umami Analytics Script -->
@@ -172,23 +197,35 @@
         </div>
 
         <div class="lr-toolbar" role="toolbar" aria-label="Line Rider tools">
+            <button class="lr-btn" id="lr-restart" type="button">↺ Restart</button>
+            <button class="lr-btn" id="lr-play" type="button">▶ Play</button>
+            <button class="lr-btn" id="lr-pause" type="button" disabled>⏸ Pause</button>
+            <span class="lr-sep" aria-hidden="true"></span>
             <button class="lr-btn active" id="lr-tool-draw" type="button">✏️ Draw</button>
             <button class="lr-btn" id="lr-tool-move" type="button">✋ Move</button>
             <button class="lr-btn" id="lr-tool-erase" type="button">🧽 Erase</button>
+            <button class="lr-btn" id="lr-tool-mushroom" type="button">🍄 Mushroom</button>
+            <button class="lr-btn" id="lr-tool-glider" type="button">🪂 Glider</button>
+            <span class="lr-sep" aria-hidden="true"></span>
             <button class="lr-btn" id="lr-clear" type="button">Clear all</button>
             <button class="lr-btn" id="lr-default" type="button">Default track</button>
-            <button class="lr-btn" id="lr-play" type="button">▶ Play</button>
-            <button class="lr-btn" id="lr-pause" type="button" disabled>⏸ Pause</button>
-            <button class="lr-btn" id="lr-restart" type="button">↺ Restart</button>
+            <span class="lr-sep" aria-hidden="true"></span>
             <button class="lr-btn" id="lr-zoom-out" type="button">− Zoom out</button>
             <button class="lr-btn" id="lr-zoom-in" type="button">+ Zoom in</button>
             <button class="lr-btn" id="lr-zoom-fit" type="button">⤢ Fit track</button>
             <span class="lr-zoom-label" id="lr-zoom-label" aria-live="polite">100%</span>
+            <span class="lr-sep" aria-hidden="true"></span>
+            <input class="lr-save-name" id="lr-save-name" type="text" placeholder="Setup name" aria-label="Name for this setup" maxlength="40">
+            <button class="lr-btn" id="lr-save" type="button" title="Save this setup under the name above">💾 <span class="lr-btn-label">Save</span></button>
+            <select class="lr-saves-select" id="lr-saves" aria-label="Saved setups">
+                <option value="">Saved setups…</option>
+            </select>
+            <button class="lr-btn" id="lr-save-delete" type="button" title="Delete the selected setup">🗑 <span class="lr-btn-label">Delete</span></button>
         </div>
 
         <canvas id="lr-canvas" aria-label="Line Rider game canvas. Draw a track with your mouse or finger, switch to Move to slide the view without drawing, then press Play."></canvas>
 
-        <p class="lr-help">Tip: tap ✋ Move and drag to slide the view around without drawing — the view stays exactly where you leave it. Zoom out (−, scroll, or pinch) to see the whole track, or press "Fit track". Drag on the canvas to draw track — downhill for speed, ramps for air. In Erase mode the red ring shows exactly what will be wiped. Press Play (or Space) to ride, Pause (or Space) to stop and draw more, Restart (or R) to go back to the start. While airborne, ← and → spin him — land on your wheels, not your head. Works with mouse or touch.</p>
+        <p class="lr-help">Tip: tap ✋ Move and drag to slide the view around without drawing — the view stays exactly where you leave it. Zoom out (−, scroll, or pinch) to see the whole track, or press "Fit track". Drag on the canvas to draw track — downhill for speed, ramps for air. In Erase mode the red ring shows exactly what will be wiped. 🍄 Mushroom gives him a speed boost — tap to place one on the track. 🪂 Glider catches him mid-air — place one in his flight path and he'll glide instead of falling; faster in, farther he flies. Your track saves itself as you draw, and 💾 Save keeps a named setup to come back to. Press Play (or Space) to ride, Pause (or Space) to stop and draw more, Restart (or R) to go back to the start. While airborne, ← and → spin him — land on your wheels, not your head. Works with mouse or touch.</p>
     </section>
 
     <section class="lr-howto" aria-labelledby="how-to-play-heading">
@@ -233,9 +270,9 @@
         var BEST_KEY = 'lr-best-m';
 
         var lines = [];         // array of polylines: [{x, y}, ...]
-        var tool = 'draw';      // 'draw' | 'move' | 'erase' — Move pans the view, draws nothing
+        var tool = 'draw';      // 'draw' | 'move' | 'erase' | 'mushroom' | 'glider'
         var mode = 'edit';      // 'edit' | 'playing' | 'paused' | 'crashed'
-        var rider = null;       // {x, y, vx, vy, angle, omega, state, maxX, startX, stuckT}
+        var rider = null;       // {x, y, vx, vy, angle, omega, state, maxX, startX, stuckT, boostT, glideT}
         var cam = { x: 0, y: 0 };
         // The camera NEVER moves on its own while editing: zoom and pan persist
         // until the user changes them. It only follows the rider while playing.
@@ -252,6 +289,18 @@
         var ERASE_PX = 20;      // erase radius in SCREEN px (constant at any zoom)
         var cursorPos = null;   // {x, y} in canvas CSS px, or null when hidden
         var crashMsg = '';
+        var mushrooms = [];  // [{x, y, a}] placed speed-boost power-ups (a = slope of the line under them)
+        var gliders = [];    // [{x, y}] placed hang gliders, floating in the air
+        var pops = [];       // [{x, y, t}] pickup pop rings, t counts down from 0.35
+        var MUSHROOM_SNAP_SCREEN = 40; // snap radius in screen px when placing a mushroom
+        var MUSHROOM_TRIGGER_PX = 18;  // trigger radius in screen px (rider within this eats it)
+        var BOOST_MULT = 1.8, BOOST_DUR = 1.5; // mushroom burst: 1.8x, fading over 1.5 s
+        var GLIDER_TRIGGER_PX = 26; // pickup radius in screen px (airborne rider only)
+        var GLIDE_MAX = 7;          // max glide duration, seconds
+        var GLIDE_STALL = 120;      // px/s: horizontal speed below this stalls the glider
+        var AUTOSAVE_KEY = 'lr-autosave';
+        var SAVES_KEY = 'lr-saves';
+        var MAX_SAVES = 12;
         var best = 0;
         try { best = parseFloat(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { best = 0; }
 
@@ -262,6 +311,12 @@
         var btnDraw = document.getElementById('lr-tool-draw');
         var btnMove = document.getElementById('lr-tool-move');
         var btnErase = document.getElementById('lr-tool-erase');
+        var btnMushroom = document.getElementById('lr-tool-mushroom');
+        var btnGlider = document.getElementById('lr-tool-glider');
+        var btnSave = document.getElementById('lr-save');
+        var btnSaveDelete = document.getElementById('lr-save-delete');
+        var inputSaveName = document.getElementById('lr-save-name');
+        var selSaves = document.getElementById('lr-saves');
         var btnClear = document.getElementById('lr-clear');
         var btnDefault = document.getElementById('lr-default');
         var btnPlay = document.getElementById('lr-play');
@@ -327,7 +382,7 @@
             var p0 = first[0], p1 = first[1];
             var a = Math.atan2(p1.y - p0.y, p1.x - p0.x);
             rider = { x: p0.x, y: p0.y, vx: 0, vy: 0, angle: a, omega: 0,
-                      state: 'riding', maxX: p0.x, startX: p0.x, stuckT: 0 };
+                      state: 'riding', maxX: p0.x, startX: p0.x, stuckT: 0, boostT: 0, glideT: 0 };
             cam.x = p0.x - viewW() * 0.3;
             cam.y = p0.y - viewH() * 0.55;
             crashMsg = '';
@@ -442,6 +497,161 @@
             }
         }
 
+        /* ---------- saving: auto-save the current setup + named favorites ----------
+           Auto-save: the track (lines, mushrooms, gliders) and the view (camera
+           + zoom) are written to localStorage a moment after any change, so
+           reopening the page brings back exactly where he left off. Named
+           favorites live under SAVES_KEY (max 12); saving under an existing
+           name updates it in place. Clear-all never touches the favorites. */
+        var autosaveTimer = null;
+        function snapshot() {
+            return {
+                v: 1,
+                lines: lines.map(function (pts) {
+                    return pts.map(function (p) { return [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]; });
+                }),
+                mushrooms: mushrooms.map(function (m) {
+                    return { x: Math.round(m.x * 10) / 10, y: Math.round(m.y * 10) / 10, a: Math.round(m.a * 100) / 100 };
+                }),
+                gliders: gliders.map(function (g) {
+                    return { x: Math.round(g.x * 10) / 10, y: Math.round(g.y * 10) / 10 };
+                }),
+                cam: { x: Math.round(cam.x * 10) / 10, y: Math.round(cam.y * 10) / 10 },
+                zoom: Math.round(zoom * 1000) / 1000,
+                savedAt: Date.now()
+            };
+        }
+        function restoreSnap(s) {
+            if (!s || typeof s !== 'object' || !Array.isArray(s.lines)) return false;
+            var ls = [];
+            for (var i = 0; i < s.lines.length; i++) {
+                var pts = s.lines[i];
+                if (!Array.isArray(pts)) continue;
+                var pl = [];
+                for (var j = 0; j < pts.length; j++) {
+                    var pt = pts[j];
+                    if (Array.isArray(pt) && isFinite(pt[0]) && isFinite(pt[1])) pl.push({ x: pt[0], y: pt[1] });
+                    else if (pt && isFinite(pt.x) && isFinite(pt.y)) pl.push({ x: pt.x, y: pt.y });
+                }
+                if (pl.length >= 1) ls.push(pl);
+            }
+            var ms = [];
+            if (Array.isArray(s.mushrooms)) {
+                for (var k = 0; k < s.mushrooms.length; k++) {
+                    var m = s.mushrooms[k];
+                    if (m && isFinite(m.x) && isFinite(m.y)) ms.push({ x: m.x, y: m.y, a: isFinite(m.a) ? m.a : 0 });
+                }
+            }
+            var gs = [];
+            if (Array.isArray(s.gliders)) {
+                for (var q = 0; q < s.gliders.length; q++) {
+                    var g = s.gliders[q];
+                    if (g && isFinite(g.x) && isFinite(g.y)) gs.push({ x: g.x, y: g.y });
+                }
+            }
+            lines = ls; mushrooms = ms; gliders = gs; pops = [];
+            if (s.cam && isFinite(s.cam.x) && isFinite(s.cam.y)) { cam.x = s.cam.x; cam.y = s.cam.y; }
+            if (isFinite(s.zoom) && s.zoom >= ZOOM_MIN && s.zoom <= ZOOM_MAX) { zoom = s.zoom; updateZoomLabel(); }
+            rider = null; mode = 'edit'; crashMsg = '';
+            return true;
+        }
+        function autosaveSoon() {
+            if (autosaveTimer) clearTimeout(autosaveTimer);
+            autosaveTimer = setTimeout(function () {
+                autosaveTimer = null;
+                try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot())); } catch (e) { /* storage blocked/full: game still works, just not saved */ }
+            }, 300);
+        }
+        function loadAutosave() {
+            try {
+                var raw = localStorage.getItem(AUTOSAVE_KEY);
+                if (!raw) return false;
+                return restoreSnap(JSON.parse(raw));
+            } catch (e) { return false; }
+        }
+        function getSaves() {
+            try {
+                var raw = localStorage.getItem(SAVES_KEY);
+                var arr = raw ? JSON.parse(raw) : [];
+                return Array.isArray(arr) ? arr : [];
+            } catch (e) { return []; }
+        }
+        function putSaves(arr) {
+            try { localStorage.setItem(SAVES_KEY, JSON.stringify(arr)); return true; }
+            catch (e) { return false; }
+        }
+        function refreshSavesList() {
+            var saves = getSaves();
+            selSaves.innerHTML = '';
+            var opt0 = document.createElement('option');
+            opt0.value = ''; opt0.textContent = 'Saved setups…';
+            selSaves.appendChild(opt0);
+            saves.forEach(function (s, i) {
+                var o = document.createElement('option');
+                o.value = String(i); o.textContent = s.name;
+                selSaves.appendChild(o);
+            });
+        }
+        function saveNamed() {
+            var saves = getSaves();
+            var name = inputSaveName.value.trim();
+            if (!name) {
+                var n = 1, taken = {};
+                saves.forEach(function (s) { taken[s.name] = true; });
+                while (taken['Setup ' + n]) n++;
+                name = 'Setup ' + n;
+            }
+            var snap = snapshot();
+            snap.name = name;
+            var note = '';
+            var idx = -1;
+            for (var i = 0; i < saves.length; i++) { if (saves[i].name === name) { idx = i; break; } }
+            if (idx >= 0) { saves[idx] = snap; }
+            else {
+                if (saves.length >= MAX_SAVES) {
+                    var dropped = saves.shift();
+                    note = ' Oldest setup "' + dropped.name + '" was removed (' + MAX_SAVES + ' max).';
+                }
+                saves.push(snap);
+                idx = saves.length - 1;
+            }
+            if (!putSaves(saves)) {
+                flashStatus("Couldn't save — browser storage is full. Delete an old setup and try again.");
+                updateUI();
+                return;
+            }
+            refreshSavesList();
+            selSaves.value = String(idx);
+            inputSaveName.value = '';
+            flashStatus('Saved "' + name + '".' + note);
+            updateUI();
+        }
+        function loadNamed(idx) {
+            var saves = getSaves();
+            var s = saves[idx];
+            if (!s) return;
+            if (restoreSnap(s)) {
+                // resetRider moves the camera to the start; put the saved
+                // view back afterwards, like init does.
+                var v = { x: cam.x, y: cam.y, z: zoom };
+                resetRider();
+                cam.x = v.x; cam.y = v.y; zoom = v.z; updateZoomLabel();
+                flashStatus('Loaded "' + s.name + '".');
+                updateUI();
+            }
+        }
+        function deleteNamed() {
+            var idx = parseInt(selSaves.value, 10);
+            var saves = getSaves();
+            if (isNaN(idx) || !saves[idx]) { flashStatus('Pick a saved setup to delete.'); updateUI(); return; }
+            var name = saves[idx].name;
+            saves.splice(idx, 1);
+            if (!putSaves(saves)) { flashStatus("Couldn't delete — browser storage is unavailable."); updateUI(); return; }
+            refreshSavesList();
+            flashStatus('Deleted "' + name + '".');
+            updateUI();
+        }
+
         function stepRider(dt) {
             var r = rider;
             if (!r || r.state === 'crashed') return;
@@ -453,7 +663,12 @@
                 var speed = r.vx * dx + r.vy * dy;
                 if (speed < 0) { dx = -dx; dy = -dy; speed = -speed; }
                 speed += G * dy * dt;  // gravity component along the line
-                var nx = hit.x + dx * speed * dt, ny = hit.y + dy * speed * dt;
+                // Mushroom boost: a fading 1.8x multiplier on the speed used
+                // for this step only — the stored velocity stays the base
+                // speed, so the boost wears off instead of compounding.
+                var boost = 1;
+                if (r.boostT > 0) { boost = 1 + (BOOST_MULT - 1) * (r.boostT / BOOST_DUR); r.boostT -= dt; }
+                var nx = hit.x + dx * speed * boost * dt, ny = hit.y + dy * speed * boost * dt;
                 // Did the advance carry the rider past the end of this segment?
                 // (The closest point on a segment is clamped to its ends, so a
                 // plain nearest-segment lookup would stick him to the endpoint
@@ -493,13 +708,63 @@
                 // Head or chest hit a line while riding (e.g. a low ceiling
                 // or a wall ahead) — that is a crash too, not just in the air.
                 if (crashCheck(r)) { crash('head'); return; }
+            } else if (r.state === 'gliding') {
+                // Hang glider: entry momentum is preserved — fast in, fast
+                // and far; slow in, slow and short. Lift eases the fall
+                // toward a gentle sink rate (faster flight = more lift =
+                // slower sink); drag bleeds horizontal speed slowly.
+                // Steering: left/right nudge him gently; he hangs level
+                // under the wing (no spinning while gliding).
+                r.glideT -= dt;
+                if (keys.ArrowLeft || keys.KeyA) r.vx -= 140 * dt;
+                if (keys.ArrowRight || keys.KeyD) r.vx += 140 * dt;
+                r.vx *= Math.exp(-0.10 * dt);  // slow drag decay
+                var sink = Math.max(35, Math.min(90, 90 - Math.abs(r.vx) * 0.06));
+                r.vy += (sink - r.vy) * (1 - Math.exp(-2.5 * dt));
+                var gpx = r.x, gpy = r.y;
+                var gnx = r.x + r.vx * dt, gny = r.y + r.vy * dt;
+                r.angle += angDiff(0, r.angle) * Math.min(1, 3 * dt);
+                r.omega = 0;
+                // Landing while gliding: same intersection test as airborne.
+                // A gentle gliding landing rides on — no crash check.
+                var gLanded = null;
+                for (var i = 0; i < lines.length && !gLanded; i++) {
+                    var pts = lines[i];
+                    for (var j = 0; j < pts.length - 1; j++) {
+                        var gip = segIntersect({ x: gpx, y: gpy }, { x: gnx, y: gny }, pts[j], pts[j + 1]);
+                        if (gip) { gLanded = { p: gip, a: pts[j], b: pts[j + 1] }; break; }
+                    }
+                }
+                if (gLanded) {
+                    var gl2 = Math.hypot(gLanded.b.x - gLanded.a.x, gLanded.b.y - gLanded.a.y) || 1;
+                    var glx = (gLanded.b.x - gLanded.a.x) / gl2, gly = (gLanded.b.y - gLanded.a.y) / gl2;
+                    var gsp = r.vx * glx + r.vy * gly;
+                    if (gsp < 0) { glx = -glx; gly = -gly; gsp = -gsp; }
+                    r.x = gLanded.p.x; r.y = gLanded.p.y;
+                    r.vx = glx * gsp; r.vy = gly * gsp;
+                    r.angle = Math.atan2(gly, glx);
+                    r.omega = 0;
+                    r.state = 'riding';
+                    r.glideT = 0;
+                    if (r.x > r.maxX) r.maxX = r.x;
+                } else {
+                    r.x = gnx; r.y = gny;
+                    if (r.x > r.maxX) r.maxX = r.x;
+                    // Stall or time up: detach and fall normally again.
+                    if (Math.abs(r.vx) < GLIDE_STALL || r.glideT <= 0) {
+                        r.state = 'air';
+                        r.glideT = 0;
+                    }
+                }
             } else {  // airborne
                 if (keys.ArrowLeft || keys.KeyA) r.omega -= 4.0 * dt;
                 if (keys.ArrowRight || keys.KeyD) r.omega += 4.0 * dt;
                 r.omega *= Math.exp(-0.6 * dt);
                 r.vy += G * dt;
                 var px = r.x, py = r.y;
-                var nx2 = r.x + r.vx * dt, ny2 = r.y + r.vy * dt;
+                var boostA = 1;
+                if (r.boostT > 0) { boostA = 1 + (BOOST_MULT - 1) * (r.boostT / BOOST_DUR); r.boostT -= dt; }
+                var nx2 = r.x + r.vx * boostA * dt, ny2 = r.y + r.vy * boostA * dt;
                 r.angle += r.omega * dt;
                 // Landing first: if the sled's path crosses a line, he lands
                 // on it. The crash check must not run first on that step —
@@ -527,12 +792,43 @@
                     r.state = 'riding';
                     if (r.x > r.maxX) r.maxX = r.x;
                 } else {
-                    // No landing: a head-first hit still crashes — but not a
-                    // line the body is already close to (one he is about to
-                    // land on); see airCrashCheck.
-                    if (airCrashCheck(nx2, ny2, r.angle)) { r.x = nx2; r.y = ny2; crash('head'); return; }
-                    r.x = nx2; r.y = ny2;
-                    if (r.x > r.maxX) r.maxX = r.x;
+                    // Hang glider pickup first: an airborne rider within
+                    // range attaches (the glider is consumed) — catching
+                    // the glider is the save, so it beats the crash check.
+                    var picked = -1;
+                    for (var gi = 0; gi < gliders.length; gi++) {
+                        if (Math.hypot(nx2 - gliders[gi].x, ny2 - gliders[gi].y) < GLIDER_TRIGGER_PX / zoom) { picked = gi; break; }
+                    }
+                    if (picked >= 0) {
+                        var gp = gliders.splice(picked, 1)[0];
+                        pops.push({ x: gp.x, y: gp.y, t: 0.35 });
+                        r.x = nx2; r.y = ny2;
+                        r.state = 'gliding';
+                        r.glideT = GLIDE_MAX;
+                        r.omega = 0;
+                        if (r.x > r.maxX) r.maxX = r.x;
+                        autosaveSoon();
+                    } else {
+                        // No landing and no glider: a head-first hit still
+                        // crashes — but not a line the body is already close
+                        // to (one he is about to land on); see airCrashCheck.
+                        if (airCrashCheck(nx2, ny2, r.angle)) { r.x = nx2; r.y = ny2; crash('head'); return; }
+                        r.x = nx2; r.y = ny2;
+                        if (r.x > r.maxX) r.maxX = r.x;
+                    }
+                }
+            }
+            // Mushroom boost: riding or flying within trigger range of one
+            // eats it and starts a 1.8x burst that fades over 1.5 s.
+            // (Not while gliding — the mushroom stays for after he lands.)
+            if (r.state !== 'crashed' && r.state !== 'gliding') {
+                for (var mi = mushrooms.length - 1; mi >= 0; mi--) {
+                    if (Math.hypot(r.x - mushrooms[mi].x, r.y - mushrooms[mi].y) < MUSHROOM_TRIGGER_PX / zoom) {
+                        var mm = mushrooms.splice(mi, 1)[0];
+                        pops.push({ x: mm.x, y: mm.y, t: 0.35 });
+                        r.boostT = BOOST_DUR;
+                        autosaveSoon();
+                    }
                 }
             }
             if (r.y > 4500 || r.x < -800) crash('fell');
@@ -569,6 +865,37 @@
                 for (var j = 1; j < pts.length; j++) ctx.lineTo(pts[j].x, pts[j].y);
                 ctx.stroke();
             }
+            // mushrooms: red cap, white spots, drawn with simple shapes
+            // (screen-constant size, so they stay visible at any zoom),
+            // with a gentle bob so they stand out on the track.
+            for (var mi = 0; mi < mushrooms.length; mi++) {
+                var m = mushrooms[mi];
+                ctx.save();
+                ctx.translate(m.x, m.y);
+                ctx.rotate(m.a);
+                ctx.scale(1 / zoom, 1 / zoom);
+                ctx.translate(0, Math.sin(performance.now() / 220 + mi * 1.3) * 2);
+                drawMushroomShape();
+                ctx.restore();
+            }
+            // hang gliders: delta wings floating in the air, gently bobbing.
+            for (var gi = 0; gi < gliders.length; gi++) {
+                var g = gliders[gi];
+                ctx.save();
+                ctx.translate(g.x, g.y);
+                ctx.scale(1 / zoom, 1 / zoom);
+                ctx.translate(0, Math.sin(performance.now() / 300 + gi * 1.7) * 3);
+                drawGliderShape();
+                ctx.restore();
+            }
+            // pickup pops: a quick expanding ring where a power-up was eaten.
+            for (var pi = 0; pi < pops.length; pi++) {
+                var pp = pops[pi];
+                var pr = (0.35 - pp.t) / 0.35;
+                ctx.strokeStyle = 'rgba(255,207,63,' + (1 - pr).toFixed(2) + ')';
+                ctx.lineWidth = 2 / zoom;
+                ctx.beginPath(); ctx.arc(pp.x, pp.y, 8 + pr * 26, 0, Math.PI * 2); ctx.stroke();
+            }
             // start flag
             if (lines.length && lines[0].length) {
                 var s = lines[0][0];
@@ -587,7 +914,42 @@
                 ctx.fill();
             }
             if (rider) drawRider();
+            // While gliding, the wing flies level above him, screen-constant size.
+            if (rider && rider.state === 'gliding') {
+                ctx.save();
+                ctx.translate(rider.x, rider.y);
+                ctx.scale(1 / zoom, 1 / zoom);
+                ctx.translate(0, -42);
+                drawGliderShape();
+                ctx.restore();
+            }
             drawCursor();
+        }
+        /* Power-up shapes: drawn with simple canvas shapes (no assets).
+           Both draw a ~22x24 px item centred at (0,0), cap/wing up, in the
+           current transform — call sites use screen-px units. */
+        function drawMushroomShape() {
+            ctx.fillStyle = '#fff3d6';  // stem
+            ctx.beginPath();
+            ctx.moveTo(-5, 0); ctx.lineTo(-5, -10); ctx.quadraticCurveTo(0, -13, 5, -10); ctx.lineTo(5, 0); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#e5484d';  // red cap
+            ctx.beginPath(); ctx.arc(0, -10, 11, Math.PI, 0); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#ffffff';  // spots
+            ctx.beginPath(); ctx.arc(-5, -15, 2.2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(4, -18, 2.8, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(7, -12, 1.8, 0, Math.PI * 2); ctx.fill();
+        }
+        function drawGliderShape() {
+            // Delta wing (~48 px wide) + hang lines down to the rider.
+            ctx.fillStyle = '#ff9f1c';
+            ctx.beginPath();
+            ctx.moveTo(-24, 2); ctx.lineTo(0, -12); ctx.lineTo(24, 2); ctx.lineTo(0, -4); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(-24, 2); ctx.lineTo(0, -12); ctx.lineTo(24, 2); ctx.stroke();
+            ctx.strokeStyle = '#ff9f1c';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(-8, -2); ctx.lineTo(-4, 12); ctx.moveTo(8, -2); ctx.lineTo(4, 12); ctx.stroke();
         }
         /* Custom canvas cursor: one clear indicator, matching the tool.
            Erase ring radius == erase radius on screen, so the ring shows
@@ -597,6 +959,34 @@
             if (mode !== 'edit' && mode !== 'paused') return;
             ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
             var x = cursorPos.x, y = cursorPos.y;
+            if (tool === 'mushroom') {
+                // Ghost preview: the mushroom as it would sit (snapped to
+                // the nearest line) if placed right here.
+                var mw = { x: x / zoom + cam.x, y: y / zoom + cam.y };
+                var mhit = nearestSegment(mw.x, mw.y, MUSHROOM_SNAP_SCREEN / zoom);
+                var mgx = mw.x, mgy = mw.y, mga = 0;
+                if (mhit) {
+                    mgx = mhit.x; mgy = mhit.y;
+                    var mdl = mhit.len || 1;
+                    mga = Math.atan2(mhit.diry / mdl, mhit.dirx / mdl);
+                }
+                ctx.save();
+                ctx.globalAlpha = 0.55;
+                ctx.translate((mgx - cam.x) * zoom, (mgy - cam.y) * zoom);
+                ctx.rotate(mga);
+                drawMushroomShape();
+                ctx.restore();
+                return;
+            }
+            if (tool === 'glider') {
+                // Ghost preview: the wing as it would float if placed here.
+                ctx.save();
+                ctx.globalAlpha = 0.55;
+                ctx.translate(x, y);
+                drawGliderShape();
+                ctx.restore();
+                return;
+            }
             if (tool === 'erase') {
                 ctx.strokeStyle = '#e5484d';
                 ctx.lineWidth = 2;
@@ -642,24 +1032,41 @@
             ctx.beginPath(); ctx.arc(3, -29, 5, 0, Math.PI * 2); ctx.fill();               // head
             ctx.beginPath(); ctx.moveTo(1, -21); ctx.lineTo(12, -13); ctx.stroke();         // arm to sled
             ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(10, -3); ctx.lineTo(14, 1); ctx.stroke(); // leg
+            if (r.boostT > 0) {  // speed lines while the mushroom boost lasts
+                ctx.strokeStyle = '#ffcf3f';
+                ctx.lineWidth = 2.5 / zoom;
+                for (var sl = 0; sl < 3; sl++) {
+                    var sy = -16 + sl * 11;
+                    ctx.beginPath(); ctx.moveTo(-26 - sl * 5, sy); ctx.lineTo(-42 - sl * 5, sy); ctx.stroke();
+                }
+            }
             ctx.restore();
         }
 
         /* ---------- HUD / status ---------- */
         var lastHud = 0;
+        var statusNote = '', statusNoteUntil = 0;  // transient save/load messages
+        function flashStatus(msg) {
+            statusNote = msg;
+            statusNoteUntil = performance.now() + 3000;
+            elStatus.textContent = msg;
+        }
         function updateHUD(now) {
             if (now - lastHud < 100) return;
             lastHud = now;
             var d = distanceM();
             elDist.textContent = d.toFixed(1) + ' m (' + (d * 3.28084).toFixed(1) + ' ft)';
             var spd = rider ? Math.hypot(rider.vx, rider.vy) / PX_PER_M : 0;
+            if (rider && rider.boostT > 0) spd *= 1 + (BOOST_MULT - 1) * (rider.boostT / BOOST_DUR);  // effective speed while boosting
             elSpeed.textContent = spd.toFixed(1) + ' m/s (' + (spd * 2.23694).toFixed(1) + ' mph)';
             if (d > best) { best = d; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
             elBest.textContent = best.toFixed(1) + ' m (' + (best * 3.28084).toFixed(1) + ' ft)';
-            if (mode === 'crashed') {
+            if (now < statusNoteUntil) {
+                elStatus.textContent = statusNote;
+            } else if (mode === 'crashed') {
                 elStatus.textContent = crashMsg + ' Distance: ' + d.toFixed(1) + ' m (' + (d * 3.28084).toFixed(1) + ' ft). Press Restart to go again.';
             } else if (mode === 'playing') {
-                elStatus.textContent = (rider && rider.stuckT > 2.5) ? "He's stuck! Pause, draw a downhill slope, and press Play." : 'Riding…';
+                elStatus.textContent = (rider && rider.state === 'gliding') ? 'Gliding…' : (rider && rider.stuckT > 2.5) ? "He's stuck! Pause, draw a downhill slope, and press Play." : 'Riding…';
             } else if (mode === 'paused') {
                 elStatus.textContent = 'Paused — draw more track, then press Play to keep going.';
             } else if (!lines.length) {
@@ -672,10 +1079,13 @@
             btnDraw.classList.toggle('active', tool === 'draw');
             btnMove.classList.toggle('active', tool === 'move');
             btnErase.classList.toggle('active', tool === 'erase');
+            btnMushroom.classList.toggle('active', tool === 'mushroom');
+            btnGlider.classList.toggle('active', tool === 'glider');
             canvas.style.cursor = 'none'; // the custom cursor is drawn in drawCursor()
             btnPlay.disabled = (mode === 'playing') || !lines.length;
             btnPause.disabled = mode !== 'playing';
             btnRestart.disabled = !lines.length;
+            btnSaveDelete.disabled = !selSaves.value;
         }
 
         /* ---------- controls ---------- */
@@ -696,16 +1106,24 @@
         }
         function clearAll() {
             lines = [];
+            mushrooms = [];
+            gliders = [];
+            pops = [];
             rider = null;
             mode = 'edit';
             cam.x = -viewW() * 0.3; cam.y = -viewH() * 0.55;
+            autosaveSoon();  // favorites (lr-saves) are NOT touched
             updateUI();
         }
         function defaultTrack() {
             starterTrack();
+            mushrooms = [];
+            gliders = [];
+            pops = [];
             resetRider();
             fitTrack();   // show the whole fresh track
             mode = 'edit';
+            autosaveSoon();
             updateUI();
         }
         function setTool(t) {
@@ -718,11 +1136,42 @@
         btnDraw.addEventListener('click', function () { setTool('draw'); this.blur(); });
         btnMove.addEventListener('click', function () { setTool('move'); this.blur(); });
         btnErase.addEventListener('click', function () { setTool('erase'); this.blur(); });
+        btnMushroom.addEventListener('click', function () { setTool('mushroom'); this.blur(); });
+        btnGlider.addEventListener('click', function () { setTool('glider'); this.blur(); });
         btnClear.addEventListener('click', function () { clearAll(); this.blur(); });
         btnDefault.addEventListener('click', function () { defaultTrack(); this.blur(); });
         btnPlay.addEventListener('click', function () { play(); this.blur(); });
         btnPause.addEventListener('click', function () { pause(); this.blur(); });
         btnRestart.addEventListener('click', function () { restart(); this.blur(); });
+        btnSave.addEventListener('click', function () { saveNamed(); this.blur(); });
+        btnSaveDelete.addEventListener('click', function () { deleteNamed(); this.blur(); });
+        selSaves.addEventListener('change', function () {
+            if (selSaves.value !== '') loadNamed(parseInt(selSaves.value, 10));
+            this.blur();
+        });
+        inputSaveName.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); saveNamed(); }
+        });
+        /* Place a mushroom: snap onto the nearest line within 40 screen px,
+           so it always sits on the track and is actually hittable; in empty
+           space it just lands where tapped (angle 0, flat). */
+        function placeMushroom(w) {
+            var R = MUSHROOM_SNAP_SCREEN / zoom;
+            var hit = nearestSegment(w.x, w.y, R);
+            var x = w.x, y = w.y, a = 0;
+            if (hit) {
+                x = hit.x; y = hit.y;
+                var dl = hit.len || 1;
+                a = Math.atan2(hit.diry / dl, hit.dirx / dl);
+            }
+            mushrooms.push({ x: x, y: y, a: a });
+            autosaveSoon();
+        }
+        /* Place a glider: it floats at the tapped point, in the air. */
+        function placeGlider(w) {
+            gliders.push({ x: w.x, y: w.y });
+            autosaveSoon();
+        }
 
         /* ---------- zoom ---------- */
         var elZoom = document.getElementById('lr-zoom-label');
@@ -781,6 +1230,9 @@
             // erase with. ERASE_PX/zoom keeps the eraser the same size on
             // screen at any zoom, so the ring always shows what will be wiped.
             var R = ERASE_PX / zoom, out = [];
+            // A mushroom or glider inside the eraser ring goes too.
+            mushrooms = mushrooms.filter(function (m) { return Math.hypot(m.x - w.x, m.y - w.y) > R; });
+            gliders = gliders.filter(function (g) { return Math.hypot(g.x - w.x, g.y - w.y) > R; });
             for (var i = 0; i < lines.length; i++) {
                 var pts = lines[i], cur = [];
                 for (var j = 0; j < pts.length; j++) {
@@ -791,6 +1243,7 @@
             }
             lines = out;
             if (!lines.length) { rider = null; if (mode !== 'edit') { mode = 'edit'; } }
+            autosaveSoon();
             updateUI();
         }
         var pointers = new Map();   // active pointers on the canvas (for pinch zoom)
@@ -819,6 +1272,16 @@
                 // Move mode: one finger drags the view itself — draws nothing.
                 panning = true;
                 panLast = { x: e.clientX, y: e.clientY };
+                return;
+            }
+            if (tool === 'mushroom') {
+                placeMushroom(toWorld(e));
+                updateUI();
+                return;
+            }
+            if (tool === 'glider') {
+                placeGlider(toWorld(e));
+                updateUI();
                 return;
             }
             var w = toWorld(e);
@@ -865,6 +1328,7 @@
             if (pointers.size < 2) pinch = null;
             // Releasing a touch changes nothing about the view: no snap-back.
             drawing = false; panning = false; curLine = null;
+            autosaveSoon();  // a finished stroke is saved for next time
         }
         canvas.addEventListener('pointerup', endPointer);
         canvas.addEventListener('pointercancel', endPointer);
@@ -873,7 +1337,7 @@
         /* ---------- keyboard ---------- */
         document.addEventListener('keydown', function (e) {
             var tag = (e.target && e.target.tagName) || '';
-            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON') return;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT') return;
             if (e.code === 'Space') { e.preventDefault(); if (mode === 'playing') pause(); else play(); }
             else if (e.code === 'KeyR') { restart(); }
             else if (e.code === 'Equal' || e.code === 'NumpadAdd') { setZoom(zoom * 1.25); }
@@ -905,15 +1369,31 @@
                 cam.x += (tx - cam.x) * k;
                 cam.y += (ty - cam.y) * k;
             }
+            // pickup pops fade out
+            for (var pi = pops.length - 1; pi >= 0; pi--) {
+                pops[pi].t -= dt;
+                if (pops[pi].t <= 0) pops.splice(pi, 1);
+            }
             draw();
             updateHUD(now);
             requestAnimationFrame(loop);
         }
 
         /* ---------- init ---------- */
-        starterTrack();
+        // Restore the auto-saved setup (track + power-ups + view) if there
+        // is one — pick up exactly where he left off. Otherwise start with
+        // the starter track. The rider always starts from the flag.
+        var restored = loadAutosave();
+        var savedView = restored ? { x: cam.x, y: cam.y, z: zoom } : null;
+        if (!restored) starterTrack();
         resetRider();
-        fitTrack();   // open showing the whole track, so it is visible at once
+        if (savedView) { cam.x = savedView.x; cam.y = savedView.y; zoom = savedView.z; updateZoomLabel(); }
+        else fitTrack();   // open showing the whole track, so it is visible at once
+        refreshSavesList();
+        // Save once more on leaving the page, so nothing is lost.
+        window.addEventListener('pagehide', function () {
+            try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot())); } catch (e) {}
+        });
         updateUI();
         // Debug handle for automated checks (not part of the UI).
         window.__lr = {
@@ -923,9 +1403,13 @@
                     cam: { x: cam.x, y: cam.y },
                     lines: lines.length,
                     points: lines.reduce(function (n, l) { return n + l.length; }, 0),
+                    mushrooms: mushrooms.length,
+                    gliders: gliders.length,
+                    saves: getSaves().length,
                     rider: rider ? { x: rider.x, y: rider.y, vx: rider.vx, vy: rider.vy,
                                      angle: rider.angle, omega: rider.omega, state: rider.state,
-                                     maxX: rider.maxX, startX: rider.startX } : null
+                                     maxX: rider.maxX, startX: rider.startX,
+                                     boostT: rider.boostT, glideT: rider.glideT } : null
                 };
             }
         };
