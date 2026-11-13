@@ -315,8 +315,15 @@
         }
 
         function resetRider() {
-            if (!lines.length || lines[0].length < 2) { rider = null; return; }
-            var p0 = lines[0][0], p1 = lines[0][1];
+            // Start on the first drawable line — a stray tap leaves a
+            // 1-point line with no direction, so skip those (otherwise a
+            // single tap before Play left the rider with nowhere to start).
+            var first = null;
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i].length >= 2) { first = lines[i]; break; }
+            }
+            if (!first) { rider = null; return; }
+            var p0 = first[0], p1 = first[1];
             var a = Math.atan2(p1.y - p0.y, p1.x - p0.x);
             rider = { x: p0.x, y: p0.y, vx: 0, vy: 0, angle: a, omega: 0,
                       state: 'riding', maxX: p0.x, startX: p0.x, stuckT: 0 };
@@ -377,6 +384,42 @@
         function crashCheck(r) {
             var hp = headPos(r), cp = chestPos(r);
             return nearestSegment(hp.x, hp.y, 7) || nearestSegment(cp.x, cp.y, 7);
+        }
+        /* Airborne crash check: the head or chest hit a line — except a line
+           the body is already within SNAP of, which is one the rider is
+           about to land on. His head swinging near the landing line (or
+           grazing its tip) is part of landing, not a crash; a genuine
+           head-first hit has the body ~30px away from the line, so it
+           still fires. */
+        function airCrashCheck(nx, ny, angle) {
+            var hp = headPos({ x: nx, y: ny, angle: angle });
+            var cp = chestPos({ x: nx, y: ny, angle: angle });
+            for (var i = 0; i < lines.length; i++) {
+                var pts = lines[i];
+                for (var j = 0; j < pts.length - 1; j++) {
+                    var hd = segClosest(hp.x, hp.y, pts[j], pts[j + 1]).d;
+                    var cd = segClosest(cp.x, cp.y, pts[j], pts[j + 1]).d;
+                    if (hd < 7 || cd < 7) {
+                        // The body is about to land on this stretch of track
+                        // if it is within SNAP of this segment or its
+                        // neighbours: a drawn line is many short segments,
+                        // and the body may sit just past the end of the one
+                        // the head is near while still being right on the
+                        // line (the closest point clamps to the endpoint).
+                        // (A "moving toward" test was tried and reverted:
+                        // a body riding along a line has near-zero
+                        // perpendicular velocity, so the sign is noise and
+                        // it broke the steep landing.)
+                        var near = false;
+                        for (var k = Math.max(0, j - 2);
+                             k <= Math.min(pts.length - 2, j + 2) && !near; k++) {
+                            if (segClosest(nx, ny, pts[k], pts[k + 1]).d < SNAP) near = true;
+                        }
+                        if (!near) return true;
+                    }
+                }
+            }
+            return false;
         }
 
         /* ---------- physics ---------- */
@@ -457,7 +500,12 @@
                 var px = r.x, py = r.y;
                 var nx2 = r.x + r.vx * dt, ny2 = r.y + r.vy * dt;
                 r.angle += r.omega * dt;
-                if (crashCheck({ x: nx2, y: ny2, angle: r.angle })) { r.x = nx2; r.y = ny2; crash('head'); return; }
+                // Landing first: if the sled's path crosses a line, he lands
+                // on it. The crash check must not run first on that step —
+                // at speed the body overshoots the line by a few px in one
+                // step, which used to put his chest inside the crash radius
+                // before the landing was ever checked, so he "stopped" on
+                // every line he landed on instead of riding it.
                 var landed = null;
                 for (var i = 0; i < lines.length && !landed; i++) {
                     var pts = lines[i];
@@ -478,6 +526,10 @@
                     r.state = 'riding';
                     if (r.x > r.maxX) r.maxX = r.x;
                 } else {
+                    // No landing: a head-first hit still crashes — but not a
+                    // line the body is already close to (one he is about to
+                    // land on); see airCrashCheck.
+                    if (airCrashCheck(nx2, ny2, r.angle)) { r.x = nx2; r.y = ny2; crash('head'); return; }
                     r.x = nx2; r.y = ny2;
                     if (r.x > r.maxX) r.maxX = r.x;
                 }
