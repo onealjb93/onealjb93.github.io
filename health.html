@@ -209,6 +209,7 @@
         .tier-toggle .tier-count { margin-left: auto; font-size: 0.8rem; font-weight: 600; color: var(--subtext-color); white-space: nowrap; }
         .tier-desc { color: var(--subtext-color); font-size: 0.875rem; line-height: 1.5; margin: 0; padding: 0.1rem 0 0.9rem 0; }
         .tier-body[hidden] { display: none; }
+        .rundown-head { margin: 0; font-size: 1rem; font-weight: 400; }
     </style>
 
     <!-- START HERE: what this page offers -->
@@ -220,14 +221,14 @@
         <a href="recipes.html" class="resource-card resource-card--featured">
             <h3>🍳 Johnny's Recipes <span>↗</span></h3>
             <p>Explore home-tested custom recipes optimized for nutrient density, gut health, and exceptional flavor.</p>
-            <p class="featured-meta">17 recipes · Chicken · Mains · Soups · Desserts · Seafood</p>
+            <p class="featured-meta"><span id="recipe-count">17</span> recipes · Chicken · Mains · Soups · Desserts · Seafood</p>
         </a>
     </nav>
 
     <!-- 1. EXERCISE CATEGORY -->
     <h2 id="committee">My Health Committee</h2>
-    <p class="subtitle">The combined rundown — what the committee agrees on most, across all three tiers:</p>
-
+    <h3 class="rundown-head"><button type="button" class="tier-toggle" data-tier-btn="rundown" aria-expanded="false" aria-controls="tier-rundown"><span class="tier-arrow" aria-hidden="true">▶</span> <span class="subtitle">The combined rundown — what the committee agrees on most, across all three tiers:</span> <span class="tier-count">14 items</span></button></h3>
+    <div class="tier-body" id="tier-rundown" hidden>
     <div class="agree-block">
         <ol>
             <li>Sleep 7–8 hours on a consistent schedule — keep a consistent wake time, and the phone out of the bedroom.</li>
@@ -245,6 +246,7 @@
             <li>Creatine monohydrate, about 3–5 g a day, for muscle and strength — and be wary of expensive supplements and anyone selling certainty; test any new supplement in training first.</li>
             <li>Lower the load at home: cut blue light in the evening (dim the lights; blue-light blocking glasses 2–3 hours before bed), filter your drinking water (reverse osmosis, or a filter certified to remove PFAS), cook with cast iron, stainless steel, or ceramic — not non-stick — choose fragrance-free personal care and cleaning products, and don't heat food in plastic — use glass or steel.</li>
         </ol>
+    </div>
     </div>
 
     <div class="committee-tiers">
@@ -1086,6 +1088,37 @@
             window.addEventListener('scroll', onScroll, { passive: true });
             window.addEventListener('resize', onScroll);
             update();
+        })();
+    </script>
+    <script>
+        // Dynamic recipe count (2026-11-13): the hub card's recipe number
+        // is pulled from recipes.html itself — it counts '.recipe-wrapper'
+        // elements, the exact set recipes.html's own "All" filter shows
+        // (Vitamins and Pantry live in their own sections and are not
+        // recipe wrappers, so they are never counted). The fetch runs in
+        // the background after page load and never blocks rendering; the
+        // count is cached for 24 hours so repeat visits skip the ~4.8 MB
+        // download, and the printed number is only a placeholder until
+        // the real count arrives (kept silently if the fetch fails).
+        (function () {
+            var el = document.getElementById('recipe-count');
+            if (!el) return;
+            var KEY = 'health-recipe-count-v1', DAY = 24 * 60 * 60 * 1000;
+            var cached = null;
+            try { cached = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+            if (cached && cached.n > 0) el.textContent = String(cached.n);
+            if (cached && cached.n > 0 && (Date.now() - cached.t) < DAY) return;
+            function load() {
+                fetch('recipes.html').then(function (r) { return r.text(); }).then(function (html) {
+                    var n = new DOMParser().parseFromString(html, 'text/html').querySelectorAll('.recipe-wrapper').length;
+                    if (n > 0) {
+                        el.textContent = String(n);
+                        try { localStorage.setItem(KEY, JSON.stringify({ n: n, t: Date.now() })); } catch (e) {}
+                    }
+                }).catch(function () {});
+            }
+            if (document.readyState === 'complete') setTimeout(load, 0);
+            else window.addEventListener('load', function () { setTimeout(load, 0); });
         })();
     </script>
 </body>
