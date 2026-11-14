@@ -291,9 +291,24 @@
     #combinerBarJump { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.35rem; background: none; border: 0; padding: 0; color: var(--text-color); font: inherit; font-size: 0.9rem; font-weight: 600; text-align: left; cursor: pointer; white-space: normal; }
     /* Never truncated: the totals wrap whole words rather than clip. */
     #combinerBarText { white-space: normal; line-height: 1.3; }
-    #combinerBarMeta { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding-top: 0.3rem; }
+    #combinerBarMeta { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding-top: 0.3rem; flex-wrap: wrap; }
     .profile-chip { flex: none; border: 1px solid var(--link-color); color: var(--link-color); background: transparent; border-radius: 999px; padding: 0.28rem 0.7rem; font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .combiner-profile-row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin: 0.2rem 0 0.4rem; }
+    /* Verdict + compare (scorecard layer): the site's blue dots and pill
+       buttons only -- no new visual language. */
+    .verdict-row { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; margin: 0.3rem 0 0.1rem; }
+    .verdict-label { font-weight: 700; }
+    .verdict-clause { color: var(--subtext-color); font-size: 0.88rem; }
+    .verdict-rule { font-size: 0.8rem; color: var(--subtext-color); margin: 0.15rem 0 0.45rem; }
+    .verdict-bar { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; font-weight: 600; }
+    .compare-park { flex: none; margin-left: auto; border: 1px solid var(--link-color); color: var(--link-color); background: transparent; border-radius: 999px; padding: 0.28rem 0.7rem; font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .compare-section { margin-top: 0.4rem; }
+    .compare-cols { display: grid; grid-template-columns: 1fr; gap: 0.9rem; }
+    @media (min-width: 760px) { .compare-cols { grid-template-columns: 1fr 1fr; } }
+    .compare-head { margin: 0 0 0.15rem; font-weight: 700; }
+    .compare-names { font-size: 0.88rem; margin: 0 0 0.35rem; }
+    .compare-disc { font-size: 0.88rem; margin: 0.3rem 0 0.45rem; }
+    .compare-clear { margin-top: 0.6rem; border: 1px solid var(--border-color); background: transparent; color: var(--text-color); border-radius: 999px; padding: 0.3rem 0.75rem; font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
     .profile-day { font-size: 0.85rem; font-weight: 600; }
     #combinerBarPanel .nutrition-profile { margin-top: 0.7rem; }
     #combinerBarPanel .nutrition-profile[hidden] { display: none; }
@@ -6391,6 +6406,7 @@
             if (hr0) hr0.innerHTML = '';
             var db0 = document.getElementById('combinerBarDishes');
             if (db0) db0.innerHTML = '';
+            renderVerdictSurfaces(null, null);
             document.body.classList.remove('combiner-bar-visible');
             document.body.style.removeProperty('--combiner-h');
             return;
@@ -6433,6 +6449,7 @@
         bar.classList.add('show');
         document.body.classList.add('combiner-bar-visible');
         syncBarSpace();
+        renderVerdictSurfaces(totals, recipeIds || []);
     }
 
     /* One expansion state for the bar: the row's Details button and the row
@@ -7070,6 +7087,8 @@
         DV_ORDER.forEach(function (num) { h += dotRow(num, { value: Math.round(totArr[DV_ORDER.indexOf(num)] * 10) / 10 }); });
         h += '</div>';
         h += '<p class="daily-short"><span class="healthy-day">' + healthyDayHTML(healthyDayScore(totObj, Object.keys(plan))) + '</span></p>';
+        var dv = window.__jboVerdictFor(Object.keys(plan), plan);
+        if (dv) h += '<p class="daily-short verdict-line"><strong>Verdict:</strong> ' + verdictLineHTML(dv) + '</p>';
         var targets = activeTargets();
         var short = [], five = 0, scored = 0;
         DV_ORDER.forEach(function (num, i) {
@@ -7093,9 +7112,21 @@
         }
         h += '<p class="daily-note">' + five + ' of ' + scored + ' scored nutrients are at their best (5 dots, or a limit kept). Generate again for a different day with a similar score.</p>';
         h += '<button type="button" id="dailyApply">Use this combination</button>';
+        h += ' <button type="button" id="dailyPark">Park this day for comparison</button>';
+        h += '<p class="daily-applied" id="dailyParked" hidden>Parked as A \u2014 open the scorecard bar to compare it with another selection.</p>';
         h += '<p class="daily-applied" id="dailyApplied" hidden>Loaded into the combiner above — adjust servings there to make it yours.</p>';
         box.innerHTML = h;
     }
+    var dailyBoxPark = document.getElementById('dailyResults');
+    if (dailyBoxPark) dailyBoxPark.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest('#dailyPark') : null;
+        if (!btn || !lastDailyPlan) return;
+        var ids = Object.keys(lastDailyPlan);
+        var names = ids.map(function (rid) { return nameOf(rid) + (lastDailyPlan[rid] !== 1 ? ' \u00d7 ' + fmtMult(lastDailyPlan[rid]) : ''); });
+        window.__jboParkCompare(ids, Object.assign({}, lastDailyPlan), names);
+        var note = document.getElementById('dailyParked');
+        if (note) note.hidden = false;
+    });
     var dailyGenBtn = document.getElementById('dailyGenerate');
     if (dailyGenBtn) dailyGenBtn.addEventListener('click', function () { generateDaily(); });
     var dailyBox = document.getElementById('dailyResults');
@@ -7123,7 +7154,7 @@
     /* Cook mode header score: totals + Healthy Day for an arbitrary set of
        ids (recipes and/or vitamins), using this script's own data, serving
        multipliers and scoring -- the same numbers the combiner shows. */
-    window.__jboCombo = function (ids) {
+    function comboCore(ids, multMap) {
         var totals = {};
         DV_ORDER.forEach(function (num) { totals[num] = 0; });
         var ok = [];
@@ -7132,13 +7163,156 @@
             var d = NUTRI.recipes[dataKey(rid)] || (NUTRI.vitamins ? NUTRI.vitamins[rid] : null);
             if (!d) return;
             ok.push(rid);
-            var m = servMult[rid] || 1;
+            var m = (multMap && multMap[rid] != null) ? multMap[rid] : (servMult[rid] || 1);
             servTotal += m;
             if (m !== 1) servAllOne = false;
             DV_ORDER.forEach(function (num) { totals[num] += d.perServing[num].value * m; });
         });
-        return { totals: totals, score: healthyDayScore(totals, ok), kcal: Math.round(totals['208']), protein: Math.round(totals['203']), servings: servTotal, allOne: servAllOne };
+        return { totals: totals, score: healthyDayScore(totals, ok), kcal: Math.round(totals['208']), protein: Math.round(totals['203']), servings: servTotal, allOne: servAllOne, count: ok.length };
+    }
+    window.__jboCombo = function (ids) { return comboCore(ids, null); };
+    window.__jboComboWith = function (ids, multMap) { return comboCore(ids, multMap || null); };
+
+    /* --- The verdict: a pure consumer of the scorecard's own numbers.
+       Bands, not precision: start from the Healthy Day score, subtract
+       for sugar against its day budget, add for fiber and protein that
+       reach their FULL targets. Labels are the user's approved set. --- */
+    var VERDICT_LABELS = ['', 'Empty calories', 'Treat-heavy', 'Middle of the road', 'Genuinely healthy', 'Hard to beat'];
+    var VERDICT_RULE = 'The verdict: Healthy Day dots, minus up to 2 when sugar passes its day budget, plus 1 each when fiber and protein reach their full targets.';
+    function nameOf(rid) {
+        var rec = RECIPES.find(function (x) { return x.id === rid; });
+        if (rec) return rec.name;
+        if (NUTRI.vitamins && NUTRI.vitamins[rid]) return NUTRI.vitamins[rid].name;
+        return rid;
+    }
+    function verdictFromTotals(totals, ids, multMap) {
+        if (!totals || !ids || !ids.length) return null;
+        var targets = activeTargets();
+        var sugarBudget = targets['269'] ? targets['269'] : 50; /* FDA added-sugar DV: code 269 is total sugars and carries no DV of its own */
+        var sugarPct = (totals['269'] || 0) / sugarBudget;
+        var fiberPct = targets['291'] ? (totals['291'] || 0) / targets['291'] : 0;
+        var proteinPct = targets['203'] ? (totals['203'] || 0) / targets['203'] : 0;
+        var sodiumPct = targets['307'] ? (totals['307'] || 0) / targets['307'] : 0;
+        var score = healthyDayScore(totals, ids);
+        if (sugarPct > 1) score -= 2; else if (sugarPct > 0.5) score -= 1;
+        if (fiberPct >= 1) score += 1;
+        if (proteinPct >= 1) score += 1;
+        score = Math.max(1, Math.min(5, score));
+        var cands = [];
+        if (sugarPct > 0.5) {
+            var topName = null, topG = -1;
+            ids.forEach(function (rid) {
+                var d = NUTRI.recipes[dataKey(rid)] || (NUTRI.vitamins ? NUTRI.vitamins[rid] : null);
+                if (!d || !d.perServing['269']) return;
+                var m = (multMap && multMap[rid] != null) ? multMap[rid] : (servMult[rid] || 1);
+                var g = d.perServing['269'].value * m;
+                if (g > topG) { topG = g; topName = nameOf(rid); }
+            });
+            cands.push({ w: sugarPct, text: 'Sugar is the drag: ' + Math.round(totals['269'] || 0) + ' g' + (topName ? ', mostly from ' + topName + ' (' + Math.round(topG) + ' g)' : '') });
+        }
+        if (sodiumPct > 1) cands.push({ w: sodiumPct, text: 'Sodium runs over: ' + Math.round(totals['307'] || 0).toLocaleString('en-US') + ' mg \u2014 ' + Math.round(sodiumPct * 100) + '% of the day\u2019s ceiling' });
+        if (fiberPct >= 1) cands.push({ w: fiberPct, text: 'Fiber clears its target: ' + Math.round(totals['291'] || 0) + ' g of ' + Math.round(targets['291']) + ' g' });
+        if (proteinPct >= 1) cands.push({ w: proteinPct, text: 'Protein clears its target: ' + Math.round(totals['203'] || 0) + ' g of ' + Math.round(targets['203']) + ' g' });
+        cands.sort(function (a, b) { return b.w - a.w; });
+        return { score: score, label: VERDICT_LABELS[score], clause: cands.length ? cands[0].text : 'No single number dominates this selection.', totals: totals };
+    }
+    window.__jboVerdictFor = function (ids, multMap) {
+        if (!ids || !ids.length) return null;
+        var r = comboCore(ids, multMap || null);
+        if (!r || !r.count) return null;
+        return verdictFromTotals(r.totals, ids, multMap || null);
     };
+    function verdictDotsHTML(score, label) {
+        var h = '<span class="nutri-dots" role="img" aria-label="Verdict: ' + score + ' out of 5 \u2014 ' + label + '">';
+        for (var i = 0; i < 5; i++) h += '<span class="nutri-dot' + (i < score ? ' filled' : '') + '"></span>';
+        return h + '</span>';
+    }
+    function verdictLineHTML(v) {
+        return verdictDotsHTML(v.score, v.label) + '<span class="verdict-label">' + v.label + '</span> <span class="verdict-clause">' + esc(v.clause) + '</span>';
+    }
+    function discHTML(t) {
+        var tg = activeTargets();
+        function pc(code) { var b = (code === '269' && !tg[code]) ? 50 : tg[code]; return b ? Math.round((t[code] || 0) / b * 100) : 0; }
+        function f1(x) { return Math.round((x || 0) * 10) / 10; }
+        return '<p class="compare-disc">Sugar ' + f1(t['269']) + ' g (' + pc('269') + '% of budget) \u00b7 Fiber ' + f1(t['291']) + ' g (' + pc('291') + '% of target) \u00b7 Protein ' + f1(t['203']) + ' g (' + pc('203') + '% of target)</p>';
+    }
+
+    /* --- Compare: park a selection as A (localStorage, like the page's
+       other state), build another as B, judge both with the same verdict
+       against the current targets. --- */
+    var COMPARE_KEY = 'jbo-compare-v1';
+    function loadCompare() {
+        try { var p = JSON.parse(localStorage.getItem(COMPARE_KEY)); return (p && p.ids && p.ids.length) ? p : null; } catch (e) { return null; }
+    }
+    function saveCompare(p) {
+        try { if (p) localStorage.setItem(COMPARE_KEY, JSON.stringify(p)); else localStorage.removeItem(COMPARE_KEY); } catch (e) {}
+        renderCompare(null);
+    }
+    window.__jboParkCompare = function (ids, mults, names) { saveCompare({ ids: ids, mults: mults || {}, names: names || [] }); };
+    function compareSideHTML(head, names, v) {
+        var h = '<div class="compare-side"><p class="compare-head">' + head + '</p>';
+        if (names) h += '<p class="compare-names">' + names + '</p>';
+        if (v) {
+            h += '<p class="verdict-line">' + verdictLineHTML(v) + '</p>' + discHTML(v.totals);
+            h += '<div class="combiner-panel-grid">';
+            DV_ORDER.forEach(function (num) { h += dotRow(num, { value: Math.round(v.totals[num] * 10) / 10 }); });
+            h += '</div>';
+        }
+        return h + '</div>';
+    }
+    function currentSelectionIds() {
+        var list = document.getElementById('combiner-list');
+        if (!list) return [];
+        return Array.prototype.map.call(list.querySelectorAll('input[type="checkbox"]:checked'), function (cb) { return cb.getAttribute('data-recipe'); });
+    }
+    function selectionNames(ids) {
+        return ids.map(function (rid) { return esc(nameOf(rid)) + ((servMult[rid] || 1) !== 1 ? ' \u00d7 ' + fmtServQty(servMult[rid]) : ''); }).join(' \u00b7 ');
+    }
+    function renderCompare(currentV) {
+        var sec = document.getElementById('compareSection');
+        if (!sec) return;
+        var parked = loadCompare();
+        if (!parked) { sec.hidden = true; sec.innerHTML = ''; return; }
+        var bIds = currentSelectionIds();
+        var bv = null;
+        if (bIds.length) {
+            var r = comboCore(bIds, null);
+            if (r && r.count) bv = verdictFromTotals(r.totals, bIds);
+        }
+        var pv = window.__jboVerdictFor(parked.ids, parked.mults);
+        var h = '<div class="compare-cols">';
+        h += compareSideHTML('A \u2014 parked', parked.names.map(function (n) { return esc(n); }).join(' \u00b7 '), pv);
+        h += compareSideHTML('B \u2014 this selection', bv ? selectionNames(bIds) : 'Tick recipes in the tool to build the other side.', bv);
+        h += '</div><button type="button" class="compare-clear" id="compareClear">Clear comparison</button>';
+        sec.innerHTML = h;
+        sec.hidden = false;
+    }
+    function renderVerdictSurfaces(totals, ids) {
+        var v = (totals && ids && ids.length) ? verdictFromTotals(totals, ids) : null;
+        var row = document.getElementById('verdictRow');
+        if (row) { row.hidden = !v; if (v) document.getElementById('verdictMain').innerHTML = verdictLineHTML(v); }
+        var rule = document.getElementById('verdictRule');
+        if (rule) rule.hidden = !v;
+        var vb = document.getElementById('verdictBar');
+        if (vb) { vb.hidden = !v; vb.innerHTML = v ? verdictDotsHTML(v.score, v.label) + '<span>' + v.label + '</span>' : ''; }
+        renderCompare(v);
+    }
+    /* Delegated: the bar markup sits after this script in the document,
+       so direct lookup at run time would find nothing. */
+    document.addEventListener('click', function (e) {
+        var t = e.target && e.target.closest ? e.target : null;
+        if (!t) return;
+        if (t.closest('#compareClear')) { saveCompare(null); return; }
+        if (!t.closest('#comparePark')) return;
+        var ids = currentSelectionIds();
+        if (!ids.length) return;
+        var mults = {}, names = [];
+        ids.forEach(function (rid) {
+            mults[rid] = servMult[rid] || 1;
+            names.push(nameOf(rid) + ((servMult[rid] || 1) !== 1 ? ' \u00d7 ' + fmtServQty(servMult[rid]) : ''));
+        });
+        saveCompare({ ids: ids, mults: mults, names: names });
+    });
     /* Cook scorecard: the cooking set's combined nutrition for the cook
        view's bottom panel. Totals come from __jboCombo (the same numbers
        the combiner shows), rows from the same dotRow, the score from the
@@ -7157,6 +7331,8 @@
         });
         var h = '<p class="cook-score-note">Servings tell the scorecard what you\u2019ll eat. Dish size, in the recipe, scales what you cook.</p>';
         h += '<p class="cook-score-total"><strong>' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 ' + r.protein + ' g protein</strong></p>';
+        var vv = verdictFromTotals(r.totals, ids);
+        if (vv) { h += '<p class="verdict-line">' + verdictLineHTML(vv) + '</p><p class="verdict-rule">' + VERDICT_RULE + '</p>'; }
         if (dishes.length) {
             h += '<div class="combiner-dishes">';
             dishes.forEach(function (d) {
@@ -7595,6 +7771,9 @@
             <div class="combiner-panel-head"><span>Combined nutrition</span><span class="healthy-day" id="healthyDayScore" aria-live="polite" title="Healthy Day scores everything selected, at the servings shown, against a full day's nutrition targets."></span></button></span></div>
             <p class="healthy-day-note">Healthy Day: 1 dot each for protein ≥50% · fiber ≥50% · 4 of 6 (calcium, iron, potassium, vitamins D, C, A) ≥50% · 3+ dishes incl. a salad, side or soup · limits kept (2 of 3 in range: sat. fat, sodium, cholesterol; total sugars under 10% of calories).</p>
             <div class="combiner-profile-row"><span class="profile-day" id="profileDayLine"></span><button type="button" class="profile-chip" id="profileChipPanel">Set your targets</button></div>
+            <div class="verdict-row" id="verdictRow" hidden><span id="verdictMain"></span><button type="button" class="compare-park" id="comparePark">Compare</button></div>
+            <p class="verdict-rule" id="verdictRule" hidden>The verdict: Healthy Day dots, minus up to 2 when sugar passes its day budget, plus 1 each when fiber and protein reach their full targets.</p>
+            <div class="compare-section" id="compareSection" hidden></div>
             <div class="combiner-dishes" id="combinerBarDishes"></div>
             <div class="combiner-panel-grid" id="combinerBarGrid"></div>
         </div>
@@ -7604,6 +7783,7 @@
         </div>
         <div id="combinerBarMeta">
             <span class="healthy-day healthy-day-row" id="healthyDayRow"></span>
+            <span class="verdict-bar" id="verdictBar" hidden></span>
             <button type="button" class="profile-chip" id="profileChip">Set your targets</button>
         </div>
     </div>
