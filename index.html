@@ -81,21 +81,29 @@
         .about-section h2 { padding-top: 4px; }
     }
 
-    /* Bitcoin chart switcher: dropdown — "Bitcoin graph" (TradingView
-       advanced chart, full interval toolbar + date ranges) or "Bitcoin
-       graph power law" (the chart from bitcoin.html, WITH the zoom/pan
-       upgrade). The choice persists in localStorage ('btc-chart-view');
-       the power-law code loads lazily on first selection (inert in a
-       text/plain script block until then). */
-    .btc-switch-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
-    .btc-switch-bar label { font-size: 0.85rem; font-weight: 600; }
-    .btc-switch-bar select {
-        background: var(--bg-color); color: var(--text-color);
-        border: 1px solid var(--border-color); border-radius: 8px;
-        padding: 8px 12px; font-size: 0.9rem; outline: none; cursor: pointer;
-        min-height: 40px;
+    /* Bitcoin chart switcher: segmented control (the .gen-tabs pattern
+       from random.html) — "Bitcoin graph" (TradingView advanced chart,
+       full interval toolbar + date ranges) or "Bitcoin power law" (the
+       chart from bitcoin.html, WITH the zoom/pan upgrade). Both choices
+       are always visible and the control is the card's only header. The
+       choice persists in localStorage ('btc-chart-view'); the power-law
+       code loads lazily on first selection (inert in a text/plain
+       script block until then). Labels wrap on whole words at narrow
+       widths rather than ever truncating. */
+    .btc-switch { display: flex; gap: 0.25rem; padding: 0.15rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 16px; }
+    .btc-switch button {
+        flex: 1 1 0; min-width: 0; min-height: 44px;
+        display: flex; align-items: center; justify-content: center;
+        background: transparent; border: none; border-radius: 7px;
+        color: var(--subtext-color); font: inherit; font-size: 0.92rem; font-weight: 600;
+        line-height: 1.2; text-align: center; padding: 0.3rem 0.25rem; cursor: pointer;
     }
-    .btc-switch-bar select:focus-visible { border-color: var(--link-color); }
+    .btc-switch button:hover { background: var(--hover-bg); }
+    .btc-switch button.active { background: var(--link-color); color: #fff; }
+    .btc-switch button:focus-visible { outline: 2px solid var(--link-color); outline-offset: 1px; }
+    @media (max-width: 480px) {
+        .btc-switch button { font-size: 0.84rem; }
+    }
     #btc-view-anim { overflow: hidden; }
 
     /* Bitcoin Power Law chart (lifted from bitcoin.html, incl. zoom) */
@@ -343,17 +351,14 @@
     <a class="syn-prow" href="sustainability.html"><span class="syn-pn">Sustainable Development</span><span class="syn-pd">Applied frameworks integrating economic progress, environmental preservation, and structural equity.</span></a>
     <a class="syn-prow syn-prow-last btc-cursor" href="finance.html"><span class="syn-pn">Finance & Bitcoin</span><span class="syn-pd">Investors, companies, and valuation metrics for sustainable financial growth. The generational project that aims to create a fundamentally improved money for the world. (<span class="live-pulse"></span><span id="btc-price" style="font-family: monospace; font-weight: 600;">Loading price...</span>)</span></a>
 
-        <!-- Bitcoin chart switcher: dropdown picks the TradingView graph or the Power Law graph -->
+        <!-- Bitcoin chart switcher: segmented control picks the TradingView graph or the Power Law graph -->
     <div class="btc-chart-card btc-cursor">
-        <div class="btc-switch-bar">
-            <label for="btc-chart-select">Bitcoin chart</label>
-            <select id="btc-chart-select" aria-label="Choose Bitcoin chart view">
-                <option value="graph" selected>Bitcoin graph</option>
-                <option value="powerlaw">Bitcoin graph power law</option>
-            </select>
+        <div class="btc-switch" role="tablist" aria-label="Choose Bitcoin chart view">
+            <button type="button" class="active" data-view="graph" role="tab" aria-selected="true" aria-controls="btc-view-graph">Bitcoin graph</button>
+            <button type="button" data-view="powerlaw" role="tab" aria-selected="false" aria-controls="btc-view-powerlaw">Bitcoin power law</button>
         </div>
         <div id="btc-view-anim">
-            <div id="btc-view-graph">
+            <div id="btc-view-graph" role="tabpanel">
                 <div class="chart-resize-wrapper">
             <div class="tradingview-widget-container" id="tv-container">
                 <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
@@ -379,7 +384,7 @@
             </div>
         </div>
     </div>
-            <div id="btc-view-powerlaw" class="powerlaw-card" hidden>
+            <div id="btc-view-powerlaw" class="powerlaw-card" role="tabpanel" hidden>
                 <h3>The Power Law Chart</h3>
         <p class="pl-sub">Actual price (orange) against the model's fair-value trend (white), with the historical support floor (green) and ceiling (red). Both axes are logarithmic, so the power law is a straight line. Dashed lines past today are the model projected forward — not a prediction.</p>
         <div class="pl-readout" id="pl-readout" aria-live="polite">
@@ -1197,19 +1202,19 @@
     </script>
 
     <script>
-    /* Bitcoin chart switcher: dropdown in the Projects I Follow Bitcoin
-       card toggles between the TradingView widget and the Power Law chart.
+    /* Bitcoin chart switcher: segmented control in the Projects I Follow
+       Bitcoin card toggles between the TradingView widget and the Power Law chart.
        Default is the TradingView graph; the last choice is remembered in
        localStorage ('btc-chart-view'). The power-law code is only executed
        the first time that view is picked. The container height animates
        between the two views so nothing jumps. */
     (function () {
         var KEY = 'btc-chart-view';
-        var sel = document.getElementById('btc-chart-select');
+        var btns = document.querySelectorAll('.btc-switch button');
         var anim = document.getElementById('btc-view-anim');
         var vGraph = document.getElementById('btc-view-graph');
         var vPl = document.getElementById('btc-view-powerlaw');
-        if (!sel || !anim || !vGraph || !vPl) return;
+        if (!btns.length || !anim || !vGraph || !vPl) return;
         var current = 'graph', plLoaded = false, animating = false;
 
         function loadPowerLaw() {
@@ -1223,8 +1228,16 @@
         }
         function save(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
         function saved() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+        function syncButtons(view) {
+            btns.forEach(function (b) {
+                var on = b.getAttribute('data-view') === view;
+                b.classList.toggle('active', on);
+                b.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+        }
 
         function applyView(view, animate) {
+            syncButtons(view);
             var showPl = view === 'powerlaw';
             var showEl = showPl ? vPl : vGraph;
             var hideEl = showPl ? vGraph : vPl;
@@ -1261,14 +1274,16 @@
             current = view;
         }
 
-        sel.addEventListener('change', function () {
-            if (animating || sel.value === current) return;
-            save(sel.value);
-            applyView(sel.value, true);
+        btns.forEach(function (b) {
+            b.addEventListener('click', function () {
+                var v = b.getAttribute('data-view');
+                if (animating || v === current) return;
+                save(v);
+                applyView(v, true);
+            });
         });
 
         if (saved() === 'powerlaw') {
-            sel.value = 'powerlaw';
             applyView('powerlaw', false);
         }
     })();
