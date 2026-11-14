@@ -8093,16 +8093,17 @@
 </script> 
     <!-- Pantry camera submit (Phase 4, 2026-11-14): one card, camera-first on
          mobile, drag-and-drop + browse on desktop; Send posts the photo to
-         Muse through FormSubmit's AJAX endpoint once Muse's mailbox
-         address is filled into PANTRY_ENDPOINT (single constant below).
-         Until then, and on any send failure, the card offers Save/Share and
-         says to drop the photo in chat. Nothing auto-publishes. -->
+         Muse through FormSubmit's standard endpoint (single constant below)
+         into a hidden iframe, so the page never navigates. The AJAX endpoint
+         silently dropped file attachments, so it is not used. On a send that
+         cannot be confirmed, the card offers Save/Share and says to drop the
+         photo in chat. Nothing auto-publishes. -->
     <script>
     (function () {
         'use strict';
-        /* Set to 'https://formsubmit.co/ajax/<claude-mail-address>' once the
-           mailbox exists and its FormSubmit activation email has been clicked. */
-        var PANTRY_ENDPOINT = 'https://formsubmit.co/ajax/johnny-website@muse.ai';
+        /* FormSubmit's standard (non-AJAX) endpoint: the AJAX endpoint accepts
+           submissions but silently drops file attachments. */
+        var PANTRY_ENDPOINT = 'https://formsubmit.co/johnny-website@muse.ai';
         var card = document.getElementById('pantrySubmitCard');
         if (!card) return;
         var input = document.getElementById('pantryPhotoInput');
@@ -8115,6 +8116,12 @@
         var saveBtn = document.getElementById('pantrySaveBtn');
         var shareBtn = document.getElementById('pantryShareBtn');
         var currentFile = null, thumbUrl = null, sending = false;
+        var submitFrame = document.createElement('iframe');
+        submitFrame.name = 'pantrySubmitFrame';
+        submitFrame.title = 'Pantry photo submission';
+        submitFrame.hidden = true;
+        card.appendChild(submitFrame);
+        var awaitingSend = false, sendTimer = null, activeForm = null;
 
         function isImage(f) {
             if (!f) return false;
@@ -8172,6 +8179,25 @@
             } catch (e) { done(file); }
         }
         function showFallback() { fallback.hidden = false; }
+        function finishSend(ok) {
+            if (!awaitingSend) return;
+            awaitingSend = false;
+            if (sendTimer) { clearTimeout(sendTimer); sendTimer = null; }
+            if (activeForm) { activeForm.remove(); activeForm = null; }
+            sending = false;
+            sendBtn.disabled = false;
+            if (ok) {
+                status.textContent = 'Sent ✓ — Muse will work out the details from the photo.';
+                fallback.hidden = true;
+            } else {
+                status.textContent = "Couldn't confirm the send just now — save the photo, or drop it in chat with Muse.";
+                showFallback();
+            }
+        }
+        /* A form POST into a hidden iframe returns no readable response. The
+           iframe's load event is therefore the completion signal; a timeout
+           is treated as an unconfirmed send and restores the fallback. */
+        submitFrame.addEventListener('load', function () { finishSend(true); });
         sendBtn.addEventListener('click', function () {
             if (!currentFile || sending) return;
             if (!PANTRY_ENDPOINT) {
@@ -8183,31 +8209,50 @@
             sendBtn.disabled = true;
             status.textContent = 'Sending…';
             downscale(currentFile, function (blob) {
-                var fd = new FormData();
-                fd.append('_subject', 'New Pantry food photo');
-                fd.append('_captcha', 'false');
-                fd.append('_template', 'table');
-                fd.append('attachment', blob, 'pantry-photo.jpg');
-                fetch(PANTRY_ENDPOINT, { method: 'POST', headers: { 'Accept': 'application/json' }, body: fd })
-                    .then(function (r) { return r.json(); })
-                    .then(function (j) {
-                        sending = false; sendBtn.disabled = false;
-                        if (j && (j.success === 'true' || j.success === true)) {
-                            status.textContent = 'Sent ✓ — Muse will work out the details from the photo.';
-                            fallback.hidden = true;
-                        } else if (j && /activat/i.test(j.message || '')) {
-                            status.textContent = 'Almost there — the first send triggers a one-time activation email that Muse has to confirm. Save the photo below to keep it safe meanwhile.';
-                            showFallback();
-                        } else {
-                            status.textContent = "Couldn't send just now — save the photo, or drop it in chat with Muse.";
-                            showFallback();
+                try {
+                    var form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = PANTRY_ENDPOINT;
+                    form.enctype = 'multipart/form-data';
+                    form.target = submitFrame.name;
+                    form.hidden = true;
+                    function addField(name, value) {
+                        var field = document.createElement('input');
+                        field.type = 'hidden';
+                        field.name = name;
+                        field.value = value;
+                        form.appendChild(field);
+                    }
+                    addField('_subject', 'New Pantry food photo');
+                    addField('_captcha', 'false');
+                    addField('_template', 'table');
+                    var photoInput = document.createElement('input');
+                    photoInput.type = 'file';
+                    photoInput.name = 'pantry-photo';
+                    var photoFile = blob;
+                    try {
+                        if (!(blob instanceof File) || blob.name !== 'pantry-photo.jpg') {
+                            photoFile = new File([blob], 'pantry-photo.jpg', { type: blob.type || 'image/jpeg' });
                         }
-                    })
-                    .catch(function () {
-                        sending = false; sendBtn.disabled = false;
+                    } catch (e) { photoFile = blob; }
+                    var transfer = new DataTransfer();
+                    transfer.items.add(photoFile);
+                    photoInput.files = transfer.files;
+                    form.appendChild(photoInput);
+                    card.appendChild(form);
+                    activeForm = form;
+                    awaitingSend = true;
+                    sendTimer = setTimeout(function () { finishSend(false); }, 45000);
+                    form.submit();
+                } catch (e) {
+                    if (awaitingSend) { finishSend(false); }
+                    else {
+                        sending = false;
+                        sendBtn.disabled = false;
                         status.textContent = "Couldn't send just now — save the photo, or drop it in chat with Muse.";
                         showFallback();
-                    });
+                    }
+                }
             });
         });
         saveBtn.addEventListener('click', function () {
