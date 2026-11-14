@@ -7162,8 +7162,15 @@
     /* --- The verdict: a pure consumer of the scorecard's own numbers.
        Bands, not precision: start from the Healthy Day score, subtract
        for sugar against its day budget, add for fiber and protein that
-       reach their FULL targets. Labels are the user's approved set. --- */
+       reach their FULL targets. Labels are the user's approved set,
+       gated at scores 1-2 on the cause below being present. --- */
     var VERDICT_LABELS = ['', 'Empty calories', 'Treat-heavy', 'Middle of the road', 'Genuinely healthy', 'Hard to beat'];
+    /* At scores 1-2 the cause words ('Empty calories', 'Treat-heavy')
+       are used only when a cause is actually present: the sugar penalty
+       applied, sodium over its ceiling, or 2+ of the 3 limits (sat. fat,
+       sodium, cholesterol) over theirs. A low score with no cause is a
+       light day, not a treat day, and takes these quality words. */
+    var VERDICT_LABELS_LIGHT = ['', 'Barely a day', 'Light day'];
     var VERDICT_RULE = 'The verdict: the day\u2019s base score, minus up to 2 when sugar passes its day budget, plus 1 each when fiber and protein reach their full targets.';
     function nameOf(rid) {
         var rec = RECIPES.find(function (x) { return x.id === rid; });
@@ -7184,6 +7191,10 @@
         var penalty = sugarPct > 1 ? 2 : (sugarPct > 0.5 ? 1 : 0);
         var lifts = (fiberPct >= 1 ? 1 : 0) + (proteinPct >= 1 ? 1 : 0);
         var score = Math.max(1, Math.min(5, base - penalty + lifts));
+        var limitsCheck = null;
+        bd.checks.forEach(function (c) { if (c.key === 'limits') limitsCheck = c; });
+        var cause = penalty > 0 || sodiumPct > 1 || !!(limitsCheck && limitsCheck.over >= 2);
+        var label = (score <= 2 && !cause) ? VERDICT_LABELS_LIGHT[score] : VERDICT_LABELS[score];
         /* The clause names the dominant driver OF THIS LABEL, in the
            label's own direction: a lone positive never leads under a 1-2
            verdict, a lone negative never leads under a 4-5. Candidate
@@ -7221,7 +7232,7 @@
         else clause = missText || sodiumText || liftText || 'No single number dominates this selection.';
         var dayKcal = targets['208'] || 0;
         var kcalNow = totals['208'] || 0;
-        return { score: score, label: VERDICT_LABELS[score], clause: clause, totals: totals, base: base, checks: bd.checks, frame: (dayKcal && kcalNow < 0.6 * dayKcal) ? { kcal: Math.round(kcalNow), day: Math.round(dayKcal / 10) * 10 } : null };
+        return { score: score, label: label, cause: cause, clause: clause, totals: totals, base: base, checks: bd.checks, frame: (dayKcal && kcalNow < 0.6 * dayKcal) ? { kcal: Math.round(kcalNow), day: Math.round(dayKcal / 10) * 10 } : null };
     }
     window.__jboVerdictFor = function (ids, multMap) {
         if (!ids || !ids.length) return null;
