@@ -163,8 +163,8 @@
            the same corner (.gen-love-fs, below). */
         .gen-love {
             flex: none;
-            width: 44px;
-            height: 44px;
+            width: 36px;
+            height: 36px;
             padding: 0;
             display: flex;
             align-items: center;
@@ -176,10 +176,14 @@
             border: 1px solid var(--border-color);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
             color: var(--subtext-color);
-            font-size: 1.3rem;
+            font-size: 1.15rem;
             line-height: 1;
             cursor: pointer;
         }
+        /* The chip reads small (36px, ~18px glyph) but taps big: a
+           transparent pseudo-element extends the hit area to 44px
+           without adding any visible bulk. */
+        .gen-love::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; }
         .gen-love:hover { border-color: var(--link-color); }
         .gen-love:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         .gen-love.loved { color: #e0245e; }
@@ -304,6 +308,11 @@
            are covered in prose in the Deep Overview, one tap away. */
         .gen-details { margin: 0 0 0.5rem 0; padding-left: 1.15rem; font-size: 0.88rem; line-height: 1.4; color: var(--text-color); max-height: calc(4 * 1.4em + 0.3rem); overflow: hidden; }
         .gen-details.is-capped { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent); }
+        /* Deep Overview open releases the brief entirely: the page is
+           allowed to scroll then, so the bullets are never capped or
+           faded — the full overview and every bullet render whole. */
+        .gen-section.deep-open .gen-details { max-height: none; overflow: visible; }
+        .gen-section.deep-open .gen-details.is-capped { -webkit-mask-image: none; mask-image: none; }
         .gen-details li { margin: 0.1rem 0; }
         .gen-details li::marker { color: var(--link-color); }
         .gen-source { font-size: 0.78rem; line-height: 1.3; color: var(--subtext-color); opacity: 0.8; margin: 0; }
@@ -501,6 +510,28 @@
         /* The fullscreen twin of the stage heart chip: same corner,
            same state — bottom-left, beside the credit line. */
         .gen-love-fs { position: absolute; left: 1rem; bottom: calc(0.7rem + env(safe-area-inset-bottom)); z-index: 2; }
+        /* LOVED GALLERY: the tab bar's Loved toggle opens this view —
+           every hearted photo across all four pools in one scrollable
+           grid, most recently loved first. A view state like the
+           fullscreen overlay: the generator's fixed frame sits
+           untouched underneath. */
+        .gen-gallery { position: fixed; inset: 0; z-index: 2900; background: var(--bg-color); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+        .gen-gallery[hidden] { display: none !important; }
+        .gen-gallery-inner { max-width: 1140px; margin: 0 auto; padding: 0 1rem calc(1.5rem + env(safe-area-inset-bottom)); box-sizing: border-box; }
+        .gen-gallery-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 0.6rem; padding: calc(0.75rem + env(safe-area-inset-top)) 0 0.6rem; background: var(--bg-color); border-bottom: 1px solid var(--border-color); }
+        .gen-gallery-title { font-size: 1.15rem; font-weight: 600; color: var(--text-color); margin: 0; white-space: nowrap; }
+        .gen-gallery-title .g-heart { color: #e0245e; }
+        .gen-gallery-sort { font-size: 0.82rem; color: var(--subtext-color); margin: 0; white-space: nowrap; }
+        .gen-gallery-close { margin-left: auto; flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-color); font-size: 1rem; line-height: 1; cursor: pointer; }
+        .gen-gallery-close:hover { border-color: var(--link-color); }
+        .gen-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.7rem; padding-top: 0.9rem; }
+        .gen-gallery-item { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; padding: 0; cursor: pointer; text-align: left; font: inherit; color: var(--text-color); display: flex; flex-direction: column; }
+        .gen-gallery-item:hover { border-color: var(--link-color); }
+        .gen-gallery-item img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+        .gen-gallery-meta { display: block; padding: 0.45rem 0.6rem 0.55rem; }
+        .gen-gallery-name { display: block; font-size: 0.9rem; font-weight: 600; line-height: 1.25; }
+        .gen-gallery-cat { display: block; font-size: 0.75rem; color: var(--subtext-color); margin-top: 0.15rem; }
+        .gen-gallery-empty { color: var(--subtext-color); font-size: 0.98rem; line-height: 1.5; text-align: center; padding: 3rem 1rem; margin: 0; }
     </style>
 
 
@@ -509,7 +540,7 @@
         <button type="button" class="gen-tab" data-gen="art" aria-selected="false">🎨 <span class="tab-full">Oil Paintings</span><span class="tab-short">Paintings</span></button>
         <button type="button" class="gen-tab" data-gen="arch" aria-selected="false">🏛️ <span class="tab-full">Architecture</span><span class="tab-short">Arch</span></button>
         <button type="button" class="gen-tab" data-gen="space" aria-selected="false">✨ <span class="tab-full">The Cosmos</span><span class="tab-short">Cosmos</span></button>
-        <button type="button" class="gen-loved-toggle" id="loved-toggle" aria-pressed="false" title="Show only the entries you have loved"><span class="lt-heart">♥</span> <span class="tab-full">Loved </span><span class="lt-count">(<span id="loved-count">0</span>)</span></button>
+        <button type="button" class="gen-loved-toggle" id="loved-toggle" aria-pressed="false" title="View the photos you have loved"><span class="lt-heart">♥</span> <span class="tab-full">Loved </span><span class="lt-count">(<span id="loved-count">0</span>)</span></button>
     </nav>
 
     <section class="gen-section" id="gen-sea" role="tabpanel">
@@ -632,6 +663,18 @@
         <img class="gen-fs-img" id="gen-fs-img" alt="">
         <button class="gen-love gen-love-fs" id="gen-fs-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry">♡</button>
         <p class="gen-fs-credit">Photo: <a id="gen-fs-credit" href="#" target="_blank" rel="noopener"></a></p>
+    </div>
+
+    <div class="gen-gallery" id="gen-gallery" hidden role="dialog" aria-modal="true" aria-label="Loved photos">
+        <div class="gen-gallery-inner">
+            <div class="gen-gallery-head">
+                <p class="gen-gallery-title"><span class="g-heart">♥</span> Loved <span id="gen-gallery-count"></span></p>
+                <p class="gen-gallery-sort">Most recently loved first</p>
+                <button class="gen-gallery-close" id="gen-gallery-close" type="button" aria-label="Close loved photos">✕</button>
+            </div>
+            <div class="gen-gallery-grid" id="gen-gallery-grid"></div>
+            <p class="gen-gallery-empty" id="gen-gallery-empty" hidden>Nothing loved yet — tap the heart on a photo and it will live here.</p>
+        </div>
     </div>
 
     <script>
@@ -786,17 +829,27 @@
         var LOVED_KEY = 'rg-loved-v1';
         var TERM_INDEX = {};
         var lovedOnly = false;
-        var lovedMap = (function () {
+        // The stored array's ORDER is the love order (oldest first):
+        // loving appends, un-loving removes. A legacy array migrates
+        // in place — its stored order simply becomes the love order.
+        // lovedMap is the same set as a lookup; lovedList is the order.
+        var lovedList = (function () {
             try {
                 var arr = JSON.parse(localStorage.getItem(LOVED_KEY) || '[]');
-                var map = {};
-                if (arr && arr.length) { arr.forEach(function (k) { map[k] = 1; }); }
-                return map;
-            } catch (e) { return {}; }
+                var seen = {}, out = [];
+                if (arr && arr.length) {
+                    arr.forEach(function (k) {
+                        if (typeof k === 'string' && !seen[k]) { seen[k] = 1; out.push(k); }
+                    });
+                }
+                return out;
+            } catch (e) { return []; }
         })();
+        var lovedMap = {};
+        lovedList.forEach(function (k) { lovedMap[k] = 1; });
 
         function saveLoved() {
-            try { localStorage.setItem(LOVED_KEY, JSON.stringify(Object.keys(lovedMap))); } catch (e) {}
+            try { localStorage.setItem(LOVED_KEY, JSON.stringify(lovedList)); } catch (e) {}
         }
 
         function updateLovedCount() {
@@ -870,11 +923,13 @@
             var key = st.poolKey + ':' + st.shownId;
             if (lovedMap[key]) {
                 delete lovedMap[key];
+                lovedList = lovedList.filter(function (k) { return k !== key; });
                 // An un-loved entry leaves the loved deck at once, so it
                 // cannot surface again in the Loved view.
                 st.decks.loved = st.decks.loved.filter(function (id) { return id !== st.shownId; });
             } else {
                 lovedMap[key] = 1;
+                lovedList.push(key);
             }
             saveLoved();
             updateLovedCount();
@@ -919,7 +974,12 @@
                 if (!document.getElementById('gen-' + p).hidden) { restoreGen(p); }
             });
         }
-        document.getElementById('loved-toggle').addEventListener('click', function () { setLovedOnly(!lovedOnly); });
+        document.getElementById('loved-toggle').addEventListener('click', function () {
+            // The toggle is the Loved gallery's door (block at the end
+            // of this script); the deck-filter view stays as a fallback.
+            if (window.__rgOpenGallery) { window.__rgOpenGallery(); }
+            else { setLovedOnly(!lovedOnly); }
+        });
         updateLovedCount();
 
         setup('sea', 'creatures');
@@ -974,13 +1034,21 @@
             PREFIXES.forEach(function (p) {
                 var det = document.getElementById(p + '-details');
                 if (!det) { return; }
-                det.classList.toggle('is-capped', det.scrollHeight > det.clientHeight + 1);
+                // Deep Overview open lifts the cap entirely (the CSS
+                // releases max-height there too), so it is never
+                // marked capped while open.
+                var sec = document.getElementById('gen-' + p);
+                var open = !!(sec && sec.classList.contains('deep-open'));
+                det.classList.toggle('is-capped', !open && det.scrollHeight > det.clientHeight + 1);
             });
         }
+        window.__rgMarkCapped = markCapped;
         function markSoon() { setTimeout(markCapped, 0); }
         PREFIXES.forEach(function (p) {
             var btn = document.getElementById(p + '-btn');
             if (btn) { btn.addEventListener('click', markSoon); }
+            var deep = document.getElementById(p + '-deep');
+            if (deep) { deep.addEventListener('toggle', markSoon); }
         });
         var lovedToggle = document.getElementById('loved-toggle');
         if (lovedToggle) { lovedToggle.addEventListener('click', markSoon); }
@@ -1144,6 +1212,104 @@
                 if (fsBtn.classList.contains('loved')) { pop(fsBtn); }
             });
         }
+    })();
+
+    // (4) Loved gallery (2026-11-14): the tab bar's ♥ Loved toggle
+    // opens a gallery of every hearted photo across all four pools,
+    // most recently loved first (lovedList reversed). It is a view
+    // state like the fullscreen overlay — the fixed generator frame
+    // is untouched underneath. Tapping a photo closes the gallery and
+    // loads that entry in its own generator. One heart per photo
+    // stays the model; the order is the only new information, and it
+    // comes from lovedList, which toggleLove() maintains.
+    (function () {
+        var POOL_PREFIX = { creatures: 'sea', paintings: 'art', architecture: 'arch', space: 'space' };
+        var POOL_LABEL = { creatures: 'Sea Creatures', paintings: 'Oil Paintings', architecture: 'Architecture', space: 'The Cosmos' };
+        var view = document.getElementById('gen-gallery');
+        var grid = document.getElementById('gen-gallery-grid');
+        var emptyEl = document.getElementById('gen-gallery-empty');
+        var countEl = document.getElementById('gen-gallery-count');
+        var toggleBtn = document.getElementById('loved-toggle');
+        var galleryOpen = false;
+
+        function renderGallery() {
+            grid.innerHTML = '';
+            var shown = 0;
+            lovedList.slice().reverse().forEach(function (key) {
+                var cut = key.indexOf(':');
+                var prefix = POOL_PREFIX[key.slice(0, cut)];
+                var st = prefix && GEN[prefix];
+                var entry = st && st.byId[key.slice(cut + 1)];
+                if (!entry) { return; }
+                shown++;
+                var item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'gen-gallery-item';
+                var img = document.createElement('img');
+                img.src = entry.img;
+                img.alt = entry.name;
+                img.loading = 'lazy';
+                img.decoding = 'async';
+                var meta = document.createElement('span');
+                meta.className = 'gen-gallery-meta';
+                var nm = document.createElement('span');
+                nm.className = 'gen-gallery-name';
+                nm.textContent = entry.name;
+                var cat = document.createElement('span');
+                cat.className = 'gen-gallery-cat';
+                cat.textContent = POOL_LABEL[key.slice(0, cut)];
+                meta.appendChild(nm);
+                meta.appendChild(cat);
+                item.appendChild(img);
+                item.appendChild(meta);
+                item.addEventListener('click', function () { openEntry(prefix, entry.id); });
+                grid.appendChild(item);
+            });
+            countEl.textContent = shown ? '(' + shown + ')' : '';
+            emptyEl.hidden = shown > 0;
+            grid.hidden = shown === 0;
+        }
+
+        function openGallery() {
+            renderGallery();
+            view.hidden = false;
+            galleryOpen = true;
+            document.body.style.overflow = 'hidden';
+            if (toggleBtn) {
+                toggleBtn.classList.add('on');
+                toggleBtn.setAttribute('aria-pressed', 'true');
+            }
+        }
+
+        function closeGallery() {
+            view.hidden = true;
+            galleryOpen = false;
+            document.body.style.overflow = '';
+            if (toggleBtn) {
+                toggleBtn.classList.remove('on');
+                toggleBtn.setAttribute('aria-pressed', 'false');
+            }
+        }
+
+        function openEntry(prefix, id) {
+            var st = GEN[prefix];
+            var entry = st && st.byId[id];
+            if (!entry) { return; }
+            closeGallery();
+            showGen(prefix, true);
+            st.cur.all = entry;
+            st.last.all = entry.id;
+            st.started.all = true;
+            renderEntry(prefix, entry);
+            if (window.__rgMarkCapped) { setTimeout(window.__rgMarkCapped, 0); }
+            window.scrollTo(0, 0);
+        }
+
+        window.__rgOpenGallery = openGallery;
+        document.getElementById('gen-gallery-close').addEventListener('click', closeGallery);
+        document.addEventListener('keydown', function (e) {
+            if (galleryOpen && (e.key === 'Escape' || e.key === 'Esc')) { closeGallery(); }
+        });
     })();
     </script>
 
