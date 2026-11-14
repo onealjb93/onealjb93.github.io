@@ -222,10 +222,12 @@
         .cook-view-head { flex: none; z-index: 5; padding: 0.5rem 0.9rem 0.45rem; background: var(--bg-color); border-bottom: 1px solid var(--border-color); }
         .cook-head-main { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
         .cook-view-head h2 { margin: 0; font-size: 1rem; font-weight: 700; text-transform: none; letter-spacing: normal; border-bottom: none; padding-bottom: 0; white-space: nowrap; }
-        .cook-head-meta { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-top: 0.15rem; min-height: 1.7rem; }
+        .cook-head-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.2rem 0.6rem; margin-top: 0.15rem; min-height: 1.7rem; }
         .cook-view-head .cook-head-actions { display: flex; gap: 0.5rem; }
         .cook-view-head button { cursor: pointer; border-radius: 999px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font-weight: 700; padding: 0.38rem 0.8rem; font-size: 0.88rem; white-space: nowrap; }
-        #cookScoreToggle[aria-expanded="true"] { border-color: var(--link-color); color: var(--link-color); }
+        #cookScoreToggle { border-color: var(--link-color); color: var(--link-color); }
+        #cookScoreToggle[aria-expanded="true"] { background: var(--link-color); color: #fff; }
+        @media (max-width: 600px) { .cook-score .cook-score-basis, .cook-score .cook-score-basis + span { display: none; } }
         /* Pane navigator: one chip per open recipe + a position readout.
            JS shows it only when 2+ recipes are open and the pane row
            actually overflows; single-recipe and all-fit views never see it. */
@@ -247,6 +249,7 @@
         .cook-score-panel-head button { cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 999px; width: 30px; height: 30px; font-size: 1rem; line-height: 1; padding: 0; }
         .cook-score-panel-body { max-height: min(55dvh, 520px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 0.2rem 0.9rem 0.8rem; }
         .cook-score-total { font-size: 0.95rem; margin: 0.2rem 0 0.5rem; }
+        .cook-score-note { font-size: 0.82rem; color: var(--subtext-color); margin: 0.1rem 0 0.5rem; }
         .cook-recipe { flex: 1 1 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; max-width: none; margin: 0; padding: 1.75rem 1.5rem 3.5rem; font-size: 1.18rem; line-height: 1.65; }
         .cook-recipe + .cook-recipe { border-left: 1px solid var(--border-color); }
         @media (max-width: 1100px) {
@@ -343,7 +346,7 @@
     .combiner-list label.checked .serv-stepper { display: inline-flex; }
     .serv-stepper button { background: none; border: 0; color: var(--link-color); font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; padding: 0.1rem 0.3rem; min-width: 1.35rem; min-height: 1.35rem; line-height: 1; border-radius: 999px; }
     .serv-stepper button:hover { background: var(--hover-bg); }
-    .serv-stepper .serv-mult { color: var(--text-color); min-width: 1.6rem; text-align: center; font-size: 0.78rem; }
+    .serv-stepper .serv-mult { color: var(--link-color); min-width: 3.2rem; text-align: center; font-size: 0.78rem; }
     .dish-scaler { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0.55rem 0 0.35rem; font-size: 0.82rem; }
     .dish-scaler-label { font-weight: 600; color: var(--text-color); }
     .dish-scaler .dish-scale { font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; background: var(--badge-bg); color: var(--text-color); border: 1px solid var(--border-color); padding: 4px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 500; cursor: pointer; }
@@ -6169,9 +6172,9 @@
                     '<option value="peach">Peach</option><option value="strawberry">Strawberry</option></select>';
             }
             html += ' <span class="combiner-serving">(' + esc(r.serving) + ')</span>';
-            html += ' <span class="serv-stepper" data-recipe="' + r.id + '" role="group" aria-label="Servings of ' + esc(r.name) + '">' +
+            html += ' <span class="serv-stepper" data-recipe="' + r.id + '" role="group" aria-label="Scorecard servings of ' + esc(r.name) + '">' +
                 '<button type="button" class="serv-step" data-d="-1" aria-label="One fewer serving">\u2212</button>' +
-                '<button type="button" class="serv-mult" title="Tap to reset to 1 serving" aria-label="Servings: 1. Tap to reset to 1 serving">\u00d71</button>' +
+                '<button type="button" class="serv-mult" title="Tap to reset to 1 serving" aria-label="Scorecard servings: 1. Tap to reset to 1 serving">1 serving</button>' +
                 '<button type="button" class="serv-step" data-d="1" aria-label="One more serving">+</button></span>';
             label.innerHTML = html;
             listEl.appendChild(label);
@@ -6216,8 +6219,8 @@
             var m = servMult[cb.getAttribute('data-recipe')] || 1;
             var mid = st.querySelector('.serv-mult');
             if (mid) {
-                mid.textContent = '\u00d7' + m;
-                mid.setAttribute('aria-label', 'Servings: ' + m + '. Tap to reset to 1 serving');
+                mid.textContent = fmtServQty(m) + (m === 1 ? ' serving' : ' servings');
+                mid.setAttribute('aria-label', 'Scorecard servings: ' + fmtServQty(m) + '. Tap to reset to 1 serving');
             }
         });
         /* Cook mode panes show the same multipliers; keep them in step. */
@@ -7051,7 +7054,8 @@
             var nm = rec ? rec.name : (NUTRI.vitamins && NUTRI.vitamins[rid] ? NUTRI.vitamins[rid].name : rid);
             dishes.push({ name: nm, mult: servMult[rid] || 1 });
         });
-        var h = '<p class="cook-score-total"><strong>' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 ' + r.protein + ' g protein</strong></p>';
+        var h = '<p class="cook-score-note">Servings tell the scorecard what you\u2019ll eat. Dish size, in the recipe, scales what you cook.</p>';
+        h += '<p class="cook-score-total"><strong>' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 ' + r.protein + ' g protein</strong></p>';
         if (dishes.length) {
             h += '<div class="combiner-dishes">';
             dishes.forEach(function (d) {
@@ -7708,8 +7712,8 @@
                 var m = window.__jboServGet(st.getAttribute('data-recipe'));
                 var mid = st.querySelector('.serv-mult');
                 if (mid) {
-                    mid.textContent = '×' + m;
-                    mid.setAttribute('aria-label', 'Servings: ' + m + '. Tap to reset to 1 serving');
+                    mid.textContent = fmtPaneServ(m);
+                    mid.setAttribute('aria-label', 'Scorecard servings: ' + fmtPaneQty(m) + '. Tap to reset to 1 serving');
                 }
             });
             if (scoreOpen) renderCookScore();
@@ -7729,6 +7733,14 @@
            truncated -- the chip row scrolls instead) plus a position
            readout. Shown only when 2+ recipes are open AND the pane row
            actually overflows; swiping and tapping stay in sync both ways. */
+        function fmtPaneQty(n) {
+            if (typeof n !== 'number' || isNaN(n)) return String(n);
+            if (Math.abs(n - Math.round(n)) < 0.001) return String(Math.round(n));
+            var whole = Math.floor(n);
+            if (Math.abs(n - whole - 0.5) < 0.001) return whole > 0 ? whole + '\u00bd' : '\u00bd';
+            return String(Math.round(n * 10) / 10);
+        }
+        function fmtPaneServ(n) { return fmtPaneQty(n) + (n === 1 ? ' serving' : ' servings'); }
         function paneName(pane) {
             var t = pane.querySelector('.cook-pane-head .recipe-card-title');
             if (!t) return '';
@@ -7854,13 +7866,13 @@
                     var m0 = window.__jboServGet(id);
                     var servRow = document.createElement('div');
                     servRow.className = 'cook-pane-servrow';
-                    servRow.innerHTML = '<span class="cook-pane-servlabel">Servings</span>' +
+                    servRow.innerHTML = '<span class="cook-pane-servlabel">Scorecard servings</span>' +
                         '<span class="serv-stepper cook-pane-serv" data-recipe="' + id + '" role="group">' +
                         '<button type="button" class="serv-step" data-d="-1" aria-label="One fewer serving">−</button>' +
-                        '<button type="button" class="serv-mult" title="Tap to reset to 1 serving">×' + m0 + '</button>' +
+                        '<button type="button" class="serv-mult" title="Tap to reset to 1 serving">' + fmtPaneServ(m0) + '</button>' +
                         '<button type="button" class="serv-step" data-d="1" aria-label="One more serving">+</button></span>';
-                    servRow.querySelector('.serv-stepper').setAttribute('aria-label', 'Servings of ' + (titleEl ? titleEl.textContent : 'this recipe'));
-                    servRow.querySelector('.serv-mult').setAttribute('aria-label', 'Servings: ' + m0 + '. Tap to reset to 1 serving');
+                    servRow.querySelector('.serv-stepper').setAttribute('aria-label', 'Scorecard servings of ' + (titleEl ? titleEl.textContent : 'this recipe'));
+                    servRow.querySelector('.serv-mult').setAttribute('aria-label', 'Scorecard servings: ' + fmtPaneQty(m0) + '. Tap to reset to 1 serving');
                     var paneBody = cookHead.querySelector('.recipe-card-body');
                     (paneBody || cookHead).appendChild(servRow);
                 }
@@ -8092,14 +8104,16 @@
         window.__jboRenderCookScore = function (ids) {
             var el = document.getElementById('cookScore');
             if (!el) return;
-            if (!ids || !ids.length || !window.__jboCombo) { el.innerHTML = ''; return; }
+            var tg = document.getElementById('cookScoreToggle');
+            if (!ids || !ids.length || !window.__jboCombo) { el.innerHTML = ''; if (tg) tg.textContent = 'Scorecard'; return; }
             var r = window.__jboCombo(ids);
             var dots = '';
             for (var i = 0; i < 5; i++) dots += '<span class="nutri-dot' + (i < r.score ? ' filled' : '') + '"></span>';
             var basis = r.allOne
                 ? '1 serving each'
                 : fmtCookServ(r.servings) + ' serving' + (r.servings === 1 ? '' : 's') + ' total';
-            el.innerHTML = '<span class="cook-score-basis">' + basis + '</span> <span aria-hidden="true">\u00b7</span> <span class="cook-score-label">Healthy Day</span> <span class="nutri-dots" role="img" aria-label="Healthy Day: ' + r.score + ' out of 5">' + dots + '</span> ' + r.score + '/5 <span class="cook-score-nums">\u00b7 ' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 ' + r.protein + ' g protein</span>';
+            el.innerHTML = '<span class="cook-score-basis">' + basis + '</span> <span aria-hidden="true">\u00b7</span> <span class="cook-score-label">Healthy Day</span> <span class="nutri-dots" role="img" aria-label="Healthy Day: ' + r.score + ' out of 5">' + dots + '</span> ' + r.score + '/5 <span class="cook-score-nums">\u00b7 ' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 '  + r.protein + ' g protein</span>';
+            if (tg) tg.textContent = 'Scorecard \u00b7 ' + r.kcal.toLocaleString('en-US') + ' kcal';
         };
         window.__jboCookRefresh = function () {
             var view = document.getElementById('cookView');
