@@ -151,23 +151,51 @@
             border-bottom: 1px solid var(--border-color);
         }
         .gen-topbar-text { min-width: 0; flex: 1; }
-        /* Heart toggle: sits at the right end of the topbar row. The row
-           is flex:none in the one-screen budget, so the button is kept
-           shorter than the Generate button beside it — it adds no height
-           and takes nothing from the photo stage. */
+        /* Heart toggle: lives ON the photo, not in the topbar — a
+           glass chip at the stage's bottom-left corner (the same
+           chrome as the back-to-top button: translucent card
+           background, blur, hairline border), so loving an entry
+           happens where the eyes already are, the way it does on
+           Instagram or X. It floats over the stage, so it costs the
+           fixed frame nothing, and it is shown only while a photo is
+           on stage (the JS at the end keeps its [hidden] in step
+           with the image's). The fullscreen view carries a twin at
+           the same corner (.gen-love-fs, below). */
         .gen-love {
             flex: none;
-            background: transparent;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1.35rem;
-            line-height: 1;
-            padding: 0.3rem 0.4rem;
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: var(--card-bg);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
             color: var(--subtext-color);
+            font-size: 1.3rem;
+            line-height: 1;
+            cursor: pointer;
         }
-        .gen-love:hover { background: var(--hover-bg); }
+        .gen-love:hover { border-color: var(--link-color); }
+        .gen-love:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         .gen-love.loved { color: #e0245e; }
+        .gen-love-chip { position: absolute; left: 0.6rem; bottom: 0.6rem; z-index: 5; }
+        /* A small bounce the moment an entry is loved: JS adds .pop
+           on the tap and removes it on animationend. Static under
+           reduced motion. */
+        @keyframes gen-love-pop {
+            0% { transform: scale(1); }
+            40% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+        .gen-love.pop { animation: gen-love-pop 0.3s ease; }
+        @media (prefers-reduced-motion: reduce) {
+            .gen-love.pop { animation: none; }
+        }
         /* Loved-view toggle at the right end of the pinned tab bar.
            An equal fifth segment (flex: 1 1 0, min-width: 0) like the
            four generator tabs: when it sized to its content instead,
@@ -234,7 +262,7 @@
             cursor: pointer;
             padding: 0.2rem 0;
         }
-        .gen-stage { text-align: center; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+        .gen-stage { position: relative; text-align: center; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
         .gen-stage [hidden] { display: none !important; }
         .gen-img {
             display: block;
@@ -426,16 +454,15 @@
         }
         @media (max-width: 600px) {
             .gen-body { padding: 0.55rem 0.7rem 0.6rem; }
-            /* Title priority: the topbar wraps — Generate + heart keep
-               row one, the name/sub take a full-width second row, so the
+            /* Title priority: the topbar wraps — Generate keeps row
+               one, the name/sub take a full-width second row, so the
                entry name wraps at the full card width (2 lines hold the
                longest name in the pools, 55 chars) and is never
                ellipsized. The extra row comes out of the stage's flex,
                not out of any text. */
             .gen-topbar { gap: 0.5rem; row-gap: 0.3rem; padding: 0.25rem 0; flex-wrap: wrap; }
             .gen-topbar .gen-btn { order: 1; }
-            .gen-topbar .gen-love { order: 2; }
-            .gen-topbar-text { order: 3; flex: 1 1 100%; }
+            .gen-topbar-text { order: 2; flex: 1 1 100%; }
             .gen-topbar .gen-name { font-size: 0.98rem; }
             .gen-topbar .gen-sub { font-size: 0.8rem; }
             .gen-btn { padding: 0.5rem 0.8rem; font-size: 0.9rem; }
@@ -471,6 +498,9 @@
         .gen-fs-img { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; }
         .gen-fs-credit { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; padding: 1.6rem 1rem calc(0.7rem + env(safe-area-inset-bottom)); font-size: 0.78rem; line-height: 1.35; text-align: center; color: rgba(255, 255, 255, 0.8); background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent); }
         .gen-fs-credit a { color: rgba(255, 255, 255, 0.9); }
+        /* The fullscreen twin of the stage heart chip: same corner,
+           same state — bottom-left, beside the credit line. */
+        .gen-love-fs { position: absolute; left: 1rem; bottom: calc(0.7rem + env(safe-area-inset-bottom)); z-index: 2; }
     </style>
 
 
@@ -490,7 +520,6 @@
                     <p class="gen-name" id="sea-name"></p>
                     <p class="gen-sub" id="sea-sub"></p>
                 </div>
-                <button class="gen-love" id="sea-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry">♡</button>
             </div>
             <div class="gen-info" id="sea-info" hidden>
                 <p class="gen-overview" id="sea-overview"></p>
@@ -506,6 +535,7 @@
                 <p class="gen-empty" id="sea-empty">Tap 🎲 New creature to meet your first one.</p>
                 <p class="gen-empty" id="sea-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="sea-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
+                <button class="gen-love gen-love-chip" id="sea-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <div class="gen-img-error" id="sea-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
@@ -519,7 +549,6 @@
                     <p class="gen-name" id="art-name"></p>
                     <p class="gen-sub" id="art-sub"></p>
                 </div>
-                <button class="gen-love" id="art-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry">♡</button>
             </div>
             <div class="gen-info" id="art-info" hidden>
                 <p class="gen-overview" id="art-overview"></p>
@@ -535,6 +564,7 @@
                 <p class="gen-empty" id="art-empty">Tap 🎲 New painting to see your first one.</p>
                 <p class="gen-empty" id="art-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="art-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
+                <button class="gen-love gen-love-chip" id="art-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <div class="gen-img-error" id="art-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
@@ -548,7 +578,6 @@
                     <p class="gen-name" id="arch-name"></p>
                     <p class="gen-sub" id="arch-sub"></p>
                 </div>
-                <button class="gen-love" id="arch-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry">♡</button>
             </div>
             <div class="gen-info" id="arch-info" hidden>
                 <p class="gen-overview" id="arch-overview"></p>
@@ -564,6 +593,7 @@
                 <p class="gen-empty" id="arch-empty">Tap 🎲 New building to see your first one.</p>
                 <p class="gen-empty" id="arch-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="arch-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
+                <button class="gen-love gen-love-chip" id="arch-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <div class="gen-img-error" id="arch-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
@@ -577,7 +607,6 @@
                     <p class="gen-name" id="space-name"></p>
                     <p class="gen-sub" id="space-sub"></p>
                 </div>
-                <button class="gen-love" id="space-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry">♡</button>
             </div>
             <div class="gen-info" id="space-info" hidden>
                 <p class="gen-overview" id="space-overview"></p>
@@ -593,6 +622,7 @@
                 <p class="gen-empty" id="space-empty">Tap 🎲 New wonder to see your first one.</p>
                 <p class="gen-empty" id="space-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="space-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
+                <button class="gen-love gen-love-chip" id="space-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <div class="gen-img-error" id="space-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
@@ -600,6 +630,7 @@
 
     <div class="gen-fs" id="gen-fs" hidden role="dialog" aria-modal="true" aria-label="Photo, full screen">
         <img class="gen-fs-img" id="gen-fs-img" alt="">
+        <button class="gen-love gen-love-fs" id="gen-fs-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry">♡</button>
         <p class="gen-fs-credit">Photo: <a id="gen-fs-credit" href="#" target="_blank" rel="noopener"></a></p>
     </div>
 
@@ -1011,6 +1042,108 @@
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFS(p); }
             });
         });
+    })();
+
+    // (3) Hearts on the photo (2026-11-14): the love button moved off
+    // the topbar onto the photo itself — a glass chip at the stage's
+    // bottom-left corner — with a twin in the fullscreen view. ONE
+    // state drives every surface: the chip keeps the core button's id
+    // ({prefix}-love), so setup()'s wiring and syncHeart() above treat
+    // it exactly as before, and toggleLove() still owns lovedMap,
+    // localStorage (rg-loved-v1) and the tab-bar count. This block
+    // only adds: chip visibility (the chip exists only while a photo
+    // is on stage), the fullscreen twin and its sync, and the pop.
+    (function () {
+        var PREFIXES = ['sea', 'art', 'arch', 'space'];
+        var overlay = document.getElementById('gen-fs');
+        var fsBtn = document.getElementById('gen-fs-love');
+        var fsPrefix = null;
+
+        // The chip rides the photo: it is visible exactly while the
+        // stage image is. renderEntry / showLovedEmpty flip
+        // img[hidden]; a MutationObserver follows that, with a
+        // click-tick re-check in the same style as markSoon above.
+        function syncChip(p) {
+            var img = document.getElementById(p + '-img');
+            var chip = document.getElementById(p + '-love');
+            if (img && chip) { chip.hidden = img.hidden; }
+        }
+        function syncAllChips() { PREFIXES.forEach(syncChip); }
+        PREFIXES.forEach(function (p) {
+            syncChip(p);
+            var img = document.getElementById(p + '-img');
+            if (img && typeof MutationObserver !== 'undefined') {
+                new MutationObserver(function () { syncChip(p); }).observe(img, { attributes: true, attributeFilter: ['hidden'] });
+            }
+            var btn = document.getElementById(p + '-btn');
+            if (btn) { btn.addEventListener('click', function () { setTimeout(syncAllChips, 0); }); }
+        });
+        var tabsBar = document.getElementById('gen-tabs');
+        if (tabsBar) { tabsBar.addEventListener('click', function () { setTimeout(syncAllChips, 0); }); }
+        var lovedToggle = document.getElementById('loved-toggle');
+        if (lovedToggle) { lovedToggle.addEventListener('click', function () { setTimeout(syncAllChips, 0); }); }
+
+        // A small bounce the moment an entry is loved; the class is
+        // removed on animationend (CSS disables the animation itself
+        // under prefers-reduced-motion).
+        function pop(btn) {
+            if (!btn) { return; }
+            btn.classList.remove('pop');
+            void btn.offsetWidth; // restart the animation if it was still applied
+            btn.classList.add('pop');
+        }
+
+        // Fullscreen twin: reads the same lovedMap the core owns.
+        function syncFsHeart() {
+            if (!fsBtn) { return; }
+            var on = false;
+            if (fsPrefix) {
+                var st = GEN[fsPrefix];
+                on = !!(st && st.shownId && lovedMap[st.poolKey + ':' + st.shownId]);
+            }
+            fsBtn.textContent = on ? '♥' : '♡';
+            fsBtn.classList.toggle('loved', on);
+            fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        }
+
+        PREFIXES.forEach(function (p) {
+            var chip = document.getElementById(p + '-love');
+            if (chip) {
+                chip.addEventListener('animationend', function () { chip.classList.remove('pop'); });
+                // setup()'s listener was registered first, so by the
+                // time this runs toggleLove() has already flipped the
+                // state — mirror a fresh love with the pop, and keep
+                // the fullscreen twin in step.
+                chip.addEventListener('click', function () {
+                    if (chip.classList.contains('loved')) { pop(chip); }
+                    syncFsHeart();
+                });
+            }
+            // Shadow the photo's open gestures: this block's listeners
+            // run after the fullscreen block's own, so the overlay is
+            // already open when they fire.
+            var img = document.getElementById(p + '-img');
+            if (img) {
+                var noteOpen = function () {
+                    if (overlay && !overlay.hidden) { fsPrefix = p; syncFsHeart(); }
+                };
+                img.addEventListener('click', noteOpen);
+                img.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') { noteOpen(); }
+                });
+            }
+        });
+
+        if (fsBtn) {
+            fsBtn.addEventListener('animationend', function () { fsBtn.classList.remove('pop'); });
+            fsBtn.addEventListener('click', function (e) {
+                e.stopPropagation(); // loving must not leave fullscreen
+                if (!fsPrefix) { return; }
+                toggleLove(fsPrefix); // core: state, storage, count, stage chip
+                syncFsHeart();
+                if (fsBtn.classList.contains('loved')) { pop(fsBtn); }
+            });
+        }
     })();
     </script>
 
