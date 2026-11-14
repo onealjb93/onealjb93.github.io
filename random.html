@@ -169,9 +169,15 @@
         .gen-love:hover { background: var(--hover-bg); }
         .gen-love.loved { color: #e0245e; }
         /* Loved-view toggle at the right end of the pinned tab bar.
-           flex:none so the four generator tabs keep their equal shares. */
+           An equal fifth segment (flex: 1 1 0, min-width: 0) like the
+           four generator tabs: when it sized to its content instead,
+           the tabs were squeezed until their nowrap labels overflowed
+           their segments and the active pill painted over the previous
+           label — the overlap the user photographed. */
         .gen-loved-toggle {
-            flex: 0 0 auto;
+            flex: 1 1 0;
+            min-width: 0;
+            justify-content: center;
             display: flex;
             align-items: center;
             gap: 0.3rem;
@@ -190,14 +196,11 @@
         .gen-loved-toggle .lt-heart { color: #e0245e; }
         .gen-loved-toggle.on .lt-heart { color: #fff; }
         .gen-topbar .gen-name {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
             font-size: 1.05rem;
             line-height: 1.25;
             margin: 0;
         }
-        .gen-topbar .gen-sub { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.85rem; line-height: 1.3; }
+        .gen-topbar .gen-sub { margin: 0; font-size: 0.85rem; line-height: 1.3; }
         .gen-info { padding-top: 0.5rem; flex: none; }
         .gen-topbar { flex: none; }
         .gen-deep {
@@ -241,6 +244,7 @@
             object-fit: contain;
             margin: 0 auto;
             border-radius: 8px;
+            cursor: zoom-in;
             opacity: 1;
             transition: opacity 0.25s ease;
         }
@@ -258,8 +262,20 @@
         .gen-name { font-size: 1.2rem; font-weight: 600; color: var(--text-color); margin: 0 0 0.15rem 0; }
         .gen-sub { font-size: 0.9rem; color: var(--subtext-color); margin: 0 0 0.5rem 0; }
         .gen-sub em { font-style: italic; }
-        .gen-overview { font-size: 0.92rem; line-height: 1.45; color: var(--text-color); margin: 0 0 0.35rem 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-height: 2.9em; }
-        .gen-details { margin: 0 0 0.5rem 0; padding-left: 1.15rem; font-size: 0.88rem; line-height: 1.4; color: var(--text-color); max-height: 5.3rem; overflow: hidden; }
+        /* The overview always wraps in full — no line-clamp, no ellipsis:
+           the photo stage (flex: 1) absorbs the height, so a sentence is
+           never cut mid-thought. Longest real overview is 163 chars
+           (5 lines at 320px) and the frame math below was re-verified
+           with it. */
+        .gen-overview { font-size: 0.92rem; line-height: 1.45; color: var(--text-color); margin: 0 0 0.35rem 0; }
+        /* Bullets are capped by WHOLE lines only: the cap is an exact
+           line multiple (4 lines + the bullets' own margins), so text is
+           never sliced mid-line, and when the cap binds the JS adds
+           .is-capped, which fades the last visible line out softly —
+           no ellipsis glyph anywhere. The facts in the capped bullets
+           are covered in prose in the Deep Overview, one tap away. */
+        .gen-details { margin: 0 0 0.5rem 0; padding-left: 1.15rem; font-size: 0.88rem; line-height: 1.4; color: var(--text-color); max-height: calc(4 * 1.4em + 0.3rem); overflow: hidden; }
+        .gen-details.is-capped { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent); }
         .gen-details li { margin: 0.1rem 0; }
         .gen-details li::marker { color: var(--link-color); }
         .gen-source { font-size: 0.78rem; line-height: 1.3; color: var(--subtext-color); opacity: 0.8; margin: 0; }
@@ -356,11 +372,15 @@
             line-height: 1.35;
         }
         @media (max-width: 600px) {
-            body { --rg-head-h: 78px; --rg-foot-h: 32px; }
+            body { --rg-head-h: 92px; --rg-foot-h: 32px; }
             .back-link { top: 63px; right: 18px; font-size: 0.82rem; }
-            .page-header { height: 66px; margin: 6px 0; }
+            .page-header { height: 80px; margin: 6px 0; }
             .page-header h1 { font-size: 1.4rem; }
-            .page-header .subtitle { font-size: 0.82rem; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+            /* The subtitle wraps in full (3 lines at phone widths) —
+               it was line-clamped to 2 with an ellipsis; the taller
+               --rg-head-h budget above pays for the third line out of
+               the frame, never out of the photo (see the stage math). */
+            .page-header .subtitle { font-size: 0.78rem; line-height: 1.35; }
             .site-footer { font-size: 0.75rem; gap: 10px; }
             .site-footer .footer-links { gap: 10px; }
             .site-footer .footer-links span { font-size: 0.75rem !important; }
@@ -377,22 +397,51 @@
             body { --rg-head-h: 44px; }
             .page-header { height: 32px; }
         }
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
             .gen-tab { font-size: 0.85rem; gap: 0.25rem; }
             .gen-tab .tab-full { display: none; }
             .gen-tab .tab-short { display: inline; }
             .gen-loved-toggle .tab-full { display: none; }
             .gen-loved-toggle { font-size: 0.85rem; padding: 0 0.4rem; }
         }
+        /* Phones: the five segments stack icon-over-label (the platform
+           pattern for narrow tab bars), so every label — even
+           "Paintings" — fits its equal segment whole at 320px:
+           segment = (320 - 36 body padding - 2 border - 8 bar padding
+           - 4 x 3.2 gaps) / 5 = 52.2px; the widest label at 0.62rem
+           semibold measures ~48px. Nothing overflows, so no segment's
+           background can ever paint over a neighbour's words. */
+        @media (max-width: 600px) {
+            .gen-tabs { padding: 0.15rem 0.25rem; gap: 0.2rem; }
+            .gen-tab, .gen-loved-toggle { flex-direction: column; align-items: center; justify-content: center; gap: 0.05rem; padding: 0.1rem 0.05rem; line-height: 1.15; text-align: center; }
+            .gen-tab .tab-short, .gen-loved-toggle .lt-count { font-size: 0.68rem; letter-spacing: -0.02em; }
+            .gen-loved-toggle .lt-heart { font-size: 0.95rem; }
+        }
+        @media (max-width: 380px) {
+            .gen-tab .tab-short, .gen-loved-toggle .lt-count { font-size: 0.62rem; }
+            .page-header .subtitle { font-size: 0.74rem; }
+            .site-footer { font-size: 0.7rem; gap: 8px; }
+            .site-footer .footer-links { gap: 8px; }
+            .site-footer .footer-links span { font-size: 0.7rem !important; }
+        }
         @media (max-width: 600px) {
             .gen-body { padding: 0.55rem 0.7rem 0.6rem; }
-            .gen-topbar { gap: 0.5rem; padding: 0.25rem 0; }
+            /* Title priority: the topbar wraps — Generate + heart keep
+               row one, the name/sub take a full-width second row, so the
+               entry name wraps at the full card width (2 lines hold the
+               longest name in the pools, 55 chars) and is never
+               ellipsized. The extra row comes out of the stage's flex,
+               not out of any text. */
+            .gen-topbar { gap: 0.5rem; row-gap: 0.3rem; padding: 0.25rem 0; flex-wrap: wrap; }
+            .gen-topbar .gen-btn { order: 1; }
+            .gen-topbar .gen-love { order: 2; }
+            .gen-topbar-text { order: 3; flex: 1 1 100%; }
             .gen-topbar .gen-name { font-size: 0.98rem; }
             .gen-topbar .gen-sub { font-size: 0.8rem; }
             .gen-btn { padding: 0.5rem 0.8rem; font-size: 0.9rem; }
             .gen-info { padding-top: 0.45rem; }
-            .gen-overview { font-size: 0.88rem; line-height: 1.4; max-height: 2.8em; margin-bottom: 0.3rem; }
-            .gen-details { font-size: 0.84rem; line-height: 1.36; max-height: 3.75rem; margin-bottom: 0.45rem; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent); }
+            .gen-overview { font-size: 0.88rem; line-height: 1.4; margin-bottom: 0.3rem; }
+            .gen-details { font-size: 0.84rem; line-height: 1.36; max-height: calc(4 * 1.36em + 0.3rem); margin-bottom: 0.45rem; }
             .gen-details li { margin: 0.08rem 0; }
             .gen-deep { margin-bottom: 0.45rem; }
             .gen-deep-summary { padding: 0.4rem 0.6rem; font-size: 0.88rem; }
@@ -403,8 +452,25 @@
            up anything — the stage keeps the majority even here. */
         @media (max-height: 700px) {
             .gen-topbar .gen-sub { display: none; }
-            .gen-details { max-height: 2.55rem; }
+            .gen-details { max-height: calc(3 * 1.4em + 0.3rem); }
         }
+        @media (max-width: 600px) and (max-height: 700px) {
+            .gen-details { max-height: calc(3 * 1.36em + 0.3rem); }
+        }
+        /* TAP-TO-FULLSCREEN PHOTO: a view state, not a page — the
+           overlay (or the native fullscreen element) shows the SAME
+           loaded HD file contain-fit over black; tapping anywhere
+           returns to the unchanged generator. The credit line rides at
+           the bottom so attribution survives the photo filling the
+           screen. iPhone Safari cannot fullscreen arbitrary elements,
+           so there the overlay is simply fixed inset:0 — identical
+           behaviour from the visitor's side. */
+        .gen-fs { position: fixed; inset: 0; z-index: 3000; background: #000; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+        .gen-fs[hidden] { display: none !important; }
+        .gen-fs:fullscreen { width: 100%; height: 100%; }
+        .gen-fs-img { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; }
+        .gen-fs-credit { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; padding: 1.6rem 1rem calc(0.7rem + env(safe-area-inset-bottom)); font-size: 0.78rem; line-height: 1.35; text-align: center; color: rgba(255, 255, 255, 0.8); background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent); }
+        .gen-fs-credit a { color: rgba(255, 255, 255, 0.9); }
     </style>
 
 
@@ -413,7 +479,7 @@
         <button type="button" class="gen-tab" data-gen="art" aria-selected="false">🎨 <span class="tab-full">Oil Paintings</span><span class="tab-short">Paintings</span></button>
         <button type="button" class="gen-tab" data-gen="arch" aria-selected="false">🏛️ <span class="tab-full">Architecture</span><span class="tab-short">Arch</span></button>
         <button type="button" class="gen-tab" data-gen="space" aria-selected="false">✨ <span class="tab-full">The Cosmos</span><span class="tab-short">Cosmos</span></button>
-        <button type="button" class="gen-loved-toggle" id="loved-toggle" aria-pressed="false" title="Show only the entries you have loved"><span class="lt-heart">♥</span> <span class="tab-full">Loved </span>(<span id="loved-count">0</span>)</button>
+        <button type="button" class="gen-loved-toggle" id="loved-toggle" aria-pressed="false" title="Show only the entries you have loved"><span class="lt-heart">♥</span> <span class="tab-full">Loved </span><span class="lt-count">(<span id="loved-count">0</span>)</span></button>
     </nav>
 
     <section class="gen-section" id="gen-sea" role="tabpanel">
@@ -439,7 +505,7 @@
             <div class="gen-stage" aria-live="polite">
                 <p class="gen-empty" id="sea-empty">Tap 🎲 New creature to meet your first one.</p>
                 <p class="gen-empty" id="sea-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
-                <img class="gen-img" id="sea-img" alt="" hidden>
+                <img class="gen-img" id="sea-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
                 <div class="gen-img-error" id="sea-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
@@ -468,7 +534,7 @@
             <div class="gen-stage" aria-live="polite">
                 <p class="gen-empty" id="art-empty">Tap 🎲 New painting to see your first one.</p>
                 <p class="gen-empty" id="art-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
-                <img class="gen-img" id="art-img" alt="" hidden>
+                <img class="gen-img" id="art-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
                 <div class="gen-img-error" id="art-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
@@ -497,7 +563,7 @@
             <div class="gen-stage" aria-live="polite">
                 <p class="gen-empty" id="arch-empty">Tap 🎲 New building to see your first one.</p>
                 <p class="gen-empty" id="arch-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
-                <img class="gen-img" id="arch-img" alt="" hidden>
+                <img class="gen-img" id="arch-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
                 <div class="gen-img-error" id="arch-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
@@ -526,11 +592,16 @@
             <div class="gen-stage" aria-live="polite">
                 <p class="gen-empty" id="space-empty">Tap 🎲 New wonder to see your first one.</p>
                 <p class="gen-empty" id="space-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
-                <img class="gen-img" id="space-img" alt="" hidden>
+                <img class="gen-img" id="space-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
                 <div class="gen-img-error" id="space-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
     </section>
+
+    <div class="gen-fs" id="gen-fs" hidden role="dialog" aria-modal="true" aria-label="Photo, full screen">
+        <img class="gen-fs-img" id="gen-fs-img" alt="">
+        <p class="gen-fs-credit">Photo: <a id="gen-fs-credit" href="#" target="_blank" rel="noopener"></a></p>
+    </div>
 
     <script>
         // Random Generator pools: endless. Shuffle-without-repeats: a shuffled
@@ -853,6 +924,94 @@
         // Sections are plain elements now (the pinned tab bar is the only
         // selector): showGen draws a generator's first entry the first
         // time its tab is selected, so no toggle listener is needed.
+
+    // Layout addendum (2026-11-14): two behaviours, both additive — no
+    // pool, deck, shuffle or hearts code above is touched.
+    // (1) .gen-details is capped by whole CSS lines; when the cap
+    // actually binds, mark the list .is-capped so CSS fades the last
+    // visible line instead of slicing it. Re-checked after every render
+    // (the render finishes inside the original click handlers, so these
+    // listeners run a tick later) and on resize.
+    // (2) Tap-to-fullscreen photo: tap the stage photo (or Enter/Space
+    // on it) and the same loaded HD image fills the screen — native
+    // Fullscreen API where the platform offers it, the fixed overlay
+    // elsewhere (iPhone Safari); tap again / Esc exits to the exact
+    // generator state that was left.
+    (function () {
+        var PREFIXES = ['sea', 'art', 'arch', 'space'];
+        function markCapped() {
+            PREFIXES.forEach(function (p) {
+                var det = document.getElementById(p + '-details');
+                if (!det) { return; }
+                det.classList.toggle('is-capped', det.scrollHeight > det.clientHeight + 1);
+            });
+        }
+        function markSoon() { setTimeout(markCapped, 0); }
+        PREFIXES.forEach(function (p) {
+            var btn = document.getElementById(p + '-btn');
+            if (btn) { btn.addEventListener('click', markSoon); }
+        });
+        var lovedToggle = document.getElementById('loved-toggle');
+        if (lovedToggle) { lovedToggle.addEventListener('click', markSoon); }
+        var tabsBar = document.getElementById('gen-tabs');
+        if (tabsBar) { tabsBar.addEventListener('click', markSoon); }
+        window.addEventListener('resize', markCapped);
+        markSoon();
+
+        var overlay = document.getElementById('gen-fs');
+        var fsImg = document.getElementById('gen-fs-img');
+        var fsCredit = document.getElementById('gen-fs-credit');
+        var fsOpen = false;
+        function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+        function cleanupFS() {
+            overlay.hidden = true;
+            fsOpen = false;
+            document.body.style.overflow = '';
+            fsImg.removeAttribute('src');
+        }
+        function fallbackFS() { document.body.style.overflow = 'hidden'; }
+        function openFS(prefix) {
+            var img = document.getElementById(prefix + '-img');
+            if (!img || img.hidden || !img.getAttribute('src')) { return; }
+            fsImg.src = img.currentSrc || img.src;
+            fsImg.alt = img.alt || '';
+            var src = document.getElementById(prefix + '-source');
+            fsCredit.textContent = src ? src.textContent : '';
+            fsCredit.href = src ? src.href : '#';
+            overlay.hidden = false;
+            fsOpen = true;
+            var req = overlay.requestFullscreen || overlay.webkitRequestFullscreen;
+            if (req) {
+                try {
+                    var r = req.call(overlay);
+                    if (r && r.catch) { r.catch(fallbackFS); }
+                } catch (e) { fallbackFS(); }
+            } else { fallbackFS(); }
+        }
+        function closeFS() {
+            if (!fsOpen) { return; }
+            if (fsElement()) {
+                var exit = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exit) { exit.call(document); }
+            } else { cleanupFS(); }
+        }
+        function onFsChange() { if (fsOpen && !fsElement()) { cleanupFS(); } }
+        document.addEventListener('fullscreenchange', onFsChange);
+        document.addEventListener('webkitfullscreenchange', onFsChange);
+        overlay.addEventListener('click', closeFS);
+        fsCredit.addEventListener('click', function (e) { e.stopPropagation(); });
+        document.addEventListener('keydown', function (e) {
+            if (fsOpen && !fsElement() && (e.key === 'Escape' || e.key === 'Esc')) { closeFS(); }
+        });
+        PREFIXES.forEach(function (p) {
+            var img = document.getElementById(p + '-img');
+            if (!img) { return; }
+            img.addEventListener('click', function () { openFS(p); });
+            img.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFS(p); }
+            });
+        });
+    })();
     </script>
 
     <!-- Professional Bottom Footer Section -->
