@@ -232,7 +232,7 @@
         .cook-recipe .recipe-card-title { font-size: 1.7rem; }
         .cook-recipe .recipe-section-title { font-size: 1.15rem; }
         @media (max-width: 768px) {
-            .cook-toggle, #cookBar { display: none !important; }
+            #cookBar { display: none !important; }
         }
         /* ---- Generate daily meals (combiner) ---- */
         .daily-meals { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); }
@@ -358,6 +358,32 @@
         .recipe-topcluster .topcluster-body > :first-child { margin-top: 0.6rem; }
     }
     @media (prefers-reduced-motion: reduce) { .topcluster-chevron { transition: none; } }
+    /* Cook pins (mobile, added 2026-11-14): the mobile counterpart of the
+       desktop cook bar -- the same Cook toggles and selection, the same
+       cook view and panes. The bar reuses the combiner bar's bottom-sheet
+       chrome; its chips open the cook view at that recipe. Inside the
+       view, mobile panes form a swipeable scroll-snap row: one recipe
+       per screen, two side by side once the viewport is wide enough.
+       The bar lifts the combiner bar and the back-to-top button the same
+       way the desktop cook bar does. */
+    #cookPinBar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 900; display: none; flex-wrap: wrap; align-items: center; gap: 0.5rem; width: min(720px, calc(100vw - 2rem)); background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-bottom: 0; border-radius: 12px 12px 0 0; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 0.45rem 0.55rem calc(0.45rem + env(safe-area-inset-bottom, 0px)) 0.6rem; }
+    #cookPinBar.show { display: flex; }
+    .cookpin-note { flex: 1 1 100%; order: -1; font-size: 0.8rem; color: var(--subtext-color); }
+    .cookpin-note:empty { display: none; }
+    .cookpin-chips { flex: 1 1 auto; min-width: 0; display: flex; gap: 0.4rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .cookpin-chips::-webkit-scrollbar { display: none; }
+    .cookpin-chip { flex: none; min-height: 44px; max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--badge-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 999px; padding: 0.3rem 0.8rem; font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    #cookPinOpen { flex: none; min-height: 44px; border-radius: 999px; border: 1px solid var(--link-color); background: var(--link-color); color: #fff; font-weight: 700; font: inherit; font-size: 0.88rem; padding: 0.45rem 0.95rem; cursor: pointer; white-space: nowrap; }
+    #cookPinClear { flex: none; min-height: 44px; border-radius: 999px; border: 1px solid var(--border-color); background: transparent; color: var(--text-color); font: inherit; font-weight: 600; font-size: 0.88rem; padding: 0.45rem 0.8rem; cursor: pointer; white-space: nowrap; }
+    body.cookpins-visible { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+    body.combiner-bar-visible.cookpins-visible { padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px)); }
+    body.cookpins-visible #combinerBar { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
+    body.cookpins-visible .back-to-top { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+    body.combiner-bar-visible.cookpins-visible .back-to-top { bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
+    #cookView.cook-mobile .cook-view-head { padding: 0.6rem 0.9rem; }
+    #cookView.cook-mobile #cookRecipes { overflow-x: auto; scroll-snap-type: x mandatory; }
+    #cookView.cook-mobile .cook-recipe { flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always; }
+    @media (min-width: 700px) { #cookView.cook-mobile .cook-recipe { flex-basis: 50%; } }
 
     /* Sticky section accordions + outer-section summaries (2026-11-13,
        site-wide pinning).
@@ -7208,6 +7234,15 @@
         <button type="button" id="cookOpen">Cook recipes</button>
         <button type="button" class="cook-clear" id="cookClear">Clear</button>
     </div>
+    <!-- Cook pins (mobile): the cards' Cook selection as a bottom bar of
+         recipe chips; a chip (or the Cook button) opens the shared cook
+         view at that recipe. Driven by the cook-pins script before </body>. -->
+    <div id="cookPinBar" role="group" aria-label="Recipes pinned for cooking">
+        <span class="cookpin-note" id="cookPinNote" aria-live="polite"></span>
+        <div class="cookpin-chips" id="cookPinChips"></div>
+        <button type="button" id="cookPinOpen">Cook</button>
+        <button type="button" id="cookPinClear">Clear</button>
+    </div>
     <!-- Sticky combiner footer: live totals while recipes are selected (mobile + desktop) -->
     <div id="combinerBar" role="group" aria-label="Combined nutrition totals">
         <div id="combinerBarPanel">
@@ -7422,7 +7457,8 @@
             else window.__jboStepServ(rid, parseInt(btn.getAttribute('data-d'), 10));
         });
         function openCook() {
-            if (!isDesktop.matches || selected.length === 0 || !cookView) return;
+            if (selected.length === 0 || !cookView) return;
+            cookView.classList.toggle('cook-mobile', !isDesktop.matches);
             cookRecipes.innerHTML = '';
             selected.forEach(function (id) {
                 var content = document.getElementById(id);
@@ -7471,6 +7507,14 @@
                 });
                 var cc = clone.querySelector('.recipe-content');
                 if (cc) cc.classList.add('active');
+                if (!isDesktop.matches) {
+                    var tc = clone.querySelector('.recipe-topcluster.open');
+                    if (tc) {
+                        tc.classList.remove('open');
+                        var tb = tc.querySelector('.topcluster-toggle');
+                        if (tb) tb.setAttribute('aria-expanded', 'false');
+                    }
+                }
                 var section = document.createElement('section');
                 section.className = 'cook-recipe';
                 section.appendChild(clone);
@@ -7484,11 +7528,14 @@
             cookView.scrollTop = 0;
             if (cookViewClose) cookViewClose.focus();
         }
+        window.__jboOpenCook = openCook;
         function closeCook() {
             if (!cookView) return;
             cookView.classList.remove('open');
+            cookView.classList.remove('cook-mobile');
             document.body.style.overflow = '';
-            if (cookOpen) cookOpen.focus();
+            if (isDesktop.matches) { if (cookOpen) cookOpen.focus(); }
+            else if (window.__jboMobileCookReturn) window.__jboMobileCookReturn();
         }
         if (cookOpen) cookOpen.addEventListener('click', openCook);
         if (cookClear) cookClear.addEventListener('click', clearSelection);
@@ -7738,5 +7785,133 @@
         var open = wrap.classList.toggle('open');
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
+</script> <script>
+    // Cook pins (mobile): persists the cards' Cook selection -- the same
+    // selection the desktop cook bar uses -- and drives the mobile pin
+    // bar and the shared cook view. Desktop never reads the storage key
+    // and keeps its own behaviour. The cards' toggle handler calls
+    // stopPropagation, so state sync listens in the capture phase and
+    // settles on the next tick, after the handler has run.
+    (function () {
+        'use strict';
+        var KEY = 'recipes-cook-pins-v1';
+        var mq = window.matchMedia('(max-width: 768px)');
+        var bar = document.getElementById('cookPinBar');
+        var chipsEl = document.getElementById('cookPinChips');
+        var noteEl = document.getElementById('cookPinNote');
+        var openBtn = document.getElementById('cookPinOpen');
+        var clearBtn = document.getElementById('cookPinClear');
+        if (!bar || !chipsEl || !openBtn || !clearBtn) return;
+        var savedScrollY = null;
+        var prevPins = [];
+
+        function pins() {
+            if (window.__jboCookIds) return window.__jboCookIds();
+            return Array.prototype.slice.call(document.querySelectorAll('.cook-toggle.selected'))
+                .map(function (b) { return b.getAttribute('data-cook-for'); });
+        }
+        function save() {
+            try { localStorage.setItem(KEY, JSON.stringify(pins())); } catch (e) { /* storage unavailable */ }
+        }
+        function nameFor(id) {
+            var content = document.getElementById(id);
+            var wrap = content ? content.closest('.recipe-wrapper') : null;
+            var t = wrap ? wrap.querySelector('.recipe-card-title') : null;
+            if (!t) return id;
+            var badge = t.querySelector('.standout-badge');
+            var name = t.textContent;
+            if (badge) name = name.replace(badge.textContent, '');
+            return name.replace(/\s+/g, ' ').trim();
+        }
+        function render() {
+            var p = pins();
+            prevPins = p.slice();
+            if (!mq.matches || p.length === 0) {
+                bar.classList.remove('show');
+                document.body.classList.remove('cookpins-visible');
+                if (!p.length && noteEl) noteEl.textContent = '';
+                return;
+            }
+            chipsEl.innerHTML = '';
+            p.forEach(function (id) {
+                var chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'cookpin-chip';
+                chip.setAttribute('data-pin-open', id);
+                chip.textContent = nameFor(id);
+                chipsEl.appendChild(chip);
+            });
+            openBtn.textContent = 'Cook ' + p.length + ' recipe' + (p.length === 1 ? '' : 's');
+            bar.classList.add('show');
+            document.body.classList.add('cookpins-visible');
+        }
+        function openAt(index) {
+            var p = pins();
+            if (!p.length || !window.__jboOpenCook) return;
+            savedScrollY = window.scrollY;
+            window.__jboOpenCook();
+            var recipes = document.getElementById('cookRecipes');
+            var panel = recipes && index > 0 ? recipes.children[index] : null;
+            if (panel) {
+                var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                requestAnimationFrame(function () {
+                    panel.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', inline: 'start', block: 'nearest' });
+                });
+            }
+        }
+        window.__jboMobileCookReturn = function () {
+            if (savedScrollY !== null) window.scrollTo(0, savedScrollY);
+            savedScrollY = null;
+            if (mq.matches && pins().length) openBtn.focus();
+        };
+        document.addEventListener('click', function (e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+            var chip = t.closest('[data-pin-open]');
+            if (chip) { openAt(pins().indexOf(chip.getAttribute('data-pin-open'))); return; }
+            if (t.closest('#cookPinOpen')) { openAt(0); return; }
+            if (t.closest('#cookPinClear')) {
+                Array.prototype.slice.call(document.querySelectorAll('.cook-toggle.selected'))
+                    .forEach(function (b) { b.click(); });
+                setTimeout(function () { save(); render(); }, 0);
+                return;
+            }
+            if (t.closest('#cookViewClear')) {
+                setTimeout(function () { save(); render(); }, 0);
+                return;
+            }
+            var tog = t.closest('.cook-toggle');
+            if (tog) {
+                var id = tog.getAttribute('data-cook-for');
+                var before = prevPins.slice();
+                setTimeout(function () {
+                    var now = pins();
+                    if (noteEl && mq.matches) {
+                        if (before.indexOf(id) === -1 && now.indexOf(id) === -1 && now.length >= 3) {
+                            noteEl.textContent = 'Cook mode holds up to 3 recipes \u2014 clear one to add another.';
+                        } else if (now.length) {
+                            noteEl.textContent = '';
+                        }
+                    }
+                    save(); render();
+                }, 0);
+            }
+        }, true);
+        if (mq.addEventListener) mq.addEventListener('change', render);
+        else if (mq.addListener) mq.addListener(render);
+        // Restore saved pins on a phone-width load by replaying the cards'
+        // own toggle clicks, so the selection lives in exactly one system.
+        if (mq.matches) {
+            var stored = [];
+            try { stored = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { stored = []; }
+            if (stored && stored.length) {
+                stored.forEach(function (id) {
+                    var btn = document.querySelector('.cook-toggle[data-cook-for="' + id + '"]');
+                    if (btn && !btn.classList.contains('selected')) btn.click();
+                });
+            }
+        }
+        render();
+    })();
 </script> </body>
 </html>
