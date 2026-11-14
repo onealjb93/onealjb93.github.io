@@ -146,7 +146,7 @@ function initLogoIntro() {
     function smooth(t) { return t * t * (3 - 2 * t); }
     function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
     function measure() {
-        range = Math.max(window.innerHeight * 0.9, 320);
+        range = Math.max(window.innerHeight * 0.16, 120);
         // Start = the logo's centered position, read from the overlay's
         // own rect (robust to viewport/scrollbar quirks — never assume
         // innerWidth / 2 is the visual center).
