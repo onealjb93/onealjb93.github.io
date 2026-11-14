@@ -6451,16 +6451,14 @@
         });
     }
 
-    /* --- Generate daily meals (added 2026-11-13; realism rework same day) ---
-       Drafts a full day of eating from the archive, structured the way a
-       person actually cooks and eats: Breakfast - Lunch - Dinner, at most
-       3 distinct dishes. Breakfast is a genuine breakfast dish; lunch and
-       dinner are ONE anchor dish cooked once at a combined portion (the
-       batch link); a side, an extra salad/soup or a small dessert may join
-       dinner. Portions (the combiner's own servMult semantics: 0.5 steps,
-       up to 3) do the rest of the work -- the objective pays a per-dish
-       penalty past two dishes, so a plan grows servings before it adds
-       cooking. Scoring is the page's own: the same dot logic (scoreFromPct),
+    /* --- Generate daily meals (added 2026-11-13; realism rework same
+       day; constrained rebuild 2026-11-14) ---
+       Drafts a full day of eating from the archive, structured the way
+       a person actually cooks and eats: Breakfast - Lunch - Dinner,
+       each meal anchored by a real main, no dish repeated, portions
+       fitted to the visitor's own daily targets and validated before
+       anything renders (the builder below has the full rule list).
+       Scoring is the page's own: the same dot logic (scoreFromPct),
        the same active daily targets (activeTargets) and the same Healthy
        Day criteria the combiner uses, so the numbers it shows are the
        numbers the combiner shows when the plan is loaded. Cocktails,
@@ -6505,16 +6503,40 @@
         var role = genRole(r.id);
         if (role) GEN_POOLS[role].push(r.id);
     });
-    /* Meal-slot realism (2026-11-13): the day is Breakfast - Lunch - Dinner.
-       Breakfast comes only from dishes that are genuinely breakfast food in
-       this archive: Cacio e Pepe Grits, and Crispy Ginger Rice with a fried
-       egg. (Deviled eggs are a party appetizer and cornbread an
-       accompaniment -- neither is a breakfast plate, so neither is in the
-       pool.) Lunch and dinner share ONE anchor dish (a main, soup or salad)
-       cooked once at a combined portion; a side, an extra salad/soup or a
-       dessert may accompany dinner, never anchor a meal. */
+    /* Meal slots (2026-11-14): the day is Breakfast - Lunch - Dinner,
+       each meal anchored, nothing repeated. Breakfast comes only from
+       dishes that are genuinely breakfast food in this archive: Cacio
+       e Pepe Grits, and Crispy Ginger Rice with a fried egg. (Deviled
+       eggs are a party appetizer and cornbread an accompaniment --
+       neither is a breakfast plate, so neither is in the pool.) The
+       anchor pool is the Mains category narrowed to dishes that are
+       genuinely protein-anchored -- at least 15 g of protein per
+       serving -- so a light side or salad can never pose as a meal.
+       Protein families and the leafy/brassica group drive the
+       builder's variety rules. */
+    var GEN_KCAL_I = 0; /* DV_ORDER[0] is '208' */
+    var GEN_PROT_I = DV_ORDER.indexOf('203');
+    var GEN_MAIN_MIN_PROTEIN = 15;
+    var GEN_NAME = {};
+    RECIPES.forEach(function (r) { GEN_NAME[r.id] = r.name; });
+    function genFamily(id) {
+        var t = genTags(id);
+        if (t.indexOf('chicken') !== -1) return 'chicken';
+        if (t.indexOf('pork') !== -1) return 'pork';
+        if (t.indexOf('seafood') !== -1) return 'seafood';
+        if (t.indexOf('vegetarian') !== -1) return 'meatless';
+        var n = (GEN_NAME[id] || '').toLowerCase();
+        if (n.indexOf('lamb') !== -1) return 'lamb';
+        if (/steak|rib eye|prime rib|short ribs|beef|brisket/.test(n)) return 'beef';
+        if (/carbonara|bacon|ham |pancetta|prosciutto/.test(n)) return 'pork';
+        if (/salmon|shrimp|scallop|oyster|crab|anchov|sardine|fish/.test(n)) return 'seafood';
+        if (/chicken|turkey/.test(n)) return 'chicken';
+        return 'meatless';
+    }
+    var GEN_LEAFY = /collard|kale|cabbage|arugula|spinach|slaw|lettuce|chard|brussels/;
+    function genLeafy(id) { return GEN_LEAFY.test((GEN_NAME[id] || '').toLowerCase()); }
     var GEN_BREAKFAST = ['cacioGritsRecipe', 'gingerRiceRecipe'].filter(function (id) { return !!GEN_VEC[id]; });
-    var GEN_ANCHORS = GEN_POOLS.main.concat(GEN_POOLS.soup, GEN_POOLS.salad).filter(function (id) { return GEN_BREAKFAST.indexOf(id) === -1; });
+    var GEN_ANCHORS = GEN_POOLS.main.filter(function (id) { return GEN_BREAKFAST.indexOf(id) === -1 && GEN_VEC[id][GEN_PROT_I] >= GEN_MAIN_MIN_PROTEIN; });
     var GEN_EXTRAS = GEN_POOLS.side.concat(GEN_POOLS.salad, GEN_POOLS.soup).filter(function (id) { return GEN_BREAKFAST.indexOf(id) === -1; });
     function genIsBreakfast(id) { return GEN_BREAKFAST.indexOf(id) !== -1; }
     function genTotalsArr(plan) {
@@ -6587,116 +6609,181 @@
         }
         return a;
     }
-    function genGreedy() {
-        var plan = {};
-        var bf = GEN_BREAKFAST[Math.floor(Math.random() * GEN_BREAKFAST.length)];
-        plan[bf] = 1;
-        var anchor = GEN_ANCHORS[Math.floor(Math.random() * GEN_ANCHORS.length)];
-        plan[anchor] = 2;
-        var best = genScoreOf(plan).score;
-        function capOf(id) {
-            if (genIsBreakfast(id)) return 1.5;
-            if (genRole(id) === 'dessert') return 1;
-            return 3;
+    /* --- Constrained day builder (2026-11-14 rebuild) ---
+       A candidate day is built meal by meal, its portions are fitted,
+       and it must pass genValidate before it can render; a candidate
+       that fails any rule is discarded and rebuilt, never shown:
+       - Breakfast is a breakfast-pool dish; lunch and dinner are each
+         anchored by a protein-anchored main (GEN_ANCHORS: a Mains dish
+         with at least 15 g protein per serving). Sides, salads and
+         soups may accompany a main; they never anchor or form a meal.
+       - No dish repeats anywhere in the day (the old lunch-to-dinner
+         "same batch" split is gone), and at most one leafy/brassica
+         extra appears, so greens cannot become the day's substance.
+       - Portions (0.5 steps) fit the visitor's own targets
+         (activeTargets): the day lands at 85-110% of the calorie
+         target, protein at >= 90% of target, with breakfast ~20-30%,
+         lunch ~30-40% and dinner ~30-40% of the calorie target.
+         Mains scale to at most 2.5 servings, extras never past 1.5.
+       - At least two distinct protein sources across the day.
+       Among the candidates that pass, the best genObjective score
+       wins, so the page's own taste still picks the day -- inside
+       the rules. If no candidate passes at the strict meal shares,
+       one more hunt runs with the shares widened a little; the day
+       band, the protein floor and the structure rules never widen. */
+    function genPick(a) { return a[Math.floor(Math.random() * a.length)]; }
+    function genKind(it) {
+        if (genIsBreakfast(it.id)) return 'bf';
+        if (genRole(it.id) === 'dessert') return 'dessert';
+        return GEN_ANCHORS.indexOf(it.id) !== -1 ? 'main' : 'extra';
+    }
+    function genCap(it) {
+        var k = genKind(it);
+        return k === 'main' ? 2.5 : k === 'bf' ? 2 : k === 'dessert' ? 1 : 1.5;
+    }
+    function genFloor(it) { return genKind(it) === 'main' ? 1 : 0.5; }
+    function genLight(meals) {
+        var dayK = 0, dayP = 0, mealK = [0, 0, 0, 0];
+        meals.forEach(function (meal, mi) {
+            meal.items.forEach(function (it) {
+                var v = GEN_VEC[it.id];
+                mealK[mi] += v[GEN_KCAL_I] * it.mult;
+                dayP += v[GEN_PROT_I] * it.mult;
+            });
+            dayK += mealK[mi];
+        });
+        return { kcal: dayK, prot: dayP, mealK: mealK };
+    }
+    var GEN_BANDS = { bf: [0.18, 0.32], lunch: [0.28, 0.42], dinner: [0.28, 0.42] };
+    var GEN_BANDS_RELAXED = { bf: [0.15, 0.35], lunch: [0.25, 0.45], dinner: [0.25, 0.45] };
+    function genViolations(meals, targets, bands) {
+        var L = genLight(meals);
+        var kcalT = targets['208'], protT = targets['203'];
+        var v = 0;
+        if (L.kcal < kcalT * 0.85) v += (kcalT * 0.85 - L.kcal) / kcalT * 4;
+        if (L.kcal > kcalT * 1.10) v += (L.kcal - kcalT * 1.10) / kcalT * 4;
+        if (L.prot < protT * 0.90) v += (protT * 0.90 - L.prot) / Math.max(1, protT) * 4;
+        var shares = [bands.bf, bands.lunch, bands.dinner];
+        for (var i = 0; i < 3; i++) {
+            var s = L.mealK[i] / kcalT;
+            if (s < shares[i][0]) v += (shares[i][0] - s) * 3;
+            if (s > shares[i][1]) v += (s - shares[i][1]) * 3;
         }
-        function minOf(id) {
-            if (id === anchor) return 1.5;
-            if (genIsBreakfast(id)) return 1;
-            return 0.5;
-        }
-        var guard = 0, improved = true;
-        while (improved && guard++ < 60) {
-            improved = false;
-            var trials = [];
-            Object.keys(plan).forEach(function (id) {
-                [-0.5, 0.5].forEach(function (d) {
-                    var nm = plan[id] + d;
-                    if (nm >= minOf(id) && nm <= capOf(id)) trials.push([id, nm]);
+        return v;
+    }
+    /* Portion fitting: greedy single-step moves (0.5 at a time, inside
+       the caps) that most reduce the band violations. Dish choice is
+       not fitted -- a day whose dishes cannot fit is rebuilt instead. */
+    function genFit(meals, targets, bands) {
+        var v = genViolations(meals, targets, bands);
+        var guard = 0;
+        while (v > 0.0001 && guard++ < 140) {
+            var bestMove = null, bestV = v;
+            meals.forEach(function (meal, mi) {
+                if (mi === 3) return; /* the treat keeps its portion */
+                meal.items.forEach(function (it, ii) {
+                    [-0.5, 0.5].forEach(function (delta) {
+                        var nm = Math.round((it.mult + delta) * 2) / 2;
+                        if (nm < genFloor(it) || nm > genCap(it)) return;
+                        var old = it.mult;
+                        it.mult = nm;
+                        var nv = genViolations(meals, targets, bands);
+                        it.mult = old;
+                        if (nv < bestV - 0.0001) { bestV = nv; bestMove = { mi: mi, ii: ii, nm: nm }; }
+                    });
                 });
             });
-            if (Object.keys(plan).length < 3) {
-                GEN_EXTRAS.forEach(function (id) { if (!(id in plan)) [0.5, 1].forEach(function (p) { trials.push([id, p]); }); });
-                GEN_POOLS.dessert.forEach(function (id) { if (!(id in plan)) trials.push([id, 0.5]); });
-            }
-            genShuffle(trials);
-            for (var k = 0; k < trials.length; k++) {
-                var tid = trials[k][0], tp = trials[k][1];
-                var isNew = !(tid in plan);
-                if (isNew && Object.keys(plan).length >= 3) continue;
-                var old = plan[tid];
-                plan[tid] = tp;
-                var tot = genTotalsArr(plan);
-                var kcalT = activeTargets()['208'];
-                if (kcalT && tot[0] > kcalT * 1.3) {
-                    if (isNew) delete plan[tid]; else plan[tid] = old;
-                    continue;
-                }
-                var s = genObjective(tot, Object.keys(plan));
-                if (s > best + 0.01) { best = s; improved = true; }
-                else { if (isNew) delete plan[tid]; else plan[tid] = old; }
-            }
+            if (!bestMove) break;
+            meals[bestMove.mi].items[bestMove.ii].mult = bestMove.nm;
+            v = bestV;
         }
-        /* Swaps: breakfast within its pool, the anchor within the anchor
-           pool, a third dish within its own kind -- portions unchanged. */
-        function trySwap(outId, candidates) {
-            candidates.forEach(function (cand) {
-                if (cand === outId || (cand in plan)) return;
-                var m = plan[outId];
-                delete plan[outId];
-                plan[cand] = m;
-                var s2 = genScoreOf(plan).score;
-                if (s2 > best + 0.01) { best = s2; outId = cand; }
-                else { delete plan[cand]; plan[outId] = m; }
+        return v;
+    }
+    function genValidate(meals, targets, bands) {
+        var seen = {}, leafy = 0, families = {}, ok = true;
+        meals.forEach(function (meal) {
+            meal.items.forEach(function (it) {
+                if (seen[it.id]) ok = false;
+                seen[it.id] = 1;
+                if (genLeafy(it.id) && genRole(it.id) !== 'main') leafy++;
+                if (GEN_VEC[it.id][GEN_PROT_I] * it.mult >= 10) families[genFamily(it.id)] = 1;
             });
-            return outId;
-        }
-        anchor = trySwap(anchor, GEN_ANCHORS);
-        trySwap(bf, GEN_BREAKFAST);
-        Object.keys(plan).forEach(function (id) {
-            if (id === anchor || genIsBreakfast(id)) return;
-            trySwap(id, genRole(id) === 'dessert' ? GEN_POOLS.dessert : GEN_EXTRAS);
         });
-        return { plan: plan, score: best };
+        if (!ok) return false;
+        if (meals[0].items.length !== 1 || !genIsBreakfast(meals[0].items[0].id)) return false;
+        for (var mi = 1; mi <= 2; mi++) {
+            if (!meals[mi].items.length || meals[mi].items.length > 3) return false;
+            if (!meals[mi].items.some(function (it) { return GEN_ANCHORS.indexOf(it.id) !== -1; })) return false;
+        }
+        if (meals[3].items.length > 1) return false;
+        if (leafy > 1) return false;
+        if (Object.keys(families).length < 2) return false;
+        var L = genLight(meals);
+        var kcalT = targets['208'], protT = targets['203'];
+        if (L.kcal < kcalT * 0.85 || L.kcal > kcalT * 1.10) return false;
+        if (L.prot < protT * 0.90) return false;
+        var shares = [bands.bf, bands.lunch, bands.dinner];
+        for (var i = 0; i < 3; i++) {
+            var s = L.mealK[i] / kcalT;
+            if (s < shares[i][0] || s > shares[i][1]) return false;
+        }
+        return true;
+    }
+    function genConstruct(targets) {
+        var used = {};
+        function take(pool) {
+            var options = pool.filter(function (id) { return !used[id]; });
+            if (!options.length) return null;
+            var id = genPick(options);
+            used[id] = 1;
+            return id;
+        }
+        var meals = [
+            { label: 'Breakfast', items: [] },
+            { label: 'Lunch', items: [] },
+            { label: 'Dinner', items: [] },
+            { label: 'Treat', items: [] }
+        ];
+        var bf = take(GEN_BREAKFAST);
+        if (bf) meals[0].items.push({ id: bf, mult: 1 });
+        /* With a high protein target, draw the anchors from the
+           stronger half of the pool -- the floor has to be reachable
+           inside the portion caps. */
+        var anchorPool = GEN_ANCHORS;
+        if ((targets['203'] || 0) >= 100) {
+            var strong = GEN_ANCHORS.filter(function (id) { return GEN_VEC[id][GEN_PROT_I] >= 35; });
+            if (strong.length >= 2) anchorPool = strong;
+        }
+        var lm = take(anchorPool);
+        if (lm) meals[1].items.push({ id: lm, mult: 1.5 });
+        var dm = take(anchorPool);
+        if (dm) meals[2].items.push({ id: dm, mult: 1.5 });
+        var leafyUsed = 0;
+        function extraFor(meal, chance) {
+            if (Math.random() >= chance) return;
+            var options = GEN_EXTRAS.filter(function (id) { return !used[id] && !(leafyUsed && genLeafy(id)); });
+            if (!options.length) return;
+            var id = genPick(options);
+            used[id] = 1;
+            if (genLeafy(id)) leafyUsed++;
+            meal.items.push({ id: id, mult: 1 });
+        }
+        extraFor(meals[1], 0.55);
+        extraFor(meals[2], 0.75);
+        extraFor(meals[2], 0.3);
+        if (Math.random() < 0.35) {
+            var ds = take(GEN_POOLS.dessert);
+            if (ds) meals[3].items.push({ id: ds, mult: 0.5 });
+        }
+        return meals;
+    }
+    function genDayPlan(meals) {
+        var plan = {};
+        meals.forEach(function (m) { m.items.forEach(function (it) { plan[it.id] = it.mult; }); });
+        return plan;
     }
     function genPlanKey(plan) {
         return Object.keys(plan).sort().map(function (id) { return id + ':' + plan[id]; }).join('|');
-    }
-    var lastDailyPlan = null;
-    var lastDailyKey = null;
-    var lastDailyMs = null;
-    function generateDaily() {
-        var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
-        var RESTARTS = 20;
-        var found = [];
-        var seen = {};
-        for (var r = 0; r < RESTARTS; r++) {
-            var g = genGreedy();
-            var key = genPlanKey(g.plan);
-            if (seen[key]) continue;
-            seen[key] = 1;
-            found.push({ plan: g.plan, score: g.score, key: key });
-        }
-        found.sort(function (a, b) { return b.score - a.score; });
-        /* Prefer the fewest dishes among near-best plans: portions, not
-           another cooking session, should do the work. */
-        var topScore = found.length ? found[0].score : 0;
-        var near = found.filter(function (f) { return f.score >= topScore - 1.5; });
-        near.sort(function (a, b) {
-            var dd = Object.keys(a.plan).length - Object.keys(b.plan).length;
-            return dd !== 0 ? dd : b.score - a.score;
-        });
-        var pick = near[0];
-        if (pick && pick.key === lastDailyKey) {
-            for (var i = 1; i < near.length; i++) {
-                if (near[i].key !== lastDailyKey) { pick = near[i]; break; }
-            }
-        }
-        lastDailyMs = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
-        if (!pick) return null;
-        lastDailyPlan = pick.plan;
-        lastDailyKey = pick.key;
-        renderDaily(pick.plan, genTotalsArr(pick.plan));
-        return pick.plan;
     }
     function fmtMult(m) {
         return ({ '0.5': '½', '1': '1', '1.5': '1½', '2': '2', '2.5': '2½', '3': '3' })[String(m)] || String(m);
@@ -6705,49 +6792,68 @@
         if (r.serving === '1 serving') return fmtMult(m) + ' serving' + (m > 1 ? 's' : '');
         return fmtMult(m) + ' × ' + r.serving;
     }
-    function renderDaily(plan, totArr) {
+    var lastDailyPlan = null;
+    var lastDailyKey = null;
+    var lastDailyMs = null;
+    var lastDailyStats = null;
+    function generateDaily() {
+        var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+        var targets = activeTargets();
+        var valid = [];
+        var seenKeys = {};
+        var attempts = 0, relaxedAttempts = 0;
+        function hunt(bands, budget) {
+            var tries = 0;
+            while (valid.length < 12 && tries < budget) {
+                tries++;
+                var meals = genConstruct(targets);
+                genFit(meals, targets, bands);
+                if (!genValidate(meals, targets, bands)) continue;
+                var plan = genDayPlan(meals);
+                var key = genPlanKey(plan);
+                if (seenKeys[key]) continue;
+                seenKeys[key] = 1;
+                var totArr = genTotalsArr(plan);
+                valid.push({ meals: meals, plan: plan, totArr: totArr, key: key, score: genObjective(totArr, Object.keys(plan)), relaxed: bands !== GEN_BANDS });
+            }
+            return tries;
+        }
+        attempts = hunt(GEN_BANDS, 150);
+        if (!valid.length) relaxedAttempts = hunt(GEN_BANDS_RELAXED, 150);
+        lastDailyMs = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
+        lastDailyStats = { attempts: attempts, relaxedAttempts: relaxedAttempts, valid: valid.length };
+        if (!valid.length) return null;
+        valid.sort(function (a, b) { return b.score - a.score; });
+        var pick = valid[0];
+        if (pick.key === lastDailyKey) {
+            for (var i = 1; i < valid.length; i++) {
+                if (valid[i].key !== lastDailyKey) { pick = valid[i]; break; }
+            }
+        }
+        lastDailyPlan = pick.plan;
+        lastDailyKey = pick.key;
+        renderDaily(pick.meals, pick.plan, pick.totArr);
+        return pick.plan;
+    }
+    /* Verification hook (same pattern as __jboCombo): how the last
+       generation hunt went -- attempts used, whether the widened meal
+       shares were needed, how many valid days were found. */
+    window.__jboGenStats = function () { return lastDailyStats; };
+    function renderDaily(meals, plan, totArr) {
         var box = document.getElementById('dailyResults');
         if (!box) return;
         var byId = {};
         RECIPES.forEach(function (r) { byId[r.id] = r; });
-        var entries = Object.keys(plan).map(function (id) {
-            return { id: id, mult: plan[id], role: genRole(id), kcal: GEN_VEC[id][0] * plan[id], name: byId[id] ? byId[id].name : id };
-        });
-        var breakfast = entries.filter(function (e) { return genIsBreakfast(e.id); });
-        var desserts = entries.filter(function (e) { return e.role === 'dessert'; });
-        var rest = entries.filter(function (e) { return !genIsBreakfast(e.id) && e.role !== 'dessert'; }).sort(function (a, b) { return b.kcal - a.kcal; });
-        var anchorE = rest.length ? rest[0] : null;
-        var extras = rest.slice(1);
-        /* The anchor's combined portion splits across lunch and dinner:
-           lunch takes the larger share, both in half steps. */
-        var lunchMult = 0, dinnerMult = 0;
-        if (anchorE) {
-            dinnerMult = Math.floor((anchorE.mult / 2) * 2) / 2;
-            if (dinnerMult < 0.5) dinnerMult = 0.5;
-            if (dinnerMult > anchorE.mult - 0.5) dinnerMult = anchorE.mult - 0.5;
-            lunchMult = anchorE.mult - dinnerMult;
-        }
-        var groups = [
-            { label: 'Breakfast', items: [] },
-            { label: 'Lunch', items: [] },
-            { label: 'Dinner', items: [] },
-            { label: 'Treat', items: [] }
-        ];
-        breakfast.forEach(function (e) { groups[0].items.push({ e: e, mult: e.mult, note: '' }); });
-        if (anchorE) {
-            groups[1].items.push({ e: anchorE, mult: lunchMult, note: 'cook once \u2014 the same dish is dinner too' });
-            groups[2].items.push({ e: anchorE, mult: dinnerMult, note: 'from the same batch as lunch' });
-        }
-        extras.forEach(function (e) { groups[2].items.push({ e: e, mult: e.mult, note: '' }); });
-        desserts.forEach(function (e) { groups[3].items.push({ e: e, mult: e.mult, note: '' }); });
-        var order = breakfast.concat(anchorE ? [anchorE] : []).concat(extras).concat(desserts);
-        var h = '<p class="daily-summary"><strong>' + entries.length + ' dish' + (entries.length === 1 ? '' : 'es') + '</strong> \u00b7 ' +
-            order.map(function (e) { return esc(e.name) + ' \u00d7' + fmtMult(e.mult); }).join(', ') + '</p>';
-        groups.forEach(function (g) {
-            if (!g.items.length) return;
-            h += '<div class="daily-meal"><p class="daily-meal-title">' + g.label + '</p><ul>';
-            g.items.forEach(function (it) {
-                h += '<li><span class="daily-mult">' + esc(portionText(byId[it.e.id], it.mult)) + '</span> \u00b7 ' + esc(it.e.name) + (it.note ? ' <span class="daily-serving">(' + it.note + ')</span>' : '') + '</li>';
+        var order = [];
+        meals.forEach(function (m) { m.items.forEach(function (it) { order.push(it); }); });
+        var h = '<p class="daily-summary"><strong>' + order.length + ' dish' + (order.length === 1 ? '' : 'es') + '</strong> \u00b7 ' +
+            order.map(function (it) { return esc(byId[it.id] ? byId[it.id].name : it.id) + ' \u00d7' + fmtMult(it.mult); }).join(', ') + '</p>';
+        meals.forEach(function (m) {
+            if (!m.items.length) return;
+            h += '<div class="daily-meal"><p class="daily-meal-title">' + m.label + '</p><ul>';
+            m.items.forEach(function (it) {
+                var r = byId[it.id];
+                h += '<li><span class="daily-mult">' + esc(portionText(r, it.mult)) + '</span> \u00b7 ' + esc(r ? r.name : it.id) + '</li>';
             });
             h += '</ul></div>';
         });
