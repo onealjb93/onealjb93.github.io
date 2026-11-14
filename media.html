@@ -60,13 +60,16 @@
         .media-col-podcasts > h2 { padding-top: 40px; }
     }
 
-    /* Expand all / Collapse all (2026-11-13): one segmented pair per
-       perimeter, styled to match .book-controls select in style.css
-       (same font, colours, border, radius, padding). Books: the pair
-       lifts the list card's 380px cap so all 120 books show at once.
-       Podcasts: the pair drives the Spotify embed's height — 800px
-       shows the whole playlist, 152px is Spotify's compact player;
-       the resting 352px default is untouched. */
+    /* Expand all / Collapse all: ONE segmented component used by both
+       sections (styled to match .book-controls select in style.css —
+       same font, colours, border, radius, padding), under ONE placement
+       rule: the pair is the last item of its section's control row at
+       the head of the card, hugging the row's right edge. ONE state
+       model: exactly one half is pressed, and it names the section's
+       current state — collapsed = the section's resting presentation
+       (Books: the 380px cap; Podcasts: the embed's 352px resting
+       height), expanded = everything shown (Books: cap lifted;
+       Podcasts: the embed at 800px). */
     .expand-all-toggle {
         display: inline-flex;
         border: 1px solid var(--border-color);
@@ -100,6 +103,17 @@
         justify-content: flex-end;
         flex-wrap: wrap;
         margin-bottom: 12px;
+    }
+    /* The placement rule, Books side: the pair is the control row's
+       last item and hugs its right edge, on one line or wrapped. */
+    .book-controls .expand-all-toggle { margin-left: auto; }
+    .book-filter-selects { display: flex; gap: 8px; }
+    /* Mobile: the two selects take their own full-width line and split
+       it equally, so neither can overflow the card; the pair wraps
+       below them, still right-aligned. */
+    @media (max-width: 600px) {
+        .book-controls .book-filter-selects { flex: 1 1 100%; min-width: 0; }
+        .book-controls .book-filter-selects select { flex: 1 1 0; min-width: 0; }
     }
     </style>
     <link rel="stylesheet" href="style.css">
@@ -160,7 +174,7 @@
     <div class="book-list-container">
         <div class="book-controls">
             <span style="font-size: 0.85rem; font-weight: 600;">Filter & Sort:</span>
-            <div style="display: flex; gap: 8px;">
+            <div class="book-filter-selects">
                 <select id="genre-filter" onchange="filterAndSortBooks()">
                     <option value="all">All Genres</option>
                     <option value="Ecology">Ecology & Nature</option>
@@ -311,7 +325,7 @@
         <div class="podcast-controls">
             <div class="expand-all-toggle" role="group" aria-label="Podcast list size">
                 <button type="button" id="podcasts-expand" aria-pressed="false">Expand all</button>
-                <button type="button" id="podcasts-collapse" aria-pressed="false">Collapse all</button>
+                <button type="button" id="podcasts-collapse" aria-pressed="true">Collapse all</button>
             </div>
         </div>
         <!-- Universal Mobile-Friendly Native Spotify Embed -->
@@ -363,12 +377,14 @@
         }
     </script>
     <script>
-        // Expand all / Collapse all — one pair per perimeter, independent.
+        // Expand all / Collapse all — one component, two independent instances.
         // Books: toggles .list-expanded on the list card (lifts its 380px
         // cap; the class lives on the container, so filter/sort, which only
         // touch the items, never disturb it). Podcasts: sets the Spotify
-        // embed height — 800px shows the full playlist, 152px is Spotify's
-        // compact player. Page load changes nothing: defaults preserved.
+        // embed height — 800px shows the full playlist, 352px is the
+        // embed's resting height (its collapsed state, matching Books'
+        // cap). Page load changes nothing: both pairs start on Collapse,
+        // which is the state both sections are actually in.
         (function () {
             function wire(expandId, collapseId, apply) {
                 var expandBtn = document.getElementById(expandId);
@@ -394,7 +410,7 @@
             var podFrame = document.getElementById('podcast-frame');
             if (podFrame) {
                 wire('podcasts-expand', 'podcasts-collapse', function (expand) {
-                    podFrame.style.height = expand ? '800px' : '152px';
+                    podFrame.style.height = expand ? '800px' : '352px';
                 });
             }
         })();
