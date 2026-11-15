@@ -406,10 +406,12 @@
     .dish-scaler .dish-scale.active { color: var(--link-color); border-color: var(--link-color); }
     /* Scroll landings for an opened card clear the full pinned stack:
        the 55px header plus the pinned bar that takes the slot under it
-       (the recipe-name bar, ~39px, or the stuck section toggle), with
-       the same ~15px slack the old header-only 70px offset used. */
-    .recipe-wrapper { scroll-margin-top: 110px; }
-    .recipe-content { scroll-margin-top: 110px; }
+       (the recipe-name bar — its real height, measured into
+       --recipe-name-h by the sticky-name script, ~39px on one line — or
+       the stuck section toggle), with the same ~15px slack the old
+       header-only 70px offset used. */
+    .recipe-wrapper { scroll-margin-top: calc(55px + var(--recipe-name-h, 39px) + 16px); }
+    .recipe-content { scroll-margin-top: calc(55px + var(--recipe-name-h, 39px) + 16px); }
     /* Sticky cooking-tips group names (added 2026-11-12): the open group's
        <summary> pins below the frozen site header. Tap it to close the
        group (it IS the toggle -- no new button). Only the open group sticks.
@@ -421,7 +423,7 @@
     #recipeStickyName { position: fixed; left: 0; right: 0; z-index: 950; display: none; appearance: none; -webkit-appearance: none; background: var(--bg-color); border: 0; border-bottom: 1px solid var(--border-color); padding: 0; cursor: pointer; text-align: left; font: inherit; }
     #recipeStickyName.show { display: block; }
     #recipeStickyName .recipe-sticky-inner { max-width: 1140px; margin: 0 auto; padding: 0.6rem 40px; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
-    #recipeStickyName .recipe-sticky-title { font-size: 0.92rem; font-weight: 700; line-height: 1.3; color: var(--text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #recipeStickyName .recipe-sticky-title { font-size: 0.92rem; font-weight: 700; line-height: 1.3; color: var(--text-color); min-width: 0; }
     #recipeStickyName .recipe-sticky-hint { font-size: 0.8rem; color: var(--subtext-color); flex: none; }
     @media (max-width: 768px) { #recipeStickyName .recipe-sticky-inner { padding: 0.55rem 18px; } }
     /* Recipe top cluster (mobile only, added 2026-11-14): on phones each
@@ -5418,7 +5420,7 @@
 
             </div>
             <div id="vitamins-section" hidden>
-                <p class="vitamins-intro">The supplements I actually take, counted in the same combiner as the food. Tick a card here — or its line in the Nutrition Comparison Tool below — and its nutrients join the Combined Nutrition totals and the Healthy Day score. Only the 15 nutrients the tool tracks are scored; anything else on the label is listed as 'also provides' and doesn't move the score yet.</p>
+                <p class="vitamins-intro">The supplements I actually take, counted in the same combiner as the food. Tick a card here — or its line in the Nutrition Comparison Tool below — and its nutrients join the Combined Nutrition totals and the day's verdict. Only the 15 nutrients the tool tracks are scored; anything else on the label is listed as 'also provides' and doesn't move the score yet.</p>
                 <div class="vitamins-grid">
                     <article class="vitamin-card">
                         <label class="vitamin-pick"><input type="checkbox" class="vitamin-check" data-vitamin="vitKirklandMulti"> <span>Add to combiner</span></label>
@@ -6368,7 +6370,7 @@
         resultsEl.innerHTML = h;
     }
 
-    /* Healthy Day score (0-5 dots) for the current selection: one dot per
+    /* The verdict's base score (0-5 dots) for the current selection: one dot per
        criterion met, computed from the same combined totals and daily
        targets the dots above use -- no new nutrition data.
        1. Protein at least 50% of target. 2. Fiber at least 50% of target.
@@ -6804,7 +6806,7 @@
        150% of target; calories are scored on closeness to 100% of target;
        the three daily-limit nutrients (saturated fat, cholesterol, sodium)
        lose points steeply once they pass 85% of the limit. Plus a bonus
-       for the page's own Healthy Day score, so plans that satisfy its
+       for the page's own verdict base score, so plans that satisfy its
        criteria win ties. */
     function genObjective(totArr, ids) {
         var targets = activeTargets();
@@ -7160,7 +7162,7 @@
     window.__jboComboWith = function (ids, multMap) { return comboCore(ids, multMap || null); };
 
     /* --- The verdict: a pure consumer of the scorecard's own numbers.
-       Bands, not precision: start from the Healthy Day score, subtract
+       Bands, not precision: start from the base score, subtract
        for sugar against its day budget, add for fiber and protein that
        reach their FULL targets. Labels are the user's approved set,
        gated at scores 1-2 on the cause below being present. --- */
@@ -7654,9 +7656,19 @@
             return nav ? nav.offsetHeight : 56;
         }
         function placeBar() { bar.style.top = navHeight() + 'px'; }
+        /* Mirror of the combiner bar's syncBarSpace: measure the name
+           bar's real height into --recipe-name-h so scroll landings for an
+           opened recipe clear the bar even when a long name wraps it
+           taller. Removed while the bar is hidden (the CSS fallback then
+           reproduces the old fixed 110px landing). */
+        function syncNameBarSpace() {
+            if (!bar.classList.contains('show')) { document.body.style.removeProperty('--recipe-name-h'); return; }
+            var hh = bar.offsetHeight || 0;
+            if (hh) document.body.style.setProperty('--recipe-name-h', hh + 'px');
+        }
         function updateSticky() {
             var cookView = document.getElementById('cookView');
-            if (cookView && cookView.classList.contains('open')) { bar.classList.remove('show'); currentId = null; currentWrapper = null; return; }
+            if (cookView && cookView.classList.contains('open')) { bar.classList.remove('show'); currentId = null; currentWrapper = null; syncNameBarSpace(); return; }
             var navH = navHeight();
             var found = null, foundWrapper = null;
             document.querySelectorAll('.recipe-wrapper.expanded').forEach(function (w) {
@@ -7683,6 +7695,7 @@
                 currentWrapper = null;
                 bar.classList.remove('show');
             }
+            syncNameBarSpace();
         }
         var ticking = false;
         function onScroll() {
@@ -7704,6 +7717,7 @@
             bar.classList.remove('show');
             currentId = null;
             currentWrapper = null;
+            syncNameBarSpace();
             /* Collapsing from deep inside would otherwise leave the page
                scrolled past vanished content -- glide back to the card. */
             wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
