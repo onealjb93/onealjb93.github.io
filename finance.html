@@ -90,7 +90,8 @@
     .jbo-chart-datanote { margin-top: 0.5rem; font-size: 0.85rem; color: var(--subtext-color); }
     /* Chart key: the swatches are the exact colours and weights the
        in-page chart draws — amber 200-week (3px), blue 50-week (2px),
-       violet weekly RSI (2px), teal P/E (2px, its pane is optional). */
+       violet weekly RSI (2px), teal P/E (2px, its pane is optional),
+       grey 20-week volume average (the text colour, reduced). */
     .tv-chart-key { display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; margin-top: 0.75rem; font-size: 0.85rem; color: var(--subtext-color); }
     .tv-key-item { display: inline-flex; align-items: center; gap: 0.5rem; }
     .tv-key-swatch { display: inline-block; width: 26px; border-radius: 2px; flex: none; }
@@ -98,6 +99,7 @@
     .tv-key-ma50 { height: 3px; background: #2962FF; }
     .tv-key-rsi { height: 3px; background: #7E57C2; }
     .tv-key-pe { height: 3px; background: #2dd4bf; }
+    .tv-key-volma { height: 3px; background: var(--text-color); opacity: 0.55; }
     /* Stack runner (2026-11-16): the screener's working layer — pick a
        stock, see each checkable line of the Stack graded on its numbers. */
     .stack-runner { margin: 1.25rem 0 0.5rem; }
@@ -310,6 +312,8 @@
                 <button type="button" class="filter-pill" data-style="candles">Candles</button>
             </div>
             <div class="chip-row" id="chartPanes" role="group" aria-label="Chart panes">
+                <button type="button" class="filter-pill" data-pane="volume" aria-pressed="true">Volume</button>
+                <button type="button" class="filter-pill" data-pane="rsi" aria-pressed="true">RSI</button>
                 <button type="button" class="filter-pill" data-pane="pe" aria-pressed="false">P/E</button>
             </div>
         </div>
@@ -318,8 +322,9 @@
         <div class="tv-chart-key">
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma200" aria-hidden="true"></span><span><strong>Amber &mdash; the 200-week average</strong>, the thickest line. Four years of trading in one line: below it, a stock has historically been cheap. It's the value line.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma50" aria-hidden="true"></span><span><strong>Blue &mdash; the 50-week average</strong>, the trend line. A year of price: above it, the trend is up and intact; below it, the trend is broken.</span></span>
-            <span class="tv-key-item"><span class="tv-key-swatch tv-key-rsi" aria-hidden="true"></span><span><strong>Violet &mdash; the weekly RSI</strong>, in the pane below. It measures how stretched the price is &mdash; pushed too far, too fast, in either direction.</span></span>
-            <span class="tv-key-item"><span class="tv-key-swatch tv-key-pe" aria-hidden="true"></span><span><strong>Teal &mdash; the P/E ratio</strong>, in its own pane when you switch it on. The price divided by the last twelve months of earnings per share &mdash; how many dollars investors pay for one dollar of profit. Where the line breaks, the company was losing money: there is no P/E without earnings.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-rsi" aria-hidden="true"></span><span><strong>Violet &mdash; the weekly RSI</strong>, in the pane below. It measures how stretched the price is &mdash; pushed too far, too fast, in either direction. The dashed lines mark 70 and 30: above 70 it's overbought, below 30 oversold.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-pe" aria-hidden="true"></span><span><strong>Teal &mdash; the P/E ratio</strong>, in its own pane when you switch it on. The price divided by the last twelve months of earnings per share &mdash; how many dollars investors pay for one dollar of profit. Where the line breaks, the company was losing money: there is no P/E without earnings. The dashed line is the stock's own median P/E: above it, expensive for itself; below it, cheap for itself.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span><strong>Grey &mdash; the 20-week volume average</strong>, the line running through the volume bars. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
         </div>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         </div>
@@ -3600,6 +3605,14 @@ if (typeof module !== "undefined") {
     // earnings were not positive, so the line breaks honestly through
     // loss years; a series with no pe array at all gets a plain note
     // in the pane saying the history arrives with a data refresh.
+    // All three sub-panes carry a toggle pill (Volume and RSI on by
+    // default, P/E off; each choice persisted), and a pane that is
+    // off hands its height back to the price pane. The RSI pane
+    // carries the standard dashed 30/70 guides in a muted violet;
+    // the P/E pane, once a series has a year of P/E history, a
+    // dashed line at the stock's own full-history median P/E in a
+    // muted teal; the volume pane a 20-week volume average in the
+    // theme text colour at reduced strength.
     // Instruments are the 23 the pipeline carries: the S&P 500, the
     // Nasdaq Composite, gold, Bitcoin and Johnny's 19 stocks — plus,
     // since 2026-11-16, the Nasdaq-100 constituents as CHART-ONLY
@@ -3615,14 +3628,25 @@ if (typeof module !== "undefined") {
     (function () {
         "use strict";
         var MA200_COLOR = "#FF9800", MA50_COLOR = "#2962FF", RSI_COLOR = "#7E57C2", PE_COLOR = "#2dd4bf";
-        var PE_KEY = "jbo-chart-pe-v1";
+        // The RSI pane's 30/70 guide lines: the RSI's own violet at
+        // half strength — same family, visibly quieter than the line.
+        var RSI_GUIDE_COLOR = "rgba(126, 87, 194, 0.5)";
+        // The P/E pane's median line: the P/E's own teal, same treatment.
+        var PE_GUIDE_COLOR = "rgba(45, 212, 191, 0.5)";
+        var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1";
         var PICK_KEYS = ["SPX", "IXIC", "GOLD", "BTC"];
         var RANGE_WEEKS = { "1Y": 52, "5Y": 260, "10Y": 520, "ALL": Infinity };
         var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         var chartData = null, loadStarted = false, loadFailed = false;
         var cur = { key: "SPX", range: "5Y", style: "line" };
-        var peOn = false;
-        try { peOn = window.localStorage.getItem(PE_KEY) === "1"; } catch (e) { peOn = false; }
+        // Pane toggles: Volume and RSI start on (the shipped look),
+        // P/E starts off; a stored "0"/"1" overrides per pane.
+        var peOn = false, volOn = true, rsiOn = true;
+        try {
+            peOn = window.localStorage.getItem(PE_KEY) === "1";
+            volOn = window.localStorage.getItem(VOL_KEY) !== "0";
+            rsiOn = window.localStorage.getItem(RSI_KEY) !== "0";
+        } catch (e) { /* storage unavailable: the defaults stand */ }
         var pendingKey = null;
         var hover = -1; // full-series index under the pointer; -1 = latest bar
         var lastPtr = { type: "mouse", y: 0 }; // last pointer spot inside the frame (touch tooltip placement)
@@ -3680,6 +3704,20 @@ if (typeof module !== "undefined") {
             if (v === null || v === undefined || isNaN(v)) return "—";
             return v >= 100 ? String(Math.round(v)) : (Math.round(v * 10) / 10).toFixed(1);
         }
+        // The median of a series' whole P/E history (every non-null
+        // value in the array, so the number is one fixed figure per
+        // stock and never moves when the range changes). Below a
+        // year of non-null weeks there is too little history to call
+        // anything typical: null, and the pane draws no median line.
+        function peMedianOf(arr) {
+            if (!arr) return null;
+            var vals = [];
+            for (var i = 0; i < arr.length; i++) if (arr[i] !== null) vals.push(arr[i]);
+            if (vals.length < 52) return null;
+            vals.sort(function (a, b) { return a - b; });
+            var mid = vals.length >> 1;
+            return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+        }
 
         // ---- view computation ----
         function computeViewFor(key) {
@@ -3687,14 +3725,17 @@ if (typeof module !== "undefined") {
             var s = chartData.series[key];
             if (!s || !s.bars || !s.bars.length) return null;
             var closes = s.bars.map(function (b) { return b[4]; });
+            var volumes = s.bars.map(function (b) { return b[5]; });
             var n = s.bars.length;
             var count = Math.min(n, RANGE_WEEKS[cur.range]);
+            // The pipeline's P/E array, only trusted when it lines
+            // up 1:1 with the bars; anything else reads as absent.
+            var peArr = (s.pe && s.pe.length === s.bars.length) ? s.pe : null;
             return {
                 s: s, closes: closes,
                 ma200: sma(closes, 200), ma50: sma(closes, 50), rsi: rsiWilder(closes, 14),
-                // The pipeline's P/E array, only trusted when it lines
-                // up 1:1 with the bars; anything else reads as absent.
-                pe: (s.pe && s.pe.length === s.bars.length) ? s.pe : null,
+                volMa: sma(volumes, 20),
+                pe: peArr, peMedian: peMedianOf(peArr),
                 isBench: PICK_KEYS.indexOf(key) >= 0,
                 start: n - count, end: n - 1,
                 hasVolume: s.bars.some(function (b) { return b[5] > 0; })
@@ -3712,13 +3753,13 @@ if (typeof module !== "undefined") {
             var rows = [{ label: "Close", value: fmtNum(b[4]), color: null, chip: "close" }];
             rows.push({ label: "200-week", value: v.ma200[idx] === null ? "—" : fmtNum(v.ma200[idx]), color: MA200_COLOR, chip: "" });
             rows.push({ label: "50-week", value: v.ma50[idx] === null ? "—" : fmtNum(v.ma50[idx]), color: MA50_COLOR, chip: "" });
-            rows.push({ label: "RSI", value: v.rsi[idx] === null ? "—" : v.rsi[idx].toFixed(1), color: RSI_COLOR, chip: "" });
-            // The P/E chip joins the tooltip only while its pane is
-            // on and the series carries the array; a null week (the
-            // trailing earnings were not positive) reads "—", never
-            // an invented multiple.
+            // A sub-pane's chip joins the tooltip only while that
+            // pane is switched on (and the series carries the data).
+            if (rsiOn) rows.push({ label: "RSI", value: v.rsi[idx] === null ? "—" : v.rsi[idx].toFixed(1), color: RSI_COLOR, chip: "" });
+            // The P/E chip: a null week (the trailing earnings were
+            // not positive) reads "—", never an invented multiple.
             if (peOn && v.pe) rows.push({ label: "P/E", value: v.pe[idx] === null ? "—" : fmtPE(v.pe[idx]), color: PE_COLOR, chip: "" });
-            if (v.hasVolume) rows.push({ label: "Volume", value: fmtVol(b[5]), color: null, chip: "" });
+            if (v.hasVolume && volOn) rows.push({ label: "Volume", value: fmtVol(b[5]), color: null, chip: "" });
             return rows;
         }
         // Why the P/E pane is empty, in plain words — the pane draws
@@ -3863,14 +3904,23 @@ if (typeof module !== "undefined") {
             var v = view, bars = v.s.bars, n = v.end - v.start + 1, i;
             var axisW = 58, axisH = 20, plotW = W - axisW - 12;
             var plotH = H - axisH;
-            // With the P/E pane on, the three lower panes share a
-            // little more of the height and each gap stays 6px; the
-            // price pane remains the dominant one either way.
-            var volH = v.hasVolume ? Math.round(plotH * (peOn ? 0.11 : 0.14)) : 0;
-            var rsiH = Math.round(plotH * (peOn ? 0.20 : 0.26));
-            var peH = peOn ? Math.round(plotH * 0.20) : 0;
-            var priceH = plotH - volH - rsiH - peH - (peOn ? 18 : 12);
-            var priceY = 6, volY = priceY + priceH + 6, rsiY = volY + volH + 6, peY = rsiY + rsiH + 6;
+            // Sub-pane heights: the RSI and P/E panes are slimmer
+            // than they used to be (each gave up about a third) so
+            // the price pane stays clearly dominant; volume keeps
+            // its share. A pane that is off — or, for volume, a
+            // series with no volume to draw — takes no height and
+            // no 6px gap: both go back to the price pane, and with
+            // all three off the price pane fills the chart.
+            var volH = (volOn && v.hasVolume) ? Math.round(plotH * 0.11) : 0;
+            var rsiH = rsiOn ? Math.round(plotH * 0.13) : 0;
+            var peH = peOn ? Math.round(plotH * 0.13) : 0;
+            var nSub = (volH > 0 ? 1 : 0) + (rsiH > 0 ? 1 : 0) + (peH > 0 ? 1 : 0);
+            var priceH = plotH - volH - rsiH - peH - 6 * nSub;
+            var priceY = 6, yCur = priceY + priceH, volY = 0, rsiY = 0, peY = 0;
+            if (volH > 0) { volY = yCur + 6; yCur = volY + volH; }
+            if (rsiH > 0) { rsiY = yCur + 6; yCur = rsiY + rsiH; }
+            if (peH > 0) { peY = yCur + 6; yCur = peY + peH; }
+            var botY = peH > 0 ? peY + peH : (rsiH > 0 ? rsiY + rsiH : (volH > 0 ? volY + volH : priceY + priceH));
             layout = { plotW: plotW, start: v.start, end: v.end, W: W, H: H, priceY: priceY, priceH: priceH, peY: peY, peH: peH, hi: null, lo: null };
             var lo = Infinity, hi = -Infinity;
             for (i = v.start; i <= v.end; i++) {
@@ -3940,10 +3990,18 @@ if (typeof module !== "undefined") {
             }
             linePath(v.ma50, YP, MA50_COLOR, 2);
             linePath(v.ma200, YP, MA200_COLOR, 3);
-            // volume pane
-            if (v.hasVolume) {
+            // volume pane: the bars, then the 20-week volume
+            // average over them — the theme text colour at reduced
+            // strength, so it reads against the bars in both
+            // themes. The average starts at the 20th bar: no
+            // average exists before 20 weeks do.
+            if (volH > 0) {
                 var maxV = 0;
                 for (i = v.start; i <= v.end; i++) if (bars[i][5] > maxV) maxV = bars[i][5];
+                // The average shares the pane's scale, so a heavy
+                // stretch just before this window can never push the
+                // line up out of its own pane.
+                for (i = v.start; i <= v.end; i++) if (v.volMa[i] !== null && v.volMa[i] > maxV) maxV = v.volMa[i];
                 if (maxV > 0) {
                     var vw = Math.max(1, plotW / n * 0.7);
                     ctx.fillStyle = subC; ctx.globalAlpha = 0.55;
@@ -3951,20 +4009,29 @@ if (typeof module !== "undefined") {
                         var vh = bars[i][5] / maxV * volH;
                         if (vh > 0) ctx.fillRect(X(i) - vw / 2, volY + volH - vh, vw, vh);
                     }
+                    ctx.globalAlpha = 0.6;
+                    linePath(v.volMa, function (val) { return volY + volH - val / maxV * volH; }, textC, 1.5);
                     ctx.globalAlpha = 1;
                 }
             }
-            // RSI pane: 30/70 guides, then the violet line
-            ctx.strokeStyle = gridC; ctx.lineWidth = 1;
-            [30, 70].forEach(function (lv) {
-                var ly = YR(lv);
-                ctx.beginPath(); ctx.moveTo(6, ly); ctx.lineTo(6 + plotW, ly); ctx.stroke();
+            // RSI pane: the standard 30/70 guide lines — dashed, in
+            // the muted violet, labels in the same tone at the right
+            // edge — then the violet line itself, solid, on top.
+            if (rsiOn) {
+                ctx.lineWidth = 1;
+                [30, 70].forEach(function (lv) {
+                    var ly = YR(lv);
+                    ctx.strokeStyle = RSI_GUIDE_COLOR;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath(); ctx.moveTo(6, ly); ctx.lineTo(6 + plotW, ly); ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.fillStyle = RSI_GUIDE_COLOR; ctx.textAlign = "left";
+                    ctx.fillText(String(lv), 10 + plotW, ly + 3);
+                });
                 ctx.fillStyle = subC; ctx.textAlign = "left";
-                ctx.fillText(String(lv), 10 + plotW, ly + 3);
-            });
-            ctx.fillStyle = subC; ctx.textAlign = "left";
-            ctx.fillText("RSI", 8, rsiY + 11);
-            linePath(v.rsi, YR, RSI_COLOR, 2);
+                ctx.fillText("RSI", 8, rsiY + 11);
+                linePath(v.rsi, YR, RSI_COLOR, 2);
+            }
             // P/E pane (only when switched on): the teal line over
             // its own scale, broken wherever the trailing earnings
             // were not positive. No array — or no positive week in
@@ -3983,6 +4050,21 @@ if (typeof module !== "undefined") {
                         ctx.fillText(fmtPE(val), 10 + plotW, ly + 3);
                     });
                     linePath(v.pe, YPE, PE_COLOR, 2);
+                    // The stock's own median P/E: one fixed figure
+                    // from its whole history, dashed in the muted
+                    // teal, labelled at the right edge. Drawn only
+                    // when the median falls inside this stretch's
+                    // scale — outside it, the line would sit in
+                    // another pane and lie about the scale.
+                    if (v.peMedian !== null && v.peMedian >= peLo && v.peMedian <= peHi) {
+                        var medY = YPE(v.peMedian);
+                        ctx.strokeStyle = PE_GUIDE_COLOR; ctx.lineWidth = 1;
+                        ctx.setLineDash([4, 4]);
+                        ctx.beginPath(); ctx.moveTo(6, medY); ctx.lineTo(6 + plotW, medY); ctx.stroke();
+                        ctx.setLineDash([]);
+                        ctx.fillStyle = PE_GUIDE_COLOR; ctx.textAlign = "right";
+                        ctx.fillText("median " + fmtPE(v.peMedian), W - 6, medY + 3);
+                    }
                 } else {
                     var pnote = v.pe
                         ? "No P/E in this stretch — the trailing earnings were not positive."
@@ -4014,9 +4096,11 @@ if (typeof module !== "undefined") {
             if (hover >= v.start && hover <= v.end) {
                 var hx = X(hover);
                 ctx.strokeStyle = subC; ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
-                ctx.beginPath(); ctx.moveTo(hx, priceY); ctx.lineTo(hx, peOn ? peY + peH : rsiY + rsiH); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(hx, priceY); ctx.lineTo(hx, botY); ctx.stroke();
                 ctx.globalAlpha = 1;
-                var dots = [[v.closes[hover], YP, textC], [v.ma50[hover], YP, MA50_COLOR], [v.ma200[hover], YP, MA200_COLOR], [v.rsi[hover], YR, RSI_COLOR]];
+                // Dots ride only the visible panes.
+                var dots = [[v.closes[hover], YP, textC], [v.ma50[hover], YP, MA50_COLOR], [v.ma200[hover], YP, MA200_COLOR]];
+                if (rsiOn) dots.push([v.rsi[hover], YR, RSI_COLOR]);
                 if (peOn && peLo !== null) dots.push([v.pe[hover], YPE, PE_COLOR]);
                 dots.forEach(function (pt) {
                     if (pt[0] === null || pt[0] === undefined) return;
@@ -4081,7 +4165,8 @@ if (typeof module !== "undefined") {
             });
             var panes = document.getElementById("chartPanes");
             if (panes) panes.querySelectorAll("button[data-pane]").forEach(function (b) {
-                var on = b.getAttribute("data-pane") === "pe" && peOn;
+                var p = b.getAttribute("data-pane");
+                var on = p === "pe" ? peOn : (p === "volume" ? volOn : rsiOn);
                 b.classList.toggle("active", on);
                 b.setAttribute("aria-pressed", on ? "true" : "false");
             });
@@ -4118,12 +4203,18 @@ if (typeof module !== "undefined") {
             cur.style = btn.getAttribute("data-style"); hover = -1;
             syncControls(); render();
         });
+        function storePane(k, on) {
+            try { window.localStorage.setItem(k, on ? "1" : "0"); } catch (err) { /* storage unavailable */ }
+        }
         var panesEl = document.getElementById("chartPanes");
         if (panesEl) panesEl.addEventListener("click", function (e) {
             var btn = e.target && e.target.closest ? e.target.closest("button[data-pane]") : null;
-            if (!btn || btn.getAttribute("data-pane") !== "pe") return;
-            peOn = !peOn;
-            try { window.localStorage.setItem(PE_KEY, peOn ? "1" : "0"); } catch (err) { /* storage unavailable */ }
+            if (!btn) return;
+            var p = btn.getAttribute("data-pane");
+            if (p === "pe") { peOn = !peOn; storePane(PE_KEY, peOn); }
+            else if (p === "volume") { volOn = !volOn; storePane(VOL_KEY, volOn); }
+            else if (p === "rsi") { rsiOn = !rsiOn; storePane(RSI_KEY, rsiOn); }
+            else return;
             syncControls(); render();
         });
         var canvas = document.getElementById("jboChartCanvas");
@@ -4215,11 +4306,11 @@ if (typeof module !== "undefined") {
             state: function () {
                 var tip = document.getElementById("jboChartTip");
                 return {
-                    key: cur.key, range: cur.range, style: cur.style, pe: peOn,
+                    key: cur.key, range: cur.range, style: cur.style, pe: peOn, vol: volOn, rsi: rsiOn,
                     loaded: !!chartData, failed: loadFailed, hover: hover,
                     tipOpen: !!(tip && tip.classList.contains("open")),
                     peNote: view ? peNoteText(view) : "",
-                    view: view ? { start: view.start, end: view.end, hasVolume: view.hasVolume, hasPE: !!view.pe, bars: view.s.bars.length } : null
+                    view: view ? { start: view.start, end: view.end, hasVolume: view.hasVolume, hasPE: !!view.pe, peMedian: view.peMedian, bars: view.s.bars.length } : null
                 };
             },
             load: function (key) { window.jboLoadChartSymbol(key); }
