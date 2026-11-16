@@ -330,6 +330,26 @@
         }
         .gen-btn:hover { opacity: 0.9; }
         .gen-btn:active { transform: scale(0.98); }
+        .gen-nav-btn {
+            flex: none;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1.25rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .gen-nav-btn:hover:not(:disabled) { opacity: 0.85; }
+        .gen-nav-btn:active:not(:disabled) { transform: scale(0.96); }
+        .gen-nav-btn:disabled { opacity: 0.35; cursor: default; }
+        .gen-topbar .gen-nav-btn { order: 1; }
         .gen-empty { color: var(--subtext-color); font-size: 0.95rem; margin: 0; }
         /* GENERATOR TABS (2026-11-13): pinned segmented bar under the 55px
            header — one tap swaps the visible generator in place, no
@@ -567,7 +587,9 @@
     <section class="gen-section" id="gen-sea" role="tabpanel">
         <div class="gen-body">
             <div class="gen-topbar" id="sea-topbar">
+                <button class="gen-nav-btn" id="sea-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button>
                 <button class="gen-btn" id="sea-btn" type="button">&#127922; New creature</button>
+                <button class="gen-nav-btn" id="sea-next" type="button" aria-label="Next photo" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <p class="gen-name" id="sea-name"></p>
                     <p class="gen-sub" id="sea-sub"></p>
@@ -596,7 +618,9 @@
     <section class="gen-section" id="gen-art" role="tabpanel" hidden>
         <div class="gen-body">
             <div class="gen-topbar" id="art-topbar">
+                <button class="gen-nav-btn" id="art-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button>
                 <button class="gen-btn" id="art-btn" type="button">&#127922; New painting</button>
+                <button class="gen-nav-btn" id="art-next" type="button" aria-label="Next photo" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <p class="gen-name" id="art-name"></p>
                     <p class="gen-sub" id="art-sub"></p>
@@ -625,7 +649,9 @@
     <section class="gen-section" id="gen-arch" role="tabpanel" hidden>
         <div class="gen-body">
             <div class="gen-topbar" id="arch-topbar">
+                <button class="gen-nav-btn" id="arch-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button>
                 <button class="gen-btn" id="arch-btn" type="button">&#127922; New building</button>
+                <button class="gen-nav-btn" id="arch-next" type="button" aria-label="Next photo" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <p class="gen-name" id="arch-name"></p>
                     <p class="gen-sub" id="arch-sub"></p>
@@ -654,7 +680,9 @@
     <section class="gen-section" id="gen-space" role="tabpanel" hidden>
         <div class="gen-body">
             <div class="gen-topbar" id="space-topbar">
+                <button class="gen-nav-btn" id="space-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button>
                 <button class="gen-btn" id="space-btn" type="button">&#127922; New wonder</button>
+                <button class="gen-nav-btn" id="space-next" type="button" aria-label="Next photo" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <p class="gen-name" id="space-name"></p>
                     <p class="gen-sub" id="space-sub"></p>
@@ -725,7 +753,7 @@
             var st = { pool: pool, poolKey: poolKey, ids: [], byId: {},
                 decks: { all: [], loved: [] }, last: { all: null, loved: null },
                 cur: { all: null, loved: null }, started: { all: false, loved: false },
-                shownId: null, domMode: null, gen: 0 };
+                shownId: null, domMode: null, gen: 0, hist: [], histPos: -1 };
             pool.forEach(function (e) {
                 st.ids.push(e.id);
                 st.byId[e.id] = e;
@@ -733,6 +761,13 @@
             });
             GEN[prefix] = st;
             restoreDeck(st);
+            // Session history (in memory only — the persisted deck is
+            // untouched): a card restored from the deck record is this
+            // session's first card for the pool.
+            if (st.cur.all) { st.hist = [st.cur.all.id]; st.histPos = 0; }
+            document.getElementById(prefix + '-prev').addEventListener('click', function () { histStep(prefix, -1); });
+            document.getElementById(prefix + '-next').addEventListener('click', function () { histStep(prefix, 1); });
+            syncHist(prefix);
             var btn = document.getElementById(prefix + '-btn');
             btn.addEventListener('click', function () { draw(prefix); });
             document.getElementById(prefix + '-love').addEventListener('click', function () { toggleLove(prefix); });
@@ -764,7 +799,41 @@
             st.cur[mode] = entry;
             st.started[mode] = true;
             renderEntry(prefix, entry);
-            if (mode === 'all') { saveDeck(st); }
+            if (mode === 'all') {
+                // Record the deal in this session's history. Dealing
+                // from mid-history discards the forward entries —
+                // exactly like a browser navigating somewhere new.
+                st.hist = st.hist.slice(0, st.histPos + 1);
+                st.hist.push(entry.id);
+                st.histPos = st.hist.length - 1;
+                saveDeck(st);
+            }
+            syncHist(prefix);
+        }
+
+        // Session history navigation (browser model): Back/Forward
+        // re-render an already-dealt card through the same renderEntry
+        // path as a fresh deal — heart, fullscreen and Deep Overview
+        // all stay live — without consuming a deal, touching the deck
+        // or the persisted record. The position is kept per category.
+        function histStep(prefix, dir) {
+            var st = GEN[prefix];
+            var np = st.histPos + dir;
+            if (np < 0 || np >= st.hist.length) { return; }
+            st.histPos = np;
+            var entry = st.byId[st.hist[np]];
+            st.cur.all = entry;
+            renderEntry(prefix, entry);
+            syncHist(prefix);
+        }
+
+        function syncHist(prefix) {
+            var st = GEN[prefix];
+            var prev = document.getElementById(prefix + '-prev');
+            var next = document.getElementById(prefix + '-next');
+            if (!prev || !next) { return; }
+            prev.disabled = lovedOnly || st.histPos <= 0;
+            next.disabled = lovedOnly || st.histPos >= st.hist.length - 1;
         }
 
         function renderEntry(prefix, entry) {
@@ -1047,6 +1116,7 @@
             btn.classList.toggle('on', on);
             btn.setAttribute('aria-pressed', on ? 'true' : 'false');
             ['sea', 'art', 'arch', 'space'].forEach(function (p) {
+                syncHist(p);
                 if (!document.getElementById('gen-' + p).hidden) { restoreGen(p); }
             });
         }
