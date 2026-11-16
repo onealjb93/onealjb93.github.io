@@ -349,7 +349,7 @@
   <h2 class="section-featured">Projects I Follow</h2>
     <a class="syn-prow" href="health.html"><span class="syn-pn">Health and Cooking</span><span class="syn-pd">The resources I trust for biological performance and longevity — and my favorite recipes.</span></a>
     <a class="syn-prow" href="sustainability.html"><span class="syn-pn">Sustainable Development</span><span class="syn-pd">Applied frameworks integrating economic progress, environmental preservation, and structural equity.</span></a>
-    <a class="syn-prow syn-prow-last btc-cursor" href="finance.html"><span class="syn-pn">Finance & Bitcoin</span><span class="syn-pd">Investors, companies, and valuation metrics for sustainable financial growth.<span class="syn-pd-sub">The generational project that aims to create a fundamentally improved money for the world.</span></span></a>
+    <a class="syn-prow syn-prow-last btc-cursor" href="finance.html"><span class="syn-pn">Finance & Bitcoin</span><span class="syn-pd">Investors, companies, and valuation metrics for sustainable financial growth.<span class="syn-pd-sub">The generational project that aims to create a fundamentally improved money for the world. (<span class="live-pulse"></span><span id="btc-price" style="font-family: monospace; font-weight: 600;">Loading price...</span>)</span></span></a>
 
         <!-- Bitcoin chart switcher: segmented control picks the TradingView graph or the Power Law graph -->
     <div class="btc-chart-card btc-cursor">
@@ -1214,6 +1214,42 @@
         window.addEventListener('DOMContentLoaded', () => {
             fetchOnChainDonations();
         });
+
+        let lastPrice = 0;
+        function fetchLiveBtcPrice() {
+            fetch('https://mempool.space/api/v1/prices')
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data && data.USD) { updatePriceDisplay(data.USD); }
+                })
+                .catch(function() {
+                    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+                        .then(function(res) { return res.json(); })
+                        .then(function(cgData) {
+                            if (cgData && cgData.bitcoin && cgData.bitcoin.usd) { updatePriceDisplay(cgData.bitcoin.usd); }
+                        })
+                        .catch(function() {
+                            const p = document.getElementById('btc-price');
+                            if (p) p.innerText = "Live price unavailable";
+                        });
+                });
+        }
+
+        function updatePriceDisplay(newUsdPrice) {
+            const priceElement = document.getElementById('btc-price');
+            if (!priceElement) return;
+            const formattedPrice = newUsdPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            priceElement.innerText = '$' + formattedPrice + ' USD';
+            if (lastPrice !== 0 && newUsdPrice !== lastPrice) {
+                priceElement.style.transition = 'color 0.3s ease';
+                priceElement.style.color = newUsdPrice > lastPrice ? '#2ea043' : '#f85149';
+                setTimeout(function() { priceElement.style.color = ''; }, 1200);
+            }
+            lastPrice = newUsdPrice;
+        }
+
+        fetchLiveBtcPrice();
+        setInterval(fetchLiveBtcPrice, 5000);
 
         function copyBtcAddress() {
             const addressText = document.getElementById('btc-wallet-address').innerText;
