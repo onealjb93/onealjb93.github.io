@@ -292,6 +292,12 @@
                     <option value="">Choose a stock&hellip;</option>
                 </select>
             </div>
+            <div class="selector-group">
+                <label for="chartNdx">Nasdaq-100</label>
+                <select id="chartNdx">
+                    <option value="">Choose a company&hellip;</option>
+                </select>
+            </div>
             <div class="chip-row" id="chartRanges" role="group" aria-label="Chart range">
                 <button type="button" class="filter-pill" data-range="1Y">1Y</button>
                 <button type="button" class="filter-pill active" data-range="5Y">5Y</button>
@@ -3582,9 +3588,14 @@ if (typeof module !== "undefined") {
     // and a volume pane where the data carries volume. The data is
     // weekly, so the averages are weekly by construction.
     // Instruments are the 23 the pipeline carries: the S&P 500, the
-    // Nasdaq Composite, gold, Bitcoin and Johnny's 19 stocks. A series
-    // too short for a line never fakes one: SPCX (23 weeks) draws
-    // neither average yet, and the note under the chart says why.
+    // Nasdaq Composite, gold, Bitcoin and Johnny's 19 stocks — plus,
+    // since 2026-11-16, the Nasdaq-100 constituents as CHART-ONLY
+    // series (flagged "ndx" in the data file, listed in its
+    // "nasdaq100" array) behind the second dropdown. They never enter
+    // the scoreboard, the Stack runner or the backtest: the first
+    // dropdown and every graded set stay scoped to the original 19.
+    // A series too short for a line never fakes one: SPCX (23 weeks)
+    // draws neither average yet, and the note under the chart says why.
     // The week's numbers live in exactly one place: a glass tooltip
     // inside the frame that tracks the crosshair (it replaced the
     // static readout line that used to sit under the chart).
@@ -3921,12 +3932,33 @@ if (typeof module !== "undefined") {
         // ---- controls ----
         function stockKeys() {
             if (!chartData) return [];
-            return Object.keys(chartData.series).filter(function (k) { return PICK_KEYS.indexOf(k) < 0; });
+            return Object.keys(chartData.series).filter(function (k) { return PICK_KEYS.indexOf(k) < 0 && !chartData.series[k].ndx; });
         }
         function populateStockSelect() {
             var sel = document.getElementById("chartStock");
             if (!sel || !chartData) return;
             stockKeys().forEach(function (k) {
+                var o = document.createElement("option");
+                o.value = k;
+                o.textContent = chartData.series[k].name + " (" + k + ")";
+                sel.appendChild(o);
+            });
+        }
+        // The Nasdaq-100 dropdown: the data file's own constituent
+        // list, alphabetical by company name. Membership is the only
+        // thing read from the file — the series themselves are the
+        // same objects the chart draws for any instrument, and the
+        // "ndx" flag on the added series is what keeps them out of
+        // stockKeys() (and so out of the first dropdown) above.
+        function ndxKeys() {
+            if (!chartData || !chartData.nasdaq100) return [];
+            return chartData.nasdaq100.filter(function (k) { return !!chartData.series[k]; })
+                .sort(function (a, b) { return chartData.series[a].name.localeCompare(chartData.series[b].name); });
+        }
+        function populateNdxSelect() {
+            var sel = document.getElementById("chartNdx");
+            if (!sel || !chartData) return;
+            ndxKeys().forEach(function (k) {
                 var o = document.createElement("option");
                 o.value = k;
                 o.textContent = chartData.series[k].name + " (" + k + ")";
@@ -3940,6 +3972,8 @@ if (typeof module !== "undefined") {
             });
             var sel = document.getElementById("chartStock");
             if (sel) sel.value = stockKeys().indexOf(cur.key) >= 0 ? cur.key : "";
+            var nsel = document.getElementById("chartNdx");
+            if (nsel) nsel.value = ndxKeys().indexOf(cur.key) >= 0 ? cur.key : "";
             var ranges = document.getElementById("chartRanges");
             if (ranges) ranges.querySelectorAll("button[data-range]").forEach(function (b) {
                 b.classList.toggle("active", b.getAttribute("data-range") === cur.range);
@@ -3962,6 +3996,10 @@ if (typeof module !== "undefined") {
         var stockSel = document.getElementById("chartStock");
         if (stockSel) stockSel.addEventListener("change", function () {
             if (stockSel.value) setKey(stockSel.value);
+        });
+        var ndxSel = document.getElementById("chartNdx");
+        if (ndxSel) ndxSel.addEventListener("change", function () {
+            if (ndxSel.value) setKey(ndxSel.value);
         });
         var rangesEl = document.getElementById("chartRanges");
         if (rangesEl) rangesEl.addEventListener("click", function (e) {
@@ -4022,6 +4060,7 @@ if (typeof module !== "undefined") {
                 .then(function (d) {
                     chartData = d;
                     populateStockSelect();
+                    populateNdxSelect();
                     if (pendingKey && chartData.series[pendingKey]) { cur.key = pendingKey; pendingKey = null; }
                     syncControls(); render();
                 })

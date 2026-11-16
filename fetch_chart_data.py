@@ -7,9 +7,15 @@ because the free widget cannot colour or thicken its two moving
 averages separately (its overrides are keyed per study type, and both
 averages are the same type).
 
-Instruments (23): the S&P 500 (^GSPC), the Nasdaq Composite (^IXIC),
+Instruments: the S&P 500 (^GSPC), the Nasdaq Composite (^IXIC),
 gold futures (GC=F), Bitcoin (BTC-USD), and Johnny's 19 scoreboard
-stocks. Bars are weekly, as deep as Yahoo honestly serves (period from
+stocks — plus, since 2026-11-16, every Nasdaq-100 constituent not
+already in that set (NASDAQ100 below), carried CHART-ONLY for the
+chart's second dropdown: their series are flagged "ndx" in the output
+and the full constituent ticker list is written as "nasdaq100", so the
+page can keep them out of the scoreboard, the Stack runner and the
+backtest. Constituents already among the 19 keep their original
+series (one series per ticker). Bars are weekly, as deep as Yahoo honestly serves (period from
 2000-01-01), and each bar is dated by the Friday of its week — Yahoo
 timestamps weekly bars inconsistently (some by the week's Monday, some
 by its Friday, TSM occasionally by Saturday), so the Friday label is
@@ -65,6 +71,127 @@ INSTRUMENTS = [
     ("JPM", "JPM", "JPMorgan Chase"),
     ("WMT", "WMT", "Walmart"),
 ]
+
+# The Nasdaq-100 constituents (ticker, display name) — Wikipedia's
+# "List of NASDAQ-100 companies", as of 2026-10-22: 101 securities
+# from 100 companies (Alphabet sits in the index twice, Class A and
+# Class C). Eleven are already in INSTRUMENTS above (GOOGL, SPCX,
+# NBIS, NVDA, AMD, PLTR, MU, TSLA, MSTR, COST, WMT) and keep their
+# original series and names; the other 90 are appended as chart-only
+# instruments whose page key is the ticker itself. When the index's
+# membership changes (a December reconstitution, a mid-year swap),
+# update this list: a dropped name simply stops being refreshed and
+# leaves both dropdowns, a new name joins on the next run.
+NASDAQ100 = [
+    ("AAPL", "Apple"),
+    ("ABNB", "Airbnb"),
+    ("ADBE", "Adobe"),
+    ("ADI", "Analog Devices"),
+    ("ADP", "Automatic Data Processing"),
+    ("ADSK", "Autodesk"),
+    ("AEP", "American Electric Power"),
+    ("ALAB", "Astera Labs"),
+    ("ALNY", "Alnylam Pharmaceuticals"),
+    ("AMAT", "Applied Materials"),
+    ("AMD", "AMD"),
+    ("AMGN", "Amgen"),
+    ("AMZN", "Amazon"),
+    ("APP", "AppLovin"),
+    ("ARM", "Arm Holdings"),
+    ("ASML", "ASML Holding"),
+    ("AVGO", "Broadcom"),
+    ("AXON", "Axon Enterprise"),
+    ("BKNG", "Booking Holdings"),
+    ("BKR", "Baker Hughes"),
+    ("CCEP", "Coca-Cola Europacific Partners"),
+    ("CDNS", "Cadence Design Systems"),
+    ("CEG", "Constellation Energy"),
+    ("CMCSA", "Comcast"),
+    ("COST", "Costco"),
+    ("CPRT", "Copart"),
+    ("CRWD", "CrowdStrike"),
+    ("CRWV", "CoreWeave"),
+    ("CSCO", "Cisco"),
+    ("CSX", "CSX"),
+    ("CTAS", "Cintas"),
+    ("DASH", "DoorDash"),
+    ("DDOG", "Datadog"),
+    ("DXCM", "DexCom"),
+    ("EXC", "Exelon"),
+    ("FANG", "Diamondback Energy"),
+    ("FAST", "Fastenal"),
+    ("FER", "Ferrovial"),
+    ("FTNT", "Fortinet"),
+    ("GEHC", "GE HealthCare"),
+    ("GILD", "Gilead Sciences"),
+    ("GOOG", "Alphabet Inc. (Class C)"),
+    ("GOOGL", "Alphabet / Google"),
+    ("HON", "Honeywell Technologies"),
+    ("HONA", "Honeywell Aerospace"),
+    ("IDXX", "Idexx Laboratories"),
+    ("INTC", "Intel"),
+    ("INTU", "Intuit"),
+    ("ISRG", "Intuitive Surgical"),
+    ("KDP", "Keurig Dr Pepper"),
+    ("KLAC", "KLA"),
+    ("LIN", "Linde"),
+    ("LITE", "Lumentum"),
+    ("LRCX", "Lam Research"),
+    ("MAR", "Marriott International"),
+    ("MCHP", "Microchip Technology"),
+    ("MDLZ", "Mondelez International"),
+    ("MELI", "Mercado Libre"),
+    ("META", "Meta Platforms"),
+    ("MNST", "Monster Beverage"),
+    ("MPWR", "Monolithic Power Systems"),
+    ("MRNA", "Moderna"),
+    ("MRVL", "Marvell Technology"),
+    ("MSFT", "Microsoft"),
+    ("MSTR", "MicroStrategy / Strategy"),
+    ("MU", "Micron Technology"),
+    ("NBIS", "Nebius Group"),
+    ("NFLX", "Netflix"),
+    ("NVDA", "NVIDIA"),
+    ("NXPI", "NXP Semiconductors"),
+    ("ODFL", "Old Dominion Freight Line"),
+    ("ORLY", "O'Reilly Automotive"),
+    ("PANW", "Palo Alto Networks"),
+    ("PAYX", "Paychex"),
+    ("PCAR", "Paccar"),
+    ("PDD", "PDD Holdings"),
+    ("PEP", "PepsiCo"),
+    ("PLTR", "Palantir"),
+    ("PYPL", "PayPal"),
+    ("QCOM", "Qualcomm"),
+    ("REGN", "Regeneron Pharmaceuticals"),
+    ("RKLB", "Rocket Lab"),
+    ("ROP", "Roper Technologies"),
+    ("ROST", "Ross Stores"),
+    ("SBUX", "Starbucks"),
+    ("SHOP", "Shopify"),
+    ("SNDK", "Sandisk"),
+    ("SNPS", "Synopsys"),
+    ("SPCX", "SpaceX"),
+    ("STX", "Seagate Technology"),
+    ("TER", "Teradyne"),
+    ("TMUS", "T-Mobile US"),
+    ("TRI", "Thomson Reuters"),
+    ("TSLA", "Tesla"),
+    ("TTWO", "Take-Two Interactive"),
+    ("TXN", "Texas Instruments"),
+    ("VRTX", "Vertex Pharmaceuticals"),
+    ("WDAY", "Workday"),
+    ("WDC", "Western Digital"),
+    ("WMT", "Walmart"),
+    ("XEL", "Xcel Energy"),
+]
+
+_BASE_KEYS = {key for key, _symbol, _name in INSTRUMENTS}
+# Chart-only instruments: Nasdaq-100 names not already carried above.
+NDX_INSTRUMENTS = [(ticker, ticker, name) for ticker, name in NASDAQ100
+                   if ticker not in _BASE_KEYS]
+NDX_ONLY_KEYS = {key for key, _symbol, _name in NDX_INSTRUMENTS}
+ALL_INSTRUMENTS = INSTRUMENTS + NDX_INSTRUMENTS
 
 OUT_FILE = "finance-chart-data.json"
 HEADERS = {"User-Agent": "Mozilla/5.0 (onealjb93.github.io chart updater)"}
@@ -172,7 +299,7 @@ def main():
     series = {}
     missing = []
     kept_old = []
-    for key, symbol, name in INSTRUMENTS:
+    for key, symbol, name in ALL_INSTRUMENTS:
         log("=== %s (%s) ===" % (key, symbol))
         try:
             bars = fetch_yahoo(symbol, period1, period2)
@@ -192,7 +319,13 @@ def main():
             continue
         log("  %d weekly bars, %s .. %s, last close %.2f"
             % (len(bars), bars[0][0], bars[-1][0], bars[-1][4]))
-        series[key] = {"name": name, "symbol": symbol, "bars": bars}
+        entry = {"name": name, "symbol": symbol, "bars": bars}
+        if key in NDX_ONLY_KEYS:
+            # Chart-only flag: the page's first dropdown, scoreboard,
+            # runner and backtest never see these; the second
+            # (Nasdaq-100) dropdown works from "nasdaq100" below.
+            entry["ndx"] = True
+        series[key] = entry
         time.sleep(1)  # be polite to the endpoint
 
     if missing:
@@ -210,6 +343,7 @@ def main():
                   "completed weeks only",
         "through": max(last_dates) if last_dates else None,
         "series": series,
+        "nasdaq100": [ticker for ticker, _name in NASDAQ100],
     }
     tmp_path = out_path + ".tmp"
     with open(tmp_path, "w") as fh:
