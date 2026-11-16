@@ -65,6 +65,13 @@
     .chart-section { margin-top: 3rem; margin-bottom: 3rem; }
     .tv-chart-frame { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; height: 600px; }
     @media (max-width: 640px) { .tv-chart-frame { height: 460px; } }
+    /* Chart key: the swatches match the study colours set in the widget
+       config below (amber weekly averages, violet RSI). */
+    .tv-chart-key { display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; margin-top: 0.75rem; font-size: 0.85rem; color: var(--subtext-color); }
+    .tv-key-item { display: inline-flex; align-items: center; gap: 0.5rem; }
+    .tv-key-swatch { display: inline-block; width: 26px; border-radius: 2px; flex: none; }
+    .tv-key-ma { height: 4px; background: #FF9800; }
+    .tv-key-rsi { height: 3px; background: #7E57C2; }
 
     /* Navigation redesign (2026-11-13): the sticky h2/h3 heading pinning
        above is REPLACED by a single pinned section nav below the frozen
@@ -315,8 +322,18 @@
     <div class="chart-section collapsible-section" id="chart">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="chart" aria-expanded="false" aria-controls="chart-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> The Chart</button></h2>
         <div class="section-body" id="chart-body" hidden>
-        <p>Look up any company. The chart opens on the S&amp;P 500 in weekly view and always carries the same three gauges, pinned to the week whatever timeframe the chart shows: the 200-week moving average &mdash; the long-term value ruler &mdash; the 50-week moving average for the trend, and the weekly RSI. A stock with under four years of trading history has no 200-week line yet; it appears once enough history exists.</p>
+        <p>Tap a pick below, or use the chart&rsquo;s own search for any company. The chart opens on the S&amp;P 500 in weekly view and always carries the same three gauges, pinned to the week whatever timeframe the chart shows: the 200-week moving average &mdash; the long-term value ruler &mdash; the 50-week moving average for the trend, and the weekly RSI. A stock with under four years of trading history has no 200-week line yet; it appears once enough history exists.</p>
+        <div class="chip-row" id="chartPicks" role="group" aria-label="Chart quick picks">
+            <button type="button" class="filter-pill active" data-symbol="SPX">S&amp;P 500</button>
+            <button type="button" class="filter-pill" data-symbol="IXIC">Nasdaq</button>
+            <button type="button" class="filter-pill" data-symbol="TVC:GOLD">Gold</button>
+            <button type="button" class="filter-pill" data-symbol="BITSTAMP:BTCUSD">Bitcoin</button>
+        </div>
         <div class="tv-chart-frame" id="tvChartFrame"></div>
+        <div class="tv-chart-key">
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma" aria-hidden="true"></span><span><strong>Amber lines &mdash; the weekly averages.</strong> The smooth, slow one is the 200-week average, the value line: below it, historically cheap. The one hugging the price is the 50-week average, the trend.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-rsi" aria-hidden="true"></span><span><strong>Violet &mdash; the weekly RSI</strong>, in the pane below: how stretched the week is.</span></span>
+        </div>
         </div>
     </div>
 <!-- Frameworks & Quantifiable Metrics Accordions -->
@@ -2940,12 +2957,35 @@ if (typeof module !== "undefined") {
     // carries the built-in studies' own timeframe input pinned to 1W, so
     // the lines stay weekly averages on any symbol and on any timeframe
     // the chart is switched to — a plain length-200 study would silently
-    // become a 200-day average on a daily chart. The widget is rebuilt in
-    // the new theme when the site theme flips (a rebuild resets the
-    // symbol to the S&P 500).
+    // become a 200-day average on a daily chart.
+    // Colours: in the free widget, studies_overrides are keyed per study
+    // TYPE (TradingView's Charting Library docs: an override sets the
+    // default for every study of that type), so the two moving averages —
+    // both MASimple — share one style: amber, linewidth 2. They cannot be
+    // coloured apart without swapping one for a different study type,
+    // which would put the 1W anchoring above at risk; the key under the
+    // chart tells them apart by behaviour instead (the 200-week line is
+    // the smooth, slow one). The RSI is its own study type: violet.
+    // Quick picks: the chips above the chart rebuild the widget with the
+    // picked symbol — S&P 500, Nasdaq, gold, Bitcoin — while the study
+    // set and the weekly interval never change; the chart's own search
+    // still reaches any other symbol. A theme-flip rebuild keeps the
+    // picked symbol (it used to reset to the S&P 500).
     (function () {
         "use strict";
         var built = false, loading = false;
+        var currentSymbol = "SPX";
+        var STUDIES = [
+            { id: "MASimple@tv-basicstudies", inputs: { length: 200, timeframe: "1W" } },
+            { id: "MASimple@tv-basicstudies", inputs: { length: 50, timeframe: "1W" } },
+            { id: "RSI@tv-basicstudies", inputs: { length: 14, timeframe: "1W" } }
+        ];
+        var STUDIES_OVERRIDES = {
+            "moving average.plot.color": "#FF9800",
+            "moving average.plot.linewidth": 2,
+            "relative strength index.rsi.color": "#7E57C2",
+            "relative strength index.rsi.linewidth": 2
+        };
         function siteTheme() {
             return document.body.classList.contains("light-mode") ? "light" : "dark";
         }
@@ -2955,7 +2995,7 @@ if (typeof module !== "undefined") {
             frame.innerHTML = '<div id="tvChart" style="height:100%;width:100%"></div>';
             new TradingView.widget({
                 container_id: "tvChart",
-                symbol: "SPX",
+                symbol: currentSymbol,
                 interval: "W",
                 timezone: "America/New_York",
                 theme: siteTheme(),
@@ -2963,11 +3003,8 @@ if (typeof module !== "undefined") {
                 locale: "en",
                 enable_publishing: false,
                 allow_symbol_change: true,
-                studies: [
-                    { id: "MASimple@tv-basicstudies", inputs: { length: 200, timeframe: "1W" } },
-                    { id: "MASimple@tv-basicstudies", inputs: { length: 50, timeframe: "1W" } },
-                    { id: "RSI@tv-basicstudies", inputs: { length: 14, timeframe: "1W" } }
-                ],
+                studies: STUDIES,
+                studies_overrides: STUDIES_OVERRIDES,
                 autosize: true
             });
         }
@@ -2989,9 +3026,22 @@ if (typeof module !== "undefined") {
             new MutationObserver(ensure).observe(body, { attributes: true, attributeFilter: ["hidden"] });
         }
         ensure();
+        var picks = document.getElementById("chartPicks");
+        if (picks) picks.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest("button[data-symbol]") : null;
+            if (!btn) return;
+            var symbol = btn.getAttribute("data-symbol");
+            if (!symbol || symbol === currentSymbol) return;
+            currentSymbol = symbol;
+            picks.querySelectorAll(".filter-pill").forEach(function (b) {
+                b.classList.toggle("active", b === btn);
+            });
+            if (built) build();
+        });
         var toggle = document.getElementById("theme-toggle");
         if (toggle) toggle.addEventListener("change", function () {
             // Match the backtest's pattern: let the theme class land first.
+            // The rebuild keeps the currently picked symbol.
             setTimeout(function () { if (built) build(); }, 60);
         });
     })();
