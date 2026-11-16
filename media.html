@@ -22,22 +22,35 @@
     <link rel="icon" type="image/png" href="JBO%20Logo.%20green%20background.png">
     <link rel="apple-touch-icon" href="JBO%20Logo.%20green%20background.png">
     <style>
-    /* Sticky section headings (2026-11-13, site-wide pinning) — same pattern
-       as the homepage: the heading pins below the frozen 55px site header
-       while you scroll its list. Single-slot rule, top: 55px, z-index 90,
-       solid var(--bg-color), the h2's own border-bottom is the hairline.
+    /* Sticky section heading rows (2026-11-13, site-wide pinning; the
+       Expand/Collapse pair joined the row 2026-11-16) — same pattern as
+       the homepage: the row pins below the frozen 55px site header while
+       you scroll its list. Single-slot rule, top: 55px, z-index 90,
+       solid var(--bg-color), the row's border-bottom is the hairline.
        margin-top becomes padding-top so the resting gap is unchanged.
-       Two-column layout (2026-11-13): the headings now live inside the
+       Two-column layout (2026-11-13): the rows now live inside the
        .media-col sections below, and both take padding-top: 20px so the
        pair shares one starting line on desktop; in the stacked layout
-       the podcast heading keeps its old 40px (max-width rule below).
+       the podcast row keeps its old 40px (max-width rule below).
        opacity: 1 so scrolling text can't ghost through the stuck bar
-       (global h2 rule sets 0.9). */
-    .media-col > h2 {
+       (global h2 rule sets 0.9). ONE placement for the Expand/Collapse
+       pair: the right end of this heading row — the very top right of
+       each box, identical on both sections. */
+    .media-col > .media-box-head {
         position: sticky; top: 55px; z-index: 90;
-        background: var(--bg-color); opacity: 1;
+        background: var(--bg-color);
         margin-top: 0; padding-top: 20px;
+        display: flex; align-items: flex-end;
+        justify-content: space-between; gap: 8px 16px;
+        flex-wrap: wrap;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 12px;
     }
+    .media-box-head > h2 {
+        margin: 0; border-bottom: none; padding-bottom: 0;
+        opacity: 1; min-width: 0;
+    }
+    .media-box-head .expand-all-toggle { margin-left: auto; }
 
     /* Two columns on desktop (2026-11-13): Books and Podcasts side by
        side so both lists are on screen together, each keeping its own
@@ -57,14 +70,15 @@
         .media-col { position: sticky; top: 55px; min-width: 0; }
     }
     @media (max-width: 899px) {
-        .media-col-podcasts > h2 { padding-top: 40px; }
+        .media-col-podcasts > .media-box-head { padding-top: 40px; }
     }
 
     /* Expand all / Collapse all: ONE segmented component used by both
        sections (styled to match .book-controls select in style.css —
        same font, colours, border, radius, padding), under ONE placement
-       rule: the pair is the last item of its section's control row at
-       the head of the card, hugging the row's right edge. ONE state
+       rule: the pair sits at the right end of its section's heading
+       row (.media-box-head) — the very top right of the box, the same
+       spot on both sections. ONE state
        model: exactly one half is pressed, and it names the section's
        current state — collapsed = the section's resting presentation
        (Books: the 380px cap; Podcasts: the embed's 352px resting
@@ -117,19 +131,9 @@
     .jbo-pop[hidden] { display: none; }
     .jbo-pop img { width: 64px; height: auto; border-radius: 4px; float: left; margin: 2px 10px 6px 0; }
     .jbo-pop .jbo-pop-t { display: block; color: var(--text-color); font-weight: 600; margin-bottom: 4px; }
-    .podcast-controls {
-        display: flex;
-        justify-content: flex-end;
-        flex-wrap: wrap;
-        margin-bottom: 12px;
-    }
-    /* The placement rule, Books side: the pair is the control row's
-       last item and hugs its right edge, on one line or wrapped. */
-    .book-controls .expand-all-toggle { margin-left: auto; }
     .book-filter-selects { display: flex; gap: 8px; }
     /* Mobile: the two selects take their own full-width line and split
-       it equally, so neither can overflow the card; the pair wraps
-       below them, still right-aligned. */
+       it equally, so neither can overflow the card. */
     @media (max-width: 600px) {
         .book-controls .book-filter-selects { flex: 1 1 100%; min-width: 0; }
         .book-controls .book-filter-selects select { flex: 1 1 0; min-width: 0; }
@@ -189,7 +193,13 @@
 
     <div class="media-columns">
     <section class="media-col media-col-books">
-    <h2>A Curated Reading List</h2>
+    <div class="media-box-head">
+        <h2>A Curated Reading List</h2>
+        <div class="expand-all-toggle" role="group" aria-label="Book list size">
+            <button type="button" id="books-expand" aria-pressed="false">Expand all</button>
+            <button type="button" id="books-collapse" aria-pressed="true">Collapse all</button>
+        </div>
+    </div>
     <div class="book-list-container">
         <div class="book-controls">
             <span style="font-size: 0.85rem; font-weight: 600;">Filter & Sort:</span>
@@ -206,10 +216,6 @@
                     <option value="rating-desc">Rating: High to Low</option>
                     <option value="title-asc">Title: A to Z</option>
                 </select>
-            </div>
-            <div class="expand-all-toggle" role="group" aria-label="Book list size">
-                <button type="button" id="books-expand" aria-pressed="false">Expand all</button>
-                <button type="button" id="books-collapse" aria-pressed="true">Collapse all</button>
             </div>
         </div>
         <ul id="book-list">
@@ -339,14 +345,14 @@
     </section>
 
     <section class="media-col media-col-podcasts">
-    <h2>A Curated Podcast List</h2>
-    <div class="card" style="padding: 16px 20px;">
-        <div class="podcast-controls">
-            <div class="expand-all-toggle" role="group" aria-label="Podcast list size">
-                <button type="button" id="podcasts-expand" aria-pressed="false">Expand all</button>
-                <button type="button" id="podcasts-collapse" aria-pressed="true">Collapse all</button>
-            </div>
+    <div class="media-box-head">
+        <h2>A Curated Podcast List</h2>
+        <div class="expand-all-toggle" role="group" aria-label="Podcast list size">
+            <button type="button" id="podcasts-expand" aria-pressed="false">Expand all</button>
+            <button type="button" id="podcasts-collapse" aria-pressed="true">Collapse all</button>
         </div>
+    </div>
+    <div class="card" style="padding: 16px 20px;">
         <!-- Universal Mobile-Friendly Native Spotify Embed -->
         <iframe id="podcast-frame" style="border-radius:12px; width:100%; height:352px;" src="https://open.spotify.com/embed/playlist/5Y0IoAjVwXBLNAOiOdnqPw?utm_source=generator&theme=0" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
     </div>
