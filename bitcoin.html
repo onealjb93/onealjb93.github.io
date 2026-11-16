@@ -46,6 +46,31 @@
             margin-top: 0; padding-top: 48px;
         }
         body > h2:first-of-type { padding-top: 20px; }
+        /* Bitcoin chart switcher: segmented control (mirrors the homepage's
+           .btc-switch, the .gen-tabs pattern from random.html) — "Bitcoin
+           graph" (TradingView advanced chart) or "Bitcoin power law".
+           Both choices are always visible and the control is the card's
+           only header. The choice persists in localStorage
+           ('btc-chart-view'), shared with the homepage; the power-law
+           code loads lazily on first selection (inert in a text/plain
+           script block until then). Labels wrap on whole words at narrow
+           widths rather than ever truncating. */
+        .btc-switch { display: flex; gap: 0.25rem; padding: 0.15rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 16px; }
+        .btc-switch button {
+            flex: 1 1 0; min-width: 0; min-height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            background: transparent; border: none; border-radius: 7px;
+            color: var(--subtext-color); font: inherit; font-size: 0.92rem; font-weight: 600;
+            line-height: 1.2; text-align: center; padding: 0.3rem 0.25rem; cursor: pointer;
+        }
+        .btc-switch button:hover { background: var(--hover-bg); }
+        .btc-switch button.active { background: var(--link-color); color: #fff; }
+        .btc-switch button:focus-visible { outline: 2px solid var(--link-color); outline-offset: 1px; }
+        @media (max-width: 480px) {
+            .btc-switch button { font-size: 0.84rem; }
+        }
+        #btc-view-anim { overflow: hidden; }
+
         /* Bitcoin Power Law section (bitcoin.html only) */
         .powerlaw-card h3 { margin-top: 0; }
         .pl-sub { margin-top: 0; color: var(--text-muted, #94a3b8); }
@@ -127,13 +152,20 @@
 
     <header class="hero-header">
         <h1>Bitcoin</h1>
-        <p>Fixed Money & Resilient Financial Systems<br>"Fix the Money, Fix the World."</p>
+        <p>"Fix the Money, Fix the World."</p>
     </header>
 
     <h2>Bitcoin Power Law</h2>
     <p>Bitcoin's price has spent fifteen years oscillating around a single straight line. Plot price against time since the genesis block with both axes logarithmic, and the chaos of four boom-and-bust cycles averages out into a power law — price ≈ 10<sup>−16.493</sup> × days<sup>5.688</sup>. Physicist Giovanni Santostasi formalised the model in 2018; the fit still explains about 96% of the variance in log price (R² ≈ 0.96).</p>
 
+    <!-- Bitcoin chart switcher: segmented control picks the TradingView graph or the Power Law graph -->
     <div class="btc-chart-card btc-cursor">
+        <div class="btc-switch" role="tablist" aria-label="Choose Bitcoin chart view">
+            <button type="button" class="active" data-view="graph" role="tab" aria-selected="true" aria-controls="btc-view-graph">Bitcoin graph</button>
+            <button type="button" data-view="powerlaw" role="tab" aria-selected="false" aria-controls="btc-view-powerlaw">Bitcoin power law</button>
+        </div>
+        <div id="btc-view-anim">
+            <div id="btc-view-graph" role="tabpanel">
         <div class="chart-resize-wrapper">
             <div class="tradingview-widget-container" id="tv-container">
                 <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
@@ -157,9 +189,8 @@
                 </script>
             </div>
         </div>
-    </div>
-
-    <div class="btc-chart-card powerlaw-card">
+            </div>
+            <div id="btc-view-powerlaw" class="powerlaw-card" role="tabpanel" hidden>
         <h3>The Power Law Chart</h3>
         <p class="pl-sub">Actual price (orange) against the model's fair-value trend (white), with the historical support floor (green) and ceiling (red). Both axes are logarithmic, so the power law is a straight line. Dashed lines past today are the model projected forward — not a prediction.</p>
         <div class="pl-readout" id="pl-readout" aria-live="polite">
@@ -180,6 +211,8 @@
         </div>
         <p class="pl-legend"><span class="pl-sw pl-sw-price"></span> Actual price &nbsp; <span class="pl-sw pl-sw-trend"></span> Fair value &nbsp; <span class="pl-sw pl-sw-floor"></span> Support &nbsp; <span class="pl-sw pl-sw-ceil"></span> Ceiling &nbsp; <span class="pl-sw pl-sw-today"></span> Today &nbsp;·&nbsp; Scroll or pinch to zoom, drag to pan.</p>
         <p class="pl-fine">Formula: price = 10<sup>−16.493</sup> × (days since the genesis block, Jan 3, 2009)<sup>5.688</sup>. Bands are the ±2σ corridor (support ≈ 0.40× trend, ceiling ≈ 2.51× trend) — price has closed below the floor only briefly, three times in fifteen years. Price history: blockchain.info market-price index, every 4 days, Aug 2010 – <span id="pl-hist-end">Nov 10, 2026</span>. Spot price: <span id="pl-fine-spot">~$68,700 on Nov 13, 2026 (Bitstamp / Kraken)</span>. A refit on the same data gives an exponent of ≈ 5.6 with R² ≈ 0.96 — the same picture; the exact exponent drifts as new data arrives (about 5.8 in 2022, about 5.6–5.7 today). Live daily-refit chart: <a href="https://bitcoinpowerlaw.com/" target="_blank">bitcoinpowerlaw.com</a>.</p>
+            </div>
+        </div>
     </div>
 
     <h3>How to read it</h3>
@@ -226,7 +259,7 @@
     </footer>
 
     <script src="script.js"></script>
-    <script>
+    <script type="text/plain" id="btc-pl-code">
     /* Bitcoin Power Law chart — log-log canvas. Data: blockchain.info market-price
        index, every 4 days from day 592 (Aug 18, 2010) to day 6520 (Nov 10, 2026).
        Model: Santostasi canonical fit, price = 10^-16.493 x days^5.688,
@@ -734,6 +767,101 @@
                     mergeTail(null, SPOT.price);
                 });
             }).catch(function () { /* offline or blocked: the baked figures stand */ });
+        }
+    })();
+    </script>
+
+    <script>
+    /* Bitcoin chart switcher: the segmented control above the chart toggles
+       between the TradingView graph and the Power Law chart — the same
+       switcher as the homepage's Bitcoin card. Default is the TradingView
+       graph; the last choice is remembered in localStorage
+       ('btc-chart-view'), shared with the homepage. The power-law code is
+       only executed the first time that view is picked (it sits inert in
+       the text/plain block above until then). The container height
+       animates between the two views so nothing jumps; a tap that lands
+       mid-animation finishes the running animation instantly, so the
+       last tap always wins. */
+    (function () {
+        var KEY = 'btc-chart-view';
+        var btns = document.querySelectorAll('.btc-switch button');
+        var anim = document.getElementById('btc-view-anim');
+        var vGraph = document.getElementById('btc-view-graph');
+        var vPl = document.getElementById('btc-view-powerlaw');
+        if (!btns.length || !anim || !vGraph || !vPl) return;
+        var current = 'graph', plLoaded = false, animating = false, finishAnim = null;
+
+        function loadPowerLaw() {
+            if (plLoaded) return;
+            plLoaded = true;
+            var code = document.getElementById('btc-pl-code');
+            if (!code) return;
+            var s = document.createElement('script');
+            s.textContent = code.textContent;
+            document.body.appendChild(s);
+        }
+        function save(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+        function saved() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+        function syncButtons(view) {
+            btns.forEach(function (b) {
+                var on = b.getAttribute('data-view') === view;
+                b.classList.toggle('active', on);
+                b.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+        }
+
+        function applyView(view, animate) {
+            syncButtons(view);
+            var showPl = view === 'powerlaw';
+            var showEl = showPl ? vPl : vGraph;
+            var hideEl = showPl ? vGraph : vPl;
+            var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            current = view;
+            if (!animate || reduced) {
+                hideEl.hidden = true;
+                showEl.hidden = false;
+                if (showPl) loadPowerLaw();
+                return;
+            }
+            animating = true;
+            var startH = anim.offsetHeight;
+            hideEl.hidden = true;
+            showEl.hidden = false;
+            if (showPl) loadPowerLaw();
+            var endH = showEl.offsetHeight;
+            anim.style.height = startH + 'px';
+            void anim.offsetHeight; /* reflow before transitioning */
+            anim.style.transition = 'height 0.45s ease';
+            anim.style.height = endH + 'px';
+            var done = function () {
+                anim.removeEventListener('transitionend', h);
+                anim.style.height = '';
+                anim.style.transition = '';
+                animating = false;
+                finishAnim = null;
+                window.dispatchEvent(new Event('resize'));
+            };
+            var h = function (ev) {
+                if (ev.propertyName !== 'height') return;
+                done();
+            };
+            anim.addEventListener('transitionend', h);
+            finishAnim = done;
+            setTimeout(function () { if (finishAnim === done) done(); }, 600);
+        }
+
+        btns.forEach(function (b) {
+            b.addEventListener('click', function () {
+                var v = b.getAttribute('data-view');
+                if (v === current) return;
+                if (animating && finishAnim) finishAnim();
+                save(v);
+                applyView(v, true);
+            });
+        });
+
+        if (saved() === 'powerlaw') {
+            applyView('powerlaw', false);
         }
     })();
     </script>
