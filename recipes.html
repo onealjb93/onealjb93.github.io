@@ -570,15 +570,21 @@
     html[data-textscale]:not([data-textscale="1"]) .recipe-content .recipe-tip { font-size: calc(0.85rem * var(--rts)); }
     html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content { font-size: calc(1.05rem * var(--rts)); }
     html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-section-title { font-size: calc(1.15rem * var(--rts)); }
-    .textsize-control { display: inline-flex; align-items: center; gap: 0.1rem; border: 1px solid var(--border-color); border-radius: 999px; padding: 0.14rem 0.25rem; background: var(--badge-bg); flex: none; }
-    .textsize-control button { background: none; border: 0; color: var(--link-color); font: inherit; font-weight: 700; cursor: pointer; padding: 0.15rem 0.45rem; min-width: 2.1rem; min-height: 2rem; line-height: 1; border-radius: 999px; }
+    .textsize-control { display: inline-flex; align-items: center; border: 1px solid var(--border-color); border-radius: 999px; padding: 0.1rem 0.16rem; background: var(--badge-bg); flex: none; }
+    .textsize-control button { position: relative; background: none; border: 0; color: var(--link-color); font: inherit; font-weight: 700; cursor: pointer; padding: 0.38rem 0.55rem; min-width: 1.9rem; line-height: 1; border-radius: 999px; }
     .textsize-control button:hover:not([disabled]) { background: var(--hover-bg); }
     .textsize-control button[disabled] { color: var(--subtext-color); opacity: 0.45; cursor: default; }
-    .textsize-control .ts-down { font-size: 0.78rem; }
-    .textsize-control .ts-up { font-size: 1.02rem; }
-    .textsize-value { min-width: 3.1rem; text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--text-color); }
+    .textsize-control .ts-down { font-size: 0.72rem; }
+    .textsize-control .ts-up { font-size: 0.95rem; }
     .recipe-controls .textsize-control { margin-left: auto; }
-    @media (pointer: coarse) { .textsize-control button { min-width: 44px; min-height: 44px; } }
+    /* Coarse pointers: the visual stays small; each button's hit area
+       grows to 44px+ invisibly (the profile-chip ::after pattern). The
+       outer sides reach further than the seam side, so the two hit
+       areas barely overlap between the glyphs. */
+    @media (pointer: coarse) {
+        .textsize-control .ts-down::after { content: ''; position: absolute; top: -10px; bottom: -10px; left: -11px; right: -4px; }
+        .textsize-control .ts-up::after { content: ''; position: absolute; top: -10px; bottom: -10px; left: -4px; right: -11px; }
+    }
 </style>
 <style>
 .discuss-link { display: inline-block; margin-top: 0.75rem; font-size: 0.85rem; font-weight: 600; color: var(--link-color); text-decoration: none; }
@@ -748,7 +754,7 @@
                     <option value="name">Name A–Z</option>
                     <option value="newest">Newest first</option>
                 </select>
-                <div class="textsize-control" role="group" aria-label="Recipe text size"><button type="button" class="ts-down" aria-label="Decrease text size" title="Decrease text size">A−</button><span class="textsize-value" aria-live="polite">100%</span><button type="button" class="ts-up" aria-label="Increase text size" title="Increase text size">A+</button></div>
+                <div class="textsize-control" role="group" aria-label="Text size"><button type="button" class="ts-down" aria-label="Decrease text size" title="Decrease text size">A−</button><button type="button" class="ts-up" aria-label="Increase text size" title="Increase text size">A+</button></div>
             </div>
             <div class="recipe-empty" id="recipe-empty" hidden>No recipes in this category yet.</div>
 
@@ -7941,7 +7947,7 @@
                     <button type="button" id="cookViewClose">&times; Close</button>
                 </div>
             </div>
-            <div class="cook-head-meta"><span class="cook-score" id="cookScore" aria-live="polite" title="The verdict scores everything selected, at the servings shown, against a full day's nutrition targets."></span><div class="textsize-control" role="group" aria-label="Recipe text size"><button type="button" class="ts-down" aria-label="Decrease text size" title="Decrease text size">A−</button><span class="textsize-value" aria-live="polite">100%</span><button type="button" class="ts-up" aria-label="Increase text size" title="Increase text size">A+</button></div><button type="button" id="cookScoreToggle" aria-expanded="false" aria-controls="cookScorePanel">Scorecard</button></div>
+            <div class="cook-head-meta"><span class="cook-score" id="cookScore" aria-live="polite" title="The verdict scores everything selected, at the servings shown, against a full day's nutrition targets."></span><div class="textsize-control" role="group" aria-label="Text size"><button type="button" class="ts-down" aria-label="Decrease text size" title="Decrease text size">A−</button><button type="button" class="ts-up" aria-label="Increase text size" title="Increase text size">A+</button></div><button type="button" id="cookScoreToggle" aria-expanded="false" aria-controls="cookScorePanel">Scorecard</button></div>
         </div>
         <div id="cookNav" hidden>
             <div class="cook-nav-row">
@@ -7972,8 +7978,6 @@
         function apply(save) {
             document.documentElement.setAttribute('data-textscale', String(idx));
             controls.forEach(function (c) {
-                var v = c.querySelector('.textsize-value');
-                if (v) v.textContent = STEPS[idx] + '%';
                 var down = c.querySelector('.ts-down'), up = c.querySelector('.ts-up');
                 if (down) { down.disabled = idx === 0; down.setAttribute('aria-disabled', idx === 0 ? 'true' : 'false'); }
                 if (up) { up.disabled = idx === STEPS.length - 1; up.setAttribute('aria-disabled', idx === STEPS.length - 1 ? 'true' : 'false'); }
@@ -7993,7 +7997,7 @@
            that moment, so any one-finger travel before it is ignored.
            During the gesture the live scale writes --rts inline under
            data-textscale="pinch" (the scale rules match it, no step value
-           claims it) and both readouts follow. On release it snaps to the
+           claims it). On release it snaps to the
            nearest step and apply(true) persists it, so the steppers and
            the pinch can never disagree. No touch-action is set on the
            scoped containers: one-finger scrolling must stay native, and
@@ -8017,11 +8021,6 @@
         }
         function pinchLive(scale) {
             document.documentElement.style.setProperty('--rts', String(Math.round(scale * 1000) / 1000));
-            var label = Math.round(scale * 100) + '%';
-            controls.forEach(function (c) {
-                var v = c.querySelector('.textsize-value');
-                if (v) v.textContent = label;
-            });
         }
         function pinchFinish() {
             if (!pinch) return;
