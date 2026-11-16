@@ -425,6 +425,561 @@ def momentum_3m(history):
 
 # ------------------------------------------------------------- main run ---
 
+
+
+# =====================================================================
+# Scoreboard block (added 2026-11-16): raw inputs for the Greenblatt /
+# Graham / Lynch scoreboard legs, computed from the same companyfacts
+# payload the fundamentals refresh already fetched — no new EDGAR
+# calls, no new Alpha Vantage calls. One keyless Yahoo split-events
+# call per refreshed ticker.
+#
+# Honesty rules (same as the rest of this updater):
+# - A field the filings don't yield is None, never a guess.
+# - Every block carries source + as_of stamps.
+# - Reporting currency is recorded; tests that would cross currencies
+#   (a USD price against TWD per-share figures) are gated on the page.
+# - Per-share earnings history is SPLIT-ADJUSTED and rebuilt from each
+#   period's ORIGINAL filing: later filings carry split-restated
+#   comparatives, and old 10-Ks carry a quarterly-data note whose Q4
+#   figure is also tagged as a full year. A filing's figures already
+#   reflect every split on or before its filing date (Walmart's
+#   original FY2024 10-K, filed after its 3:1 split, reports the
+#   post-split $1.91), so each original figure is divided only by the
+#   splits that came after that filing. When split data can't be
+#   fetched, eps_history_adjusted is False and the page treats
+#   growth-dependent legs as untestable.
+# =====================================================================
+
+import re
+
+# Tag candidate lists: (taxonomy, tag) pairs, us-gaap preferred,
+# ifrs-full fallback for foreign filers (same pattern as the updater).
+EBIT_TAGS = [
+    ("us-gaap", "OperatingIncomeLoss"),
+    ("ifrs-full", "ProfitLossFromOperatingActivities"),
+    ("ifrs-full", "OperatingProfitLoss"),
+]
+REVENUE_TAGS = [
+    ("us-gaap", "Revenues"),
+    ("us-gaap", "RevenueFromContractWithCustomerExcludingAssessedTax"),
+    ("ifrs-full", "Revenue"),
+]
+NET_INCOME_TAGS = [
+    ("us-gaap", "NetIncomeLoss"),
+    ("ifrs-full", "ProfitLoss"),
+]
+EPS_TAGS = [
+    ("us-gaap", "EarningsPerShareDiluted"),
+    ("ifrs-full", "DilutedEarningsPerShare"),
+    ("ifrs-full", "DilutedEarningsLossPerShare"),
+]
+EQUITY_TAGS = [
+    ("us-gaap", "StockholdersEquity"),
+    ("ifrs-full", "Equity"),
+]
+LT_DEBT_TAGS = [
+    ("us-gaap", "LongTermDebt"),
+    ("ifrs-full", "NonCurrentBorrowings"),
+]
+CUR_DEBT_TAGS = [
+    ("us-gaap", "LongTermDebtCurrent"),
+    ("us-gaap", "ShortTermBorrowings"),
+    ("ifrs-full", "CurrentBorrowings"),
+]
+CASH_TAGS = [
+    ("us-gaap", "CashAndCashEquivalentsAtCarryingValue"),
+    ("ifrs-full", "CashAndCashEquivalents"),
+]
+CURRENT_ASSET_TAGS = [
+    ("us-gaap", "AssetsCurrent"),
+    ("ifrs-full", "CurrentAssets"),
+]
+CURRENT_LIAB_TAGS = [
+    ("us-gaap", "LiabilitiesCurrent"),
+    ("ifrs-full", "CurrentLiabilities"),
+]
+PPE_TAGS = [
+    ("us-gaap", "PropertyPlantAndEquipmentNet"),
+    ("ifrs-full", "PropertyPlantAndEquipment"),
+]
+INVENTORY_TAGS = [
+    ("us-gaap", "InventoryNet"),
+    ("ifrs-full", "Inventories"),
+]
+RECEIVABLE_TAGS = [
+    ("us-gaap", "AccountsReceivableNetCurrent"),
+    ("us-gaap", "ReceivablesNetCurrent"),
+    ("ifrs-full", "TradeAndOtherCurrentReceivables"),
+]
+OCF_TAGS = [
+    ("us-gaap", "NetCashProvidedByUsedInOperatingActivities"),
+    ("ifrs-full", "CashFlowsFromUsedInOperatingActivities"),
+]
+CAPEX_TAGS = [
+    ("us-gaap", "PaymentsToAcquirePropertyPlantAndEquipment"),
+    ("ifrs-full", "PurchaseOfPropertyPlantAndEquipment"),
+]
+DIVIDENDS_PAID_TAGS = [
+    ("us-gaap", "PaymentsOfDividendsCommonStock"),
+    ("us-gaap", "PaymentsOfDividends"),
+    ("ifrs-full", "DividendsPaidToEquityHoldersOfTheParent"),
+    ("ifrs-full", "DividendsPaid"),
+]
+DPS_DECLARED_TAGS = [
+    ("us-gaap", "CommonStockDividendsPerShareDeclared"),
+]
+SHARE_TAGS_BLOCK = [
+    # dei cover-page count first: it is the current figure. (The us-gaap
+    # CommonStockSharesOutstanding series stops being tagged by some
+    # filers — Walmart's ends in 2012 — which is why the updater's own
+    # share pull can come back stale; the block must not inherit that.)
+    ("dei", "EntityCommonStockSharesOutstanding"),
+    ("us-gaap", "CommonStockSharesOutstanding"),
+    ("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding"),
+    ("ifrs-full", "IssuedCapital"),
+]
+
+ANNUAL_FORMS = {"10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"}
+_FULL_YEAR_FRAME = re.compile(r"^CY\d{4}$")
+
+
+def fact_rows(facts, tag_candidates, unit_preference=None):
+    """Full companyfacts rows for the first tag that has data.
+
+    Unlike fact_entries (which returns (end, val, form) tuples), this
+    keeps fp / filed / frame / unit so annual series can be built
+    accurately. Returns (rows, unit) or ([], None).
+    """
+    for taxonomy, tag in tag_candidates:
+        try:
+            units = facts["facts"][taxonomy][tag]["units"]
+        except (KeyError, TypeError):
+            continue
+        unit_names = list(units.keys())
+        if unit_preference:
+            unit_names.sort(key=lambda u: (unit_preference.index(u)
+                                           if u in unit_preference
+                                           else len(unit_preference)))
+        for unit in unit_names:
+            rows = [e for e in units[unit]
+                    if "end" in e and "val" in e]
+            if rows:
+                return rows, unit
+    return [], None
+
+
+def _full_year_frame(frame):
+    return bool(frame) and bool(_FULL_YEAR_FRAME.match(frame))
+
+
+def _pick_original(rows_at_end):
+    """The annual figure from the ORIGINAL filing for one period end.
+
+    companyfacts carries several rows per period end: the original
+    10-K's figure, later filings' restated comparatives (including
+    split-restated ones), and — in old 10-Ks — the unaudited
+    quarterly-data note's Q4 figure, also tagged fp 'FY'. The original
+    filing is the earliest `filed` at the end; within it a full-year
+    frame wins, then the value repeated most often across all filings
+    at that end (annual figures recur as comparatives; Q4-note figures
+    rarely do), then the largest magnitude.
+    Returns (val, filed).
+    """
+    from collections import Counter
+    earliest = min(e.get("filed", "") for e in rows_at_end)
+    group = [e for e in rows_at_end if e.get("filed", "") == earliest]
+    fy = [e for e in group if _full_year_frame(e.get("frame"))]
+    pool = fy if fy else group
+    if len({e["val"] for e in pool}) == 1:
+        return pool[0]["val"], earliest
+    counts = Counter(e["val"] for e in rows_at_end)
+    best = max(pool, key=lambda e: (counts[e["val"]], abs(e["val"])))
+    return best["val"], earliest
+
+
+def _annual_groups(rows):
+    by_end = {}
+    for e in rows:
+        if e.get("fp") != "FY":
+            continue
+        form = e.get("form", "")
+        if form and form not in ANNUAL_FORMS:
+            continue
+        by_end.setdefault(e["end"], []).append(e)
+    return by_end
+
+
+def _spacing_walk(series):
+    """Drop any end less than 300 days before the next kept end —
+    annual period ends are ~365 days apart, so a closer neighbour is
+    a quarterly straggler, not a fiscal year."""
+    from datetime import date as _date
+    kept = []
+    for end, val in reversed(series):
+        if kept:
+            if (_date.fromisoformat(kept[-1][0])
+                    - _date.fromisoformat(end)).days < 300:
+                continue
+        kept.append((end, val))
+    kept.reverse()
+    return kept
+
+
+def annual_series(rows):
+    """Annual FLOW values (revenue, dividends paid, ...), oldest
+    first: the original filing's figure at each period end."""
+    by_end = _annual_groups(rows)
+    series = []
+    for end in sorted(by_end):
+        val, _filed = _pick_original(by_end[end])
+        series.append((end, val))
+    return _spacing_walk(series)
+
+
+def annual_series_instant(rows):
+    """Annual INSTANT values (inventory, receivables — balance-sheet
+    dates), oldest first. Balance-sheet figures aren't carried in the
+    quarterly-data note, and a restatement is a correction, so at each
+    end the latest-filed figure wins."""
+    by_end = _annual_groups(rows)
+    series = []
+    for end in sorted(by_end):
+        best = max(by_end[end],
+                   key=lambda e: (e.get("filed", ""),
+                                  1 if _full_year_frame(e.get("frame")) else 0))
+        series.append((end, best["val"]))
+    return _spacing_walk(series)
+
+
+def annual_eps_series(rows, splits, adjusted):
+    """Annual diluted EPS, split-adjusted, oldest first.
+
+    A filing's per-share figures already reflect every split that
+    occurred on or before its filing date (retroactive restatement is
+    required when a split lands between period end and issuance —
+    Walmart's original FY2024 10-K, filed after its 3:1 split, reports
+    the post-split $1.91). So the original filing's figure is divided
+    only by the splits that came AFTER that filing.
+    Returns [(end, adjusted_val), ...].
+    """
+    by_end = _annual_groups(rows)
+    series = []
+    for end in sorted(by_end):
+        val, filed = _pick_original(by_end[end])
+        if adjusted:
+            val = val / split_factor_after(filed, splits)
+        series.append((end, val))
+    return _spacing_walk(series)
+
+
+def split_factor_after(end, splits):
+    """Cumulative split factor for splits strictly after `end`.
+    splits: [(date_iso, factor)] with factor = numerator/denominator."""
+    factor = 1.0
+    for split_date, split_factor in splits:
+        if split_date > end:
+            factor *= split_factor
+    return factor
+
+
+def _eps_rows_and_unit(facts):
+    """Diluted EPS rows in the filer's own per-share unit.
+
+    For IFRS filers the native presentation unit wins over the USD
+    convenience translation (TSM's USD/shares figures are translated
+    per ORDINARY share — unusable against the ADS price; the page
+    gates price-crossing tests on the reported currency instead).
+    For US filers, USD/shares.
+    Returns (rows, unit) or ([], None).
+    """
+    for taxonomy, tag in EPS_TAGS:
+        try:
+            units = facts["facts"][taxonomy][tag]["units"]
+        except (KeyError, TypeError):
+            continue
+        if not units:
+            continue
+        if taxonomy == "ifrs-full":
+            non_usd = [u for u in units if not u.startswith("USD")]
+            unit = non_usd[0] if non_usd else next(iter(units))
+        elif "USD/shares" in units:
+            unit = "USD/shares"
+        else:
+            unit = next(iter(units))
+        rows = [e for e in units.get(unit, [])
+                if "end" in e and "val" in e]
+        if rows:
+            return rows, unit
+    return [], None
+
+
+def build_scoreboard_block(facts, price, fallback_shares, mcap_billions,
+                           splits, fact_entries, ttm_value, latest_value,
+                           today):
+    """Compute the scoreboard block for one ticker.
+
+    facts: parsed companyfacts JSON. price: this run's price.
+    fallback_shares / mcap_billions: the updater's own figures, used
+    only if the block's dei-first share pull finds nothing.
+    splits: [(date_iso, factor)] from Yahoo, or None if the split fetch
+    failed (EPS history then ships unadjusted and flagged as such).
+    fact_entries / ttm_value / latest_value: the updater's helpers.
+    """
+    def entries(tags):
+        return fact_entries(facts, tags)
+
+    def ttm(tags):
+        val, _period = ttm_value(entries(tags))
+        return val
+
+    def latest(tags):
+        val, _end = latest_value(entries(tags))
+        return val
+
+    # Reporting currency first, so every monetary pull below prefers
+    # the same unit (TSM reports in TWD; mixing units across tags
+    # would corrupt sums like enterprise value).
+    eps_rows, eps_unit = _eps_rows_and_unit(facts)
+    currency = None
+    if eps_unit and "/" in eps_unit:
+        currency = eps_unit.split("/")[0]
+    money_units = [currency, "USD", "TWD"] if currency else ["USD", "TWD"]
+    share_units = ([currency + "/shares"] if currency else []) + \
+        ["USD/shares", "TWD/shares"]
+
+    ebit = ttm(EBIT_TAGS)
+    revenue = ttm(REVENUE_TAGS)
+    net_income = ttm(NET_INCOME_TAGS)
+    equity = latest(EQUITY_TAGS)
+    lt_debt = latest(LT_DEBT_TAGS)
+    cur_debt = latest(CUR_DEBT_TAGS)
+    cash = latest(CASH_TAGS)
+    cur_assets = latest(CURRENT_ASSET_TAGS)
+    cur_liabs = latest(CURRENT_LIAB_TAGS)
+    ppe = latest(PPE_TAGS)
+    ocf = ttm(OCF_TAGS)
+    capex = ttm(CAPEX_TAGS)
+    div_paid_ttm = ttm(DIVIDENDS_PAID_TAGS)
+
+    total_debt = None
+    if lt_debt is not None or cur_debt is not None:
+        total_debt = (lt_debt or 0.0) + (cur_debt or 0.0)
+
+    # Shares: the block's own dei-first pull (see SHARE_TAGS_BLOCK).
+    shares = None
+    share_rows, _su = fact_rows(facts, SHARE_TAGS_BLOCK, ["shares"])
+    if share_rows:
+        share_rows_sorted = sorted(
+            share_rows, key=lambda e: (e["end"], e.get("filed", "")))
+        shares = share_rows_sorted[-1]["val"]
+    if not shares:
+        shares = fallback_shares
+
+    market_cap_usd = None
+    if price is not None and shares:
+        market_cap_usd = price * shares
+    elif mcap_billions is not None:
+        market_cap_usd = mcap_billions * 1e9
+
+    enterprise_value = None
+    if market_cap_usd is not None:
+        ev = market_cap_usd
+        if total_debt is not None:
+            ev += total_debt
+        if cash is not None:
+            ev -= cash
+        enterprise_value = ev
+    if currency and currency != "USD":
+        # The page's price is a USD (ADS) price while the share count
+        # and per-share figures are the filer's own (ordinary shares,
+        # TWD for TSM). A market cap or EV mixed from the two would be
+        # wrong, not approximate — ship neither. (Greenblatt excludes
+        # TSM by rule regardless; Graham's price tests gate on the
+        # currency on the page.)
+        market_cap_usd = None
+        enterprise_value = None
+
+    # Greenblatt net working capital: (current assets - cash) -
+    # (current liabilities - current debt) — the book's appendix form
+    # on filed totals (excess cash beyond the cash line is not
+    # separable in companyfacts).
+    nwc_gb = None
+    if cur_assets is not None and cur_liabs is not None:
+        nwc_gb = (cur_assets - (cash or 0.0)) - (cur_liabs - (cur_debt or 0.0))
+
+    current_ratio = None
+    if cur_assets is not None and cur_liabs:
+        current_ratio = round(cur_assets / cur_liabs, 2)
+
+    debt_to_equity = None
+    if total_debt is not None and equity:
+        debt_to_equity = round(total_debt / equity, 2)
+
+    bvps = None
+    if equity is not None and shares:
+        bvps = round(equity / shares, 4)
+
+    net_cash_ps = None
+    if cash is not None and shares:
+        net_cash_ps = round((cash - (lt_debt or 0.0)) / shares, 4)
+
+    fcf = None
+    if ocf is not None and capex is not None:
+        fcf = ocf - capex
+
+    # ---- EPS: annual history + TTM, split-adjusted ----
+    adjusted = splits is not None
+    split_list = splits or []
+    eps_hist = annual_eps_series(eps_rows, split_list, adjusted)
+    eps_history = [[end, round(val, 4)] for end, val in eps_hist[-12:]]
+    eps_avg_3y = None
+    if len(eps_hist) >= 3:
+        eps_avg_3y = round(sum(v for _e, v in eps_hist[-3:]) / 3.0, 4)
+    eps_cagr = None
+    if adjusted and len(eps_hist) >= 4:
+        years = min(5, len(eps_hist) - 1)
+        base = eps_hist[-1 - years][1]
+        last = eps_hist[-1][1]
+        if base and base > 0 and last and last > 0:
+            eps_cagr = round(((last / base) ** (1.0 / years) - 1.0) * 100.0, 2)
+
+    # TTM EPS, split-aware: latest adjusted annual + latest quarter -
+    # same quarter last year, each quarterly figure from its original
+    # filing and adjusted by the splits after that filing. Falls back
+    # to the adjusted annual.
+    eps_ttm = None
+    if eps_hist:
+        eps_ttm = eps_hist[-1][1]
+        q_by_end = {}
+        for e in eps_rows:
+            if e.get("fp") in ("Q1", "Q2", "Q3"):
+                q_by_end.setdefault(e["end"], []).append(e)
+        quarters = {}
+        for end, rows_at_end in q_by_end.items():
+            val, filed = _pick_original(rows_at_end)
+            quarters[end] = (val / split_factor_after(filed, split_list)
+                             if adjusted else val)
+        if quarters:
+            q_end = max(quarters)
+            prior_end = "%04d%s" % (int(q_end[:4]) - 1, q_end[4:])
+            if prior_end in quarters and q_end > eps_hist[-1][0]:
+                eps_ttm = (eps_hist[-1][1] + quarters[q_end]
+                           - quarters[prior_end])
+        eps_ttm = round(eps_ttm, 4)
+
+    # ---- annual revenue / inventory / receivables (latest vs prior) ----
+    def annual_latest_prior(tags, units, instant=False):
+        rows, _u = fact_rows(facts, tags, units)
+        series = (annual_series_instant(rows) if instant
+                  else annual_series(rows))
+        if not series:
+            return None, None
+        latest_v = series[-1][1]
+        prior_v = series[-2][1] if len(series) >= 2 else None
+        return latest_v, prior_v
+
+    rev_a_latest, rev_a_prior = annual_latest_prior(REVENUE_TAGS, money_units)
+    inv_latest, inv_prior = annual_latest_prior(INVENTORY_TAGS, money_units,
+                                                instant=True)
+    rec_latest, rec_prior = annual_latest_prior(RECEIVABLE_TAGS, money_units,
+                                                instant=True)
+
+    def growth_pct(latest_v, prior_v):
+        if latest_v is None or not prior_v:
+            return None
+        return round((latest_v - prior_v) / abs(prior_v) * 100.0, 2)
+
+    # ---- dividends: years covered by the filings + TTM per-share ----
+    div_years = set()
+    paid_rows, _u1 = fact_rows(facts, DIVIDENDS_PAID_TAGS, money_units)
+    for end, val in annual_series(paid_rows):
+        if val and val > 0:
+            div_years.add(int(end[:4]))
+    dps_rows, _u2 = fact_rows(facts, DPS_DECLARED_TAGS, share_units)
+    for e in dps_rows:
+        if e.get("val") and e["val"] > 0:
+            div_years.add(int(e["end"][:4]))
+    dividend_span = None
+    dividend_years_20 = None
+    if div_years:
+        yrs = sorted(div_years)
+        dividend_span = yrs[-1] - yrs[0] + 1
+        window = set(range(yrs[-1] - 19, yrs[-1] + 1))
+        dividend_years_20 = len(div_years & window)
+    dps_ttm = None
+    dividend_yield = None
+    if div_paid_ttm is not None and shares:
+        dps_ttm = round(div_paid_ttm / shares, 4)
+        if price:
+            dividend_yield = round(dps_ttm / price * 100.0, 2)
+
+    return {
+        "as_of": today,
+        "source": "SEC EDGAR filings",
+        "reporting_currency": currency,
+        "ebit_ttm": ebit,
+        "revenue_ttm": revenue,
+        "net_income_ttm": net_income,
+        "eps_ttm": eps_ttm,
+        "eps_history": eps_history,
+        "eps_history_adjusted": adjusted,
+        "eps_avg_3y": eps_avg_3y,
+        "eps_cagr_pct": eps_cagr,
+        "enterprise_value": enterprise_value,
+        "market_cap_usd": market_cap_usd,
+        "total_debt": total_debt,
+        "long_term_debt": lt_debt,
+        "cash": cash,
+        "current_assets": cur_assets,
+        "current_liabilities": cur_liabs,
+        "current_ratio": current_ratio,
+        "net_working_capital_gb": nwc_gb,
+        "net_fixed_assets": ppe,
+        "equity": equity,
+        "book_value_per_share": bvps,
+        "debt_to_equity": debt_to_equity,
+        "net_cash_per_share": net_cash_ps,
+        "fcf_ttm": fcf,
+        "revenue_annual_latest": rev_a_latest,
+        "revenue_annual_prior": rev_a_prior,
+        "revenue_growth_annual_pct": growth_pct(rev_a_latest, rev_a_prior),
+        "inventory_latest": inv_latest,
+        "inventory_prior": inv_prior,
+        "inventory_growth_pct": growth_pct(inv_latest, inv_prior),
+        "receivables_latest": rec_latest,
+        "receivables_prior": rec_prior,
+        "dividend_years_20": dividend_years_20,
+        "dividend_span_years": dividend_span,
+        "dps_ttm": dps_ttm,
+        "dividend_yield_pct": dividend_yield,
+        "shares_outstanding": shares,
+    }
+
+
+def fetch_splits_yahoo(symbol, http_get):
+    """Split events for a ticker from Yahoo Finance's v8 chart API:
+    [(date_iso, factor)] oldest first, factor = numerator/denominator
+    (10 for a 10:1 split). http_get(url) -> parsed JSON is injected so
+    the updater controls the request (and this stays testable).
+    Raises on any failure — the caller treats that as 'unknown'."""
+    from datetime import datetime, timezone
+    url = ("https://query1.finance.yahoo.com/v8/finance/chart/%s"
+           "?range=max&interval=1mo&events=split" % symbol)
+    data = http_get(url)
+    result = data["chart"]["result"][0]
+    splits_map = (result.get("events") or {}).get("splits") or {}
+    out = []
+    for ts, ev in splits_map.items():
+        num = ev.get("numerator")
+        den = ev.get("denominator")
+        if not num or not den:
+            continue
+        day = datetime.fromtimestamp(int(ts), tz=timezone.utc).date()
+        out.append((day.isoformat(), float(num) / float(den)))
+    return sorted(out)
+
+
 def main():
     api_key = os.environ.get("API_KEY")
     if not api_key:
@@ -664,11 +1219,27 @@ def main():
             record["fiscal_period"] = (
                 "10-Q/10-K ended %s" % rev_period if rev_period else None
             )
+
+            # ---- scoreboard block (Greenblatt / Graham / Lynch) ----
+            try:
+                try:
+                    splits = fetch_splits_yahoo(symbol, http_get_json)
+                except Exception as exc:
+                    splits = None
+                    log("  split history unavailable for %s (%s); "
+                        "scoreboard EPS history unadjusted" % (symbol, exc))
+                record["scoreboard"] = build_scoreboard_block(
+                    facts, price, shares, record.get("mcap"), splits,
+                    fact_entries, ttm_value, latest_value, today)
+            except Exception as exc:
+                record["scoreboard"] = None
+                log("  scoreboard block failed for %s: %s" % (symbol, exc))
         else:
             # Not due (or no EDGAR data): carry the previous fundamentals.
             for key in ("peg", "growth", "debt", "roe", "margin",
                         "analyst_target", "fundamentals_as_of",
-                        "fundamentals_source", "fiscal_period"):
+                        "fundamentals_source", "fiscal_period",
+                        "scoreboard"):
                 record[key] = prev.get(key)
 
         # ---- OVERVIEW (max 4/day, only for tickers due a refresh) ----
