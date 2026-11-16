@@ -20,8 +20,27 @@ Sources (all free; only Alpha Vantage needs a key, and only from the env):
   rotation; Alpha Vantage OVERVIEW (max 4 calls/day, only for tickers whose
   fundamentals are > 7 days stale) for PEGRatio, AnalystTargetPrice and
   cross-checks. 19 quotes + at most 4 OVERVIEWs = 23 calls/day max.
+- Fundamentals fallback (added 2026-11-16, after the audit found ROE,
+  margin and market cap null for all 19 tickers since the file was built):
+  SEC's Akamai front door rejects automated clients from many datacenter
+  IPs as "undeclared automated tools" — including, in practice, this
+  workflow's runners — even with a declared User-Agent, so the EDGAR
+  branch can return nothing run after run and the old code silently
+  carried nulls forward forever. The User-Agent below now follows SEC's
+  declared format (name + contact email). When EDGAR yields no
+  fundamentals for a due ticker, OVERVIEW becomes that ticker's
+  fundamentals source of record (ReturnOnEquityTTM, ProfitMargin,
+  MarketCapitalization), the record is labelled "Alpha Vantage OVERVIEW",
+  and its refresh date is set so the weekly rotation moves on. The
+  rotation therefore completes even if EDGAR stays blocked: at most 4
+  tickers per run, all 19 inside five weekday runs.
 - Momentum: 3-month % price return computed from Stooq daily closes (free,
   no key): (latest close / close 63 trading days earlier - 1) x 100.
+  NOTE: Stooq now serves a JavaScript browser-verification page to
+  automated clients, so this often yields no rows; the run logs that
+  plainly instead of failing silently. The finance page no longer depends
+  on this field — it derives 3-month momentum in-page from
+  finance-history.json (Yahoo weekly closes).
 - Institutional ownership: there is NO free reliable source for this (it lives
   in 13F filings, not in EDGAR companyfacts or OVERVIEW). The value is carried
   forward from the existing JSON as the author's estimate, and the page's
@@ -61,7 +80,10 @@ OVERVIEW_MAX_PER_RUN = 4
 FUNDAMENTALS_STALE_DAYS = 7
 
 EDGAR_HEADERS = {
-    "User-Agent": "onealjb93.github.io market-data updater (https://onealjb93.github.io/)",
+    # SEC's declared format for automated access: tool/site name + a real
+    # contact email. (The previous URL-only User-Agent is one of the
+    # shapes SEC's "undeclared automated tool" block targets.)
+    "User-Agent": "onealjb93.github.io johnny-website@muse.ai",
     "Accept-Encoding": "gzip, deflate",
 }
 
@@ -279,6 +301,13 @@ def fetch_stooq_history(symbol):
     except Exception as exc:
         log("  Stooq history failed for %s: %s" % (symbol, exc))
         return []
+    if not resp.text.startswith("Date,"):
+        # Stooq now answers automated clients with a JavaScript
+        # browser-verification page (HTTP 200, HTML body). Say so plainly
+        # instead of parsing it into zero rows and staying silent.
+        log("  Stooq served a non-CSV response for %s (browser-verification "
+            "page); momentum unavailable from Stooq this run" % symbol)
+        return []
     rows = []
     for line in resp.text.splitlines()[1:]:  # skip header
         parts = line.split(",")
@@ -412,6 +441,10 @@ def main():
                 facts = fetch_companyfacts(cik)
             except Exception as exc:
                 log("  EDGAR companyfacts failed for %s: %s" % (symbol, exc))
+                log("  NOTE: SEC rejects many automated/datacenter clients "
+                    "as 'undeclared automated tools'; if %s is due a "
+                    "fundamentals refresh, Alpha Vantage OVERVIEW below "
+                    "becomes its fundamentals source instead." % symbol)
         else:
             log("  no CIK found for %s; EDGAR fields will be null" % symbol)
 
@@ -552,10 +585,45 @@ def main():
                 ov_growth = parse_float(ov.get("QuarterlyRevenueGrowthYOY"))
                 if ov_growth is not None and record.get("growth") is None:
                     record["growth"] = round(ov_growth * 100.0, 2)
+                # Fill any fundamental EDGAR left empty from OVERVIEW's own
+                # fields — real values from a named source, never an
+                # estimate, and never overwriting an EDGAR value.
+                roe_before, margin_before = record.get("roe"), record.get("margin")
+                ov_roe = parse_float(ov.get("ReturnOnEquityTTM"))
+                if roe_before is None and ov_roe is not None:
+                    record["roe"] = round(ov_roe * 100.0, 2)
+                ov_margin = parse_float(ov.get("ProfitMargin"))
+                if margin_before is None and ov_margin is not None:
+                    record["margin"] = round(ov_margin * 100.0, 2)
+                if record.get("mcap") is None and ov_mcap is not None:
+                    record["mcap"] = round(ov_mcap / 1e9, 2)
+                    record["mcap_str"] = money_str(ov_mcap / 1e9)
                 if record.get("fundamentals_source") == "SEC EDGAR filings":
                     record["fundamentals_source"] = (
                         "SEC EDGAR filings + Alpha Vantage OVERVIEW"
                     )
+                # Fallback of record (2026-11-16): this ticker was due a
+                # refresh and OVERVIEW supplied fundamentals EDGAR didn't —
+                # either because EDGAR produced nothing at all (its branch
+                # above never ran, so no source or refresh date was set),
+                # or because it filled an empty ROE/margin. Stamp the
+                # refresh date so the weekly rotation moves on to the next
+                # tickers instead of retrying this one forever while the
+                # rest stay null; label the source when EDGAR gave nothing.
+                ov_filled = (roe_before is None and record.get("roe") is not None) or \
+                            (margin_before is None and record.get("margin") is not None)
+                if symbol in due and (record.get("fundamentals_source") is None
+                                      or ov_filled):
+                    if record.get("fundamentals_source") is None:
+                        record["fundamentals_source"] = "Alpha Vantage OVERVIEW"
+                        lq = ov.get("LatestQuarter")
+                        if lq:
+                            record["fiscal_period"] = "quarter ended %s" % lq
+                        log("  fundamentals for %s from Alpha Vantage OVERVIEW "
+                            "(EDGAR unavailable): ROE %s, margin %s, mcap %s"
+                            % (symbol, record.get("roe"), record.get("margin"),
+                               record.get("mcap_str")))
+                    record["fundamentals_as_of"] = today
 
         stocks.append(record)
 
