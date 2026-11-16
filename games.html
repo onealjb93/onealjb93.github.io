@@ -311,7 +311,7 @@
         var GLIDER_TRIGGER_PX = 26; // pickup radius in screen px (airborne rider only)
         var GLIDE_MAX = 7;          // max glide duration, seconds
         var GLIDE_STALL = 120;      // px/s: horizontal speed below this stalls the glider
-        var AUTOSAVE_KEY = 'lr-autosave';
+        var AUTOSAVE_KEY = 'lr-autosave';   // legacy resume key: cleared on load, never written anymore
         var SAVES_KEY = 'lr-saves';
         var MAX_SAVES = 12;
         var best = 0;
@@ -506,13 +506,13 @@
             }
         }
 
-        /* ---------- saving: auto-save the current setup + named favorites ----------
-           Auto-save: the track (lines, mushrooms, gliders) and the view (camera
-           + zoom) are written to localStorage a moment after any change, so
-           reopening the page brings back exactly where he left off. Named
-           favorites live under SAVES_KEY (max 12); saving under an existing
-           name updates it in place. Clear-all never touches the favorites. */
-        var autosaveTimer = null;
+        /* ---------- saving: named favorites only ----------
+           There is no resume: every page load starts a brand-new game (the
+           starter track), and the legacy auto-save key is cleared on load so
+           nothing from a previous visit can come back. The only way back to
+           older work is a named favorite under SAVES_KEY (max 12); saving
+           under an existing name updates it in place. Clear-all never
+           touches the favorites. */
         function snapshot() {
             return {
                 v: 1,
@@ -563,20 +563,6 @@
             if (isFinite(s.zoom) && s.zoom >= ZOOM_MIN && s.zoom <= ZOOM_MAX) { zoom = s.zoom; updateZoomLabel(); }
             rider = null; mode = 'edit'; crashMsg = '';
             return true;
-        }
-        function autosaveSoon() {
-            if (autosaveTimer) clearTimeout(autosaveTimer);
-            autosaveTimer = setTimeout(function () {
-                autosaveTimer = null;
-                try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot())); } catch (e) { /* storage blocked/full: game still works, just not saved */ }
-            }, 300);
-        }
-        function loadAutosave() {
-            try {
-                var raw = localStorage.getItem(AUTOSAVE_KEY);
-                if (!raw) return false;
-                return restoreSnap(JSON.parse(raw));
-            } catch (e) { return false; }
         }
         function getSaves() {
             try {
@@ -696,7 +682,6 @@
                     r.vx = tx * BOOST_MIN; r.vy = ty * BOOST_MIN;
                 }
                 flashStatus('🍄 Boost!');
-                autosaveSoon();
             }
         }
 
@@ -889,7 +874,6 @@
                         r.glideT = GLIDE_MAX;
                         r.omega = 0;
                         if (r.x > r.maxX) r.maxX = r.x;
-                        autosaveSoon();
                     } else {
                         // No landing and no glider: a head-first hit still
                         // crashes — but not a line the body is already close
@@ -1182,7 +1166,6 @@
             rider = null;
             mode = 'edit';
             cam.x = -viewW() * 0.3; cam.y = -viewH() * 0.55;
-            autosaveSoon();  // favorites (lr-saves) are NOT touched
             updateUI();
         }
         function defaultTrack() {
@@ -1193,7 +1176,6 @@
             resetRider();
             fitTrack();   // show the whole fresh track
             mode = 'edit';
-            autosaveSoon();
             updateUI();
         }
         function setTool(t) {
@@ -1237,12 +1219,10 @@
                 a = Math.atan2(hit.diry / dl, hit.dirx / dl);
             }
             mushrooms.push({ x: x, y: y, a: a });
-            autosaveSoon();
         }
         /* Place a glider: it floats at the tapped point, in the air. */
         function placeGlider(w) {
             gliders.push({ x: w.x, y: w.y });
-            autosaveSoon();
         }
 
         /* ---------- zoom ---------- */
@@ -1315,7 +1295,6 @@
             }
             lines = out;
             if (!lines.length) { rider = null; if (mode !== 'edit') { mode = 'edit'; } }
-            autosaveSoon();
             updateUI();
         }
         var pointers = new Map();   // active pointers on the canvas (for pinch zoom)
@@ -1400,7 +1379,6 @@
             if (pointers.size < 2) pinch = null;
             // Releasing a touch changes nothing about the view: no snap-back.
             drawing = false; panning = false; curLine = null;
-            autosaveSoon();  // a finished stroke is saved for next time
         }
         canvas.addEventListener('pointerup', endPointer);
         canvas.addEventListener('pointercancel', endPointer);
@@ -1452,20 +1430,15 @@
         }
 
         /* ---------- init ---------- */
-        // Restore the auto-saved setup (track + power-ups + view) if there
-        // is one — pick up exactly where he left off. Otherwise start with
-        // the starter track. The rider always starts from the flag.
-        var restored = loadAutosave();
-        var savedView = restored ? { x: cam.x, y: cam.y, z: zoom } : null;
-        if (!restored) starterTrack();
+        // Every load is a brand-new game: clear any legacy auto-save left
+        // by an older version, then start with the starter track. Older
+        // work comes back only through the saved setups list. The rider
+        // always starts from the flag.
+        try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* storage blocked */ }
+        starterTrack();
         resetRider();
-        if (savedView) { cam.x = savedView.x; cam.y = savedView.y; zoom = savedView.z; updateZoomLabel(); }
-        else fitTrack();   // open showing the whole track, so it is visible at once
+        fitTrack();   // open showing the whole track, so it is visible at once
         refreshSavesList();
-        // Save once more on leaving the page, so nothing is lost.
-        window.addEventListener('pagehide', function () {
-            try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot())); } catch (e) {}
-        });
         updateUI();
         // Debug handle for automated checks (not part of the UI).
         window.__lr = {
