@@ -66,14 +66,27 @@
        moving averages could never be told apart by colour or thickness.
        Framed in the page's card vocabulary; fixed long-term gauge set. */
     .chart-section { margin-top: 3rem; margin-bottom: 3rem; }
-    .jbo-chart-frame { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; height: 600px; }
+    .jbo-chart-frame { position: relative; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; height: 600px; }
     @media (max-width: 640px) { .jbo-chart-frame { height: 460px; } }
     .jbo-chart-frame canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: crosshair; }
     .chart-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem 1.5rem; margin: 0.9rem 0; }
     .chart-controls .chip-row { margin: 0; }
     .chart-controls .selector-group label { display: block; font-size: 0.8rem; color: var(--subtext-color); margin-bottom: 0.3rem; }
-    .jbo-chart-readout { margin-top: 0.75rem; font-size: 0.92rem; color: var(--text-color); min-height: 1.4em; }
-    .jbo-chart-note { margin-top: 0.35rem; font-size: 0.85rem; color: var(--subtext-color); }
+    /* Hover readout (2026-11-16): a glass tooltip inside the frame
+       that tracks the crosshair — the week's values live here and
+       nowhere else (the static line under the chart is gone). Same
+       glass-bubble material as the page's other popovers;
+       pointer-events: none so it never steals the pointer from the
+       canvas underneath it. */
+    #jboChartTip { position: absolute; left: 6px; top: 6px; z-index: 5; display: none; pointer-events: none; padding: 0.6rem 0.75rem; font-size: 0.83rem; line-height: 1.5; color: var(--subtext-color); min-width: 172px; max-width: calc(100% - 12px); }
+    #jboChartTip.open { display: block; }
+    #jboChartTip .jbo-tip-head strong { display: block; color: var(--text-color); font-size: 0.92rem; }
+    #jboChartTip .jbo-tip-head span { display: block; }
+    .jbo-tip-row { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.18rem; }
+    .jbo-tip-chip { width: 14px; height: 3px; border-radius: 2px; flex: none; background: var(--subtext-color); }
+    .jbo-tip-chip.chip-close { background: var(--text-color); height: 2px; }
+    .jbo-tip-val { margin-left: auto; padding-left: 0.9rem; color: var(--text-color); font-weight: 600; white-space: nowrap; }
+    .jbo-chart-note { margin-top: 0.75rem; font-size: 0.85rem; color: var(--subtext-color); }
     .jbo-chart-datanote { margin-top: 0.5rem; font-size: 0.85rem; color: var(--subtext-color); }
     /* Chart key: the swatches are the exact colours and weights the
        in-page chart draws — amber 200-week (3px), blue 50-week (2px),
@@ -410,8 +423,7 @@
                 <button type="button" class="filter-pill" data-style="candles">Candles</button>
             </div>
         </div>
-        <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Weekly price chart with 200-week and 50-week moving averages, volume and weekly RSI"></canvas></div>
-        <p class="jbo-chart-readout" id="jboChartReadout">Loading chart data&hellip;</p>
+        <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Weekly price chart with 200-week and 50-week moving averages, volume and weekly RSI"></canvas><div class="glass-bubble" id="jboChartTip"></div></div>
         <p class="jbo-chart-note" id="jboChartNote" hidden></p>
         <div class="tv-chart-key">
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma200" aria-hidden="true"></span><span><strong>Amber &mdash; the 200-week average</strong>, the thickest line. Four years of trading in one line: below it, a stock has historically been cheap. It's the value line.</span></span>
@@ -3467,6 +3479,9 @@ if (typeof module !== "undefined") {
     // Nasdaq Composite, gold, Bitcoin and Johnny's 19 stocks. A series
     // too short for a line never fakes one: SPCX (23 weeks) draws
     // neither average yet, and the note under the chart says why.
+    // The week's numbers live in exactly one place: a glass tooltip
+    // inside the frame that tracks the crosshair (it replaced the
+    // static readout line that used to sit under the chart).
     (function () {
         "use strict";
         var MA200_COLOR = "#FF9800", MA50_COLOR = "#2962FF", RSI_COLOR = "#7E57C2";
@@ -3477,6 +3492,7 @@ if (typeof module !== "undefined") {
         var cur = { key: "SPX", range: "5Y", style: "line" };
         var pendingKey = null;
         var hover = -1; // full-series index under the pointer; -1 = latest bar
+        var lastPtr = { type: "mouse", y: 0 }; // last pointer spot inside the frame (touch tooltip placement)
         var view = null, layout = null;
 
         // ---- indicators (pure; exposed on window.jboChart for tests) ----
@@ -3527,9 +3543,9 @@ if (typeof module !== "undefined") {
         }
 
         // ---- view computation ----
-        function computeView() {
+        function computeViewFor(key) {
             if (!chartData) return null;
-            var s = chartData.series[cur.key];
+            var s = chartData.series[key];
             if (!s || !s.bars || !s.bars.length) return null;
             var closes = s.bars.map(function (b) { return b[4]; });
             var n = s.bars.length;
@@ -3541,14 +3557,41 @@ if (typeof module !== "undefined") {
                 hasVolume: s.bars.some(function (b) { return b[5] > 0; })
             };
         }
-        function readoutText(v, idx) {
+        function computeView() { return computeViewFor(cur.key); }
+        // The tooltip's rows for one week: the same values, in the
+        // same formats, the old under-chart readout produced (fmtNum /
+        // fmtVol / one-decimal RSI, "—" where a gauge does not exist
+        // yet for that week — never an invented number). Colour is the
+        // exact constant the line itself is drawn with; a null colour
+        // takes a CSS-variable chip (the close line, the volume bars).
+        function tipRows(v, idx) {
             var b = v.s.bars[idx];
-            var parts = ["Week ending " + fmtDate(b[0]), "Close " + fmtNum(b[4])];
-            parts.push("200-week " + (v.ma200[idx] === null ? "—" : fmtNum(v.ma200[idx])));
-            parts.push("50-week " + (v.ma50[idx] === null ? "—" : fmtNum(v.ma50[idx])));
-            parts.push("RSI " + (v.rsi[idx] === null ? "—" : v.rsi[idx].toFixed(1)));
-            if (v.hasVolume) parts.push("Volume " + fmtVol(b[5]));
-            return v.s.name + " — " + parts.join(" · ");
+            var rows = [{ label: "Close", value: fmtNum(b[4]), color: null, chip: "close" }];
+            rows.push({ label: "200-week", value: v.ma200[idx] === null ? "—" : fmtNum(v.ma200[idx]), color: MA200_COLOR, chip: "" });
+            rows.push({ label: "50-week", value: v.ma50[idx] === null ? "—" : fmtNum(v.ma50[idx]), color: MA50_COLOR, chip: "" });
+            rows.push({ label: "RSI", value: v.rsi[idx] === null ? "—" : v.rsi[idx].toFixed(1), color: RSI_COLOR, chip: "" });
+            if (v.hasVolume) rows.push({ label: "Volume", value: fmtVol(b[5]), color: null, chip: "" });
+            return rows;
+        }
+        // Pure placement for the tooltip: beside the crosshair (never
+        // over the hovered point), flipped to the other side in the
+        // right half of the chart, clamped inside the frame on every
+        // edge. A touch pointer gets the bubble above the finger — or
+        // below it when there is no room above — so the finger never
+        // hides it; a mouse pointer gets it centred on the point.
+        function tipPos(W, H, tipW, tipH, x, pointY, ptr) {
+            var GAP = 14, EDGE = 6;
+            var left = x < W / 2 ? x + GAP : x - tipW - GAP;
+            left = Math.max(EDGE, Math.min(Math.max(EDGE, W - tipW - EDGE), left));
+            var top;
+            if (ptr && ptr.type === "touch") {
+                top = ptr.y - tipH - 44;
+                if (top < EDGE) top = ptr.y + 44;
+            } else {
+                top = pointY - tipH / 2;
+            }
+            top = Math.max(EDGE, Math.min(Math.max(EDGE, H - tipH - EDGE), top));
+            return { left: Math.round(left), top: Math.round(top) };
         }
         function noteText(v) {
             var n = v.s.bars.length;
@@ -3558,23 +3601,85 @@ if (typeof module !== "undefined") {
         }
 
         function render() {
-            var readout = document.getElementById("jboChartReadout");
             var note = document.getElementById("jboChartNote");
             var dataNote = document.getElementById("jboChartDataNote");
             if (loadFailed) {
-                if (readout) readout.textContent = "The chart data couldn’t be loaded — the weekly data file didn’t arrive. The rest of the page is unaffected.";
+                showTipStatus("The chart data couldn’t be loaded — the weekly data file didn’t arrive. The rest of the page is unaffected.");
                 return;
             }
-            if (!chartData) { if (readout) readout.textContent = "Loading chart data…"; return; }
+            if (!chartData) { showTipStatus("Loading chart data…"); return; }
             view = computeView();
-            if (!view) { if (readout) readout.textContent = "No chart data for this instrument yet."; return; }
+            if (!view) { showTipStatus("No chart data for this instrument yet."); return; }
             if (hover < view.start || hover > view.end) hover = -1;
-            var idx = hover >= 0 ? hover : view.end;
-            if (readout) readout.textContent = readoutText(view, idx);
             var nt = noteText(view);
             if (note) { note.textContent = nt; note.hidden = !nt; }
             if (dataNote) dataNote.textContent = "Weekly data from Yahoo Finance through " + fmtDate(view.s.bars[view.end][0]) + " — refreshed weekday evenings with the rest of this page’s data.";
             draw();
+            updateTip();
+        }
+
+        // ---- the in-chart tooltip ----
+        function fillTip(v, idx) {
+            var tip = document.getElementById("jboChartTip");
+            if (!tip) return;
+            tip.textContent = "";
+            var head = document.createElement("div");
+            head.className = "jbo-tip-head";
+            var nm = document.createElement("strong");
+            nm.textContent = v.s.name;
+            var dt = document.createElement("span");
+            dt.textContent = "Week ending " + fmtDate(v.s.bars[idx][0]);
+            head.appendChild(nm); head.appendChild(dt);
+            tip.appendChild(head);
+            tipRows(v, idx).forEach(function (r) {
+                var row = document.createElement("div");
+                row.className = "jbo-tip-row";
+                var chip = document.createElement("span");
+                chip.className = "jbo-tip-chip" + (r.chip ? " chip-" + r.chip : "");
+                chip.setAttribute("aria-hidden", "true");
+                if (r.color) chip.style.background = r.color;
+                var lab = document.createElement("span");
+                lab.textContent = r.label;
+                var val = document.createElement("span");
+                val.className = "jbo-tip-val";
+                val.textContent = r.value;
+                row.appendChild(chip); row.appendChild(lab); row.appendChild(val);
+                tip.appendChild(row);
+            });
+        }
+        function updateTip() {
+            var tip = document.getElementById("jboChartTip");
+            if (!tip) return;
+            if (!view || !layout || hover < view.start || hover > view.end) {
+                tip.classList.remove("open");
+                return;
+            }
+            fillTip(view, hover);
+            tip.classList.add("open");
+            var frame = document.getElementById("jboChartFrame");
+            var W = frame ? frame.clientWidth : 0, H = frame ? frame.clientHeight : 0;
+            if (!W || !H) return;
+            var n = layout.end - layout.start + 1;
+            var x = 6 + (n <= 1 ? layout.plotW / 2 : (hover - layout.start) / (n - 1) * layout.plotW);
+            var pointY = layout.priceY + (layout.hi - view.closes[hover]) / (layout.hi - layout.lo) * layout.priceH;
+            var pos = tipPos(W, H, tip.offsetWidth, tip.offsetHeight, x, pointY, lastPtr);
+            tip.style.left = pos.left + "px";
+            tip.style.top = pos.top + "px";
+        }
+        // Loading / failure / no-data states speak through the same
+        // bubble, centred at the top of the frame — the honesty the
+        // old readout line carried, in the one place chart text lives.
+        function showTipStatus(msg) {
+            var tip = document.getElementById("jboChartTip");
+            if (!tip) return;
+            tip.textContent = msg;
+            tip.classList.add("open");
+            var frame = document.getElementById("jboChartFrame");
+            var W = frame ? frame.clientWidth : 0;
+            if (W > 0) {
+                tip.style.left = Math.max(6, Math.round((W - tip.offsetWidth) / 2)) + "px";
+                tip.style.top = "10px";
+            }
         }
 
         // ---- drawing ----
@@ -3604,7 +3709,7 @@ if (typeof module !== "undefined") {
             var rsiH = Math.round(plotH * 0.26);
             var priceH = plotH - volH - rsiH - 12;
             var priceY = 6, volY = priceY + priceH + 6, rsiY = volY + volH + 6;
-            layout = { plotW: plotW, start: v.start, end: v.end };
+            layout = { plotW: plotW, start: v.start, end: v.end, W: W, H: H, priceY: priceY, priceH: priceH, hi: null, lo: null };
             var lo = Infinity, hi = -Infinity;
             for (i = v.start; i <= v.end; i++) {
                 var b = bars[i];
@@ -3616,6 +3721,7 @@ if (typeof module !== "undefined") {
             }
             if (!isFinite(lo) || !isFinite(hi) || hi <= lo) { lo = 0; hi = 1; }
             var pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+            layout.hi = hi; layout.lo = lo;
             function X(idx) { return 6 + (n <= 1 ? plotW / 2 : (idx - v.start) / (n - 1) * plotW); }
             function YP(p) { return priceY + (hi - p) / (hi - lo) * priceH; }
             function YR(r) { return rsiY + (100 - r) / 100 * rsiH; }
@@ -3771,14 +3877,19 @@ if (typeof module !== "undefined") {
                 if (!view || !layout) return;
                 var rect = canvas.getBoundingClientRect();
                 if (!rect.width) return;
+                lastPtr = { type: e.pointerType || "mouse", y: e.clientY - rect.top };
                 var frac = (e.clientX - rect.left - 6) / layout.plotW;
                 var i = layout.start + Math.round(frac * (layout.end - layout.start));
                 i = Math.max(layout.start, Math.min(layout.end, i));
                 if (i !== hover) { hover = i; render(); }
+                else { updateTip(); } // same week, new pointer spot: the bubble still follows (a touch finger moving within one week must never end up under it)
             }
             canvas.addEventListener("pointermove", onPointer);
             canvas.addEventListener("pointerdown", onPointer);
             canvas.addEventListener("pointerleave", function () {
+                if (hover !== -1) { hover = -1; render(); }
+            });
+            canvas.addEventListener("pointercancel", function () {
                 if (hover !== -1) { hover = -1; render(); }
             });
         }
@@ -3838,10 +3949,19 @@ if (typeof module !== "undefined") {
         window.jboChart = {
             sma: sma,
             rsi: rsiWilder,
+            tipFor: function (key, idx) {
+                var v = computeViewFor(key);
+                if (!v) return null;
+                if (idx === undefined || idx === null || idx < 0 || idx >= v.s.bars.length) idx = v.end;
+                return { name: v.s.name, date: "Week ending " + fmtDate(v.s.bars[idx][0]), rows: tipRows(v, idx) };
+            },
+            tipPos: tipPos,
             state: function () {
+                var tip = document.getElementById("jboChartTip");
                 return {
                     key: cur.key, range: cur.range, style: cur.style,
-                    loaded: !!chartData, failed: loadFailed,
+                    loaded: !!chartData, failed: loadFailed, hover: hover,
+                    tipOpen: !!(tip && tip.classList.contains("open")),
                     view: view ? { start: view.start, end: view.end, hasVolume: view.hasVolume, bars: view.s.bars.length } : null
                 };
             },
