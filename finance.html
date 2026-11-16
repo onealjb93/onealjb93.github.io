@@ -56,6 +56,11 @@
     /* Screener section: same rhythm as the resources section. */
     .screener-section { margin-top: 3rem; margin-bottom: 3rem; }
     .screener-section h3 { margin-top: 1.25rem; }
+    /* Chart section (2026-11-16): TradingView advanced chart framed in the
+       page's card vocabulary; weekly view, fixed long-term study set. */
+    .chart-section { margin-top: 3rem; margin-bottom: 3rem; }
+    .tv-chart-frame { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; height: 600px; }
+    @media (max-width: 640px) { .tv-chart-frame { height: 460px; } }
 
     /* Navigation redesign (2026-11-13): the sticky h2/h3 heading pinning
        above is REPLACED by a single pinned section nav below the frozen
@@ -169,6 +174,7 @@
     <nav class="section-nav" id="sectionNav" aria-label="Finance page sections">
         <a class="filter-pill" href="#scoreboard">Scoreboard</a>
         <a class="filter-pill" href="#screener">Screener</a>
+        <a class="filter-pill" href="#chart">Chart</a>
         <a class="filter-pill" href="#committee">Committee</a>
         <a class="filter-pill" href="#backtest">Backtest</a>
         <a class="filter-pill" href="#resources">Resources</a>
@@ -284,6 +290,14 @@
         <h3>Step 5 — Benchmark (Bogle)</h3>
         <p>Track results vs. a total-market index fund after taxes and fees. If you can&rsquo;t beat it over 3–5 years, shift core money to the index. John Bogle&rsquo;s Cost Matters Hypothesis: after costs, the average active investor must underperform a low-cost index fund by exactly the amount of the costs. SPIVA Year-End 2025: 89.5% of US large-cap funds underperformed after costs over 15 years; over 20 years, ~93–94% fell short. Buffett&rsquo;s 2007–2017 bet proved the point: a Vanguard S&amp;P 500 index fund compounded 7.1%/yr against hedge funds, after fees.</p>
     
+        </div>
+    </div>
+<!-- Chart: any company, one fixed set of long-term gauges -->
+    <div class="chart-section collapsible-section" id="chart">
+        <h2 class="section-title"><button type="button" class="section-toggle" data-section="chart" aria-expanded="false" aria-controls="chart-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> The Chart</button></h2>
+        <div class="section-body" id="chart-body" hidden>
+        <p>Look up any company. The chart opens on the S&amp;P 500 in weekly view and always carries the same three gauges, pinned to the week whatever timeframe the chart shows: the 200-week moving average &mdash; the long-term value ruler &mdash; the 50-week moving average for the trend, and the weekly RSI. A stock with under four years of trading history has no 200-week line yet; it appears once enough history exists.</p>
+        <div class="tv-chart-frame" id="tvChartFrame"></div>
         </div>
     </div>
 <!-- Frameworks & Quantifiable Metrics Accordions -->
@@ -2521,7 +2535,7 @@ if (typeof module !== "undefined") {
        ============================================================ */
     (function () {
         "use strict";
-        var SECTION_IDS = ["scoreboard", "screener", "committee", "backtest", "resources", "legend"];
+        var SECTION_IDS = ["scoreboard", "screener", "chart", "committee", "backtest", "resources", "legend"];
 
         /* ---------- Collapsible sections ---------- */
         function setSection(id, open) {
@@ -2896,6 +2910,70 @@ if (typeof module !== "undefined") {
         btn.addEventListener('click', function () {
             var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+        });
+    })();
+</script>
+<script>
+    // TradingView chart (2026-11-16): built lazily the first time the Chart
+    // section is opened, so the widget measures a visible container instead
+    // of a collapsed one. The study set is fixed by the page — a 200-week
+    // and a 50-week simple moving average and a 14-period RSI. Each study
+    // carries the built-in studies' own timeframe input pinned to 1W, so
+    // the lines stay weekly averages on any symbol and on any timeframe
+    // the chart is switched to — a plain length-200 study would silently
+    // become a 200-day average on a daily chart. The widget is rebuilt in
+    // the new theme when the site theme flips (a rebuild resets the
+    // symbol to the S&P 500).
+    (function () {
+        "use strict";
+        var built = false, loading = false;
+        function siteTheme() {
+            return document.body.classList.contains("light-mode") ? "light" : "dark";
+        }
+        function build() {
+            var frame = document.getElementById("tvChartFrame");
+            if (!frame || !window.TradingView || !TradingView.widget) return;
+            frame.innerHTML = '<div id="tvChart" style="height:100%;width:100%"></div>';
+            new TradingView.widget({
+                container_id: "tvChart",
+                symbol: "SPX",
+                interval: "W",
+                timezone: "America/New_York",
+                theme: siteTheme(),
+                style: "1",
+                locale: "en",
+                enable_publishing: false,
+                allow_symbol_change: true,
+                studies: [
+                    { id: "MASimple@tv-basicstudies", inputs: { length: 200, timeframe: "1W" } },
+                    { id: "MASimple@tv-basicstudies", inputs: { length: 50, timeframe: "1W" } },
+                    { id: "RSI@tv-basicstudies", inputs: { length: 14, timeframe: "1W" } }
+                ],
+                autosize: true
+            });
+        }
+        function ensure() {
+            var body = document.getElementById("chart-body");
+            if (!body || body.hidden || built) return;
+            if (window.TradingView && TradingView.widget) { built = true; build(); return; }
+            if (loading) return;
+            loading = true;
+            var s = document.createElement("script");
+            s.src = "https://s3.tradingview.com/tv.js";
+            s.async = true;
+            s.onload = function () { loading = false; if (!built) { built = true; build(); } };
+            s.onerror = function () { loading = false; };
+            document.head.appendChild(s);
+        }
+        var body = document.getElementById("chart-body");
+        if (body && window.MutationObserver) {
+            new MutationObserver(ensure).observe(body, { attributes: true, attributeFilter: ["hidden"] });
+        }
+        ensure();
+        var toggle = document.getElementById("theme-toggle");
+        if (toggle) toggle.addEventListener("change", function () {
+            // Match the backtest's pattern: let the theme class land first.
+            setTimeout(function () { if (built) build(); }, 60);
         });
     })();
 </script>
