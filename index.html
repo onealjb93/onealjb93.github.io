@@ -255,6 +255,22 @@
     .jbo-pop img { width: 64px; height: auto; border-radius: 4px; float: left; margin: 2px 10px 6px 0; }
     .jbo-pop .jbo-pop-t { display: block; color: var(--tink); font-weight: 600; margin-bottom: 4px; }
 
+    /* Logo intro scroll hint: a quiet "Scroll to start" under the centred
+       JBO mark while the intro waits for its first scroll. Absolutely
+       positioned off the same centre anchor as the logo (its margin-top is
+       half the logo's size, min(39vmin, 320px), plus a gap), so it tracks
+       the mark at every viewport and never moves it. Decorative only:
+       pointer-events none. Opacity is driven by the inline script below
+       (it follows the morph's own progress and is gone early in it); the
+       value here is the untouched-state default. The intro green is
+       #0f3227 in both themes; #f6f5f1 is the logo's own off-white, and at
+       0.75 opacity it still reads ~8:1 against the green. */
+    .logo-intro-hint { position: absolute; left: 50%; top: 50%; transform: translateX(-50%); margin-top: calc(min(39vmin, 320px) + 22px); display: flex; flex-direction: column; align-items: center; gap: 5px; color: #f6f5f1; font-size: 0.85rem; letter-spacing: 0.12em; white-space: nowrap; opacity: 0.75; pointer-events: none; }
+    .logo-intro-hint svg { display: block; animation: logo-intro-hint-bob 2.4s var(--ease-inout) infinite; }
+    @keyframes logo-intro-hint-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+    @media (max-height: 500px) { .logo-intro-hint { margin-top: calc(min(39vmin, 320px) + 4px); font-size: 0.78rem; line-height: 1.2; gap: 2px; } }
+    @media (prefers-reduced-motion: reduce) { .logo-intro-hint svg { animation: none; } }
+
 </style>
 
 </head>
@@ -262,6 +278,7 @@
     <div class="logo-intro" id="logo-intro" aria-hidden="true">
         <div class="logo-intro-bg"></div>
         <img class="logo-intro-logo" id="logo-intro-logo" src="jbo-logo.svg" alt="" width="627" height="627" draggable="false">
+        <div class="logo-intro-hint" id="logo-intro-hint"><span>Scroll to start</span><svg width="16" height="10" viewBox="0 0 18 11" fill="none" aria-hidden="true"><path d="M1.5 1.5 L9 9 L16.5 1.5" stroke="#f6f5f1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
     </div>
     <script>
         // Logo intro: show the full-viewport logo immediately (before first
@@ -274,6 +291,40 @@
                 document.documentElement.classList.add('logo-intro-on');
                 setTimeout(function () { if (!window.__logoIntroReady) document.documentElement.classList.remove('logo-intro-on'); }, 2000);
             } catch (e) { /* no intro: normal header */ }
+        })();
+    </script>
+    <script>
+        // Logo intro scroll hint: fade "Scroll to start" out on the morph's
+        // own master progress. script.js writes the green overlay's opacity
+        // from that progress every frame (bg opacity = (1 - p / 0.75)^3
+        // until it reaches 0), so watching the overlay recovers p exactly:
+        // the hint is full at rest and gone by p = 0.35, early in the morph,
+        // long before the logo lands. Once the intro is done (or the
+        // no-script fallback hides it), the hint is set to 0 and the intro
+        // overlay itself is hidden, so it can never come back.
+        (function () {
+            var hint = document.getElementById('logo-intro-hint');
+            var bg = document.querySelector('.logo-intro-bg');
+            if (!hint || !bg) return;
+            var BASE = 0.75;
+            function update() {
+                var root = document.documentElement;
+                if (root.classList.contains('logo-intro-done') || !root.classList.contains('logo-intro-on')) {
+                    hint.style.opacity = '0';
+                    return;
+                }
+                var o = parseFloat(bg.style.opacity);
+                if (isNaN(o)) o = 1;
+                o = Math.max(0, Math.min(1, o));
+                var p = 0.75 * (1 - Math.pow(o, 1 / 3));
+                var f = 1 - Math.max(0, Math.min(1, p / 0.35));
+                hint.style.opacity = (BASE * f).toFixed(3);
+            }
+            update();
+            if (window.MutationObserver) {
+                new MutationObserver(update).observe(bg, { attributes: true, attributeFilter: ['style'] });
+                new MutationObserver(update).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+            }
         })();
     </script>
     <script>
