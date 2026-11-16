@@ -103,8 +103,8 @@
        the saved row back to the canvas. */
     #chartPicks { flex-wrap: nowrap; }
     #chartPicks .filter-pill { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap; }
-    /* Phone widths: the two dropdowns go label-beside-field (one
-       compact row each instead of two stacked blocks) and the
+    /* Phone widths: the dropdown goes label-beside-field (one
+       compact row instead of a stacked block) and the
        chip rows share rows — the same controls, laid out for the
        width, nothing removed. */
     @media (max-width: 640px) {
@@ -388,15 +388,11 @@
         </div>
         <div class="chart-controls">
             <div class="selector-group">
-                <label for="chartStock">Johnny&rsquo;s stocks</label>
+                <label for="chartStock">Stock</label>
                 <select id="chartStock">
                     <option value="">Choose a stock&hellip;</option>
-                </select>
-            </div>
-            <div class="selector-group">
-                <label for="chartNdx">Nasdaq-100</label>
-                <select id="chartNdx">
-                    <option value="">Choose a company&hellip;</option>
+                    <optgroup label="Johnny&rsquo;s stocks" id="chartStockMine"></optgroup>
+                    <optgroup label="Nasdaq-100" id="chartStockNdx"></optgroup>
                 </select>
             </div>
             <div class="chip-row" id="chartRanges" role="group" aria-label="Chart range">
@@ -408,6 +404,10 @@
             <div class="chip-row" id="chartStyles" role="group" aria-label="Chart style">
                 <button type="button" class="filter-pill active" data-style="line">Line</button>
                 <button type="button" class="filter-pill" data-style="candles">Candles</button>
+            </div>
+            <div class="chip-row" id="chartModes" role="group" aria-label="Chart data mode">
+                <button type="button" class="filter-pill active" data-mode="weekly">Weekly</button>
+                <button type="button" class="filter-pill" data-mode="daily">Daily</button>
             </div>
             <div class="chip-row" id="chartPanes" role="group" aria-label="Chart panes">
                 <button type="button" class="filter-pill" data-pane="volume" aria-pressed="true">Volume</button>
@@ -423,11 +423,11 @@
         <details class="chart-key" id="chartKey" open>
             <summary><span class="chart-key-chev" aria-hidden="true">&#9654;</span> Chart key <span class="chart-key-swatches" aria-hidden="true"><span class="tv-key-swatch tv-key-ma200"></span><span class="tv-key-swatch tv-key-ma50"></span><span class="tv-key-swatch tv-key-rsi"></span><span class="tv-key-swatch tv-key-pe"></span><span class="tv-key-swatch tv-key-volma"></span></span></summary>
         <div class="tv-chart-key">
-            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma200" aria-hidden="true"></span><span><strong>Amber &mdash; the 200-week average</strong>, the thickest line. Four years of trading in one line: below it, a stock has historically been cheap. It's the value line.</span></span>
-            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma50" aria-hidden="true"></span><span><strong>Blue &mdash; the 50-week average</strong>, the trend line. A year of price: above it, the trend is up and intact; below it, the trend is broken.</span></span>
-            <span class="tv-key-item"><span class="tv-key-swatch tv-key-rsi" aria-hidden="true"></span><span><strong>Violet &mdash; the weekly RSI</strong>, in the pane below. It measures how stretched the price is &mdash; pushed too far, too fast, in either direction. The dashed lines mark 70 and 30: above 70 it's overbought, below 30 oversold.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma200" aria-hidden="true"></span><span id="keyMa200"><strong>Amber &mdash; the 200-week average</strong>, the thickest line. Four years of trading in one line: below it, a stock has historically been cheap. It's the value line.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma50" aria-hidden="true"></span><span id="keyMa50"><strong>Blue &mdash; the 50-week average</strong>, the trend line. A year of price: above it, the trend is up and intact; below it, the trend is broken.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-rsi" aria-hidden="true"></span><span id="keyRsi"><strong>Violet &mdash; the weekly RSI</strong>, in the pane below. It measures how stretched the price is &mdash; pushed too far, too fast, in either direction. The dashed lines mark 70 and 30: above 70 it's overbought, below 30 oversold.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-pe" aria-hidden="true"></span><span><strong>Teal &mdash; the P/E ratio</strong>, in its own pane when you switch it on. The price divided by the last twelve months of earnings per share &mdash; how many dollars investors pay for one dollar of profit. Where the line breaks, the company was losing money: there is no P/E without earnings. The dashed line is the stock's own median P/E: above it, expensive for itself; below it, cheap for itself.</span></span>
-            <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span><strong>Grey &mdash; the 20-week volume average</strong>, the line running through the volume bars. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span id="keyVolma"><strong>Grey &mdash; the 20-week volume average</strong>, the line running through the volume bars. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
         </div>
         </details>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
@@ -3768,9 +3768,10 @@ if (typeof module !== "undefined") {
     // Nasdaq Composite, gold, Bitcoin and Johnny's 19 stocks — plus,
     // since 2026-11-16, the Nasdaq-100 constituents as CHART-ONLY
     // series (flagged "ndx" in the data file, listed in its
-    // "nasdaq100" array) behind the second dropdown. They never enter
-    // the scoreboard, the Stack runner or the backtest: the first
-    // dropdown and every graded set stay scoped to the original 19.
+    // "nasdaq100" array) behind the Nasdaq-100 group of the one
+    // stock dropdown. They never enter the scoreboard, the Stack
+    // runner or the backtest: the Johnny's-stocks group and every
+    // graded set stay scoped to the original 19.
     // A series too short for a line never fakes one: SPCX (23 weeks)
     // draws neither average yet, and the note under the chart says why.
     // The week's numbers live in exactly one place: a glass tooltip
@@ -3783,6 +3784,18 @@ if (typeof module !== "undefined") {
     // the active range: every gauge is computed on the full series
     // first and only then windowed, so zooming never recomputes a
     // value. A double-tap hands the window back to the range button.
+    // The Weekly/Daily toggle (2026-11-16) switches the same chart
+    // to daily bars for the last five years — a second data file
+    // (finance-chart-daily.json) fetched lazily on the first switch,
+    // so the page's normal load never grows. In Daily the gauges
+    // take their canonical daily forms (200-day / 50-day averages,
+    // daily RSI, 20-day volume average) and the ranges are 1Y and
+    // 5Y: 10Y and All have no daily data to draw, so asking for one
+    // returns the chart to Weekly and the data note says why. The
+    // two stock dropdowns are one box now (2026-11-16): a single
+    // select whose two optgroups are Johnny's 19 and the
+    // Nasdaq-100 — the lists overlapped on 11 names, so the second
+    // box only ever mirrored the first.
     (function () {
         "use strict";
         var MA200_COLOR = "#FF9800", MA50_COLOR = "#2962FF", RSI_COLOR = "#7E57C2", PE_COLOR = "#2dd4bf";
@@ -3791,11 +3804,29 @@ if (typeof module !== "undefined") {
         var RSI_GUIDE_COLOR = "rgba(126, 87, 194, 0.5)";
         // The P/E pane's median line: the P/E's own teal, same treatment.
         var PE_GUIDE_COLOR = "rgba(45, 212, 191, 0.5)";
-        var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1";
+        var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1", MODE_KEY = "jbo-chart-mode-v1";
         var PICK_KEYS = ["SPX", "IXIC", "GOLD", "BTC"];
         var RANGE_WEEKS = { "1Y": 52, "5Y": 260, "10Y": 520, "ALL": Infinity };
+        // Daily ranges: 1Y is a trading year of days; 5Y is the
+        // whole daily file (the last five years is all it carries).
+        // 10Y / All never reach this table — the range handler
+        // returns the chart to Weekly for them, with the reason
+        // shown in the data note.
+        var RANGE_DAYS = { "1Y": 252, "5Y": Infinity, "10Y": Infinity, "ALL": Infinity };
         var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         var chartData = null, loadStarted = false, loadFailed = false;
+        // The Daily view's data: a second file, fetched lazily the
+        // first time the visitor switches to Daily (or on load when
+        // Daily was the last-used mode). The weekly file stays the
+        // registry — the dropdowns populate from it in both modes —
+        // and the daily file only supplies the bars the chart draws.
+        var dailyData = null, dailyStarted = false, dailyFailed = false;
+        var mode = "weekly";
+        // Why the chart is showing Weekly when Daily was asked for
+        // (a range Daily cannot cover, or a daily file that failed
+        // to arrive) — shown at the head of the data note until the
+        // next clean switch.
+        var modeNote = "";
         var cur = { key: "SPX", range: "5Y", style: "line" };
         // Pane toggles: Volume and RSI start on (the shipped look),
         // P/E starts off; a stored "0"/"1" overrides per pane.
@@ -3804,6 +3835,10 @@ if (typeof module !== "undefined") {
             peOn = window.localStorage.getItem(PE_KEY) === "1";
             volOn = window.localStorage.getItem(VOL_KEY) !== "0";
             rsiOn = window.localStorage.getItem(RSI_KEY) !== "0";
+            // The mode persists like the pane choices: a visitor
+            // whose last view was Daily reopens on Daily — still
+            // the S&P 500, still the 5-year range, still a line.
+            if (window.localStorage.getItem(MODE_KEY) === "daily") mode = "daily";
         } catch (e) { /* storage unavailable: the defaults stand */ }
         var pendingKey = null;
         var hover = -1; // full-series index under the pointer; -1 = latest bar
@@ -3872,13 +3907,15 @@ if (typeof module !== "undefined") {
         // The median of a series' whole P/E history (every non-null
         // value in the array, so the number is one fixed figure per
         // stock and never moves when the range changes). Below a
-        // year of non-null weeks there is too little history to call
-        // anything typical: null, and the pane draws no median line.
-        function peMedianOf(arr) {
+        // year of non-null periods there is too little history to
+        // call anything typical: null, and the pane draws no median
+        // line. The year is counted in the mode's own periods —
+        // 52 weeks, or 252 trading days.
+        function peMedianOf(arr, minCount) {
             if (!arr) return null;
             var vals = [];
             for (var i = 0; i < arr.length; i++) if (arr[i] !== null) vals.push(arr[i]);
-            if (vals.length < 52) return null;
+            if (vals.length < minCount) return null;
             vals.sort(function (a, b) { return a - b; });
             var mid = vals.length >> 1;
             return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
@@ -3889,10 +3926,18 @@ if (typeof module !== "undefined") {
             if (!chartData) return null;
             var s = chartData.series[key];
             if (!s || !s.bars || !s.bars.length) return null;
+            // In Daily mode the drawn bars come from the daily
+            // file; the weekly series above stays the existence
+            // check (one registry for both modes).
+            if (mode === "daily") {
+                if (!dailyData) return null;
+                s = dailyData.series[key];
+                if (!s || !s.bars || !s.bars.length) return null;
+            }
             var closes = s.bars.map(function (b) { return b[4]; });
             var volumes = s.bars.map(function (b) { return b[5]; });
             var n = s.bars.length;
-            var count = Math.min(n, RANGE_WEEKS[cur.range]);
+            var count = Math.min(n, (mode === "daily" ? RANGE_DAYS : RANGE_WEEKS)[cur.range]);
             // The pipeline's P/E array, only trusted when it lines
             // up 1:1 with the bars; anything else reads as absent.
             var peArr = (s.pe && s.pe.length === s.bars.length) ? s.pe : null;
@@ -3900,7 +3945,7 @@ if (typeof module !== "undefined") {
                 s: s, closes: closes,
                 ma200: sma(closes, 200), ma50: sma(closes, 50), rsi: rsiWilder(closes, 14),
                 volMa: sma(volumes, 20),
-                pe: peArr, peMedian: peMedianOf(peArr),
+                pe: peArr, peMedian: peMedianOf(peArr, mode === "daily" ? 252 : 52),
                 isBench: PICK_KEYS.indexOf(key) >= 0,
                 start: n - count, end: n - 1,
                 hasVolume: s.bars.some(function (b) { return b[5] > 0; })
@@ -3915,9 +3960,10 @@ if (typeof module !== "undefined") {
         // takes a CSS-variable chip (the close line, the volume bars).
         function tipRows(v, idx) {
             var b = v.s.bars[idx];
+            var per = mode === "daily" ? "day" : "week";
             var rows = [{ label: "Close", value: fmtNum(b[4]), color: null, chip: "close" }];
-            rows.push({ label: "200-week", value: v.ma200[idx] === null ? "—" : fmtNum(v.ma200[idx]), color: MA200_COLOR, chip: "" });
-            rows.push({ label: "50-week", value: v.ma50[idx] === null ? "—" : fmtNum(v.ma50[idx]), color: MA50_COLOR, chip: "" });
+            rows.push({ label: "200-" + per, value: v.ma200[idx] === null ? "—" : fmtNum(v.ma200[idx]), color: MA200_COLOR, chip: "" });
+            rows.push({ label: "50-" + per, value: v.ma50[idx] === null ? "—" : fmtNum(v.ma50[idx]), color: MA50_COLOR, chip: "" });
             // A sub-pane's chip joins the tooltip only while that
             // pane is switched on (and the series carries the data).
             if (rsiOn) rows.push({ label: "RSI", value: v.rsi[idx] === null ? "—" : v.rsi[idx].toFixed(1), color: RSI_COLOR, chip: "" });
@@ -3958,10 +4004,10 @@ if (typeof module !== "undefined") {
             return { left: Math.round(left), top: Math.round(top) };
         }
         function noteText(v) {
-            var n = v.s.bars.length;
+            var n = v.s.bars.length, per = mode === "daily" ? "day" : "week";
             if (n >= 200) return "";
-            if (n < 50) return v.s.name + " has " + n + " weeks of trading history — not enough yet for the 50-week or 200-week lines (they need 50 and 200 weeks). The price and the RSI still draw.";
-            return v.s.name + " has " + n + " weeks of trading history — the 200-week line appears once it reaches 200 weeks.";
+            if (n < 50) return v.s.name + " has " + n + " " + per + "s of trading history — not enough yet for the 50-" + per + " or 200-" + per + " lines (they need 50 and 200 " + per + "s). The price and the RSI still draw.";
+            return v.s.name + " has " + n + " " + per + "s of trading history — the 200-" + per + " line appears once it reaches 200 " + per + "s.";
         }
 
         function render() {
@@ -3972,6 +4018,7 @@ if (typeof module !== "undefined") {
                 return;
             }
             if (!chartData) { showTipStatus("Loading chart data…"); return; }
+            if (mode === "daily" && !dailyData) { showTipStatus("Loading daily data…"); return; }
             view = computeView();
             if (!view) { showTipStatus("No chart data for this instrument yet."); return; }
             rangeStart = view.start; rangeEnd = view.end;
@@ -3989,7 +4036,7 @@ if (typeof module !== "undefined") {
             if (hover < view.start || hover > view.end) hover = -1;
             var nt = noteText(view);
             if (note) { note.textContent = nt; note.hidden = !nt; }
-            if (dataNote) dataNote.textContent = "Weekly data from Yahoo Finance through " + fmtDate(view.s.bars[view.end][0]) + " — refreshed weekday evenings with the rest of this page’s data.";
+            if (dataNote) dataNote.textContent = (modeNote ? modeNote + " " : "") + (mode === "daily" ? "Daily" : "Weekly") + " data from Yahoo Finance through " + fmtDate(view.s.bars[view.end][0]) + " — refreshed weekday evenings with the rest of this page’s data.";
             draw();
             updateTip();
         }
@@ -4004,7 +4051,7 @@ if (typeof module !== "undefined") {
             var nm = document.createElement("strong");
             nm.textContent = v.s.name;
             var dt = document.createElement("span");
-            dt.textContent = "Week ending " + fmtDate(v.s.bars[idx][0]);
+            dt.textContent = (mode === "daily" ? "" : "Week ending ") + fmtDate(v.s.bars[idx][0]);
             head.appendChild(nm); head.appendChild(dt);
             tip.appendChild(head);
             tipRows(v, idx).forEach(function (r) {
@@ -4297,45 +4344,83 @@ if (typeof module !== "undefined") {
             return Object.keys(chartData.series).filter(function (k) { return PICK_KEYS.indexOf(k) < 0 && !chartData.series[k].ndx; });
         }
         function populateStockSelect() {
-            var sel = document.getElementById("chartStock");
-            if (!sel || !chartData) return;
+            var grp = document.getElementById("chartStockMine");
+            if (!grp || !chartData) return;
             stockKeys().forEach(function (k) {
                 var o = document.createElement("option");
                 o.value = k;
                 o.textContent = chartData.series[k].name + " (" + k + ")";
-                sel.appendChild(o);
+                grp.appendChild(o);
             });
         }
-        // The Nasdaq-100 dropdown: the data file's own constituent
-        // list, alphabetical by company name. Membership is the only
-        // thing read from the file — the series themselves are the
-        // same objects the chart draws for any instrument, and the
-        // "ndx" flag on the added series is what keeps them out of
-        // stockKeys() (and so out of the first dropdown) above.
+        // The Nasdaq-100 group of the one stock dropdown: the data
+        // file's own constituent list, alphabetical by company
+        // name. Membership is the only thing read from the file —
+        // the series themselves are the same objects the chart
+        // draws for any instrument, and the "ndx" flag on the added
+        // series is what keeps them out of stockKeys() (and so out
+        // of the Johnny's-stocks group) above.
         function ndxKeys() {
             if (!chartData || !chartData.nasdaq100) return [];
             return chartData.nasdaq100.filter(function (k) { return !!chartData.series[k]; })
                 .sort(function (a, b) { return chartData.series[a].name.localeCompare(chartData.series[b].name); });
         }
         function populateNdxSelect() {
-            var sel = document.getElementById("chartNdx");
-            if (!sel || !chartData) return;
+            var grp = document.getElementById("chartStockNdx");
+            if (!grp || !chartData) return;
             ndxKeys().forEach(function (k) {
                 var o = document.createElement("option");
                 o.value = k;
                 o.textContent = chartData.series[k].name + " (" + k + ")";
-                sel.appendChild(o);
+                grp.appendChild(o);
             });
+        }
+        // The chart key's wording follows the mode: the approved
+        // weekly descriptions, and their day-for-week forms in
+        // Daily. The weekly originals are captured from the page
+        // itself on first use, so switching back restores them
+        // byte-for-byte; the Teal P/E entry names no period and
+        // never changes.
+        var KEY_IDS = ["keyMa200", "keyMa50", "keyRsi", "keyVolma"];
+        var weeklyKeyHtml = null;
+        var DAILY_KEY_HTML = {
+            keyMa200: "<strong>Amber &mdash; the 200-day average</strong>, the thickest line. Two hundred trading days in one line: below it, a stock has historically been cheap. It's the value line.",
+            keyMa50: "<strong>Blue &mdash; the 50-day average</strong>, the trend line. Fifty trading days of price: above it, the trend is up and intact; below it, the trend is broken.",
+            keyRsi: "<strong>Violet &mdash; the daily RSI</strong>, in the pane below. It measures how stretched the price is &mdash; pushed too far, too fast, in either direction. The dashed lines mark 70 and 30: above 70 it's overbought, below 30 oversold.",
+            keyVolma: "<strong>Grey &mdash; the 20-day volume average</strong>, the line running through the volume bars. Bars poking above it mean a heavy trading day; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring."
+        };
+        function syncModeText() {
+            if (!weeklyKeyHtml) {
+                weeklyKeyHtml = {};
+                KEY_IDS.forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (el) weeklyKeyHtml[id] = el.innerHTML;
+                });
+            }
+            KEY_IDS.forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) el.innerHTML = mode === "daily" ? DAILY_KEY_HTML[id] : weeklyKeyHtml[id];
+            });
+            var cv = document.getElementById("jboChartCanvas");
+            if (cv) cv.setAttribute("aria-label", mode === "daily"
+                ? "Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"
+                : "Weekly price chart with 200-week and 50-week moving averages, volume, weekly RSI and an optional P/E pane");
         }
         function syncControls() {
             var picks = document.getElementById("chartPicks");
             if (picks) picks.querySelectorAll("button[data-key]").forEach(function (b) {
                 b.classList.toggle("active", b.getAttribute("data-key") === cur.key);
             });
+            // One dropdown for both lists: a stock from either
+            // group shows selected; a quick-pick benchmark is in
+            // neither, so the box falls back to its placeholder.
             var sel = document.getElementById("chartStock");
-            if (sel) sel.value = stockKeys().indexOf(cur.key) >= 0 ? cur.key : "";
-            var nsel = document.getElementById("chartNdx");
-            if (nsel) nsel.value = ndxKeys().indexOf(cur.key) >= 0 ? cur.key : "";
+            if (sel) sel.value = (stockKeys().indexOf(cur.key) >= 0 || ndxKeys().indexOf(cur.key) >= 0) ? cur.key : "";
+            var modes = document.getElementById("chartModes");
+            if (modes) modes.querySelectorAll("button[data-mode]").forEach(function (b) {
+                b.classList.toggle("active", b.getAttribute("data-mode") === mode);
+            });
+            syncModeText();
             var ranges = document.getElementById("chartRanges");
             if (ranges) ranges.querySelectorAll("button[data-range]").forEach(function (b) {
                 b.classList.toggle("active", b.getAttribute("data-range") === cur.range);
@@ -4354,8 +4439,9 @@ if (typeof module !== "undefined") {
         }
         function setKey(key) {
             if (!chartData || !chartData.series[key]) return;
-            cur.key = key; hover = -1; zoom = null;
-            syncControls(); render();
+            cur.key = key; hover = -1; zoom = null; modeNote = "";
+            syncControls();
+            if (mode === "daily") ensureDaily(); else render();
         }
         var picksEl = document.getElementById("chartPicks");
         if (picksEl) picksEl.addEventListener("click", function (e) {
@@ -4366,16 +4452,44 @@ if (typeof module !== "undefined") {
         if (stockSel) stockSel.addEventListener("change", function () {
             if (stockSel.value) setKey(stockSel.value);
         });
-        var ndxSel = document.getElementById("chartNdx");
-        if (ndxSel) ndxSel.addEventListener("change", function () {
-            if (ndxSel.value) setKey(ndxSel.value);
-        });
         var rangesEl = document.getElementById("chartRanges");
         if (rangesEl) rangesEl.addEventListener("click", function (e) {
             var btn = e.target && e.target.closest ? e.target.closest("button[data-range]") : null;
             if (!btn) return;
-            cur.range = btn.getAttribute("data-range"); hover = -1; zoom = null;
+            var r = btn.getAttribute("data-range");
+            // Daily carries five years: a 10Y or All tap returns
+            // the chart to Weekly for that range, and the data
+            // note says why, in place.
+            if (mode === "daily" && (r === "10Y" || r === "ALL")) {
+                mode = "weekly";
+                try { window.localStorage.setItem(MODE_KEY, "weekly"); } catch (err) { /* storage unavailable */ }
+                modeNote = "Daily data covers the last 5 years — 10Y and All use the weekly view.";
+            } else {
+                modeNote = "";
+            }
+            cur.range = r; hover = -1; zoom = null;
             syncControls(); render();
+        });
+        // ---- Weekly / Daily mode ----
+        function setMode(m) {
+            if (m === mode) return;
+            // Asking for Daily on a range it cannot cover keeps
+            // Weekly and says why, in place — the same rule the
+            // range buttons apply in reverse.
+            if (m === "daily" && (cur.range === "10Y" || cur.range === "ALL")) {
+                modeNote = "Daily data covers the last 5 years — 10Y and All use the weekly view.";
+                render();
+                return;
+            }
+            mode = m; hover = -1; zoom = null; modeNote = "";
+            try { window.localStorage.setItem(MODE_KEY, mode); } catch (err) { /* storage unavailable */ }
+            syncControls();
+            if (mode === "daily") ensureDaily(); else render();
+        }
+        var modesEl = document.getElementById("chartModes");
+        if (modesEl) modesEl.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest("button[data-mode]") : null;
+            if (btn) setMode(btn.getAttribute("data-mode"));
         });
         var stylesEl = document.getElementById("chartStyles");
         if (stylesEl) stylesEl.addEventListener("click", function (e) {
@@ -4588,6 +4702,32 @@ if (typeof module !== "undefined") {
             resizeTimer = setTimeout(function () { if (chartData) render(); }, 120);
         });
 
+        // ---- loading the daily file (lazy: first Daily switch) ----
+        function ensureDaily() {
+            if (dailyData) { render(); return; }
+            if (dailyStarted && !dailyFailed) { render(); return; }
+            dailyStarted = true; dailyFailed = false;
+            fetch("finance-chart-daily.json")
+                .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+                .then(function (d) {
+                    dailyData = d;
+                    if (mode === "daily") render();
+                })
+                .catch(function () {
+                    dailyFailed = true;
+                    if (mode === "daily") {
+                        // The daily file didn't arrive: fall back
+                        // to Weekly and say so in the data note —
+                        // never a blank or half-switched chart.
+                        mode = "weekly";
+                        try { window.localStorage.setItem(MODE_KEY, "weekly"); } catch (err) { /* storage unavailable */ }
+                        modeNote = "Daily data couldn’t be loaded — showing the weekly view.";
+                        syncControls(); render();
+                    }
+                });
+            render(); // the loading status, while the file is on its way
+        }
+
         // ---- loading (lazy: first time the section opens) ----
         function ensure() {
             var body = document.getElementById("chart-body");
@@ -4600,7 +4740,8 @@ if (typeof module !== "undefined") {
                     populateStockSelect();
                     populateNdxSelect();
                     if (pendingKey && chartData.series[pendingKey]) { cur.key = pendingKey; pendingKey = null; zoom = null; }
-                    syncControls(); render();
+                    syncControls();
+                    if (mode === "daily") ensureDaily(); else render();
                 })
                 .catch(function () { loadFailed = true; render(); });
         }
@@ -4623,7 +4764,7 @@ if (typeof module !== "undefined") {
             var section = document.getElementById("chart");
             if (section && section.scrollIntoView) section.scrollIntoView({ behavior: "smooth", block: "start" });
             if (chartData) {
-                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; syncControls(); render(); }
+                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; modeNote = ""; syncControls(); if (mode === "daily") ensureDaily(); else render(); }
             } else {
                 pendingKey = symbol;
                 ensure();
@@ -4636,13 +4777,14 @@ if (typeof module !== "undefined") {
                 var v = computeViewFor(key);
                 if (!v) return null;
                 if (idx === undefined || idx === null || idx < 0 || idx >= v.s.bars.length) idx = v.end;
-                return { name: v.s.name, date: "Week ending " + fmtDate(v.s.bars[idx][0]), rows: tipRows(v, idx) };
+                return { name: v.s.name, date: (mode === "daily" ? "" : "Week ending ") + fmtDate(v.s.bars[idx][0]), rows: tipRows(v, idx) };
             },
             tipPos: tipPos,
             state: function () {
                 var tip = document.getElementById("jboChartTip");
                 return {
                     key: cur.key, range: cur.range, style: cur.style, pe: peOn, vol: volOn, rsi: rsiOn,
+                    mode: mode, dailyLoaded: !!dailyData, modeNote: modeNote,
                     loaded: !!chartData, failed: loadFailed, hover: hover,
                     tipOpen: !!(tip && tip.classList.contains("open")),
                     fs: fsOn,

@@ -57,6 +57,23 @@ basis (TWD per ordinary share) does not match the listed ADR price.
 Any EDGAR failure leaves the series without fresh pe (the previous
 file's pe is carried over when the old bars are a strict prefix of
 the new ones) — it never blocks or degrades the price data.
+
+Daily file (added 2026-11-16): the same run also writes
+finance-chart-daily.json — the same instruments as DAILY bars for
+the last five years, so the chart's Daily view can draw the same
+gauges in their daily forms (200-day / 50-day averages, daily RSI,
+20-day volume average). The page fetches it lazily, only when a
+visitor first switches to Daily, so the weekly file stays the
+page's normal load. Same honesty rules: only completed days (a day
+counts once it is past, or once it is 21:00 UTC or later that day —
+after the US close), bars with no close skipped, a failed instrument
+keeps its previous daily series, and an instrument with neither
+fresh nor previous daily data fails the daily write (the weekly
+file, written first, is never held hostage to it). P/E arrays are
+computed exactly as the weekly ones — the same point-in-time EDGAR
+EPS timeline — at daily granularity: each day's close divided by
+the TTM EPS knowable that day. Benchmarks get none; TSM stays
+excluded by the same rule.
 """
 
 import json
@@ -216,6 +233,7 @@ NDX_ONLY_KEYS = {key for key, _symbol, _name in NDX_INSTRUMENTS}
 ALL_INSTRUMENTS = INSTRUMENTS + NDX_INSTRUMENTS
 
 OUT_FILE = "finance-chart-data.json"
+DAILY_OUT_FILE = "finance-chart-daily.json"
 HEADERS = {"User-Agent": "Mozilla/5.0 (onealjb93.github.io chart updater)"}
 HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]
 START = date(2000, 1, 1)
@@ -307,6 +325,80 @@ def fetch_yahoo(symbol, period1, period2):
                               round(num(lows), 4), round(float(close), 4),
                               int(vol)]
         return [by_friday[k] for k in sorted(by_friday)]
+    raise last_exc if last_exc else ValueError("no host answered")
+
+
+def last_completed_day(today, now_utc):
+    """Most recent day whose trading is finished.
+
+    A day counts once it is past, or — for an evening workflow run —
+    once it is 21:00 UTC or later that day (after the US close). The
+    daily analogue of last_completed_friday above.
+    """
+    if now_utc.hour >= 21:
+        return today
+    return today - timedelta(days=1)
+
+
+def years_ago(d, years):
+    """The same calendar date `years` earlier (Feb 29 -> Feb 28)."""
+    try:
+        return d.replace(year=d.year - years)
+    except ValueError:
+        return d.replace(year=d.year - years, day=28)
+
+
+def fetch_yahoo_daily(symbol, period1, period2):
+    """Daily OHLCV bars: list of [iso_date, o, h, l, c, v], oldest first.
+
+    Yahoo timestamps a daily bar on its trading day (midnight or the
+    open in exchange time — both land on the same UTC date for the
+    US-listed instruments this pipeline carries), so the bar's own
+    date needs no Friday mapping. Bars with no close are skipped;
+    a missing open/high/low falls back to that bar's close; a
+    missing volume is 0 — the same conventions as the weekly fetch.
+    """
+    last_exc = None
+    for host in HOSTS:
+        url = "https://%s/v8/finance/chart/%s" % (host, symbol)
+        try:
+            resp = requests.get(
+                url,
+                params={"period1": period1, "period2": period2,
+                        "interval": "1d", "events": "div,split"},
+                headers=HEADERS,
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:  # try the mirror host before giving up
+            last_exc = exc
+            continue
+        result = (data.get("chart") or {}).get("result") or []
+        if not result:
+            err = (data.get("chart") or {}).get("error") or {}
+            raise ValueError("no chart result: %s" % err)
+        quote = result[0].get("indicators", {}).get("quote", [{}])[0]
+        stamps = result[0].get("timestamp") or []
+        opens = quote.get("open") or []
+        highs = quote.get("high") or []
+        lows = quote.get("low") or []
+        closes = quote.get("close") or []
+        vols = quote.get("volume") or []
+        by_date = {}
+        for i, ts in enumerate(stamps):
+            close = closes[i] if i < len(closes) else None
+            if close is None or close <= 0:
+                continue  # no close, no bar (a still-forming day lands here on some symbols)
+            def num(arr):
+                v = arr[i] if i < len(arr) else None
+                return float(v) if v is not None else float(close)
+            d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
+            vol = vols[i] if i < len(vols) and vols[i] is not None else 0
+            by_date[d] = [d, round(num(opens), 4), round(num(highs), 4),
+                          round(num(lows), 4), round(float(close), 4),
+                          int(vol)]
+        return [by_date[k] for k in sorted(by_date)]
     raise last_exc if last_exc else ValueError("no host answered")
 
 
@@ -547,6 +639,104 @@ def main():
     log("Wrote %s (%d instruments, through %s%s)."
         % (out_path, len(series), output["through"],
            ", kept previous for: " + ", ".join(kept_old) if kept_old else ""))
+
+    # ---- the daily file: same instruments, daily bars, last 5 years ----
+    # Written second, from the same EDGAR facts cache, so a daily
+    # failure can never degrade the weekly file above. The workflow's
+    # commit step picks this file up once its name joins the git add
+    # line; until then the committed copy is the one this script's
+    # runs ship by hand.
+    daily_path = os.path.join(os.path.dirname(os.path.abspath(out_path)),
+                              DAILY_OUT_FILE)
+    through_day = last_completed_day(today, now_utc)
+    cutoff = years_ago(today, 5)
+    d_period1 = int(datetime(cutoff.year, cutoff.month, cutoff.day,
+                             tzinfo=timezone.utc).timestamp()) - 10 * 86400
+    d_previous = {}
+    if os.path.exists(daily_path):
+        try:
+            with open(daily_path) as fh:
+                d_previous = (json.load(fh) or {}).get("series") or {}
+        except Exception as exc:
+            log("WARNING: could not read previous %s (%s); treating as empty"
+                % (daily_path, exc))
+            d_previous = {}
+    d_series = {}
+    d_missing = []
+    d_kept_old = []
+    for key, symbol, name in ALL_INSTRUMENTS:
+        log("=== %s (%s) daily ===" % (key, symbol))
+        try:
+            bars = fetch_yahoo_daily(symbol, d_period1, period2)
+            bars = [b for b in bars
+                    if cutoff.isoformat() <= b[0] <= through_day.isoformat()]
+            if not bars:
+                raise ValueError("no completed daily bars returned")
+        except Exception as exc:
+            log("  FAILED: %s" % exc)
+            if key in d_previous and d_previous[key].get("bars"):
+                d_series[key] = d_previous[key]
+                d_kept_old.append(key)
+                log("  keeping previous daily series (%d bars, through %s)"
+                    % (len(d_previous[key]["bars"]),
+                       d_previous[key]["bars"][-1][0]))
+            else:
+                d_missing.append(key)
+            time.sleep(1)
+            continue
+        log("  %d daily bars, %s .. %s, last close %.2f"
+            % (len(bars), bars[0][0], bars[-1][0], bars[-1][4]))
+        entry = {"name": name, "symbol": symbol, "bars": bars}
+        if key in NDX_ONLY_KEYS:
+            entry["ndx"] = True
+        try:
+            pe = pe_for(key, symbol, bars)
+        except Exception as exc:
+            log("  P/E FAILED for %s: %s" % (key, exc))
+            pe = None
+        if pe is None and key in d_previous:
+            prev = d_previous[key]
+            prev_bars = prev.get("bars") or []
+            prev_pe = prev.get("pe")
+            if prev_pe and len(prev_pe) == len(prev_bars) and \
+                    [b[0] for b in prev_bars] == \
+                    [b[0] for b in bars[:len(prev_bars)]]:
+                pe = list(prev_pe) + [None] * (len(bars) - len(prev_pe))
+                log("  P/E carried over from the previous daily file for %s" % key)
+        if pe is not None:
+            entry["pe"] = pe
+            log("  P/E: %d of %d days computable"
+                % (sum(1 for v in pe if v is not None), len(pe)))
+        elif key not in BENCHMARK_KEYS and symbol not in PE_EXCLUDE:
+            log("  P/E: none computable for %s" % key)
+        d_series[key] = entry
+        time.sleep(1)  # be polite to the endpoint
+
+    if d_missing:
+        log("NO DAILY DATA for %s — leaving the previous %s untouched "
+            "(the weekly %s above is unaffected)."
+            % (", ".join(d_missing), daily_path, out_path))
+        return 1
+
+    d_last_dates = [s["bars"][-1][0] for s in d_series.values() if s.get("bars")]
+    d_output = {
+        "last_updated": today.isoformat(),
+        "source": "Yahoo Finance v8 chart API (query1.finance.yahoo.com), "
+                  "daily OHLCV bars for the last five years; "
+                  "completed days only. P/E arrays: daily close / "
+                  "trailing-twelve-month diluted EPS from SEC EDGAR "
+                  "companyfacts, point-in-time by first filing date",
+        "through": max(d_last_dates) if d_last_dates else None,
+        "series": d_series,
+        "nasdaq100": [ticker for ticker, _name in NASDAQ100],
+    }
+    d_tmp_path = daily_path + ".tmp"
+    with open(d_tmp_path, "w") as fh:
+        json.dump(d_output, fh, separators=(",", ":"))
+    os.replace(d_tmp_path, daily_path)
+    log("Wrote %s (%d instruments, through %s%s)."
+        % (daily_path, len(d_series), d_output["through"],
+           ", kept previous for: " + ", ".join(d_kept_old) if d_kept_old else ""))
     return 0
 
 
