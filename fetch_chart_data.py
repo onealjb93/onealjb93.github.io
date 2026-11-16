@@ -35,6 +35,28 @@ Honesty rules (same as fetch_history.py / update_finance.py):
 - Bars with no close are skipped; a missing open/high/low falls back
   to that bar's close; a missing volume is 0 (the chart hides the
   volume pane for an instrument whose bars carry no real volume).
+
+P/E history (added 2026-11-16): each stock series also gains a "pe"
+array aligned 1:1 with its bars — the week's close divided by
+trailing-twelve-month diluted EPS from SEC EDGAR companyfacts
+(us-gaap EarningsPerShareDiluted, USD/shares). The TTM is
+point-in-time: a quarter counts only once its first filing was public
+(its earliest `filed` date), so no week uses earnings reported after
+it. Each quarter's VALUE is the latest-filed figure for that quarter
+— later filings restate history split-adjusted, and Yahoo's prices
+are split-adjusted too, so latest values are the only ones that
+divide correctly into those prices. Q4 is derived where no
+standalone Q4 fact exists: the fiscal-year annual minus the three
+standalone quarters inside that year. Annual-only filers (20-F) use
+the latest filed annual EPS as the TTM — coarse, but honest. A week
+whose TTM EPS is zero, negative or not yet knowable gets null: the
+chart's P/E line breaks there rather than drawing a negative or
+invented multiple. Benchmarks (index, gold, Bitcoin) get no pe —
+they have no EPS. TSM is excluded by rule: its reported per-share
+basis (TWD per ordinary share) does not match the listed ADR price.
+Any EDGAR failure leaves the series without fresh pe (the previous
+file's pe is carried over when the old bars are a strict prefix of
+the new ones) — it never blocks or degrades the price data.
 """
 
 import json
@@ -198,6 +220,17 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (onealjb93.github.io chart updater)"}
 HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]
 START = date(2000, 1, 1)
 
+# --- P/E from SEC EDGAR (see the module docstring) ---
+# The SEC's declared UA shape is a person's name + email; the old
+# domain-first UA was 403'd as an undeclared automated tool (proven
+# 2026-11-16 in the fundamentals pipeline fix).
+EDGAR_HEADERS = {"User-Agent": "Johnny O'Neal johnny-website@muse.ai",
+                 "Accept": "application/json"}
+EDGAR_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
+EDGAR_FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK%s.json"
+BENCHMARK_KEYS = {"SPX", "IXIC", "GOLD", "BTC"}  # no EPS exists
+PE_EXCLUDE = {"TSM"}  # reported per-share basis != listed ADR price
+
 
 def log(msg):
     print(msg, flush=True)
@@ -277,6 +310,110 @@ def fetch_yahoo(symbol, period1, period2):
     raise last_exc if last_exc else ValueError("no host answered")
 
 
+def fetch_edgar_json(url):
+    resp = requests.get(url, headers=EDGAR_HEADERS, timeout=60)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def load_cik_map():
+    """ticker -> zero-padded CIK, from the SEC's own ticker file."""
+    data = fetch_edgar_json(EDGAR_TICKERS_URL)
+    out = {}
+    for row in data.values():
+        out[row["ticker"]] = str(row["cik_str"]).zfill(10)
+    return out
+
+
+def build_eps_periods(facts):
+    """Split EPS facts into standalone quarters and annuals.
+
+    A standalone quarter spans 70-110 days, an annual 330-380; the
+    6/9-month year-to-date facts income statements also carry fall
+    between those bands and are ignored. Per period end, the value is
+    the latest-filed figure (restated, split-adjusted — matching the
+    prices) and `avail` is the earliest filed date (the first day the
+    period was public). Q4 is then derived for every annual whose
+    three inner quarters are known: annual minus their sum, public
+    from the annual's first filing.
+    """
+    def parse(s):
+        return date.fromisoformat(s)
+
+    quarters_by_end, annuals_by_end = {}, {}
+    for f in facts:
+        if "start" not in f or "end" not in f:
+            continue
+        dur = (parse(f["end"]) - parse(f["start"])).days
+        if 70 <= dur <= 110:
+            book = quarters_by_end
+        elif 330 <= dur <= 380:
+            book = annuals_by_end
+        else:
+            continue
+        cur = book.get(f["end"])
+        if cur is None:
+            book[f["end"]] = {"end": f["end"], "start": f["start"],
+                              "val": f["val"], "filed_val": f["filed"],
+                              "avail": f["filed"]}
+        else:
+            if f["filed"] < cur["avail"]:
+                cur["avail"] = f["filed"]
+            if f["filed"] >= cur["filed_val"]:
+                cur["val"] = f["val"]
+                cur["filed_val"] = f["filed"]
+    quarters = sorted(quarters_by_end.values(), key=lambda q: q["end"])
+    annuals = sorted(annuals_by_end.values(), key=lambda a: a["end"])
+    have = {q["end"] for q in quarters}
+    for a in annuals:
+        if a["end"] in have:
+            continue
+        inside = [q for q in quarters if a["start"] < q["end"] < a["end"]]
+        if len(inside) == 3:
+            quarters.append({"end": a["end"], "start": a["start"],
+                             "val": round(a["val"] - sum(q["val"] for q in inside), 4),
+                             "avail": a["avail"]})
+            have.add(a["end"])
+    quarters.sort(key=lambda q: q["end"])
+    return quarters, annuals
+
+
+def ttm_eps_at(quarters, annuals, friday):
+    """TTM diluted EPS knowable on `friday` (ISO date), or None.
+
+    The last four quarters public by then, required to look like a
+    real consecutive year (span <= 380 days, no gap over 200). With
+    no usable quarter set at all, an annual-only filer's latest
+    public annual stands in.
+    """
+    avail = [q for q in quarters if q["avail"] <= friday]
+    if len(avail) >= 4:
+        last4 = avail[-4:]
+        ends = [date.fromisoformat(q["end"]) for q in last4]
+        if (ends[-1] - ends[0]).days <= 380 and all(
+                (ends[i + 1] - ends[i]).days <= 200 for i in range(3)):
+            return sum(q["val"] for q in last4)
+    if not avail:
+        ann = [a for a in annuals if a["avail"] <= friday]
+        if ann:
+            return ann[-1]["val"]
+    return None
+
+
+def compute_pe(bars, facts):
+    """The pe array for one series: close / point-in-time TTM EPS,
+    null wherever the TTM is unknown or not positive."""
+    quarters, annuals = build_eps_periods(facts)
+    if not quarters and not annuals:
+        return None
+    out = []
+    for b in bars:
+        ttm = ttm_eps_at(quarters, annuals, b[0])
+        out.append(round(b[4] / ttm, 2) if ttm is not None and ttm > 0
+                   else None)
+    return out
+
+
 def main():
     out_path = sys.argv[1] if len(sys.argv) > 1 else OUT_FILE
     now_utc = datetime.now(timezone.utc)
@@ -295,6 +432,38 @@ def main():
             log("WARNING: could not read previous %s (%s); treating as empty"
                 % (out_path, exc))
             previous = {}
+
+    # P/E preparation: one CIK map for the whole run, companyfacts
+    # cached per CIK (GOOG and GOOGL share one). Any EDGAR failure is
+    # logged and simply leaves series without fresh pe — prices are
+    # never held hostage to it.
+    cik_map = {}
+    try:
+        cik_map = load_cik_map()
+        log("EDGAR ticker map loaded (%d tickers)." % len(cik_map))
+    except Exception as exc:
+        log("EDGAR ticker map FAILED (%s) — no fresh P/E this run." % exc)
+    facts_cache = {}
+
+    def pe_for(key, symbol, bars):
+        if key in BENCHMARK_KEYS or symbol in PE_EXCLUDE:
+            return None
+        cik = cik_map.get(symbol)
+        if not cik:
+            return None
+        if cik not in facts_cache:
+            facts = fetch_edgar_json(EDGAR_FACTS_URL % cik)
+            units = (facts.get("facts", {}).get("us-gaap", {})
+                     .get("EarningsPerShareDiluted", {}).get("units", {}))
+            facts_cache[cik] = units.get("USD/shares")
+            time.sleep(0.15)  # SEC fair access: stay well under 10/s
+        eps_facts = facts_cache[cik]
+        if not eps_facts:
+            return None
+        pe = compute_pe(bars, eps_facts)
+        if pe is None or not any(v is not None for v in pe):
+            return None
+        return pe
 
     series = {}
     missing = []
@@ -325,6 +494,30 @@ def main():
             # runner and backtest never see these; the second
             # (Nasdaq-100) dropdown works from "nasdaq100" below.
             entry["ndx"] = True
+        # P/E: fresh from EDGAR where computable; on any failure, the
+        # previous pe carries over only when the old bars are a strict
+        # date-prefix of the new ones (appended weeks get null — their
+        # P/E is unknown this run, never a stale repeat).
+        try:
+            pe = pe_for(key, symbol, bars)
+        except Exception as exc:
+            log("  P/E FAILED for %s: %s" % (key, exc))
+            pe = None
+        if pe is None and key in previous:
+            prev = previous[key]
+            prev_bars = prev.get("bars") or []
+            prev_pe = prev.get("pe")
+            if prev_pe and len(prev_pe) == len(prev_bars) and \
+                    [b[0] for b in prev_bars] == \
+                    [b[0] for b in bars[:len(prev_bars)]]:
+                pe = list(prev_pe) + [None] * (len(bars) - len(prev_pe))
+                log("  P/E carried over from the previous file for %s" % key)
+        if pe is not None:
+            entry["pe"] = pe
+            log("  P/E: %d of %d weeks computable"
+                % (sum(1 for v in pe if v is not None), len(pe)))
+        elif key not in BENCHMARK_KEYS and symbol not in PE_EXCLUDE:
+            log("  P/E: none computable for %s" % key)
         series[key] = entry
         time.sleep(1)  # be polite to the endpoint
 
@@ -340,7 +533,9 @@ def main():
         "last_updated": today.isoformat(),
         "source": "Yahoo Finance v8 chart API (query1.finance.yahoo.com), "
                   "weekly OHLCV bars dated by each week's Friday; "
-                  "completed weeks only",
+                  "completed weeks only. P/E arrays: weekly close / "
+                  "trailing-twelve-month diluted EPS from SEC EDGAR "
+                  "companyfacts, point-in-time by first filing date",
         "through": max(last_dates) if last_dates else None,
         "series": series,
         "nasdaq100": [ticker for ticker, _name in NASDAQ100],
