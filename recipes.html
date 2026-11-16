@@ -22,6 +22,16 @@
     <link rel="icon" type="image/png" href="JBO%20Logo.%20green%20background.png">
     <link rel="apple-touch-icon" href="JBO%20Logo.%20green%20background.png">
     <link rel="stylesheet" href="style.css">
+    <script>
+        // Recipe text size: apply the saved step before first paint, so a
+        // returning reader never sees the reading text jump size.
+        (function () {
+            try {
+                var i = parseInt(localStorage.getItem('jbo-recipe-text-v1'), 10);
+                if (i > 0 && i <= 4) document.documentElement.setAttribute('data-textscale', String(i));
+            } catch (e) {}
+        })();
+    </script>
     <style>
         /* --- Cooking & nutrition tips (recipes.html only) --- */
         .cooking-tips {
@@ -535,6 +545,37 @@
     }
     .tips-outer:has(.explainer-card.active) > summary { position: static; }
     #combiner-list { scroll-margin-top: 70px; }
+
+    /* Recipe text size (2026-11-15): ONE setting, two steppers — the archive
+       toolbar and the cook view header — persisted as a step index in
+       localStorage (jbo-recipe-text-v1). Only the reading text scales: the
+       opened card body and the cook panes' content, via --rts on
+       <html data-textscale>. Headings, nav, filter labels and the nutrition
+       tool keep their own sizes. The default step (1 = 100%) defines no
+       --rts and matches no override rule, so the page renders exactly as
+       before until the reader picks another size. The stepper chrome
+       reuses the servings stepper's pill family. */
+    html[data-textscale="0"] { --rts: 0.85; }
+    html[data-textscale="2"] { --rts: 1.15; }
+    html[data-textscale="3"] { --rts: 1.30; }
+    html[data-textscale="4"] { --rts: 1.50; }
+    html[data-textscale]:not([data-textscale="1"]) .recipe-content { font-size: calc(0.82rem * var(--rts)); }
+    html[data-textscale]:not([data-textscale="1"]) .recipe-content .recipe-meta { font-size: calc(0.76rem * var(--rts)); }
+    html[data-textscale]:not([data-textscale="1"]) .recipe-content .recipe-section-title { font-size: calc(0.82rem * var(--rts)); }
+    html[data-textscale]:not([data-textscale="1"]) .recipe-content .recipe-notes { font-size: calc(0.76rem * var(--rts)); }
+    html[data-textscale]:not([data-textscale="1"]) .recipe-content .recipe-source { font-size: calc(0.75rem * var(--rts)); }
+    html[data-textscale]:not([data-textscale="1"]) .recipe-content .recipe-tip { font-size: calc(0.85rem * var(--rts)); }
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content { font-size: calc(1.05rem * var(--rts)); }
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-section-title { font-size: calc(1.15rem * var(--rts)); }
+    .textsize-control { display: inline-flex; align-items: center; gap: 0.1rem; border: 1px solid var(--border-color); border-radius: 999px; padding: 0.14rem 0.25rem; background: var(--badge-bg); flex: none; }
+    .textsize-control button { background: none; border: 0; color: var(--link-color); font: inherit; font-weight: 700; cursor: pointer; padding: 0.15rem 0.45rem; min-width: 2.1rem; min-height: 2rem; line-height: 1; border-radius: 999px; }
+    .textsize-control button:hover:not([disabled]) { background: var(--hover-bg); }
+    .textsize-control button[disabled] { color: var(--subtext-color); opacity: 0.45; cursor: default; }
+    .textsize-control .ts-down { font-size: 0.78rem; }
+    .textsize-control .ts-up { font-size: 1.02rem; }
+    .textsize-value { min-width: 3.1rem; text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--text-color); }
+    .recipe-controls .textsize-control { margin-left: auto; }
+    @media (pointer: coarse) { .textsize-control button { min-width: 44px; min-height: 44px; } }
 </style>
 <style>
 .discuss-link { display: inline-block; margin-top: 0.75rem; font-size: 0.85rem; font-weight: 600; color: var(--link-color); text-decoration: none; }
@@ -704,6 +745,7 @@
                     <option value="name">Name A–Z</option>
                     <option value="newest">Newest first</option>
                 </select>
+                <div class="textsize-control" role="group" aria-label="Recipe text size"><button type="button" class="ts-down" aria-label="Decrease text size" title="Decrease text size">A−</button><span class="textsize-value" aria-live="polite">100%</span><button type="button" class="ts-up" aria-label="Increase text size" title="Increase text size">A+</button></div>
             </div>
             <div class="recipe-empty" id="recipe-empty" hidden>No recipes in this category yet.</div>
 
@@ -7896,7 +7938,7 @@
                     <button type="button" id="cookViewClose">&times; Close</button>
                 </div>
             </div>
-            <div class="cook-head-meta"><span class="cook-score" id="cookScore" aria-live="polite" title="The verdict scores everything selected, at the servings shown, against a full day's nutrition targets."></span><button type="button" id="cookScoreToggle" aria-expanded="false" aria-controls="cookScorePanel">Scorecard</button></div>
+            <div class="cook-head-meta"><span class="cook-score" id="cookScore" aria-live="polite" title="The verdict scores everything selected, at the servings shown, against a full day's nutrition targets."></span><div class="textsize-control" role="group" aria-label="Recipe text size"><button type="button" class="ts-down" aria-label="Decrease text size" title="Decrease text size">A−</button><span class="textsize-value" aria-live="polite">100%</span><button type="button" class="ts-up" aria-label="Increase text size" title="Increase text size">A+</button></div><button type="button" id="cookScoreToggle" aria-expanded="false" aria-controls="cookScorePanel">Scorecard</button></div>
         </div>
         <div id="cookNav" hidden>
             <div class="cook-nav-row">
@@ -7912,6 +7954,37 @@
             <div class="cook-score-panel-body" id="cookScoreBody"></div>
         </div>
     </div>
+
+    <script>
+    (function () {
+        // Recipe text size controller: both steppers drive the one setting.
+        var KEY = 'jbo-recipe-text-v1';
+        var STEPS = [85, 100, 115, 130, 150];
+        var idx = 1;
+        try {
+            var saved = parseInt(localStorage.getItem(KEY), 10);
+            if (saved >= 0 && saved < STEPS.length) idx = saved;
+        } catch (e) {}
+        var controls = Array.prototype.slice.call(document.querySelectorAll('.textsize-control'));
+        function apply(save) {
+            document.documentElement.setAttribute('data-textscale', String(idx));
+            controls.forEach(function (c) {
+                var v = c.querySelector('.textsize-value');
+                if (v) v.textContent = STEPS[idx] + '%';
+                var down = c.querySelector('.ts-down'), up = c.querySelector('.ts-up');
+                if (down) { down.disabled = idx === 0; down.setAttribute('aria-disabled', idx === 0 ? 'true' : 'false'); }
+                if (up) { up.disabled = idx === STEPS.length - 1; up.setAttribute('aria-disabled', idx === STEPS.length - 1 ? 'true' : 'false'); }
+            });
+            if (save) { try { localStorage.setItem(KEY, String(idx)); } catch (e) {} }
+        }
+        controls.forEach(function (c) {
+            var down = c.querySelector('.ts-down'), up = c.querySelector('.ts-up');
+            if (down) down.addEventListener('click', function () { if (idx > 0) { idx--; apply(true); } });
+            if (up) up.addEventListener('click', function () { if (idx < STEPS.length - 1) { idx++; apply(true); } });
+        });
+        apply(false);
+    })();
+    </script>
 
     <script>
     (function () {
