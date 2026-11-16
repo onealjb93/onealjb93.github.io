@@ -1738,6 +1738,7 @@
                     <select id="backtestBenchmark"></select>
                 </div>
                 <button class="filter-pill" id="backtestResetWeights" type="button">Reset to equal weight</button>
+                <button class="filter-pill" id="backtestUnselectAll" type="button">Unselect all</button>
             </div>
             <div class="chip-row backtest-save" id="backtestSaveRow">
                 <div class="selector-group" style="max-width: 280px;">
@@ -3055,6 +3056,22 @@ function btInit() {
     document.getElementById("backtestResetWeights").addEventListener("click", () => {
         BACKTEST_TICKERS.forEach(t => { backtestSelected[t] = true; backtestWeights[t] = 100 / BACKTEST_TICKERS.length; });
         btRender();
+    });
+    // Unselect all: clear the live selection — every holding
+    // unchecked, every framework overlay off — so a portfolio can be
+    // built up from nothing. The weights themselves are kept
+    // (re-checking a holding brings its weight back; Reset is the
+    // button that resets weights), and saved portfolios are not
+    // touched: they live in localStorage, separate from the live
+    // selection. With nothing selected, btRender shows the section's
+    // own empty state; btRenderHoldings is called explicitly because
+    // btRender's empty path returns before it.
+    document.getElementById("backtestUnselectAll").addEventListener("click", () => {
+        BACKTEST_TICKERS.forEach(t => { backtestSelected[t] = false; });
+        backtestFrameworks.clear();
+        btRender();
+        btRenderHoldings();
+        btRenderFrameworks();
     });
     // Redraw the chart when the theme flips or the window resizes.
     const themeToggle = document.getElementById("theme-toggle");
