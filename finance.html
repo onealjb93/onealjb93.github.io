@@ -359,8 +359,8 @@
         <div class="section-body" id="chart-body" hidden>
         <p>Tap a pick below, or use the chart&rsquo;s own search for any company. The chart opens on the S&amp;P 500 as a line chart in weekly view and always carries the same three gauges, pinned to the week whatever timeframe the chart shows: the 200-week moving average &mdash; the long-term value ruler &mdash; the 50-week moving average for the trend, and the weekly RSI. A stock with under four years of trading history has no 200-week line yet; it appears once enough history exists.</p>
         <div class="chip-row" id="chartPicks" role="group" aria-label="Chart quick picks">
-            <button type="button" class="filter-pill active" data-symbol="SPX">S&amp;P 500</button>
-            <button type="button" class="filter-pill" data-symbol="IXIC">Nasdaq</button>
+            <button type="button" class="filter-pill active" data-symbol="SP:SPX">S&amp;P 500</button>
+            <button type="button" class="filter-pill" data-symbol="NASDAQ:IXIC">Nasdaq</button>
             <button type="button" class="filter-pill" data-symbol="TVC:GOLD">Gold</button>
             <button type="button" class="filter-pill" data-symbol="BITSTAMP:BTCUSD">Bitcoin</button>
         </div>
@@ -3227,10 +3227,19 @@ if (typeof module !== "undefined") {
     // picked symbol (it used to reset to the S&P 500). The Stack
     // runner's chart link loads its stock through the same build path
     // (window.jboLoadChartSymbol below).
+    // Symbols are exchange-prefixed (SP:SPX, NASDAQ:IXIC, TVC:GOLD,
+    // BITSTAMP:BTCUSD): a bare "SPX" or "IXIC" leaves the widget to
+    // guess which instrument is meant, and on a phone the Nasdaq pick
+    // resolved to something that was not the Nasdaq Composite. The
+    // widget config also disables the use_localstorage_for_settings
+    // featureset: the chart otherwise restores the visitor's saved
+    // chart settings from localStorage — which TradingView's own docs
+    // say take precedence over the widget's defaults — so a stale saved
+    // symbol could override the constructor's symbol on any build.
     (function () {
         "use strict";
         var built = false, loading = false;
-        var currentSymbol = "SPX";
+        var currentSymbol = "SP:SPX";
         var STUDIES = [
             { id: "MASimple@tv-basicstudies", inputs: { length: 200, timeframe: "1W" } },
             { id: "MASimple@tv-basicstudies", inputs: { length: 50, timeframe: "1W" } },
@@ -3255,6 +3264,7 @@ if (typeof module !== "undefined") {
                 locale: "en",
                 enable_publishing: false,
                 allow_symbol_change: true,
+                disabled_features: ["use_localstorage_for_settings"],
                 studies: STUDIES,
                 autosize: true
             });
