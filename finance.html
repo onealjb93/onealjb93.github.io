@@ -168,6 +168,26 @@
     @media (max-height: 760px) {
         .tv-chart-key { font-size: 0.8rem; line-height: 1.45; gap: 0.3rem 1.25rem; }
     }
+    /* Full-screen chart (2026-11-16): the ⤢ pill in the control row
+       turns the stage itself into a full-screen view — the same
+       stage element, fixed over the whole screen on its solid theme
+       background (z-index 1100: above the header's 1000, below the
+       page's popovers at 1200). It is a view mode the reader enters
+       and leaves deliberately (⤢ in, ✕ or Esc out), never a popup,
+       so it is full-bleed on purpose. iOS Safari offers no
+       element fullscreen, so the mode is this overlay on every
+       platform — one system. Safe-area padding keeps the controls
+       off the notch and the home bar; the picks row leaves room on
+       its right for the floating close button, a 44px glass circle
+       in the site's back-to-top vocabulary, shown only in the mode.
+       The data note returns to the flow here (the short-screen rule
+       tucks it under the stage, where this mode's hidden overflow
+       would clip it away entirely). */
+    #chart-body.chart-fs { position: fixed; inset: 0; z-index: 1100; width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; box-sizing: border-box; overflow: hidden; overscroll-behavior: none; background: var(--bg-color); padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) calc(env(safe-area-inset-right, 0px) + 0.6rem) calc(env(safe-area-inset-bottom, 0px) + 0.6rem) calc(env(safe-area-inset-left, 0px) + 0.6rem); }
+    #chart-body.chart-fs #chartPicks { padding-right: 52px; }
+    #chart-body.chart-fs .jbo-chart-datanote { position: static; }
+    #chartFsClose { display: none; }
+    #chart-body.chart-fs #chartFsClose { display: flex; align-items: center; justify-content: center; position: absolute; top: calc(env(safe-area-inset-top, 0px) + 0.6rem); right: calc(env(safe-area-inset-right, 0px) + 0.6rem); z-index: 20; width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font-size: 1.05rem; line-height: 1; cursor: pointer; }
     /* Stack runner (2026-11-16): the screener's working layer — pick a
        stock, see each checkable line of the Stack graded on its numbers. */
     .stack-runner { margin: 1.25rem 0 0.5rem; }
@@ -383,6 +403,9 @@
                 <button type="button" class="filter-pill" data-pane="rsi" aria-pressed="true">RSI</button>
                 <button type="button" class="filter-pill" data-pane="pe" aria-pressed="false">P/E</button>
             </div>
+            <div class="chip-row" id="chartView" role="group" aria-label="Chart view">
+                <button type="button" class="filter-pill" id="chartFsBtn" aria-pressed="false">&#10530; Full screen</button>
+            </div>
         </div>
         <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Weekly price chart with 200-week and 50-week moving averages, volume, weekly RSI and an optional P/E pane"></canvas><div class="glass-bubble" id="jboChartTip"></div></div>
         <p class="jbo-chart-note" id="jboChartNote" hidden></p>
@@ -397,6 +420,7 @@
         </div>
         </details>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
+        <button type="button" id="chartFsClose" aria-label="Close full screen">&#10005;</button>
         </div>
         <p class="chart-intro">Tap a pick below, or choose one of my 19 stocks. The chart is drawn from this page&rsquo;s own weekly data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-week moving average &mdash; the long-term value ruler &mdash; the 50-week moving average for the trend, and the weekly RSI. A stock with under four years of trading history has no 200-week line yet; the note under the chart says so when that is the case.</p>
     </div>
@@ -3741,6 +3765,13 @@ if (typeof module !== "undefined") {
     // The week's numbers live in exactly one place: a glass tooltip
     // inside the frame that tracks the crosshair (it replaced the
     // static readout line that used to sit under the chart).
+    // The ⤢ Full screen pill opens the stage as a full-screen view
+    // (the same element under a mode class — iOS Safari offers no
+    // element fullscreen, so the overlay is the one system on every
+    // platform), and a two-finger pinch zooms the time window inside
+    // the active range: every gauge is computed on the full series
+    // first and only then windowed, so zooming never recomputes a
+    // value. A double-tap hands the window back to the range button.
     (function () {
         "use strict";
         var MA200_COLOR = "#FF9800", MA50_COLOR = "#2962FF", RSI_COLOR = "#7E57C2", PE_COLOR = "#2dd4bf";
@@ -3767,6 +3798,13 @@ if (typeof module !== "undefined") {
         var hover = -1; // full-series index under the pointer; -1 = latest bar
         var lastPtr = { type: "mouse", y: 0 }; // last pointer spot inside the frame (touch tooltip placement)
         var view = null, layout = null;
+        // Pinch zoom (2026-11-16): a window inside the active
+        // range's window, as full-series indices; null = the range
+        // window itself. rangeStart/rangeEnd remember the range
+        // window of the latest render, before any zoom is applied —
+        // they are the clamps the gesture maths reads.
+        var zoom = null, rangeStart = 0, rangeEnd = -1;
+        var fsOn = false; // the stage's full-screen view mode
 
         // ---- indicators (pure; exposed on window.jboChart for tests) ----
         function sma(values, len) {
@@ -3925,6 +3963,18 @@ if (typeof module !== "undefined") {
             if (!chartData) { showTipStatus("Loading chart data…"); return; }
             view = computeView();
             if (!view) { showTipStatus("No chart data for this instrument yet."); return; }
+            rangeStart = view.start; rangeEnd = view.end;
+            // A pinch-zoomed window displays a slice of the range
+            // window. The view's indicators were computed over the
+            // FULL series in computeViewFor, so a bar at the
+            // window's edge carries exactly the values it carries
+            // unzoomed — the window only chooses what is drawn.
+            if (zoom) {
+                var zs = Math.max(rangeStart, Math.min(zoom.start, rangeEnd));
+                var ze = Math.max(rangeStart, Math.min(zoom.end, rangeEnd));
+                if (ze - zs + 1 >= rangeEnd - rangeStart + 1 || ze - zs + 1 < Math.min(26, rangeEnd - rangeStart + 1)) zoom = null;
+                else { zoom = { start: zs, end: ze }; view.start = zs; view.end = ze; }
+            }
             if (hover < view.start || hover > view.end) hover = -1;
             var nt = noteText(view);
             if (note) { note.textContent = nt; note.hidden = !nt; }
@@ -4203,7 +4253,11 @@ if (typeof module !== "undefined") {
             for (var k = 0; k <= 4; k++) {
                 var xi = v.start + Math.round((n - 1) * k / 4);
                 var iso = bars[xi][0], pp = iso.split("-");
-                var lab = (cur.range === "ALL" || cur.range === "10Y") ? pp[0] : MONTHS[Number(pp[1]) - 1] + " ’" + pp[0].slice(2);
+                // Labels follow the window on screen, not the range
+                // button: a decade or more reads as years, anything
+                // narrower as month + year — a pinch-zoomed window
+                // relabels itself the same way.
+                var lab = (v.end - v.start) >= 520 ? pp[0] : MONTHS[Number(pp[1]) - 1] + " ’" + pp[0].slice(2);
                 var lx = Math.max(24, Math.min(W - 24, X(xi)));
                 ctx.textAlign = "center";
                 ctx.fillText(lab, lx, H - 6);
@@ -4289,7 +4343,7 @@ if (typeof module !== "undefined") {
         }
         function setKey(key) {
             if (!chartData || !chartData.series[key]) return;
-            cur.key = key; hover = -1;
+            cur.key = key; hover = -1; zoom = null;
             syncControls(); render();
         }
         var picksEl = document.getElementById("chartPicks");
@@ -4309,7 +4363,7 @@ if (typeof module !== "undefined") {
         if (rangesEl) rangesEl.addEventListener("click", function (e) {
             var btn = e.target && e.target.closest ? e.target.closest("button[data-range]") : null;
             if (!btn) return;
-            cur.range = btn.getAttribute("data-range"); hover = -1;
+            cur.range = btn.getAttribute("data-range"); hover = -1; zoom = null;
             syncControls(); render();
         });
         var stylesEl = document.getElementById("chartStyles");
@@ -4333,6 +4387,46 @@ if (typeof module !== "undefined") {
             else return;
             syncControls(); render();
         });
+        // ---- full-screen view ----
+        // The ⤢ pill turns the stage into a full-screen view: the
+        // same #chart-body element under a mode class (fixed, inset
+        // 0, solid theme background) — same DOM, same state, nothing
+        // duplicated or reloaded. The Fullscreen API is not used:
+        // iOS Safari does not offer it for elements, and one system
+        // everywhere beats two. Entering and leaving both fire the
+        // window resize the chart and the stage-fit already listen
+        // to (and the frame's ResizeObserver relays the new size),
+        // so the canvas redraws at the overlay size and, on exit,
+        // the in-page one-screen budget takes over again untouched.
+        // Page scroll is locked while the mode is open and restored
+        // on exit; the ✕ in the stage's top corner and Esc both
+        // leave. The reader is never trapped: they tapped ⤢ to get
+        // in, and the way out is labelled and always in reach.
+        var fsBtn = document.getElementById("chartFsBtn");
+        var fsClose = document.getElementById("chartFsClose");
+        var fsSaved = null;
+        function setFs(on) {
+            if (on === fsOn) return;
+            fsOn = on;
+            var body = document.getElementById("chart-body");
+            if (body) body.classList.toggle("chart-fs", on);
+            if (fsBtn) fsBtn.setAttribute("aria-pressed", on ? "true" : "false");
+            if (on) {
+                fsSaved = { html: document.documentElement.style.overflow, body: document.body.style.overflow };
+                document.documentElement.style.overflow = "hidden";
+                document.body.style.overflow = "hidden";
+            } else if (fsSaved) {
+                document.documentElement.style.overflow = fsSaved.html;
+                document.body.style.overflow = fsSaved.body;
+                fsSaved = null;
+            }
+            window.dispatchEvent(new Event("resize"));
+        }
+        if (fsBtn) fsBtn.addEventListener("click", function () { setFs(true); });
+        if (fsClose) fsClose.addEventListener("click", function () { setFs(false); });
+        document.addEventListener("keydown", function (e) {
+            if (fsOn && (e.key === "Escape" || e.key === "Esc" || e.keyCode === 27)) setFs(false);
+        });
         var canvas = document.getElementById("jboChartCanvas");
         if (canvas) {
             function onPointer(e) {
@@ -4346,14 +4440,129 @@ if (typeof module !== "undefined") {
                 if (i !== hover) { hover = i; render(); }
                 else { updateTip(); } // same week, new pointer spot: the bubble still follows (a touch finger moving within one week must never end up under it)
             }
-            canvas.addEventListener("pointermove", onPointer);
-            canvas.addEventListener("pointerdown", onPointer);
+            // ---- pinch zoom: two fingers on the time axis ----
+            // A second finger suspends the crosshair and starts a
+            // gesture. One formula drives both halves of it: the
+            // window's width follows the fingers' distance, and the
+            // bar that sat under the gesture's starting midpoint
+            // stays under the moving midpoint — so spreading or
+            // pinching zooms, and sliding both fingers pans.
+            // Windows clamp to the active range (the widest zoom is
+            // the range itself, which is no zoom at all) and to 26
+            // bars at the narrow end. When a gesture ends with one
+            // finger still down, that finger is ignored until it
+            // lifts, so the crosshair never jumps mid-gesture.
+            var ptrs = {}, gest = null, gestBlock = false, lastTap = { t: 0, x: 0, y: 0 };
+            function ptrId(e) { return (e.pointerId === undefined || e.pointerId === null) ? "p" : e.pointerId; }
+            function setZoomWindow(sF, eF) {
+                if (rangeEnd < rangeStart) return;
+                var rc = rangeEnd - rangeStart + 1;
+                var minC = Math.min(26, rc);
+                var c = Math.round(eF - sF + 1);
+                if (c < minC) c = minC;
+                if (c > rc) c = rc;
+                if (c >= rc) { if (zoom) { zoom = null; hover = -1; render(); } return; }
+                var s = Math.round(sF);
+                if (s < rangeStart) s = rangeStart;
+                if (s > rangeEnd - c + 1) s = rangeEnd - c + 1;
+                if (zoom && zoom.start === s && zoom.end === s + c - 1) return;
+                zoom = { start: s, end: s + c - 1 };
+                hover = -1;
+                render();
+            }
+            function gestureBegin() {
+                var ids = Object.keys(ptrs);
+                if (ids.length !== 2 || !view || !layout) return false;
+                var a = ptrs[ids[0]], b = ptrs[ids[1]];
+                var rect = canvas.getBoundingClientRect();
+                if (!rect.width || !layout.plotW) return false;
+                var f = ((a.x + b.x) / 2 - rect.left - 6) / layout.plotW;
+                f = Math.max(0, Math.min(1, f));
+                gest = {
+                    ids: ids,
+                    d0: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+                    count: view.end - view.start + 1,
+                    anchor: view.start + f * (view.end - view.start)
+                };
+                gestBlock = false;
+                hover = -1; // the crosshair is suspended for the whole gesture
+                ids.forEach(function (id) {
+                    var raw = ptrs[id].raw;
+                    if (typeof raw === "number" && canvas.setPointerCapture) {
+                        try { canvas.setPointerCapture(raw); } catch (err) { /* capture is a nicety, not a need */ }
+                    }
+                });
+                render();
+                return true;
+            }
+            function gestureMove() {
+                if (!gest || !layout) return;
+                var a = ptrs[gest.ids[0]], b = ptrs[gest.ids[1]];
+                if (!a || !b) return;
+                var rect = canvas.getBoundingClientRect();
+                if (!rect.width || !layout.plotW) return;
+                var d = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+                var c = gest.count * gest.d0 / d;
+                var f = ((a.x + b.x) / 2 - rect.left - 6) / layout.plotW;
+                f = Math.max(0, Math.min(1, f));
+                var s = gest.anchor - f * (c - 1);
+                setZoomWindow(s, s + c - 1);
+            }
+            function gestureEnd(id) {
+                delete ptrs[id];
+                if (gest && Object.keys(ptrs).length < 2) { gest = null; gestBlock = true; }
+                if (!Object.keys(ptrs).length) gestBlock = false;
+            }
+            canvas.addEventListener("pointerdown", function (e) {
+                var id = ptrId(e);
+                ptrs[id] = { x: e.clientX, y: e.clientY, raw: e.pointerId };
+                var n = Object.keys(ptrs).length;
+                if (n === 2) { if (!gestureBegin()) gestBlock = true; return; }
+                if (n > 2 || gestBlock) return;
+                // Double-tap: a second quick tap at the same spot
+                // hands the window back to the range button.
+                if (e.pointerType === "touch") {
+                    var now = Date.now();
+                    if (zoom && now - lastTap.t < 400 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 48) {
+                        zoom = null; hover = -1; lastTap = { t: 0, x: 0, y: 0 };
+                        render();
+                    } else {
+                        lastTap = { t: now, x: e.clientX, y: e.clientY };
+                    }
+                }
+                onPointer(e);
+            });
+            canvas.addEventListener("pointermove", function (e) {
+                var id = ptrId(e);
+                if (ptrs[id]) {
+                    ptrs[id].x = e.clientX; ptrs[id].y = e.clientY;
+                    if (gest) { gestureMove(); return; }
+                    if (gestBlock) return;
+                }
+                onPointer(e);
+            });
+            canvas.addEventListener("pointerup", function (e) { gestureEnd(ptrId(e)); });
             canvas.addEventListener("pointerleave", function () {
+                ptrs = {}; gest = null; gestBlock = false;
                 if (hover !== -1) { hover = -1; render(); }
             });
-            canvas.addEventListener("pointercancel", function () {
+            canvas.addEventListener("pointercancel", function (e) {
+                gestureEnd(ptrId(e));
                 if (hover !== -1) { hover = -1; render(); }
             });
+            // With two fingers down, the gesture belongs to the
+            // chart, never to the page: the canvas's touch-action
+            // (pan-y) would otherwise let a vertical drift scroll
+            // the page mid-pinch. One finger keeps the shipped
+            // behaviour exactly — a horizontal drag inspects, a
+            // vertical drag scrolls the page.
+            canvas.addEventListener("touchstart", function (e) {
+                if (e.touches && e.touches.length >= 2) e.preventDefault();
+            }, { passive: false });
+            canvas.addEventListener("touchmove", function (e) {
+                if (e.touches && e.touches.length >= 2) e.preventDefault();
+            }, { passive: false });
+            canvas.addEventListener("gesturestart", function (e) { e.preventDefault(); });
         }
         var themeToggle = document.getElementById("theme-toggle");
         if (themeToggle) themeToggle.addEventListener("change", function () {
@@ -4379,7 +4588,7 @@ if (typeof module !== "undefined") {
                     chartData = d;
                     populateStockSelect();
                     populateNdxSelect();
-                    if (pendingKey && chartData.series[pendingKey]) { cur.key = pendingKey; pendingKey = null; }
+                    if (pendingKey && chartData.series[pendingKey]) { cur.key = pendingKey; pendingKey = null; zoom = null; }
                     syncControls(); render();
                 })
                 .catch(function () { loadFailed = true; render(); });
@@ -4403,7 +4612,7 @@ if (typeof module !== "undefined") {
             var section = document.getElementById("chart");
             if (section && section.scrollIntoView) section.scrollIntoView({ behavior: "smooth", block: "start" });
             if (chartData) {
-                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; syncControls(); render(); }
+                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; syncControls(); render(); }
             } else {
                 pendingKey = symbol;
                 ensure();
@@ -4425,6 +4634,9 @@ if (typeof module !== "undefined") {
                     key: cur.key, range: cur.range, style: cur.style, pe: peOn, vol: volOn, rsi: rsiOn,
                     loaded: !!chartData, failed: loadFailed, hover: hover,
                     tipOpen: !!(tip && tip.classList.contains("open")),
+                    fs: fsOn,
+                    zoom: zoom ? { start: zoom.start, end: zoom.end } : null,
+                    layout: layout ? { start: layout.start, end: layout.end, hi: layout.hi, lo: layout.lo, plotW: layout.plotW, priceY: layout.priceY, priceH: layout.priceH } : null,
                     peNote: view ? peNoteText(view) : "",
                     view: view ? { start: view.start, end: view.end, hasVolume: view.hasVolume, hasPE: !!view.pe, peMedian: view.peMedian, bars: view.s.bars.length } : null
                 };
