@@ -66,12 +66,62 @@
        moving averages could never be told apart by colour or thickness.
        Framed in the page's card vocabulary; fixed long-term gauge set. */
     .chart-section { margin-top: 3rem; margin-bottom: 3rem; }
-    .jbo-chart-frame { position: relative; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; height: 600px; }
-    @media (max-width: 640px) { .jbo-chart-frame { height: 460px; } }
+    /* Chart stage (2026-11-16): the chart block — heading, picks,
+       controls, the canvas and the key — is exactly one screen
+       tall under the frozen header and the pinned section nav
+       (55px + 54px), so the chart is used with no scrolling. The
+       section body is a flex column of the remaining height
+       (100dvh − 109px chrome − the heading's own 36px): every
+       part keeps its natural height and the canvas takes what is
+       left. Chrome is compacted within the site's norms (one gap
+       system instead of stacked margins, tighter labels, 36px
+       tap targets) rather than anything being shrunk unreadable;
+       the key compresses first (see the .chart-key rules below).
+       The intro paragraph sits below the stage, still inside the
+       section — it explains the chart; it is not part of using
+       it, and at 259px on a phone it would crush the canvas. */
+    .chart-section .section-title { margin-top: 0; padding-bottom: 2px; }
+    .chart-section:has(> .section-body[hidden]) > .chart-intro { display: none; }
+    #chart-body { display: flex; flex-direction: column; gap: 0.3rem; height: calc(100vh - 148px - env(safe-area-inset-bottom, 0px)); height: calc(100dvh - 148px - env(safe-area-inset-bottom, 0px)); }
+    #chart-body[hidden] { display: none; }
+    #chart-body > * { margin-top: 0; margin-bottom: 0; flex: none; }
+    #chart-body > .jbo-chart-frame { flex: 1 1 auto; min-height: 0; }
+    .chart-intro { margin-top: 1rem; }
+    .jbo-chart-frame { position: relative; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; }
     .jbo-chart-frame canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: crosshair; }
-    .chart-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem 1.5rem; margin: 0.9rem 0; }
+    .chart-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem 1rem; }
     .chart-controls .chip-row { margin: 0; }
-    .chart-controls .selector-group label { display: block; font-size: 0.8rem; color: var(--subtext-color); margin-bottom: 0.3rem; }
+    .chart-controls .selector-group label { display: block; font-size: 0.8rem; line-height: 1.3; color: var(--subtext-color); margin-bottom: 0.2rem; }
+    .chart-controls select { padding-top: 8px; padding-bottom: 8px; }
+    .chart-section .filter-pill { padding-top: 10px; padding-bottom: 10px; }
+    /* Phone widths: the two dropdowns go label-beside-field (one
+       compact row each instead of two stacked blocks) and the
+       chip rows share rows — the same controls, laid out for the
+       width, nothing removed. */
+    @media (max-width: 640px) {
+        #chart-body { gap: 0.22rem; }
+        #chart-body .jbo-chart-datanote { font-size: 0.8rem; line-height: 1.4; }
+        .chart-controls { column-gap: 0.75rem; row-gap: 0.4rem; }
+        .chart-controls .selector-group { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 0.5rem; width: 100%; }
+        .chart-controls .selector-group label { display: inline; margin: 0; white-space: nowrap; }
+        .chart-controls .selector-group select { flex: 1 1 auto; min-width: 0; }
+        .chart-controls .filter-pill { padding-left: 8px; padding-right: 8px; }
+    }
+    /* Short screens (landscape phones): the controls become one
+       sideways-scrolling strip — the section nav's own pattern —
+       and the data note tucks under the stage instead of eating
+       its height. */
+    @media (max-height: 560px) {
+        #chart-body { gap: 0.3rem; position: relative; }
+        .chart-controls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+        .chart-controls::-webkit-scrollbar { display: none; }
+        .chart-controls > * { flex: none; }
+        .chart-controls .selector-group { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 0.5rem; }
+        .chart-controls .selector-group label { display: inline; margin: 0; white-space: nowrap; }
+        .chart-controls .selector-group select { min-width: 0; }
+        #chart-body .jbo-chart-datanote { position: absolute; top: calc(100% + 0.4rem); left: 0; right: 0; }
+        .chart-intro { margin-top: 2.2rem; }
+    }
     /* Hover readout (2026-11-16): a glass tooltip inside the frame
        that tracks the crosshair — the week's values live here and
        nowhere else (the static line under the chart is gone). Same
@@ -87,7 +137,7 @@
     .jbo-tip-chip.chip-close { background: var(--text-color); height: 2px; }
     .jbo-tip-val { margin-left: auto; padding-left: 0.9rem; color: var(--text-color); font-weight: 600; white-space: nowrap; }
     .jbo-chart-note { margin-top: 0.75rem; font-size: 0.85rem; color: var(--subtext-color); }
-    .jbo-chart-datanote { margin-top: 0.5rem; font-size: 0.85rem; color: var(--subtext-color); }
+    .jbo-chart-datanote { margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--subtext-color); }
     /* Chart key: the swatches are the exact colours and weights the
        in-page chart draws — amber 200-week (3px), blue 50-week (2px),
        violet weekly RSI (2px), teal P/E (2px, its pane is optional),
@@ -100,6 +150,24 @@
     .tv-key-rsi { height: 3px; background: #7E57C2; }
     .tv-key-pe { height: 3px; background: #2dd4bf; }
     .tv-key-volma { height: 3px; background: var(--text-color); opacity: 0.55; }
+    /* The key in the site's details pattern (2026-11-16): a slim
+       summary line — a chevron, the words "Chart key" and the five
+       swatches — with the full descriptions one tap down, the same
+       layering the page's disclaimers use. It starts open; the
+       stage-fit script below closes it only when the open key
+       would push the canvas under its floor, and never overrides
+       a state the reader chose themselves. At short heights the
+       open key first compresses its type before it comes to that. */
+    .chart-key summary { display: flex; align-items: center; gap: 0.55rem; min-height: 36px; cursor: pointer; color: var(--subtext-color); font-size: 0.85rem; list-style: none; }
+    .chart-key summary::-webkit-details-marker { display: none; }
+    .chart-key-chev { font-size: 0.72em; flex: none; transition: transform var(--dur-1) var(--ease-out); }
+    .chart-key[open ] .chart-key-chev { transform: rotate(90deg); }
+    .chart-key-swatches { display: inline-flex; align-items: center; gap: 4px; margin-left: 0.25rem; }
+    .chart-key summary .tv-key-swatch { width: 18px; }
+    .chart-key .tv-chart-key { margin-top: 0.25rem; }
+    @media (max-height: 760px) {
+        .tv-chart-key { font-size: 0.8rem; line-height: 1.45; gap: 0.3rem 1.25rem; }
+    }
     /* Stack runner (2026-11-16): the screener's working layer — pick a
        stock, see each checkable line of the Stack graded on its numbers. */
     .stack-runner { margin: 1.25rem 0 0.5rem; }
@@ -281,7 +349,6 @@
     <div class="chart-section collapsible-section" id="chart">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="chart" aria-expanded="true" aria-controls="chart-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> The Chart</button></h2>
         <div class="section-body" id="chart-body">
-        <p>Tap a pick below, or choose one of my 19 stocks. The chart is drawn from this page&rsquo;s own weekly data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-week moving average &mdash; the long-term value ruler &mdash; the 50-week moving average for the trend, and the weekly RSI. A stock with under four years of trading history has no 200-week line yet; the note under the chart says so when that is the case.</p>
         <div class="chip-row" id="chartPicks" role="group" aria-label="Chart quick picks">
             <button type="button" class="filter-pill active" data-key="SPX">S&amp;P 500</button>
             <button type="button" class="filter-pill" data-key="IXIC">Nasdaq</button>
@@ -319,6 +386,8 @@
         </div>
         <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Weekly price chart with 200-week and 50-week moving averages, volume, weekly RSI and an optional P/E pane"></canvas><div class="glass-bubble" id="jboChartTip"></div></div>
         <p class="jbo-chart-note" id="jboChartNote" hidden></p>
+        <details class="chart-key" id="chartKey" open>
+            <summary><span class="chart-key-chev" aria-hidden="true">&#9654;</span> Chart key <span class="chart-key-swatches" aria-hidden="true"><span class="tv-key-swatch tv-key-ma200"></span><span class="tv-key-swatch tv-key-ma50"></span><span class="tv-key-swatch tv-key-rsi"></span><span class="tv-key-swatch tv-key-pe"></span><span class="tv-key-swatch tv-key-volma"></span></span></summary>
         <div class="tv-chart-key">
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma200" aria-hidden="true"></span><span><strong>Amber &mdash; the 200-week average</strong>, the thickest line. Four years of trading in one line: below it, a stock has historically been cheap. It's the value line.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma50" aria-hidden="true"></span><span><strong>Blue &mdash; the 50-week average</strong>, the trend line. A year of price: above it, the trend is up and intact; below it, the trend is broken.</span></span>
@@ -326,9 +395,56 @@
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-pe" aria-hidden="true"></span><span><strong>Teal &mdash; the P/E ratio</strong>, in its own pane when you switch it on. The price divided by the last twelve months of earnings per share &mdash; how many dollars investors pay for one dollar of profit. Where the line breaks, the company was losing money: there is no P/E without earnings. The dashed line is the stock's own median P/E: above it, expensive for itself; below it, cheap for itself.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span><strong>Grey &mdash; the 20-week volume average</strong>, the line running through the volume bars. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
         </div>
+        </details>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         </div>
+        <p class="chart-intro">Tap a pick below, or choose one of my 19 stocks. The chart is drawn from this page&rsquo;s own weekly data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-week moving average &mdash; the long-term value ruler &mdash; the 50-week moving average for the trend, and the weekly RSI. A stock with under four years of trading history has no 200-week line yet; the note under the chart says so when that is the case.</p>
     </div>
+    <script>
+    // Chart stage fit (2026-11-16): the stage's height is CSS; this
+    // script only guards the canvas's floor. The key starts open —
+    // if the open key would push the canvas under 300px, the key
+    // starts collapsed instead (its swatch line stays; the text is
+    // one tap down). A state the reader sets themselves is never
+    // overridden. It also relays frame-size changes that are not
+    // window resizes (the key opening, the note appearing) to the
+    // chart, which redraws on window resize.
+    (function () {
+        "use strict";
+        var details = document.getElementById("chartKey");
+        var frame = document.getElementById("jboChartFrame");
+        var body = document.getElementById("chart-body");
+        if (!details || !frame || !body) return;
+        var userToggled = false, fitState = true;
+        details.addEventListener("toggle", function () {
+            if (details.open !== fitState) userToggled = true;
+        });
+        function fit() {
+            if (userToggled || body.hidden) return;
+            if (!body.clientHeight || body.clientHeight < 100) return; // not laid out (or a test DOM)
+            if (!details.open) details.open = true; // measure the open cost; no paint happens mid-task
+            fitState = frame.clientHeight >= 300;
+            details.open = fitState;
+        }
+        var timer = null;
+        function fitSoon() { clearTimeout(timer); timer = setTimeout(fit, 150); }
+        window.addEventListener("resize", fitSoon);
+        window.addEventListener("orientationchange", fitSoon);
+        window.addEventListener("load", fitSoon);
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSoon);
+        if (window.MutationObserver) new MutationObserver(fitSoon).observe(body, { attributes: true, attributeFilter: ["hidden"] });
+        fit();
+        if (window.ResizeObserver) {
+            var lastW = frame.clientWidth, lastH = frame.clientHeight;
+            new ResizeObserver(function () {
+                var w = frame.clientWidth, h = frame.clientHeight;
+                if (w === lastW && h === lastH) return;
+                lastW = w; lastH = h;
+                window.dispatchEvent(new Event("resize"));
+            }).observe(frame);
+        }
+    })();
+    </script>
     <!-- Investment Scoreboard -->
     <div class="scoreboard-section collapsible-section" id="scoreboard">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="true" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> Investment Scoreboard</button></h2>
