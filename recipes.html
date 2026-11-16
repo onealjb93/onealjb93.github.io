@@ -554,7 +554,10 @@
        tool keep their own sizes. The default step (1 = 100%) defines no
        --rts and matches no override rule, so the page renders exactly as
        before until the reader picks another size. The stepper chrome
-       reuses the servings stepper's pill family. */
+       reuses the servings stepper's pill family. A two-finger pinch on
+       the reading text drives the same setting: it writes --rts inline
+       under data-textscale="pinch" (matched by the scale rules, claimed
+       by no step) and snaps to the nearest step on release. */
     html[data-textscale="0"] { --rts: 0.85; }
     html[data-textscale="2"] { --rts: 1.15; }
     html[data-textscale="3"] { --rts: 1.30; }
@@ -7982,6 +7985,81 @@
             if (down) down.addEventListener('click', function () { if (idx > 0) { idx--; apply(true); } });
             if (up) up.addEventListener('click', function () { if (idx < STEPS.length - 1) { idx++; apply(true); } });
         });
+        /* Pinch-to-zoom drives the SAME setting. Scope is the reading text
+           only: an opened card's .recipe-content, or a cook pane's. One
+           finger is never intercepted — page scroll, cook pane swipe and
+           scroll-snap behave exactly as before; the pinch engages only
+           when a second touch lands, and the start distance is taken at
+           that moment, so any one-finger travel before it is ignored.
+           During the gesture the live scale writes --rts inline under
+           data-textscale="pinch" (the scale rules match it, no step value
+           claims it) and both readouts follow. On release it snaps to the
+           nearest step and apply(true) persists it, so the steppers and
+           the pinch can never disagree. No touch-action is set on the
+           scoped containers: one-finger scrolling must stay native, and
+           the non-passive preventDefault on two-touch moves is what stops
+           the page scrolling or zooming mid-pinch. */
+        var pinch = null;
+        function pinchDist(t) {
+            var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        function pinchInScope(node) {
+            return !!(node && node.closest && node.closest('.recipe-content'));
+        }
+        function pinchNearestIdx(scale) {
+            var best = 0, bd = Infinity;
+            for (var i = 0; i < STEPS.length; i++) {
+                var dd = Math.abs(STEPS[i] / 100 - scale);
+                if (dd < bd) { bd = dd; best = i; }
+            }
+            return best;
+        }
+        function pinchLive(scale) {
+            document.documentElement.style.setProperty('--rts', String(Math.round(scale * 1000) / 1000));
+            var label = Math.round(scale * 100) + '%';
+            controls.forEach(function (c) {
+                var v = c.querySelector('.textsize-value');
+                if (v) v.textContent = label;
+            });
+        }
+        function pinchFinish() {
+            if (!pinch) return;
+            var scale = pinch.scale;
+            pinch = null;
+            document.documentElement.style.removeProperty('--rts');
+            idx = pinchNearestIdx(scale);
+            apply(true);
+        }
+        document.addEventListener('touchstart', function (e) {
+            if (pinch || e.touches.length !== 2) return;
+            if (!pinchInScope(e.touches[0].target) || !pinchInScope(e.touches[1].target)) return;
+            var d0 = pinchDist(e.touches);
+            if (!d0) return;
+            pinch = { d0: d0, s0: STEPS[idx] / 100, scale: STEPS[idx] / 100 };
+            document.documentElement.setAttribute('data-textscale', 'pinch');
+            pinchLive(pinch.scale);
+            e.preventDefault();
+        }, { passive: false });
+        document.addEventListener('touchmove', function (e) {
+            if (!pinch || e.touches.length < 2) return;
+            e.preventDefault();
+            var d = pinchDist(e.touches);
+            if (!d) return;
+            var s = pinch.s0 * d / pinch.d0;
+            s = Math.max(STEPS[0] / 100, Math.min(STEPS[STEPS.length - 1] / 100, s));
+            pinch.scale = s;
+            pinchLive(s);
+        }, { passive: false });
+        document.addEventListener('touchend', function (e) {
+            if (pinch && e.touches.length < 2) pinchFinish();
+        }, { passive: false });
+        document.addEventListener('touchcancel', function (e) {
+            if (pinch && e.touches.length < 2) pinchFinish();
+        }, { passive: false });
+        document.addEventListener('gesturestart', function (e) {
+            if (pinchInScope(e.target)) e.preventDefault();
+        }, { passive: false });
         apply(false);
     })();
     </script>
