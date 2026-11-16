@@ -123,6 +123,22 @@
     #termTip .term-full { color: var(--text-color); }
     #termTip p { margin: 0.35rem 0 0; color: var(--subtext-color); }
     #termTip .term-eq { color: var(--text-color); font-weight: 600; }
+    /* Scoreboard reason popovers (2026-11-16): every scoreboard badge and
+       the score cell is a button (a reset inside the badge styling only —
+       same size, same look); tapping one opens #scoreTip, a glass popover
+       built exactly like #termTip above (same glass-bubble material, same
+       fixed positioning), with the reason generated from SCOREBOARD_RULES
+       itself so it can never contradict the badge. */
+    button.framework-badge { font-family: inherit; border: none; cursor: pointer; }
+    .score-cell-btn { font: inherit; color: inherit; background: none; border: none; padding: 0; margin: 0; cursor: pointer; text-align: left; }
+    #scoreTip { position: fixed; z-index: 1200; max-width: min(340px, calc(100vw - 16px)); padding: 0.7rem 0.85rem; font-size: 0.83rem; line-height: 1.5; color: var(--subtext-color); display: none; }
+    #scoreTip.open { display: block; }
+    #scoreTip strong { color: var(--text-color); font-size: 0.9rem; }
+    #scoreTip p { margin: 0.35rem 0 0; color: var(--subtext-color); }
+    #scoreTip .term-eq { color: var(--text-color); font-weight: 600; }
+    #scoreTip ul { margin: 0.4rem 0 0; padding-left: 1.1rem; color: var(--subtext-color); }
+    #scoreTip li { margin: 0.15rem 0; }
+    .score-tip-close { position: absolute; top: 0.3rem; right: 0.45rem; background: none; border: none; color: var(--subtext-color); font-size: 1.05rem; line-height: 1; padding: 0.3rem; cursor: pointer; }
     .legend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.6rem 1.5rem; margin-top: 1rem; }
     .legend-item { font-size: 0.86rem; color: var(--subtext-color); line-height: 1.5; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
     .legend-item strong { color: var(--text-color); }
@@ -220,7 +236,7 @@
                     <div class="chip-row" id="scoreboardInvestors" role="group" aria-label="Investors to score against">
                         <!-- Investor chips are rendered from SCOREBOARD_RULES below: only investors with a scored leg appear. -->
             </div>
-        <p style="font-size: 0.85rem; color: var(--subtext-color);">Tap an investor&rsquo;s name above to add or drop their rules. PASS = passes that rule, FAIL = doesn&rsquo;t, &mdash; = couldn&rsquo;t be tested for that company.</p>
+        <p style="font-size: 0.85rem; color: var(--subtext-color);">Tap an investor&rsquo;s name above to add or drop their rules. PASS = passes that rule, FAIL = doesn&rsquo;t, &mdash; = couldn&rsquo;t be tested for that company. Tap any result to see why.</p>
         <p style="font-size: 0.85rem; color: var(--subtext-color);">15 of the 23 investors can&rsquo;t be scored from this data &mdash; their rules need numbers the table doesn&rsquo;t have.</p>
         <div class="chip-row">
             <div class="selector-group" style="max-width: 280px;">
@@ -1838,9 +1854,17 @@
             if (v1 === null || v1 === undefined || isNaN(v1) || v2 === null || v2 === undefined || isNaN(v2)) return null;
             return test(Number(v1), Number(v2));
         }
-        function badge(result, label) {
+        function badge(result, label, ticker, investorId) {
+            const cls = result === null ? 'framework-badge' : 'framework-badge ' + (result ? 'badge-pass' : 'badge-fail');
+            const txt = result === null ? '—' : label + ': ' + (result ? 'PASS' : 'FAIL');
+            // With a ticker + investor the badge is a button: tapping it
+            // opens the reason popover (see SCOREBOARD_WHY below). The
+            // text and classes are identical to the span version.
+            if (ticker && investorId) {
+                return '<button type="button" class="' + cls + ' score-why-btn" data-ticker="' + ticker + '" data-investor="' + investorId + '" aria-haspopup="dialog" aria-expanded="false">' + txt + '</button>';
+            }
             if (result === null) return '<span class="framework-badge">—</span>';
-            return '<span class="framework-badge ' + (result ? 'badge-pass' : 'badge-fail') + '">' + label + ': ' + (result ? 'PASS' : 'FAIL') + '</span>';
+            return '<span class="' + cls + '">' + txt + '</span>';
         }
 
         function latestFieldAsOf(data, field) {
@@ -1917,6 +1941,14 @@
         // "Principle" in each investor's card and is never scored by proxy.
         // A null field means "not tested": excluded from the score denominator.
         const EXPENSIVE_AI = new Set(['AAOI']); // optical / power-cooling / semi-cap-equipment names on this table
+        // Baker's benchmark: the median PEG of the expensive-AI names.
+        // Shared by his rule's test and by the reason generator below,
+        // so the popover's benchmark is the test's benchmark.
+        function bakerBenchmark(all) {
+            const exp = all.filter(x => EXPENSIVE_AI.has(x.ticker) && x.peg != null).map(x => x.peg).sort((a, b) => a - b);
+            if (exp.length === 0) return null;
+            return exp.length % 2 ? exp[(exp.length - 1) / 2] : (exp[exp.length / 2 - 1] + exp[exp.length / 2]) / 2;
+        }
         const SCOREBOARD_RULES = {
             druckenmiller: { label: 'Druckenmiller', test: t => check(t.momentum, v => v > 0) },
             buffett: { label: 'Buffett', test: t => check(t.roe, v => v >= 15) },
@@ -1928,9 +1960,8 @@
                 return ranked.indexOf(t.momentum) < 25;
             } },
             baker: { label: 'Baker', test: (t, all) => {
-                const exp = all.filter(x => EXPENSIVE_AI.has(x.ticker) && x.peg != null).map(x => x.peg).sort((a, b) => a - b);
-                if (exp.length === 0) return null;
-                const med = exp.length % 2 ? exp[(exp.length - 1) / 2] : (exp[exp.length / 2 - 1] + exp[exp.length / 2]) / 2;
+                const med = bakerBenchmark(all);
+                if (med === null) return null;
                 return check2(t.peg, med, (p, m) => p < 1.0 && p < m / 2);
             } },
             lynch: { label: 'Lynch', test: t => {
@@ -2016,18 +2047,209 @@
             else rows.sort((a, b) => a.t.name.localeCompare(b.t.name));
             body.innerHTML = rows.map(r => {
                 let html = '<tr><td><strong>' + r.t.name + '</strong> (' + r.t.ticker + ')</td>';
-                let scoreHtml = '<td><strong>' + (r.score === null ? '—' : r.score + '%') + '</strong>';
+                let scoreInner = '<strong>' + (r.score === null ? '—' : r.score + '%') + '</strong>';
                 if (r.graded && r.graded < selected.length) {
                     const untested = selected.length - r.graded;
-                    scoreHtml += ' <small>&mdash; ' + r.passed + ' of ' + r.graded + ' tested &middot; ' + untested + ' rule' + (untested === 1 ? '' : 's') + ' couldn&rsquo;t be tested</small>';
+                    scoreInner += ' <small>&mdash; ' + r.passed + ' of ' + r.graded + ' tested &middot; ' + untested + ' rule' + (untested === 1 ? '' : 's') + ' couldn&rsquo;t be tested</small>';
                 } else if (r.graded) {
-                    scoreHtml += ' <small>(' + r.passed + ' of ' + r.graded + ')</small>';
+                    scoreInner += ' <small>(' + r.passed + ' of ' + r.graded + ')</small>';
                 }
-                html += scoreHtml + '</td>';
-                selected.forEach(id => { html += '<td>' + badge(r.cells[id], SCOREBOARD_RULES[id].label) + '</td>'; });
+                html += '<td><button type="button" class="score-cell-btn score-why-btn" data-ticker="' + r.t.ticker + '" data-score="1" aria-haspopup="dialog" aria-expanded="false">' + scoreInner + '</button></td>';
+                selected.forEach(id => { html += '<td>' + badge(r.cells[id], SCOREBOARD_RULES[id].label, r.t.ticker, id) + '</td>'; });
                 return html + '</tr>';
             }).join('');
         }
+
+        // ---- Why this verdict? (2026-11-16) ----
+        // The reason behind every scoreboard badge, generated from the
+        // same fields and bars the rules test. The verdict itself is
+        // taken from SCOREBOARD_RULES[id].test() — never recomputed —
+        // so a reason can never contradict its badge. A "—" names the
+        // missing input and how it truthfully arrives; Lynch's two
+        // by-design blanks are worded as by-design, exactly as his rule
+        // treats them (the rule working as written, not missing data).
+        const FUND_PATH = 'It arrives with the weekday fundamentals refresh, which pulls the figures from SEC filings (EDGAR and Alpha Vantage).';
+        const DATA_PATH = 'It arrives with the weekday data refresh.';
+        const MOM_MISSING = name => 'Can’t be tested — there is no momentum figure for ' + name + ' yet. Momentum is worked out on this page from the weekly price history, and ' + name + ' doesn’t have the three months of it the measure needs.';
+        function scoreWhy(id, t, all) {
+            const verdict = SCOREBOARD_RULES[id].test(t, all);
+            const name = t.name;
+            switch (id) {
+                case 'druckenmiller': {
+                    if (verdict === null) return { verdict, sentence: MOM_MISSING(name), readout: 'The bar: momentum above 0%.', short: 'no momentum figure yet' };
+                    const v = fmtPct(t.momentum, 1, true);
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s momentum over the last three months is ' + v + '; Druckenmiller’s rule needs it above 0%.', readout: 'Momentum: ' + v + ' · The bar: above 0%.', short: 'momentum ' + v + ' (bar: above 0%)' };
+                }
+                case 'buffett': {
+                    if (verdict === null) return { verdict, sentence: 'Can’t be tested — return on equity isn’t in the data for ' + name + ' yet. ' + FUND_PATH, readout: 'The bar: return on equity of 15% or more.', short: 'return on equity not in the data yet' };
+                    const v = fmtPct(t.roe);
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s return on equity is ' + v + '; Buffett’s bar is 15% or more.', readout: 'Return on equity: ' + v + ' · The bar: 15% or more.', short: 'ROE ' + v + ' (bar: 15% or more)' };
+                }
+                case 'tepper': {
+                    if (verdict === null) return { verdict, sentence: 'Can’t be tested — the growth figure isn’t in the data for ' + name + ' yet. ' + DATA_PATH, readout: 'The bar: growth of 10% or more.', short: 'growth not in the data yet' };
+                    const v = fmtPct(t.growth);
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s growth is ' + v + '; Tepper’s bar is 10% or more.', readout: 'Growth: ' + v + ' · The bar: 10% or more.', short: 'growth ' + v + ' (bar: 10% or more)' };
+                }
+                case 'alden': {
+                    const missing = [];
+                    if (t.roe == null) missing.push('return on equity');
+                    if (t.margin == null) missing.push('net margin');
+                    if (verdict === null) return { verdict, sentence: 'Can’t be tested — ' + missing.join(' and ') + (missing.length > 1 ? ' aren’t' : ' isn’t') + ' in the data for ' + name + ' yet. ' + FUND_PATH, readout: 'The bar: return on equity and net margin both above 0%.', short: missing.join(' and ') + ' not in the data yet' };
+                    const rv = fmtPct(t.roe), mv = fmtPct(t.margin);
+                    const readout = 'ROE ' + rv + ' · Net margin ' + mv + ' · The bar: both above 0%.';
+                    const short = 'ROE ' + rv + ', margin ' + mv + ' (bar: both above 0%)';
+                    if (verdict) return { verdict, sentence: 'Passes — ' + name + '’s return on equity (' + rv + ') and net margin (' + mv + ') are both above zero; Alden’s rule needs both positive.', readout, short };
+                    const bad = [];
+                    if (!(t.roe > 0)) bad.push('return on equity is ' + rv);
+                    if (!(t.margin > 0)) bad.push('net margin is ' + mv);
+                    return { verdict, sentence: 'Fails — ' + name + '’s ' + bad.join(' and ') + '; Alden’s rule needs return on equity and net margin both above zero.', readout, short };
+                }
+                case 'oshaughnessy': {
+                    if (verdict === null) return { verdict, sentence: MOM_MISSING(name), readout: 'The bar: a top-25 momentum rank in the table.', short: 'no momentum figure yet' };
+                    const ranked = all.filter(x => x.momentum != null).map(x => x.momentum).sort((a, b) => b - a);
+                    const rank = ranked.indexOf(t.momentum) + 1;
+                    const v = fmtPct(t.momentum, 1, true);
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s momentum ranks #' + rank + ' of the ' + ranked.length + ' stocks in the table with a momentum figure; O’Shaughnessy’s rule takes the top 25.', readout: 'Momentum: ' + v + ' · Rank: #' + rank + ' of ' + ranked.length + ' · The bar: top 25.', short: 'momentum ' + v + ', ranked #' + rank + ' of ' + ranked.length + ' (bar: top 25)' };
+                }
+                case 'baker': {
+                    const med = bakerBenchmark(all);
+                    if (t.peg == null) return { verdict, sentence: 'Can’t be tested — the PEG ratio isn’t in the data for ' + name + ' yet. ' + DATA_PATH, readout: 'The bar: PEG under 1.0 and under half the expensive-AI benchmark.', short: 'PEG not in the data yet' };
+                    if (med === null) return { verdict, sentence: 'Can’t be tested — Baker’s rule measures against the expensive AI names’ PEG, and that benchmark (AAOI’s PEG) isn’t in the data yet. ' + DATA_PATH, readout: 'The bar: PEG under 1.0 and under half the expensive-AI benchmark.', short: 'benchmark PEG not in the data yet' };
+                    const p = fmtNum(t.peg, 2), m = fmtNum(med, 2), half = fmtNum(med / 2, 2);
+                    const barTxt = 'under 1.0 and under half of AAOI’s ' + m + ' (under ' + half + ')';
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s PEG is ' + p + '; Baker’s bar is ' + barTxt + '.', readout: 'PEG: ' + p + ' · The bar: ' + barTxt + '.', short: 'PEG ' + p + ' (bar: ' + barTxt + ')' };
+                }
+                case 'lynch': {
+                    const barTxt = 'The bar: fast growers (growth 20%+) — PEG under 1.0 passes, 2.0 or more fails.';
+                    if (t.growth == null) return { verdict, sentence: 'Can’t be tested — the growth figure isn’t in the data for ' + name + ' yet, and Lynch’s test starts from growth. ' + DATA_PATH, readout: barTxt, short: 'growth not in the data yet' };
+                    const g = fmtPct(t.growth);
+                    if (t.growth < 20) return { verdict, byDesign: true, sentence: 'Not graded — Lynch’s PEG test only applies to fast growers, growth of 20% or more. ' + name + '’s growth is ' + g + ', so by his rule this leg doesn’t grade it — that’s the rule working as written, not missing data.', readout: 'Growth: ' + g + ' · The bar: the test applies at 20% growth or more.', short: 'growth ' + g + ' — the fast-grower test doesn’t apply' };
+                    if (t.peg == null) return { verdict, sentence: 'Can’t be tested — the PEG ratio isn’t in the data for ' + name + ' yet. ' + DATA_PATH, readout: barTxt, short: 'PEG not in the data yet' };
+                    const p = fmtNum(t.peg, 2);
+                    if (t.peg >= 1.0 && t.peg < 2.0) return { verdict, byDesign: true, sentence: 'Not graded — ' + name + '’s PEG of ' + p + ' sits in Lynch’s fairly-priced band (1.0 to 2.0): not cheap enough to pass, not dear enough to fail, so his rule doesn’t grade it.', readout: 'PEG: ' + p + ' · The bar: under 1.0 passes, 2.0 or more fails.', short: 'PEG ' + p + ' — fairly-priced band, not graded' };
+                    if (verdict) return { verdict, sentence: 'Passes — ' + name + ' is a fast grower (growth ' + g + ') with a PEG of ' + p + '; Lynch’s rule wants a fast grower’s PEG under 1.0.', readout: 'PEG: ' + p + ' · Growth: ' + g + ' · The bar: PEG under 1.0.', short: 'PEG ' + p + ' at ' + g + ' growth (bar: under 1.0)' };
+                    return { verdict, sentence: 'Fails — ' + name + ' is a fast grower (growth ' + g + ') with a PEG of ' + p + '; at 2.0 or more, Lynch’s rule calls it too dear.', readout: 'PEG: ' + p + ' · Growth: ' + g + ' · The bar: PEG under 1.0; 2.0 or more fails.', short: 'PEG ' + p + ' at ' + g + ' growth (bar: under 1.0)' };
+                }
+                case 'oneil': {
+                    if (verdict === null) return { verdict, sentence: 'Can’t be tested — return on equity isn’t in the data for ' + name + ' yet. ' + FUND_PATH, readout: 'The bar: return on equity of 17% or more.', short: 'return on equity not in the data yet' };
+                    const v = fmtPct(t.roe);
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s return on equity is ' + v + '; O’Neil’s CAN SLIM bar is 17% or more.', readout: 'Return on equity: ' + v + ' · The bar: 17% or more.', short: 'ROE ' + v + ' (bar: 17% or more)' };
+                }
+            }
+            return { verdict, sentence: '', readout: '', short: '' };
+        }
+        window.jboScoreWhy = scoreWhy;
+
+        // The score cell's summary: the same verdicts, one line each,
+        // under a heading that matches the cell's own wording.
+        function scoreSummary(t) {
+            const ids = Object.keys(SCOREBOARD_RULES).filter(id => scoreboardSelected.has(id));
+            let passed = 0, graded = 0;
+            const lines = ids.map(id => {
+                const w = scoreWhy(id, t, tickerData);
+                if (w.verdict !== null) { graded++; if (w.verdict) passed++; }
+                const word = w.verdict === null ? (w.byDesign ? 'Not graded' : 'Can’t test') : (w.verdict ? 'Pass' : 'Fail');
+                return { label: SCOREBOARD_RULES[id].label, word, short: w.short };
+            });
+            const score = graded === 0 ? null : Math.round(passed / graded * 100);
+            const heading = score === null ? 'Why there’s no score for ' + t.name + ' yet' : 'Why ' + score + '% — ' + passed + ' of ' + graded + ' tested';
+            return { heading, lines };
+        }
+
+        // ---- The popover (built like the Legend's #termTip: one fixed
+        // glass bubble, positioned under its anchor, one at a time;
+        // closes on outside tap, Esc and its close button; focus
+        // returns to the tapped badge) ----
+        const scoreTip = document.createElement('div');
+        scoreTip.id = 'scoreTip';
+        scoreTip.className = 'glass-bubble';
+        scoreTip.setAttribute('role', 'dialog');
+        scoreTip.innerHTML = '<button type="button" class="score-tip-close" aria-label="Close">&times;</button><div class="score-tip-content"></div>';
+        document.body.appendChild(scoreTip);
+        const scoreTipContent = scoreTip.querySelector('.score-tip-content');
+        let scoreTipAnchor = null;
+        function positionScoreTip() {
+            if (!scoreTipAnchor) return;
+            const r = scoreTipAnchor.getBoundingClientRect();
+            scoreTip.style.left = '0px'; scoreTip.style.top = '0px';
+            const tw = scoreTip.offsetWidth, th = scoreTip.offsetHeight;
+            const x = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - tw - 8));
+            let y = r.bottom + 8;
+            if (y + th > window.innerHeight - 8) y = Math.max(8, r.top - th - 8);
+            scoreTip.style.left = x + 'px'; scoreTip.style.top = y + 'px';
+        }
+        function openScoreTip(anchor) {
+            const tt = document.getElementById('termTip');
+            if (tt) tt.classList.remove('open');
+            if (scoreTipAnchor && scoreTipAnchor !== anchor) scoreTipAnchor.setAttribute('aria-expanded', 'false');
+            scoreTipAnchor = anchor;
+            anchor.setAttribute('aria-expanded', 'true');
+            scoreTip.classList.add('open');
+            positionScoreTip();
+            const closeBtn = scoreTip.querySelector('.score-tip-close');
+            if (closeBtn) closeBtn.focus();
+        }
+        function closeScoreTip() {
+            if (!scoreTip.classList.contains('open')) return;
+            scoreTip.classList.remove('open');
+            if (scoreTipAnchor) {
+                scoreTipAnchor.setAttribute('aria-expanded', 'false');
+                scoreTipAnchor.focus();
+                scoreTipAnchor = null;
+            }
+        }
+        function fillBadgeWhy(id, t) {
+            const w = scoreWhy(id, t, tickerData);
+            scoreTipContent.innerHTML = '';
+            const h = document.createElement('strong');
+            h.textContent = SCOREBOARD_RULES[id].label + ' — ' + t.name + ' (' + t.ticker + ')';
+            const p1 = document.createElement('p');
+            p1.textContent = w.sentence;
+            const p2 = document.createElement('p');
+            p2.className = 'term-eq';
+            p2.textContent = w.readout;
+            scoreTipContent.appendChild(h);
+            scoreTipContent.appendChild(p1);
+            scoreTipContent.appendChild(p2);
+        }
+        function fillScoreSummary(t) {
+            const s = scoreSummary(t);
+            scoreTipContent.innerHTML = '';
+            const h = document.createElement('strong');
+            h.textContent = s.heading;
+            const ul = document.createElement('ul');
+            s.lines.forEach(ln => {
+                const li = document.createElement('li');
+                const b = document.createElement('strong');
+                b.textContent = ln.label;
+                li.appendChild(b);
+                li.appendChild(document.createTextNode(' — ' + ln.word + ' — ' + ln.short));
+                ul.appendChild(li);
+            });
+            scoreTipContent.appendChild(h);
+            scoreTipContent.appendChild(ul);
+        }
+        document.addEventListener('click', e => {
+            const btn = e.target && e.target.closest ? e.target.closest('.score-why-btn') : null;
+            if (btn) {
+                if (scoreTipAnchor === btn && scoreTip.classList.contains('open')) { closeScoreTip(); return; }
+                const t = tickerData.find(x => x.ticker === btn.getAttribute('data-ticker'));
+                if (!t) return;
+                if (btn.hasAttribute('data-score')) fillScoreSummary(t);
+                else fillBadgeWhy(btn.getAttribute('data-investor'), t);
+                openScoreTip(btn);
+                return;
+            }
+            if (scoreTip.classList.contains('open') && !scoreTip.contains(e.target)) closeScoreTip();
+        });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeScoreTip(); });
+        // One popover at a time, both ways: opening a Legend term closes
+        // this one (and openScoreTip closes the term tip above).
+        document.addEventListener('mouseover', e => {
+            if (e.target && e.target.closest && e.target.closest('.term')) closeScoreTip();
+        });
+        scoreTip.querySelector('.score-tip-close').addEventListener('click', () => closeScoreTip());
+        window.addEventListener('resize', () => { if (scoreTip.classList.contains('open')) positionScoreTip(); });
 
         // Framework filter chips: show only investors matching the theme.
         document.querySelectorAll('#investorFilter .filter-pill').forEach(btn => {
@@ -2126,31 +2348,31 @@
                     <td>
                         <div class="cell-content">
                             <span>${fmtNum(t.peg, 2)}</span>
-                            ${badge(sc.results.baker, 'Baker')}${badge(sc.results.lynch, 'Lynch')}
+                            ${badge(sc.results.baker, 'Baker', t.ticker, 'baker')}${badge(sc.results.lynch, 'Lynch', t.ticker, 'lynch')}
                         </div>
                     </td>
                     <td>
                         <div class="cell-content">
                             <span>${fmtPct(t.growth)}</span>
-                            ${badge(sc.results.tepper, 'Tepper')}
+                            ${badge(sc.results.tepper, 'Tepper', t.ticker, 'tepper')}
                         </div>
                     </td>
                     <td>
                         <div class="cell-content">
                             <span>${fmtPct(t.roe)}</span>
-                            ${badge(sc.results.buffett, 'Buffett')}
+                            ${badge(sc.results.buffett, 'Buffett', t.ticker, 'buffett')}
                         </div>
                     </td>
                     <td>
                         <div class="cell-content">
                             <span>${fmtPct(t.margin)}</span>
-                            ${badge(sc.results.alden, 'Alden ROE>0 & Margin>0')}
+                            ${badge(sc.results.alden, 'Alden ROE>0 & Margin>0', t.ticker, 'alden')}
                         </div>
                     </td>
                     <td>
                         <div class="cell-content">
                             <span>${fmtPct(t.momentum, 1, true)}</span>
-                            ${badge(sc.results.druckenmiller, 'Druckenmiller')}${badge(sc.results.oshaughnessy, 'O’Shaughnessy')}
+                            ${badge(sc.results.druckenmiller, 'Druckenmiller', t.ticker, 'druckenmiller')}${badge(sc.results.oshaughnessy, 'O’Shaughnessy', t.ticker, 'oshaughnessy')}
                         </div>
                     </td>
                     <td><strong>${score}</strong>${scoreNote}</td>
