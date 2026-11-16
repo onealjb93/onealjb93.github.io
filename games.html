@@ -35,6 +35,32 @@
             background: var(--bg-color); opacity: 1;
             margin-top: 0; padding-top: 48px;
         }
+        /* Line Rider one-screen stage (2026-11-16): the pinned heading,
+           HUD, toolbar and canvas together fill exactly one screen under
+           the frozen 55px nav, so playing never needs a page scroll — the
+           fixed-frame pattern of the Random Generator, applied to a game.
+           The Line Rider heading box is held to a fixed 48px here
+           (padding-top 10 + 1.1rem at line-height 1.4 + padding-bottom 12
+           + its hairline) and the stage takes everything else, so the
+           chrome above the canvas is a known 55 + 48 = 103px. The section
+           intro above the stage scrolls away under the pinned heading,
+           as intros do on this site. Layout only — no game code changes. */
+        .lr-section > h2 { padding-top: 10px; line-height: 1.4; }
+        .lr-stage {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 103px);
+            height: calc(100dvh - 103px - env(safe-area-inset-bottom, 0px));
+        }
+        .lr-stage .lr-hud { margin: 8px 0 6px; }
+        .lr-stage .lr-toolbar { gap: 4px; margin-bottom: 8px; }
+        .lr-stage .lr-btn,
+        .lr-stage .lr-save-name,
+        .lr-stage .lr-saves-select {
+            line-height: 1.4;
+            min-height: 36px;
+            box-sizing: border-box;
+        }
         /* Line Rider — game-specific styles (site variables from style.css). */
         .lr-hud {
             display: flex;
@@ -121,7 +147,11 @@
         #lr-canvas {
             display: block;
             width: 100%;
-            height: 640px;
+            /* Flexes to whatever height the one-screen stage leaves after
+               the HUD and toolbar; the game reads its size from this box. */
+            flex: 1 1 auto;
+            min-height: 300px;
+            box-sizing: border-box;
             border: 1px solid var(--border-color);
             border-radius: 12px;
             background: var(--bg-color);
@@ -143,16 +173,56 @@
         .lr-howto ol { margin: 0; padding-left: 1.25rem; }
         .lr-howto li { margin-bottom: 6px; }
         @media (max-width: 700px) {
-            #lr-canvas { height: 580px; }
             .lr-status { margin-left: 0; width: 100%; }
             /* Compact but still comfortably tappable on phones (36px min). */
-            .lr-btn { padding: 7px 10px; min-height: 36px; }
+            .lr-btn { padding: 7px 8px; min-height: 36px; }
             .lr-save-name, .lr-saves-select { padding: 7px 8px; min-height: 36px; }
             /* Saves row goes icon-only on phones so it fits one row: the name
                field beside it ("Setup name") makes 💾 / 🗑 self-explanatory. */
             .lr-save-name { width: 84px; }
             .lr-saves-select { max-width: 120px; }
             .lr-btn .lr-btn-label { display: none; }
+            /* Stage tightening on phones: slimmer HUD type and hidden
+               dividers (they only make ragged breaks in a wrapped toolbar)
+               buy the canvas its room back. The status line reserves a
+               two-line height, so a longer message wrapping never resizes
+               the canvas mid-ride. */
+            .lr-stage .lr-hud { gap: 8px; }
+            /* The three stats share one row equally at any phone width;
+               a long value wraps inside its own box rather than pushing
+               the row — and the stage — taller. */
+            .lr-stage .lr-stat { padding: 5px 9px; flex: 1 1 0; min-width: 0; }
+            .lr-stage .lr-stat-label { font-size: 0.68rem; line-height: 1.3; }
+            .lr-stage .lr-stat-value { font-size: 0.85rem; line-height: 1.3; }
+            .lr-stage .lr-status { font-size: 0.9rem; line-height: 1.35; min-height: 39px; }
+            .lr-stage .lr-sep { display: none; }
+        }
+        /* Small phones: the canvas floor steps down — the pinned heading,
+           HUD and a fully wrapped toolbar cannot share a 740px screen
+           with a 300px canvas, so the canvas takes everything left. */
+        @media (max-width: 480px) {
+            #lr-canvas { min-height: 180px; }
+            .lr-stage .lr-stat { padding: 5px 6px; }
+        }
+        /* Short screens (landscape phones): compress the chrome first —
+           a compact HUD and a toolbar that becomes one swipeable row —
+           and the canvas takes everything that remains. */
+        @media (max-height: 500px) {
+            .lr-stage .lr-hud { margin: 4px 0; gap: 8px; }
+            .lr-stage .lr-stat { padding: 3px 10px; }
+            .lr-stage .lr-stat-label { font-size: 0.68rem; line-height: 1.3; }
+            .lr-stage .lr-stat-value { font-size: 0.9rem; line-height: 1.3; }
+            .lr-stage .lr-status { min-height: 0; }
+            .lr-stage .lr-toolbar {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                margin-bottom: 4px;
+                padding-bottom: 2px;
+            }
+            .lr-stage .lr-btn,
+            .lr-stage .lr-save-name,
+            .lr-stage .lr-saves-select { flex: 0 0 auto; }
+            #lr-canvas { min-height: 120px; }
         }
     </style>
     <!-- Umami Analytics Script -->
@@ -205,10 +275,11 @@
         <p>A place to play. More games coming.</p>
     </header>
 
-    <section aria-labelledby="line-rider-heading">
+    <section class="lr-section" aria-labelledby="line-rider-heading">
         <h2 id="line-rider-heading">Line Rider</h2>
         <p>Draw a track, then send the rider down it. Downhill he picks up speed, off a ramp he flies — steer him in the air with the arrow keys and land him back on the track. If his head hits a line, he crashes. How far can you keep him going?</p>
 
+        <div class="lr-stage">
         <div class="lr-hud" aria-live="polite">
             <div class="lr-stat"><span class="lr-stat-label">Distance</span><span class="lr-stat-value" id="lr-distance">0.0 m (0.0 ft)</span></div>
             <div class="lr-stat"><span class="lr-stat-label">Speed</span><span class="lr-stat-value" id="lr-speed">0.0 m/s (0.0 mph)</span></div>
@@ -253,6 +324,7 @@
         </div>
 
         <canvas id="lr-canvas" aria-label="Line Rider game canvas. Draw a track with your mouse or finger, switch to Move to slide the view without drawing, then press Play."></canvas>
+        </div>
     </section>
 
     <section class="lr-howto" aria-labelledby="how-to-play-heading">
@@ -1768,6 +1840,25 @@
         requestAnimationFrame(loop);
     })();
     </script>
+<script>
+    // Line Rider stage layout sync: the one-screen stage flex-sizes the
+    // canvas, so its box can change without a window resize (a HUD line
+    // wrapping, the phone URL bar showing or hiding). The game sizes its
+    // drawing surface from the canvas box whenever a resize fires, so
+    // relay box changes to it. Layout plumbing only — no game code here.
+    (function () {
+        var c = document.getElementById('lr-canvas');
+        if (!c || typeof ResizeObserver !== 'function') return;
+        var lastW = 0, lastH = 0;
+        new ResizeObserver(function () {
+            var w = c.clientWidth, h = c.clientHeight;
+            if (w !== lastW || h !== lastH) {
+                lastW = w; lastH = h;
+                window.dispatchEvent(new Event('resize'));
+            }
+        }).observe(c);
+    })();
+</script>
 <button type="button" class="back-to-top" id="backToTop" aria-label="Back to top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 15l7-7 7 7"/></svg></button>
 <script>
     // Back to top: the floating button appears once the page is scrolled;
