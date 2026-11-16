@@ -6388,23 +6388,31 @@
         resultsEl.innerHTML = h;
     }
 
-    /* The verdict's base score (0-5 dots) for the current selection: one dot per
-       criterion met, computed from the same combined totals and daily
-       targets the dots above use -- no new nutrition data.
-       1. Protein at least 50% of target. 2. Fiber at least 50% of target.
-       3. Micronutrient breadth: at least 4 of 6 (calcium, iron, potassium,
-       vitamin D, vitamin C, vitamin A) at 50% or more of target.
-       4. Variety: a salad, side or soup in the mix, and at least 3 different
-       recipes or at least 4 servings in total. 5. Limits kept: saturated
-       fat, sodium and cholesterol within their daily limits on at least
-       2 of 3. (Sugar is not a base check: the verdict prices it separately,
-       by its share of the selection's calories.) */
-    var HEALTHY_DAY_MICROS = ['301', '303', '306', '324', '401', '320'];
-    /* The same five criteria, itemised: each check carries its name, the
-       selection's own numbers against the threshold, met/missed, and a
-       relative-shortfall weight (missW, 0..1) so the verdict can name the
-       widest miss. healthyDayScore below is the unchanged count of met
-       checks -- the verdict panels render these rows, they do not rescore. */
+    /* --- Verdict v2: quality by density ---
+       The verdict grades the QUALITY of a selection, never its size.
+       Every component is a density -- per 1,000 kcal of the selection
+       itself -- scored on a linear ramp in the Healthy Eating Index
+       style (no pass/fail cliffs), against the reference densities of
+       the standard FDA day (a nutrient's daily value spread over its
+       2,000 kcal). Doubling every serving doubles each density's
+       numerator and denominator alike, so the grade cannot move with
+       quantity; how much of a day or a meal the selection is lives in
+       the separate completeness line, never in this score.
+       Adequacy (60 of 100): protein density 15, fiber density 15,
+       micronutrient density 30 (the mean of the six below, each one
+       capped at full credit so no single nutrient can dominate).
+       Moderation (40 of 100): sugar 15 (share of calories: full
+       credit at 6.5% or less, none at 26% -- the HEI-2020 ramp, run
+       on total sugars, the only sugar figure the data carries),
+       sodium 15 (grams per 1,000 kcal: full at 1.1 or less, none at
+       2.0 -- HEI-2020), saturated fat 10 (share of calories: full at
+       8% or less, none at 16% -- HEI-2020). Cholesterol is not in the
+       score at all: the Dietary Guidelines dropped its limit in 2015
+       and no current system counts it. Variety is not in the score
+       either: the field scores food-group diversity, which needs
+       per-recipe food-group data this page does not have -- dish
+       counts stay visible in the panels as information only. */
+    var VERDICT_MICROS = ['301', '303', '306', '324', '401', '320'];
     /* --- Verdict frame: Meal or Full day ---
        The verdict judges a selection against a frame: a full day, or
        a meal -- one third of the day, every target scaled by a third.
@@ -6433,42 +6441,59 @@
         Object.keys(t).forEach(function (num) { out[num] = (typeof t[num] === 'number') ? t[num] / 3 : t[num]; });
         return out;
     }
-    function healthyDayBreakdown(totals, recipeIds, servings, frame) {
-        frame = resolveFrame(frame);
-        var targets = frameTargets(frame);
-        var pct = function (num) { var t = targets[num]; return t ? totals[num] / t * 100 : 0; };
-        var checks = [];
-        var pProtein = pct('203');
-        checks.push({ key: 'protein', name: 'Protein at least half of target', detail: Math.round(totals['203'] || 0) + ' g of ' + Math.round(targets['203']) + ' g (' + Math.round(pProtein) + '%)', met: pProtein >= 50, missW: Math.max(0, 1 - pProtein / 50) });
-        var pFiber = pct('291');
-        checks.push({ key: 'fiber', name: 'Fiber at least half of target', detail: Math.round(totals['291'] || 0) + ' g of ' + Math.round(targets['291']) + ' g (' + Math.round(pFiber) + '%)', met: pFiber >= 50, missW: Math.max(0, 1 - pFiber / 50) });
-        var micros = 0, microBits = [];
-        HEALTHY_DAY_MICROS.forEach(function (num) {
-            var p = pct(num);
-            if (p >= 50) micros++;
-            microBits.push({ label: NUTRI.dailyValues[num].label, pct: p });
+        function densityRamp(value, fullAt) { return value <= 0 ? 0 : Math.min(1, value / fullAt); }
+    function moderationRamp(value, fullAt, zeroAt) { return value <= fullAt ? 1 : value >= zeroAt ? 0 : (zeroAt - value) / (zeroAt - fullAt); }
+    function qualityFromTotals(totals) {
+        var kcal = totals['208'] || 0;
+        if (!(kcal > 0)) return null; /* no calories: no density to grade */
+        var per = function (num) { return (totals[num] || 0) / kcal * 1000; };
+        var ref = function (num) { return FDA_TARGETS[num] / FDA_TARGETS['208'] * 1000; };
+        var sugarShare = (totals['269'] || 0) * 4 / kcal * 100;
+        var satfatShare = (totals['606'] || 0) * 9 / kcal * 100;
+        var sodiumDensity = (totals['307'] || 0) / kcal; /* mg per kcal = g per 1,000 kcal */
+        var comps = [];
+        var pD = per('203'), pR = ref('203');
+        comps.push({ key: 'protein', name: 'Protein density', weight: 15, credit: densityRamp(pD, pR),
+            detail: Math.round(pD) + ' g per 1,000 kcal \u00b7 full credit at ' + Math.round(pR) + ' g',
+            short: 'protein density \u2014 ' + Math.round(pD) + ' g per 1,000 kcal (full credit at ' + Math.round(pR) + ' g)' });
+        var fD = per('291'), fR = ref('291');
+        comps.push({ key: 'fiber', name: 'Fiber density', weight: 15, credit: densityRamp(fD, fR),
+            detail: Math.round(fD) + ' g per 1,000 kcal \u00b7 full credit at ' + Math.round(fR) + ' g',
+            short: 'fiber density \u2014 ' + Math.round(fD) + ' g per 1,000 kcal (full credit at ' + Math.round(fR) + ' g)' });
+        var microSum = 0, microFull = 0, microBits = [];
+        VERDICT_MICROS.forEach(function (num) {
+            var d = per(num), r = ref(num), c = densityRamp(d, r);
+            microSum += c;
+            if (c >= 1) microFull++;
+            microBits.push(NUTRI.dailyValues[num].label + ' ' + Math.round(d / r * 100) + '%');
         });
-        microBits.sort(function (a, b) { return b.pct - a.pct; });
-        checks.push({ key: 'micros', name: '4 of 6 micronutrients at least half', detail: micros + ' of 6 \u2014 ' + microBits.map(function (b) { return b.label + ' ' + Math.round(b.pct) + '%'; }).join(' \u00b7 '), met: micros >= 4, missW: Math.max(0, 1 - micros / 4), count: micros, hits: microBits.filter(function (b) { return b.pct >= 50; }).map(function (b) { return b.label; }) });
-        var veggie = false;
-        (recipeIds || []).forEach(function (rid) {
-            var content = document.getElementById(rid);
-            var wrap = content && content.closest ? content.closest('.recipe-wrapper') : null;
-            var list = wrap ? (wrap.getAttribute('data-tags') || '').split(' ') : [];
-            if (list.indexOf('salad') !== -1 || list.indexOf('side') !== -1 || list.indexOf('soup') !== -1) veggie = true;
+        comps.push({ key: 'micros', name: 'Micronutrient density', weight: 30, credit: microSum / VERDICT_MICROS.length,
+            detail: microBits.join(' \u00b7 ') + ' of full density',
+            short: 'micronutrient density \u2014 ' + microFull + ' of 6 at full density' });
+        comps.push({ key: 'sugar', name: 'Sugar', weight: 15, credit: moderationRamp(sugarShare, 6.5, 26),
+            detail: Math.round(sugarShare) + '% of calories \u00b7 full credit at 6.5% or less, none at 26%',
+            short: 'sugar \u2014 ' + Math.round(sugarShare) + '% of calories (full credit at 6.5% or less)' });
+        comps.push({ key: 'sodium', name: 'Sodium density', weight: 15, credit: moderationRamp(sodiumDensity, 1.1, 2.0),
+            detail: (Math.round(sodiumDensity * 100) / 100) + ' g per 1,000 kcal \u00b7 full credit at 1.1 g or less, none at 2.0 g',
+            short: 'sodium density \u2014 ' + (Math.round(sodiumDensity * 100) / 100) + ' g per 1,000 kcal (full credit at 1.1 g or less)' });
+        comps.push({ key: 'satfat', name: 'Saturated fat', weight: 10, credit: moderationRamp(satfatShare, 8, 16),
+            detail: Math.round(satfatShare) + '% of calories \u00b7 full credit at 8% or less, none at 16%',
+            short: 'saturated fat \u2014 ' + Math.round(satfatShare) + '% of calories (full credit at 8% or less)' });
+        var points = 0;
+        comps.forEach(function (c) {
+            c.earned = Math.round(c.credit * c.weight * 10) / 10;
+            points += c.credit * c.weight;
+            c.detail += ' \u00b7 earns ' + c.earned + ' of ' + c.weight;
+            c.met = c.credit >= 1;
         });
-        var nDishes = (recipeIds || []).length;
-        var nServ = (typeof servings === 'number' && servings > 0) ? servings : nDishes;
-        var vDish = frame === 'meal' ? 2 : 3, vServ = frame === 'meal' ? 2 : 4;
-        checks.push({ key: 'variety', name: (frame === 'meal' ? '2+ dishes or 2+ servings' : '3+ dishes or 4+ servings') + ', with a salad, side or soup', detail: nDishes + (nDishes === 1 ? ' dish' : ' dishes') + ' \u00b7 ' + fmtServQty(nServ) + (nServ === 1 ? ' serving' : ' servings') + (veggie ? ' \u00b7 a salad, side or soup is in the mix' : ' \u00b7 no salad, side or soup in the mix'), met: veggie && (nDishes >= vDish || nServ >= vServ), missW: !veggie ? 1 : Math.max(0, 1 - Math.max(nDishes / vDish, nServ / vServ)), veggie: veggie, dishes: nDishes, servings: nServ });
-        var over = 0;
-        ['606', '307', '601'].forEach(function (num) { if (pct(num) > 100) over++; });
-        checks.push({ key: 'limits', name: 'Limits kept (2 of 3 in range)', detail: 'sat. fat ' + Math.round(pct('606')) + '% \u00b7 sodium ' + Math.round(pct('307')) + '% \u00b7 cholesterol ' + Math.round(pct('601')) + '%', met: over <= 1, missW: over >= 2 ? 0.75 : 0, over: over });
-        var score = 0;
-        checks.forEach(function (c) { if (c.met) score++; });
-        return { score: score, checks: checks };
+        /* Points are kept to 1 decimal: rescaling every serving moves
+           a density only by floating-point noise (~1e-13), a hundred
+           million times smaller than this quantum, so multiplication
+           cannot move the points -- the grade is exactly, not
+           approximately, scale-invariant. */
+        points = Math.round(points * 10) / 10;
+        return { points: points, components: comps, sugarShare: sugarShare, satfatShare: satfatShare, sodiumDensity: sodiumDensity };
     }
-    function healthyDayScore(totals, recipeIds, servings, frame) { return healthyDayBreakdown(totals, recipeIds, servings, frame).score; }
     /* Serving-count display: integers plain, halves as a vulgar fraction
        (2.5 -> "2½"), anything else one decimal. */
     function fmtServQty(n) {
@@ -6883,27 +6908,14 @@
         });
         return t;
     }
-    /* Healthy Day criteria, mirrored from healthyDayScore but reading the
-       cached tag lists (no DOM lookups in the search loop). */
-    function genHealthyFast(totArr, ids, servTotal) {
-        var targets = activeTargets();
-        var pct = function (num) { var t = targets[num]; return t ? totArr[DV_ORDER.indexOf(num)] / t * 100 : 0; };
-        var score = 0;
-        if (pct('203') >= 50) score++;
-        if (pct('291') >= 50) score++;
-        var micros = 0;
-        HEALTHY_DAY_MICROS.forEach(function (num) { if (pct(num) >= 50) micros++; });
-        if (micros >= 4) score++;
-        var veggie = false;
-        ids.forEach(function (id) {
-            var t = genTags(id);
-            if (t.indexOf('salad') !== -1 || t.indexOf('side') !== -1 || t.indexOf('soup') !== -1) veggie = true;
-        });
-        if (veggie && (ids.length >= 3 || (servTotal || ids.length) >= 4)) score++;
-        var over = 0;
-        ['606', '307', '601'].forEach(function (num) { if (pct(num) > 100) over++; });
-        if (over <= 1) score++;
-        return score;
+    /* The verdict's density quality score, mirrored for the search
+       loop: the same qualityFromTotals, fed from the cached
+       per-serving vectors -- parity holds by construction. */
+    function genQualityFast(totArr) {
+        var obj = {};
+        DV_ORDER.forEach(function (num, i) { obj[num] = totArr[i]; });
+        var q = qualityFromTotals(obj);
+        return q ? q.points : 0;
     }
     /* Realism rework (2026-11-13): every dish past the second costs real
        points, so the search grows portions before it adds another dish. */
@@ -6913,8 +6925,9 @@
        150% of target; calories are scored on closeness to 100% of target;
        the three daily-limit nutrients (saturated fat, cholesterol, sodium)
        lose points steeply once they pass 85% of the limit. Plus a bonus
-       for the page's own verdict base score, so plans that satisfy its
-       criteria win ties. */
+       for the page's own verdict quality score (0-100 density points,
+       scaled to the same 0-10 range), so plans the verdict grades
+       highly win ties. */
     function genObjective(totArr, ids, servTotal) {
         var targets = activeTargets();
         var s = 0;
@@ -6928,7 +6941,7 @@
             else c = scoreFromPct(pct) - Math.max(0, pct - 150) / 75;
             s += Math.max(-5, c);
         });
-        return s + 2 * genHealthyFast(totArr, ids, servTotal) - GEN_DISH_PENALTY * Math.max(0, ids.length - 2);
+        return s + genQualityFast(totArr) / 10 - GEN_DISH_PENALTY * Math.max(0, ids.length - 2);
     }
     function genScoreOf(plan) {
         var t = genTotalsArr(plan);
@@ -7246,9 +7259,10 @@
     });
     /* Verification hook: lets headless checks recompute a plan's totals
        with the page's own data and confirm the combiner agrees. */
-    /* Cook mode header score: totals + Healthy Day for an arbitrary set of
-       ids (recipes and/or vitamins), using this script's own data, serving
-       multipliers and scoring -- the same numbers the combiner shows. */
+    /* Cook mode header score: totals + verdict quality points for an
+       arbitrary set of ids (recipes and/or vitamins), using this
+       script's own data, serving multipliers and scoring -- the same
+       numbers the combiner shows. */
     function comboCore(ids, multMap) {
         var totals = {};
         DV_ORDER.forEach(function (num) { totals[num] = 0; });
@@ -7263,72 +7277,55 @@
             if (m !== 1) servAllOne = false;
             DV_ORDER.forEach(function (num) { totals[num] += d.perServing[num].value * m; });
         });
-        return { totals: totals, score: healthyDayScore(totals, ok, servTotal), kcal: Math.round(totals['208']), protein: Math.round(totals['203']), servings: servTotal, allOne: servAllOne, count: ok.length };
+        var q = qualityFromTotals(totals);
+        return { totals: totals, score: q ? q.points : 0, kcal: Math.round(totals['208']), protein: Math.round(totals['203']), servings: servTotal, allOne: servAllOne, count: ok.length };
     }
     window.__jboCombo = function (ids) { return comboCore(ids, null); };
     window.__jboComboWith = function (ids, multMap) { return comboCore(ids, multMap || null); };
 
     /* --- The verdict: a pure consumer of the scorecard's own numbers.
-       Bands, not precision: start from the base score, subtract
-       for sugar by its share of the selection's calories, add for fiber
-       and protein that reach their FULL targets. Labels are the user's
-       approved set, gated at scores 1-2 on the cause below being
-       present. --- */
-    var VERDICT_LABELS = ['', 'Unhealthy calories', 'Treat-heavy', 'Middle of the road', 'Genuinely healthy', 'Hard to beat'];
-    /* At scores 1-2 the cause words ('Unhealthy calories', 'Treat-heavy')
-       are used only when a cause is actually present: the sugar penalty
-       applied AND the sugar material (at least 10 g of it -- a percentage
-       of almost nothing is not a cause), sodium over its ceiling, or 2+
-       of the 3 limits (sat. fat, sodium, cholesterol) over theirs. A low
-       score with no cause is a light day, not a treat day, and takes
-       these quality words. */
-    var VERDICT_LABELS_LIGHT = ['', 'Barely a day', 'Light day'];
-    /* The same no-cause quality words in the meal frame. */
-    var VERDICT_LABELS_LIGHT_MEAL = ['', 'Barely a meal', 'Light meal'];
-    var VERDICT_RULE = 'The verdict: the base score against the day\u2019s targets \u2014 a meal\u2019s in Meal view, one third of the day \u2014 minus up to 2 for sugar (1 past 10% of the selection\u2019s calories, 2 past 20%), plus 1 each when fiber and protein reach their full targets.';
+       qualityFromTotals (above) does the grading; this layer presents
+       it: blue dots and ONE quality word -- the label never switches
+       meaning -- a clause that is either a literal cause line (below)
+       or the weakest part of the score, and the completeness line.
+       The Meal / Full day frame changes only the completeness
+       denominator and the sodium cause cap; the grade itself is
+       frame-invariant, because density does not know what a frame is. --- */
+    var VERDICT_LABELS = ['', 'Very low', 'Low', 'Middle of the road', 'Genuinely healthy', 'Hard to beat'];
+    var VERDICT_RULE = 'The verdict grades quality, not quantity: protein, fiber and micronutrient density earn up to 60, and sugar, sodium and saturated fat \u2014 each measured against the selection\u2019s own calories \u2014 cost up to 40. The same food earns the same grade at any serving count; how much of a day or meal it makes is shown separately. Sugar is total sugars \u2014 the only sugar figure the data carries.';
     function nameOf(rid) {
         var rec = RECIPES.find(function (x) { return x.id === rid; });
         if (rec) return rec.name;
         if (NUTRI.vitamins && NUTRI.vitamins[rid]) return NUTRI.vitamins[rid].name;
         return rid;
     }
-    function verdictFromTotals(totals, ids, multMap, frame) {
+        function verdictFromTotals(totals, ids, multMap, frame) {
         if (!totals || !ids || !ids.length) return null;
         frame = resolveFrame(frame);
-        var targets = frameTargets(frame);
-        var fiberPct = targets['291'] ? (totals['291'] || 0) / targets['291'] : 0;
-        var proteinPct = targets['203'] ? (totals['203'] || 0) / targets['203'] : 0;
-        var sodiumPct = targets['307'] ? (totals['307'] || 0) / targets['307'] : 0;
-        var servTotal = 0;
-        ids.forEach(function (rid) {
-            if (NUTRI.recipes[dataKey(rid)] || (NUTRI.vitamins && NUTRI.vitamins[rid])) servTotal += (multMap && multMap[rid] != null) ? multMap[rid] : (servMult[rid] || 1);
-        });
-        var bd = healthyDayBreakdown(totals, ids, servTotal, frame);
-        var base = bd.score;
-        /* Sugar is priced once, by density: its share of the selection's
-           own calories (sugar grams x 4 / kcal). Past 10% costs 1,
-           past 20% costs 2 -- the same dish pays the same at any
-           serving count, and nothing else in the verdict taxes sugar. */
-        var sugarShare = (totals['208'] || 0) ? (totals['269'] || 0) * 4 / totals['208'] * 100 : 0;
-        var penalty = sugarShare > 20 ? 2 : (sugarShare > 10 ? 1 : 0);
-        var lifts = (fiberPct >= 1 ? 1 : 0) + (proteinPct >= 1 ? 1 : 0);
-        var score = Math.max(1, Math.min(5, base - penalty + lifts));
-        var limitsCheck = null;
-        bd.checks.forEach(function (c) { if (c.key === 'limits') limitsCheck = c; });
-        /* The 10 g floor: the penalty taxes the score at any amount, but
-           sugar names the cause only when there is enough of it to be
-           one -- under 10 g the share is a percentage of almost nothing
-           (3 g is 14% of an 83-kcal salad) and the label stays a quality
-           word, with the clause led by the next driver instead. */
-        var sugarCause = penalty > 0 && (totals['269'] || 0) >= 10;
-        var cause = sugarCause || sodiumPct > 1 || !!(limitsCheck && limitsCheck.over >= 2);
-        var label = (score <= 2 && !cause) ? (frame === 'meal' ? VERDICT_LABELS_LIGHT_MEAL : VERDICT_LABELS_LIGHT)[score] : VERDICT_LABELS[score];
-        /* The clause names the dominant driver OF THIS LABEL, in the
-           label's own direction: a lone positive never leads under a 1-2
-           verdict, a lone negative never leads under a 4-5. Candidate
-           texts are the established ones where they already existed. */
-        var sugarText = null;
-        if (sugarCause) {
+        var q = qualityFromTotals(totals);
+        if (!q) return null; /* a selection with no calories has no density to grade */
+        var points = q.points;
+        /* Dot bands on the 0-100 points, calibrated on the archive
+           itself: a full dessert day lands at 39 (1), the canonical
+           healthy day at 74 (4), and only a handful of single dishes
+           in the whole archive reach 80 (5). */
+        var score = points >= 80 ? 5 : points >= 65 ? 4 : points >= 48 ? 3 : points >= 40 ? 2 : 1;
+        var label = VERDICT_LABELS[score];
+        /* Cause sub-lines: one transparent threshold per nutrient,
+           named literally, shown at ANY score when crossed. Sugar:
+           past 10% of the calories (the WHO line) with at least 10 g
+           of it -- a percentage of almost nothing is not a cause.
+           Sodium: past the frame's absolute cap -- 690 mg in a meal
+           (the FDA healthy-meal cap), the day's own ceiling in a day.
+           Saturated fat: past 10% of the calories (the Dietary
+           Guidelines limit) with at least 5 g of it -- the same
+           materiality rule as sugar, so 1 g in a salad names nothing.
+           The largest breach, relative to its own threshold, leads;
+           the panel lists every value either way. */
+        var targets = activeTargets();
+        var causes = [];
+        var sugarG = totals['269'] || 0;
+        if (q.sugarShare > 10 && sugarG >= 10) {
             var topName = null, topG = -1;
             ids.forEach(function (rid) {
                 var d = NUTRI.recipes[dataKey(rid)] || (NUTRI.vitamins ? NUTRI.vitamins[rid] : null);
@@ -7337,30 +7334,30 @@
                 var g = d.perServing['269'].value * m;
                 if (g > topG) { topG = g; topName = nameOf(rid); }
             });
-            sugarText = 'Sugar is the drag: ' + Math.round(totals['269'] || 0) + ' g \u2014 ' + Math.round(sugarShare) + '% of the ' + (frame === 'meal' ? 'meal' : 'day') + '\u2019s calories' + (topName ? ', mostly from ' + topName + ' (' + Math.round(topG) + ' g)' : '');
+            causes.push({ ratio: q.sugarShare / 10, text: 'High in sugar: ' + Math.round(sugarG) + ' g \u2014 ' + Math.round(q.sugarShare) + '% of the calories' + (topName ? ', mostly from ' + topName + ' (' + Math.round(topG) + ' g)' : '') });
         }
-        var sodiumText = sodiumPct > 1 ? 'Sodium runs over: ' + Math.round(totals['307'] || 0).toLocaleString('en-US') + ' mg \u2014 ' + Math.round(sodiumPct * 100) + '% of the ' + (frame === 'meal' ? 'meal' : 'day') + '\u2019s ceiling' : null;
-        var liftText = null, liftW = -1;
-        if (fiberPct >= 1) { liftText = 'Fiber clears its target: ' + Math.round(totals['291'] || 0) + ' g of ' + Math.round(targets['291']) + ' g'; liftW = fiberPct; }
-        if (proteinPct >= 1 && proteinPct > liftW) { liftText = 'Protein clears its target: ' + Math.round(totals['203'] || 0) + ' g of ' + Math.round(targets['203']) + ' g'; liftW = proteinPct; }
-        var missText = null, missW = -1, worst = null;
-        bd.checks.forEach(function (c) { if (!c.met && c.missW > missW) { missW = c.missW; worst = c; } });
-        if (worst) {
-            if (worst.key === 'protein') missText = 'Protein is short: ' + worst.detail;
-            else if (worst.key === 'fiber') missText = 'Fiber is short: ' + worst.detail;
-            else if (worst.key === 'micros') missText = 'Micronutrients are thin: only ' + worst.count + ' of 6 reach halfway' + (worst.hits.length ? ' (' + worst.hits.join(', ') + ')' : '');
-            else if (worst.key === 'variety') missText = !worst.veggie ? 'No salad, side or soup in the mix \u2014 the variety check needs one' : 'Variety needs ' + (frame === 'meal' ? '2+ dishes or 2+ servings' : '3+ dishes or 4+ servings') + ' \u2014 this selection has ' + worst.dishes + (worst.dishes === 1 ? ' dish' : ' dishes') + ' and ' + fmtServQty(worst.servings) + (worst.servings === 1 ? ' serving' : ' servings');
-            else if (worst.key === 'limits') missText = 'Limits slip: ' + worst.over + ' of 3 (sat. fat, sodium, cholesterol) run over their ' + (frame === 'meal' ? 'meal' : 'day');
+        var sodiumMg = totals['307'] || 0;
+        if (frame === 'meal') {
+            if (sodiumMg > 690) causes.push({ ratio: sodiumMg / 690, text: 'High in sodium: ' + Math.round(sodiumMg).toLocaleString('en-US') + ' mg in this meal \u2014 past the FDA\u2019s 690 mg healthy-meal cap' });
+        } else if (targets['307'] && sodiumMg > targets['307']) {
+            causes.push({ ratio: sodiumMg / targets['307'], text: 'High in sodium: ' + Math.round(sodiumMg).toLocaleString('en-US') + ' mg \u2014 over the day\u2019s ' + Math.round(targets['307']).toLocaleString('en-US') + ' mg ceiling' });
         }
+        if (q.satfatShare > 10 && (totals['606'] || 0) >= 5) causes.push({ ratio: q.satfatShare / 10, text: 'High in saturated fat: ' + Math.round(totals['606'] || 0) + ' g \u2014 ' + Math.round(q.satfatShare) + '% of the calories' });
         var clause;
-        if (score <= 2) clause = sugarText || missText || sodiumText || ('The base checks leave it at ' + base + ' of 5.');
-        else if (score >= 4) clause = liftText || (base >= 4 ? 'The ' + (frame === 'meal' ? 'meal' : 'day') + '\u2019s checks carry it: ' + base + ' of 5 pass.' : 'No single number dominates this selection.');
-        else if (sugarText && base + lifts > 3) clause = sugarText;
-        else if (lifts && base - penalty < 3) clause = liftText;
-        else clause = missText || sodiumText || liftText || 'No single number dominates this selection.';
+        if (causes.length) {
+            causes.sort(function (a, b) { return b.ratio - a.ratio; });
+            clause = causes[0].text;
+        } else {
+            var worst = null;
+            q.components.forEach(function (c) { if (!worst || c.credit < worst.credit) worst = c; });
+            clause = worst.credit >= 1 ? 'Full marks on every part of the score.' : 'Weakest part: ' + worst.short + '.';
+        }
+        /* Completeness: how much of the frame this selection is -- a
+           readout beside the verdict, never an input to it. */
+        var kcal = totals['208'] || 0;
         var dayKcal = targets['208'] || 0;
-        var kcalNow = totals['208'] || 0;
-        return { score: score, label: label, cause: cause, clause: clause, totals: totals, base: base, checks: bd.checks, frameName: frame, frame: (dayKcal && kcalNow < 0.6 * dayKcal) ? { kcal: Math.round(kcalNow), day: Math.round(dayKcal / 10) * 10 } : null };
+        var frameKcal = frame === 'meal' ? dayKcal / 3 : dayKcal;
+        return { score: score, label: label, clause: clause, totals: totals, points: points, checks: q.components, frameName: frame, frame: frameKcal ? { kcal: Math.round(kcal), frameKcal: Math.round(frameKcal / 10) * 10, pct: Math.round(kcal / frameKcal * 100) } : null };
     }
     window.__jboVerdictFor = function (ids, multMap, frame) {
         if (!ids || !ids.length) return null;
@@ -7376,9 +7373,10 @@
     function verdictLineHTML(v) {
         return verdictDotsHTML(v.score, v.label) + '<span class="verdict-label">' + v.label + '</span> <span class="verdict-clause">' + esc(v.clause) + '</span>';
     }
-    /* The five base checks with the selection's own numbers, and the
-       meal-vs-day framing line: the panels' detail layer, rendered from
-       the same breakdown the score came from -- never rescored here. */
+    /* The six quality components with the selection's own numbers,
+       and the completeness line: the panels' detail layer, rendered
+       from the same breakdown the score came from -- never rescored
+       here. */
     function verdictCheckRows(v) {
         if (!v || !v.checks) return '';
         var h = '';
@@ -7387,9 +7385,9 @@
         });
         return h;
     }
-    function verdictFrameHTML(v) {
+        function verdictFrameHTML(v) {
         if (!v || !v.frame) return '';
-        return '<p class="verdict-frame">Judged as ' + (v.frameName === 'meal' ? 'a meal' : 'a full day') + ' \u2014 this selection is ' + v.frame.kcal.toLocaleString('en-US') + ' of ~' + v.frame.day.toLocaleString('en-US') + ' kcal.</p>';
+        return '<p class="verdict-frame">This selection is ' + v.frame.kcal.toLocaleString('en-US') + ' of ~' + v.frame.frameKcal.toLocaleString('en-US') + ' kcal \u2014 ' + v.frame.pct + '% of ' + (v.frameName === 'meal' ? 'a meal' : 'a full day') + '.</p>';
     }
     /* Compare was removed in the 2026-11-14 scorecard cut; clear
        any parked day a returning visitor still has stored. */
@@ -7875,7 +7873,7 @@
             <div class="combiner-profile-row"><span class="profile-day" data-profile-day></span><button type="button" class="profile-chip" data-profile-edit>Edit</button></div>
             <div class="frame-toggle-row"><div class="frame-toggle" role="tablist" aria-label="Judge the verdict as a meal or as a full day" data-frame-toggle="combiner"><button type="button" role="tab" data-frame-value="meal" aria-selected="false">Meal</button><button type="button" role="tab" data-frame-value="day" aria-selected="false">Full day</button></div></div>
             <div class="verdict-row" id="verdictRow" hidden><span id="verdictMain"></span></div>
-            <p class="verdict-rule" id="verdictRule" hidden>The verdict: the base score against the day’s targets — a meal’s in Meal view, one third of the day — minus up to 2 for sugar (1 past 10% of the selection’s calories, 2 past 20%), plus 1 each when fiber and protein reach their full targets.</p>
+            <p class="verdict-rule" id="verdictRule" hidden>The verdict grades quality, not quantity: protein, fiber and micronutrient density earn up to 60, and sugar, sodium and saturated fat — each measured against the selection’s own calories — cost up to 40. The same food earns the same grade at any serving count; how much of a day or meal it makes is shown separately. Sugar is total sugars — the only sugar figure the data carries.</p>
             <div id="verdictFrame" hidden></div>
             <div class="verdict-checks" id="verdictChecks" hidden></div>
             <div class="combiner-dishes" id="combinerBarDishes"></div>
@@ -8339,7 +8337,7 @@
     /* Vitamins in the combiner + combiner list filters + cook-mode score
        rendering (2026-11-13). Nutrition math stays in the nutrition script:
        vitamin entries live in the same #nutrition-data JSON (NUTRI.vitamins)
-       and flow through its updateCombiner / healthyDayScore code path. */
+       and flow through its updateCombiner / verdict code path. */
     (function () {
         'use strict';
         var dataEl = document.getElementById('nutrition-data');
