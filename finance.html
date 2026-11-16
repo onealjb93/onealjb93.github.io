@@ -60,18 +60,29 @@
        summary layer; the full Stack sits one tap down in the details layer. */
     .glance-steps { list-style: none; margin: 0.75rem 0 1.25rem; padding: 0; }
     .glance-steps li { margin-bottom: 0.5rem; line-height: 1.55; }
-    /* Chart section (2026-11-16): TradingView advanced chart framed in the
-       page's card vocabulary; weekly view, fixed long-term study set. */
+    /* Chart section (2026-11-16): the page's own weekly chart, drawn
+       in-page from finance-chart-data.json — it replaced the TradingView
+       embed because the free widget styles studies per type, so its two
+       moving averages could never be told apart by colour or thickness.
+       Framed in the page's card vocabulary; fixed long-term gauge set. */
     .chart-section { margin-top: 3rem; margin-bottom: 3rem; }
-    .tv-chart-frame { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; height: 600px; }
-    @media (max-width: 640px) { .tv-chart-frame { height: 460px; } }
-    /* Chart key: the free TradingView widget draws constructor-loaded
-       studies in its own native colours (both averages turquoise, the RSI
-       violet) and cannot recolour them — the swatches match what renders. */
+    .jbo-chart-frame { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; height: 600px; }
+    @media (max-width: 640px) { .jbo-chart-frame { height: 460px; } }
+    .jbo-chart-frame canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: crosshair; }
+    .chart-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem 1.5rem; margin: 0.9rem 0; }
+    .chart-controls .chip-row { margin: 0; }
+    .chart-controls .selector-group label { display: block; font-size: 0.8rem; color: var(--subtext-color); margin-bottom: 0.3rem; }
+    .jbo-chart-readout { margin-top: 0.75rem; font-size: 0.92rem; color: var(--text-color); min-height: 1.4em; }
+    .jbo-chart-note { margin-top: 0.35rem; font-size: 0.85rem; color: var(--subtext-color); }
+    .jbo-chart-datanote { margin-top: 0.5rem; font-size: 0.85rem; color: var(--subtext-color); }
+    /* Chart key: the swatches are the exact colours and weights the
+       in-page chart draws — amber 200-week (3px), blue 50-week (2px),
+       violet weekly RSI (2px). */
     .tv-chart-key { display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; margin-top: 0.75rem; font-size: 0.85rem; color: var(--subtext-color); }
     .tv-key-item { display: inline-flex; align-items: center; gap: 0.5rem; }
     .tv-key-swatch { display: inline-block; width: 26px; border-radius: 2px; flex: none; }
-    .tv-key-ma { height: 4px; background: #26C6DA; }
+    .tv-key-ma200 { height: 4px; background: #FF9800; }
+    .tv-key-ma50 { height: 3px; background: #2962FF; }
     .tv-key-rsi { height: 3px; background: #7E57C2; }
     /* Stack runner (2026-11-16): the screener's working layer — pick a
        stock, see each checkable line of the Stack graded on its numbers. */
@@ -353,22 +364,45 @@
     
         </div>
     </div>
-<!-- Chart: any company, one fixed set of long-term gauges -->
+<!-- Chart: the page's own weekly chart over the 23 instruments its data
+     pipeline carries — one fixed set of long-term gauges -->
     <div class="chart-section collapsible-section" id="chart">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="chart" aria-expanded="false" aria-controls="chart-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> The Chart</button></h2>
         <div class="section-body" id="chart-body" hidden>
-        <p>Tap a pick below, or use the chart&rsquo;s own search for any company. The chart opens on the S&amp;P 500 as a line chart in weekly view and always carries the same three gauges, pinned to the week whatever timeframe the chart shows: the 200-week moving average &mdash; the long-term value ruler &mdash; the 50-week moving average for the trend, and the weekly RSI. A stock with under four years of trading history has no 200-week line yet; it appears once enough history exists.</p>
+        <p>Tap a pick below, or choose one of my 19 stocks. The chart is drawn from this page&rsquo;s own weekly data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-week moving average &mdash; the long-term value ruler &mdash; the 50-week moving average for the trend, and the weekly RSI. A stock with under four years of trading history has no 200-week line yet; the note under the chart says so when that is the case.</p>
         <div class="chip-row" id="chartPicks" role="group" aria-label="Chart quick picks">
-            <button type="button" class="filter-pill active" data-symbol="SP:SPX">S&amp;P 500</button>
-            <button type="button" class="filter-pill" data-symbol="NASDAQ:IXIC">Nasdaq</button>
-            <button type="button" class="filter-pill" data-symbol="TVC:GOLD">Gold</button>
-            <button type="button" class="filter-pill" data-symbol="BITSTAMP:BTCUSD">Bitcoin</button>
+            <button type="button" class="filter-pill active" data-key="SPX">S&amp;P 500</button>
+            <button type="button" class="filter-pill" data-key="IXIC">Nasdaq</button>
+            <button type="button" class="filter-pill" data-key="GOLD">Gold</button>
+            <button type="button" class="filter-pill" data-key="BTC">Bitcoin</button>
         </div>
-        <div class="tv-chart-frame" id="tvChartFrame"></div>
+        <div class="chart-controls">
+            <div class="selector-group">
+                <label for="chartStock">Johnny&rsquo;s stocks</label>
+                <select id="chartStock">
+                    <option value="">Choose a stock&hellip;</option>
+                </select>
+            </div>
+            <div class="chip-row" id="chartRanges" role="group" aria-label="Chart range">
+                <button type="button" class="filter-pill" data-range="1Y">1Y</button>
+                <button type="button" class="filter-pill active" data-range="5Y">5Y</button>
+                <button type="button" class="filter-pill" data-range="10Y">10Y</button>
+                <button type="button" class="filter-pill" data-range="ALL">All</button>
+            </div>
+            <div class="chip-row" id="chartStyles" role="group" aria-label="Chart style">
+                <button type="button" class="filter-pill active" data-style="line">Line</button>
+                <button type="button" class="filter-pill" data-style="candles">Candles</button>
+            </div>
+        </div>
+        <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Weekly price chart with 200-week and 50-week moving averages, volume and weekly RSI"></canvas></div>
+        <p class="jbo-chart-readout" id="jboChartReadout">Loading chart data&hellip;</p>
+        <p class="jbo-chart-note" id="jboChartNote" hidden></p>
         <div class="tv-chart-key">
-            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma" aria-hidden="true"></span><span><strong>Turquoise lines &mdash; the weekly averages.</strong> The smooth, slow one is the 200-week average, the value line: below it, historically cheap. The one hugging the price is the 50-week average, the trend.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma200" aria-hidden="true"></span><span><strong>Amber &mdash; the 200-week average</strong>, the thickest line: the value line. Below it, historically cheap.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma50" aria-hidden="true"></span><span><strong>Blue &mdash; the 50-week average</strong>, the trend.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-rsi" aria-hidden="true"></span><span><strong>Violet &mdash; the weekly RSI</strong>, in the pane below: how stretched the week is.</span></span>
         </div>
+        <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         </div>
     </div>
 <!-- Frameworks & Quantifiable Metrics Accordions -->
@@ -2194,7 +2228,10 @@
         // shown as "can't check" with the missing input named — never
         // graded by proxy. A typed ticker that isn't in the graded set is
         // never given invented numbers: the runner says what the data
-        // pipeline would have to collect, and still offers the Chart.
+        // pipeline would have to collect. (The Chart can't draw it either
+        // — it covers the same 19 stocks plus the S&P 500, the Nasdaq,
+        // gold and Bitcoin — and the panel says so rather than offering
+        // a chart that doesn't exist.)
         let runnerYourSymbol = '';
         function runnerBadge(state) {
             if (state === true) return '<span class="framework-badge badge-pass">PASS</span>';
@@ -2232,9 +2269,7 @@
             const t = tickerData.find(x => x.ticker === sym);
             if (!t) {
                 out.innerHTML = '<p><strong>' + sym + ' isn&rsquo;t in the graded set yet.</strong> The Stack&rsquo;s checks run on the numbers the weekly data pipeline collects &mdash; prices, PEG, growth, debt, and the fundamentals it pulls from SEC filings (return on equity, margins, market value). ' + sym + ' isn&rsquo;t one of the stocks it collects, so there are no honest numbers to grade here &mdash; and this page won&rsquo;t guess.</p>'
-                    + '<p>What works for any stock right now is the Chart:</p>'
-                    + runnerChartButton(sym, sym);
-                wireRunnerChartButton(out);
+                    + '<p>The Chart below can&rsquo;t draw ' + sym + ' either &mdash; it covers the S&amp;P 500, the Nasdaq, gold, Bitcoin and my 19 stocks.</p>';
                 return;
             }
             const missFund = '&mdash; (not in the data yet &mdash; the weekly fundamentals refresh carries it)';
@@ -3192,143 +3227,403 @@ if (typeof module !== "undefined") {
     })();
 </script>
 <script>
-    // TradingView chart (2026-11-16): built lazily the first time the Chart
-    // section is opened, so the widget measures a visible container instead
-    // of a collapsed one. The study set is fixed by the page — a 200-week
-    // and a 50-week simple moving average and a 14-period RSI. Each study
-    // carries the built-in studies' own timeframe input pinned to 1W, so
-    // the lines stay weekly averages on any symbol and on any timeframe
-    // the chart is switched to — a plain length-200 study would silently
-    // become a 200-day average on a daily chart.
-    // Colours: the free widget cannot recolour these studies. The
-    // runtime API that styles studies per instance in the paid Charting
-    // Library (onChartReady / chart().createStudy) does not exist in the
-    // free tv.js widget — its instance exposes no chart() at all
-    // (checked against the tv.js file TradingView serves, 2026-11-16) —
-    // and studies_overrides only sets defaults per study TYPE, which
-    // constructor-loaded studies keep their native palette over anyway:
-    // on a phone both averages render in TradingView's turquoise and the
-    // RSI in its violet. An earlier build shipped amber studies_overrides
-    // that never landed; they are removed, and the key under the chart
-    // describes the colours that actually render, telling the two
-    // averages apart by behaviour (the 200-week line is the smooth,
-    // slow one).
-    // The chart opens as a LINE chart on every build: the constructor's
-    // style "2" plus TradingView's documented mainSeriesProperties.style
-    // override (2 = Line). A fixed 5-year opening range cannot be forced
-    // in the free widget — setVisibleRange is Charting-Library-only and
-    // the constructor has no visible-range setting — so the date-range
-    // bar is enabled (withdateranges) and 5Y stays one tap away; the
-    // visitor can still switch to candles or zoom afterwards.
-    // Quick picks: the chips above the chart rebuild the widget with the
-    // picked symbol — S&P 500, Nasdaq, gold, Bitcoin — while the study
-    // set and the weekly interval never change; the chart's own search
-    // still reaches any other symbol. A theme-flip rebuild keeps the
-    // picked symbol (it used to reset to the S&P 500). The Stack
-    // runner's chart link loads its stock through the same build path
-    // (window.jboLoadChartSymbol below).
-    // Symbols are exchange-prefixed (SP:SPX, NASDAQ:IXIC, TVC:GOLD,
-    // BITSTAMP:BTCUSD): a bare "SPX" or "IXIC" leaves the widget to
-    // guess which instrument is meant, and on a phone the Nasdaq pick
-    // resolved to something that was not the Nasdaq Composite. The
-    // widget config also disables the use_localstorage_for_settings
-    // featureset: the chart otherwise restores the visitor's saved
-    // chart settings from localStorage — which TradingView's own docs
-    // say take precedence over the widget's defaults — so a stale saved
-    // symbol could override the constructor's symbol on any build.
+    // The Chart (2026-11-16, rebuilt): the page's own weekly chart,
+    // drawn on a canvas from finance-chart-data.json — the weekly OHLCV
+    // file the weekday pipeline builds from Yahoo Finance (see
+    // fetch_chart_data.py). It replaced the TradingView embed: the free
+    // widget styles its studies per TYPE, and both moving averages are
+    // the same type, so the 200-week line could never be amber and
+    // thick while the 50-week line was blue — the distinction is the
+    // whole point of the two gauges. Drawing it here makes the spec
+    // exact on every path (first open, quick picks, the stock select,
+    // the Stack runner's chart link, theme flips): a LINE chart on the
+    // FIVE-YEAR view, the amber 200-week average at 3px, the blue
+    // 50-week at 2px, the violet weekly RSI(14) at 2px in its own pane,
+    // and a volume pane where the data carries volume. The data is
+    // weekly, so the averages are weekly by construction.
+    // Instruments are the 23 the pipeline carries: the S&P 500, the
+    // Nasdaq Composite, gold, Bitcoin and Johnny's 19 stocks. A series
+    // too short for a line never fakes one: SPCX (23 weeks) draws
+    // neither average yet, and the note under the chart says why.
     (function () {
         "use strict";
-        var built = false, loading = false;
-        var currentSymbol = "SP:SPX";
-        var STUDIES = [
-            { id: "MASimple@tv-basicstudies", inputs: { length: 200, timeframe: "1W" } },
-            { id: "MASimple@tv-basicstudies", inputs: { length: 50, timeframe: "1W" } },
-            { id: "RSI@tv-basicstudies", inputs: { length: 14, timeframe: "1W" } }
-        ];
-        function siteTheme() {
-            return document.body.classList.contains("light-mode") ? "light" : "dark";
+        var MA200_COLOR = "#FF9800", MA50_COLOR = "#2962FF", RSI_COLOR = "#7E57C2";
+        var PICK_KEYS = ["SPX", "IXIC", "GOLD", "BTC"];
+        var RANGE_WEEKS = { "1Y": 52, "5Y": 260, "10Y": 520, "ALL": Infinity };
+        var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        var chartData = null, loadStarted = false, loadFailed = false;
+        var cur = { key: "SPX", range: "5Y", style: "line" };
+        var pendingKey = null;
+        var hover = -1; // full-series index under the pointer; -1 = latest bar
+        var view = null, layout = null;
+
+        // ---- indicators (pure; exposed on window.jboChart for tests) ----
+        function sma(values, len) {
+            var out = new Array(values.length).fill(null), sum = 0, i;
+            for (i = 0; i < values.length; i++) {
+                sum += values[i];
+                if (i >= len) sum -= values[i - len];
+                if (i >= len - 1) out[i] = sum / len;
+            }
+            return out;
         }
-        function build() {
-            var frame = document.getElementById("tvChartFrame");
-            if (!frame || !window.TradingView || !TradingView.widget) return;
-            frame.innerHTML = '<div id="tvChart" style="height:100%;width:100%"></div>';
-            new TradingView.widget({
-                container_id: "tvChart",
-                symbol: currentSymbol,
-                interval: "W",
-                timezone: "America/New_York",
-                theme: siteTheme(),
-                style: "2",
-                overrides: { "mainSeriesProperties.style": 2 },
-                withdateranges: true,
-                locale: "en",
-                enable_publishing: false,
-                allow_symbol_change: true,
-                disabled_features: ["use_localstorage_for_settings"],
-                studies: STUDIES,
-                autosize: true
+        function rsiWilder(closes, len) {
+            var out = new Array(closes.length).fill(null), i, ch, g = 0, l = 0;
+            if (closes.length <= len) return out;
+            for (i = 1; i <= len; i++) { ch = closes[i] - closes[i - 1]; g += Math.max(ch, 0); l += Math.max(-ch, 0); }
+            g /= len; l /= len;
+            out[len] = l === 0 ? 100 : 100 - 100 / (1 + g / l);
+            for (i = len + 1; i < closes.length; i++) {
+                ch = closes[i] - closes[i - 1];
+                g = (g * (len - 1) + Math.max(ch, 0)) / len;
+                l = (l * (len - 1) + Math.max(-ch, 0)) / len;
+                out[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l);
+            }
+            return out;
+        }
+
+        // ---- formatting ----
+        function fmtDate(iso) {
+            var p = String(iso).split("-");
+            if (p.length !== 3) return String(iso);
+            return Number(p[2]) + " " + MONTHS[Number(p[1]) - 1] + " " + p[0];
+        }
+        function fmtNum(v) {
+            if (v === null || v === undefined || isNaN(v)) return "—";
+            return Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        function fmtAxis(v) {
+            if (Math.abs(v) >= 10000) return (v / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+            return fmtNum(v);
+        }
+        function fmtVol(v) {
+            if (!v) return "0";
+            if (v >= 1e9) return (v / 1e9).toFixed(1) + "B";
+            if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+            if (v >= 1e3) return (v / 1e3).toFixed(1) + "K";
+            return String(v);
+        }
+
+        // ---- view computation ----
+        function computeView() {
+            if (!chartData) return null;
+            var s = chartData.series[cur.key];
+            if (!s || !s.bars || !s.bars.length) return null;
+            var closes = s.bars.map(function (b) { return b[4]; });
+            var n = s.bars.length;
+            var count = Math.min(n, RANGE_WEEKS[cur.range]);
+            return {
+                s: s, closes: closes,
+                ma200: sma(closes, 200), ma50: sma(closes, 50), rsi: rsiWilder(closes, 14),
+                start: n - count, end: n - 1,
+                hasVolume: s.bars.some(function (b) { return b[5] > 0; })
+            };
+        }
+        function readoutText(v, idx) {
+            var b = v.s.bars[idx];
+            var parts = ["Week ending " + fmtDate(b[0]), "Close " + fmtNum(b[4])];
+            parts.push("200-week " + (v.ma200[idx] === null ? "—" : fmtNum(v.ma200[idx])));
+            parts.push("50-week " + (v.ma50[idx] === null ? "—" : fmtNum(v.ma50[idx])));
+            parts.push("RSI " + (v.rsi[idx] === null ? "—" : v.rsi[idx].toFixed(1)));
+            if (v.hasVolume) parts.push("Volume " + fmtVol(b[5]));
+            return v.s.name + " — " + parts.join(" · ");
+        }
+        function noteText(v) {
+            var n = v.s.bars.length;
+            if (n >= 200) return "";
+            if (n < 50) return v.s.name + " has " + n + " weeks of trading history — not enough yet for the 50-week or 200-week lines (they need 50 and 200 weeks). The price and the RSI still draw.";
+            return v.s.name + " has " + n + " weeks of trading history — the 200-week line appears once it reaches 200 weeks.";
+        }
+
+        function render() {
+            var readout = document.getElementById("jboChartReadout");
+            var note = document.getElementById("jboChartNote");
+            var dataNote = document.getElementById("jboChartDataNote");
+            if (loadFailed) {
+                if (readout) readout.textContent = "The chart data couldn’t be loaded — the weekly data file didn’t arrive. The rest of the page is unaffected.";
+                return;
+            }
+            if (!chartData) { if (readout) readout.textContent = "Loading chart data…"; return; }
+            view = computeView();
+            if (!view) { if (readout) readout.textContent = "No chart data for this instrument yet."; return; }
+            if (hover < view.start || hover > view.end) hover = -1;
+            var idx = hover >= 0 ? hover : view.end;
+            if (readout) readout.textContent = readoutText(view, idx);
+            var nt = noteText(view);
+            if (note) { note.textContent = nt; note.hidden = !nt; }
+            if (dataNote) dataNote.textContent = "Weekly data from Yahoo Finance through " + fmtDate(view.s.bars[view.end][0]) + " — refreshed weekday evenings with the rest of this page’s data.";
+            draw();
+        }
+
+        // ---- drawing ----
+        function draw() {
+            var frame = document.getElementById("jboChartFrame");
+            var cv = document.getElementById("jboChartCanvas");
+            if (!frame || !cv || !view) return;
+            var W = frame.clientWidth, H = frame.clientHeight;
+            if (!W || !H || W < 60) return;
+            var dpr = window.devicePixelRatio || 1;
+            var pw = Math.round(W * dpr), ph = Math.round(H * dpr);
+            if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+            var ctx = null;
+            try { ctx = cv.getContext && cv.getContext("2d"); } catch (e) { ctx = null; }
+            if (!ctx) return;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, W, H);
+            var cs = window.getComputedStyle ? window.getComputedStyle(document.body) : null;
+            function varc(name, fb) { var v = cs ? cs.getPropertyValue(name) : ""; v = (v || "").trim(); return v || fb; }
+            var textC = varc("--text-color", "#f0f3f6"), subC = varc("--subtext-color", "#9198a1"),
+                gridC = varc("--border-color", "rgba(128,128,128,0.25)"),
+                upC = varc("--pass-text", "#3fb950"), downC = varc("--fail-text", "#ff7b72");
+            var v = view, bars = v.s.bars, n = v.end - v.start + 1, i;
+            var axisW = 58, axisH = 20, plotW = W - axisW - 12;
+            var plotH = H - axisH;
+            var volH = v.hasVolume ? Math.round(plotH * 0.14) : 0;
+            var rsiH = Math.round(plotH * 0.26);
+            var priceH = plotH - volH - rsiH - 12;
+            var priceY = 6, volY = priceY + priceH + 6, rsiY = volY + volH + 6;
+            layout = { plotW: plotW, start: v.start, end: v.end };
+            var lo = Infinity, hi = -Infinity;
+            for (i = v.start; i <= v.end; i++) {
+                var b = bars[i];
+                var bl = cur.style === "candles" ? b[3] : b[4], bh = cur.style === "candles" ? b[2] : b[4];
+                if (bl < lo) lo = bl;
+                if (bh > hi) hi = bh;
+                if (v.ma200[i] !== null) { if (v.ma200[i] < lo) lo = v.ma200[i]; if (v.ma200[i] > hi) hi = v.ma200[i]; }
+                if (v.ma50[i] !== null) { if (v.ma50[i] < lo) lo = v.ma50[i]; if (v.ma50[i] > hi) hi = v.ma50[i]; }
+            }
+            if (!isFinite(lo) || !isFinite(hi) || hi <= lo) { lo = 0; hi = 1; }
+            var pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+            function X(idx) { return 6 + (n <= 1 ? plotW / 2 : (idx - v.start) / (n - 1) * plotW); }
+            function YP(p) { return priceY + (hi - p) / (hi - lo) * priceH; }
+            function YR(r) { return rsiY + (100 - r) / 100 * rsiH; }
+            ctx.font = "11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+            // price gridlines + right-hand labels
+            ctx.lineWidth = 1;
+            for (var g = 0; g <= 3; g++) {
+                var gv = lo + (hi - lo) * g / 3, gy = YP(gv);
+                ctx.strokeStyle = gridC;
+                ctx.beginPath(); ctx.moveTo(6, gy); ctx.lineTo(6 + plotW, gy); ctx.stroke();
+                ctx.fillStyle = subC; ctx.textAlign = "left";
+                ctx.fillText(fmtAxis(gv), 10 + plotW, gy + 3);
+            }
+            function linePath(vals, yFn, color, width) {
+                ctx.strokeStyle = color; ctx.lineWidth = width;
+                ctx.beginPath();
+                var started = false;
+                for (var i2 = v.start; i2 <= v.end; i2++) {
+                    if (vals[i2] === null) { started = false; continue; }
+                    var x = X(i2), y = yFn(vals[i2]);
+                    if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+                }
+                ctx.stroke();
+            }
+            // price: candles or the close line
+            if (cur.style === "candles") {
+                var bw = Math.max(1, plotW / n * 0.7);
+                ctx.lineWidth = 1;
+                for (i = v.start; i <= v.end; i++) {
+                    var cb = bars[i], cx = X(i), col = cb[4] >= cb[1] ? upC : downC;
+                    ctx.strokeStyle = col;
+                    ctx.beginPath(); ctx.moveTo(cx, YP(cb[2])); ctx.lineTo(cx, YP(cb[3])); ctx.stroke();
+                    ctx.fillStyle = col;
+                    var yTop = YP(Math.max(cb[1], cb[4])), yBot = YP(Math.min(cb[1], cb[4]));
+                    ctx.fillRect(cx - bw / 2, yTop, bw, Math.max(1, yBot - yTop));
+                }
+            } else {
+                linePath(v.closes, YP, textC, 1.8);
+            }
+            linePath(v.ma50, YP, MA50_COLOR, 2);
+            linePath(v.ma200, YP, MA200_COLOR, 3);
+            // volume pane
+            if (v.hasVolume) {
+                var maxV = 0;
+                for (i = v.start; i <= v.end; i++) if (bars[i][5] > maxV) maxV = bars[i][5];
+                if (maxV > 0) {
+                    var vw = Math.max(1, plotW / n * 0.7);
+                    ctx.fillStyle = subC; ctx.globalAlpha = 0.55;
+                    for (i = v.start; i <= v.end; i++) {
+                        var vh = bars[i][5] / maxV * volH;
+                        if (vh > 0) ctx.fillRect(X(i) - vw / 2, volY + volH - vh, vw, vh);
+                    }
+                    ctx.globalAlpha = 1;
+                }
+            }
+            // RSI pane: 30/70 guides, then the violet line
+            ctx.strokeStyle = gridC; ctx.lineWidth = 1;
+            [30, 70].forEach(function (lv) {
+                var ly = YR(lv);
+                ctx.beginPath(); ctx.moveTo(6, ly); ctx.lineTo(6 + plotW, ly); ctx.stroke();
+                ctx.fillStyle = subC; ctx.textAlign = "left";
+                ctx.fillText(String(lv), 10 + plotW, ly + 3);
+            });
+            ctx.fillStyle = subC; ctx.textAlign = "left";
+            ctx.fillText("RSI", 8, rsiY + 11);
+            linePath(v.rsi, YR, RSI_COLOR, 2);
+            // x labels: five evenly spaced bars
+            ctx.fillStyle = subC;
+            for (var k = 0; k <= 4; k++) {
+                var xi = v.start + Math.round((n - 1) * k / 4);
+                var iso = bars[xi][0], pp = iso.split("-");
+                var lab = (cur.range === "ALL" || cur.range === "10Y") ? pp[0] : MONTHS[Number(pp[1]) - 1] + " ’" + pp[0].slice(2);
+                var lx = Math.max(24, Math.min(W - 24, X(xi)));
+                ctx.textAlign = "center";
+                ctx.fillText(lab, lx, H - 6);
+            }
+            // crosshair
+            if (hover >= v.start && hover <= v.end) {
+                var hx = X(hover);
+                ctx.strokeStyle = subC; ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
+                ctx.beginPath(); ctx.moveTo(hx, priceY); ctx.lineTo(hx, rsiY + rsiH); ctx.stroke();
+                ctx.globalAlpha = 1;
+                [[v.closes[hover], YP, textC], [v.ma50[hover], YP, MA50_COLOR], [v.ma200[hover], YP, MA200_COLOR], [v.rsi[hover], YR, RSI_COLOR]].forEach(function (pt) {
+                    if (pt[0] === null || pt[0] === undefined) return;
+                    ctx.fillStyle = pt[2];
+                    ctx.beginPath(); ctx.arc(hx, pt[1](pt[0]), 3, 0, Math.PI * 2); ctx.fill();
+                });
+            }
+        }
+
+        // ---- controls ----
+        function stockKeys() {
+            if (!chartData) return [];
+            return Object.keys(chartData.series).filter(function (k) { return PICK_KEYS.indexOf(k) < 0; });
+        }
+        function populateStockSelect() {
+            var sel = document.getElementById("chartStock");
+            if (!sel || !chartData) return;
+            stockKeys().forEach(function (k) {
+                var o = document.createElement("option");
+                o.value = k;
+                o.textContent = chartData.series[k].name + " (" + k + ")";
+                sel.appendChild(o);
             });
         }
+        function syncControls() {
+            var picks = document.getElementById("chartPicks");
+            if (picks) picks.querySelectorAll("button[data-key]").forEach(function (b) {
+                b.classList.toggle("active", b.getAttribute("data-key") === cur.key);
+            });
+            var sel = document.getElementById("chartStock");
+            if (sel) sel.value = stockKeys().indexOf(cur.key) >= 0 ? cur.key : "";
+            var ranges = document.getElementById("chartRanges");
+            if (ranges) ranges.querySelectorAll("button[data-range]").forEach(function (b) {
+                b.classList.toggle("active", b.getAttribute("data-range") === cur.range);
+            });
+            var styles = document.getElementById("chartStyles");
+            if (styles) styles.querySelectorAll("button[data-style]").forEach(function (b) {
+                b.classList.toggle("active", b.getAttribute("data-style") === cur.style);
+            });
+        }
+        function setKey(key) {
+            if (!chartData || !chartData.series[key]) return;
+            cur.key = key; hover = -1;
+            syncControls(); render();
+        }
+        var picksEl = document.getElementById("chartPicks");
+        if (picksEl) picksEl.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest("button[data-key]") : null;
+            if (btn) setKey(btn.getAttribute("data-key"));
+        });
+        var stockSel = document.getElementById("chartStock");
+        if (stockSel) stockSel.addEventListener("change", function () {
+            if (stockSel.value) setKey(stockSel.value);
+        });
+        var rangesEl = document.getElementById("chartRanges");
+        if (rangesEl) rangesEl.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest("button[data-range]") : null;
+            if (!btn) return;
+            cur.range = btn.getAttribute("data-range"); hover = -1;
+            syncControls(); render();
+        });
+        var stylesEl = document.getElementById("chartStyles");
+        if (stylesEl) stylesEl.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest("button[data-style]") : null;
+            if (!btn) return;
+            cur.style = btn.getAttribute("data-style"); hover = -1;
+            syncControls(); render();
+        });
+        var canvas = document.getElementById("jboChartCanvas");
+        if (canvas) {
+            function onPointer(e) {
+                if (!view || !layout) return;
+                var rect = canvas.getBoundingClientRect();
+                if (!rect.width) return;
+                var frac = (e.clientX - rect.left - 6) / layout.plotW;
+                var i = layout.start + Math.round(frac * (layout.end - layout.start));
+                i = Math.max(layout.start, Math.min(layout.end, i));
+                if (i !== hover) { hover = i; render(); }
+            }
+            canvas.addEventListener("pointermove", onPointer);
+            canvas.addEventListener("pointerdown", onPointer);
+            canvas.addEventListener("pointerleave", function () {
+                if (hover !== -1) { hover = -1; render(); }
+            });
+        }
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) themeToggle.addEventListener("change", function () {
+            // Colours that come from the theme are read fresh at draw
+            // time; the instrument, range and style live in `cur` and
+            // are untouched by a theme flip.
+            setTimeout(render, 60);
+        });
+        var resizeTimer = null;
+        window.addEventListener("resize", function () {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function () { if (chartData) render(); }, 120);
+        });
+
+        // ---- loading (lazy: first time the section opens) ----
         function ensure() {
             var body = document.getElementById("chart-body");
-            if (!body || body.hidden || built) return;
-            if (window.TradingView && TradingView.widget) { built = true; build(); return; }
-            if (loading) return;
-            loading = true;
-            var s = document.createElement("script");
-            s.src = "https://s3.tradingview.com/tv.js";
-            s.async = true;
-            s.onload = function () { loading = false; if (!built) { built = true; build(); } };
-            s.onerror = function () { loading = false; };
-            document.head.appendChild(s);
+            if (!body || body.hidden || loadStarted) return;
+            loadStarted = true;
+            fetch("finance-chart-data.json")
+                .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+                .then(function (d) {
+                    chartData = d;
+                    populateStockSelect();
+                    if (pendingKey && chartData.series[pendingKey]) { cur.key = pendingKey; pendingKey = null; }
+                    syncControls(); render();
+                })
+                .catch(function () { loadFailed = true; render(); });
         }
-        var body = document.getElementById("chart-body");
-        if (body && window.MutationObserver) {
-            new MutationObserver(ensure).observe(body, { attributes: true, attributeFilter: ["hidden"] });
+        var chartBody = document.getElementById("chart-body");
+        if (chartBody && window.MutationObserver) {
+            new MutationObserver(ensure).observe(chartBody, { attributes: true, attributeFilter: ["hidden"] });
         }
         ensure();
-        var picks = document.getElementById("chartPicks");
-        if (picks) picks.addEventListener("click", function (e) {
-            var btn = e.target && e.target.closest ? e.target.closest("button[data-symbol]") : null;
-            if (!btn) return;
-            var symbol = btn.getAttribute("data-symbol");
-            if (!symbol) return;
-            // Always-works rule: no same-symbol early return. The visitor
-            // may have switched symbol inside the chart, which this closure
-            // cannot see — so a tap on the already-marked pick must still
-            // rebuild, or it reads as a dead button. And if the widget has
-            // not built yet (tv.js still loading, or a load failed), the
-            // tap goes through ensure() instead of going nowhere: build()
-            // reads currentSymbol when it runs, so the last tap wins.
-            currentSymbol = symbol;
-            picks.querySelectorAll(".filter-pill").forEach(function (b) {
-                b.classList.toggle("active", b === btn);
-            });
-            if (built) build(); else ensure();
-        });
-        var toggle = document.getElementById("theme-toggle");
-        if (toggle) toggle.addEventListener("change", function () {
-            // Match the backtest's pattern: let the theme class land first.
-            // The rebuild keeps the currently picked symbol.
-            setTimeout(function () { if (built) build(); else ensure(); }, 60);
-        });
-        // The Stack runner's "see it on the chart" link: load any stock
-        // through the same build path as the quick picks — open the
-        // section if it is closed, scroll to it, and rebuild with the
-        // symbol (or build on open via ensure()).
+
+        // The Stack runner's "see it on the chart" link: load one of the
+        // chart's instruments (the runner only offers it for the graded
+        // 19, which the chart carries) — open the section if it is
+        // closed, scroll to it, and draw that stock with the visitor's
+        // current range and style.
         window.jboLoadChartSymbol = function (symbol) {
             if (!symbol) return;
-            currentSymbol = symbol;
-            var picksEl = document.getElementById("chartPicks");
-            if (picksEl) picksEl.querySelectorAll(".filter-pill").forEach(function (b) {
-                b.classList.toggle("active", b.getAttribute("data-symbol") === symbol);
-            });
-            var chartBody = document.getElementById("chart-body");
+            var body = document.getElementById("chart-body");
             var toggleBtn = document.querySelector('.section-toggle[data-section="chart"]');
-            if (chartBody && chartBody.hidden && toggleBtn) toggleBtn.click();
+            if (body && body.hidden && toggleBtn) toggleBtn.click();
             var section = document.getElementById("chart");
             if (section && section.scrollIntoView) section.scrollIntoView({ behavior: "smooth", block: "start" });
-            if (built) build(); else ensure();
+            if (chartData) {
+                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; syncControls(); render(); }
+            } else {
+                pendingKey = symbol;
+                ensure();
+            }
+        };
+        window.jboChart = {
+            sma: sma,
+            rsi: rsiWilder,
+            state: function () {
+                return {
+                    key: cur.key, range: cur.range, style: cur.style,
+                    loaded: !!chartData, failed: loadFailed,
+                    view: view ? { start: view.start, end: view.end, hasVolume: view.hasVolume, bars: view.s.bars.length } : null
+                };
+            },
+            load: function (key) { window.jboLoadChartSymbol(key); }
         };
     })();
 </script>
