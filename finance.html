@@ -3292,18 +3292,25 @@ if (typeof module !== "undefined") {
             var btn = e.target && e.target.closest ? e.target.closest("button[data-symbol]") : null;
             if (!btn) return;
             var symbol = btn.getAttribute("data-symbol");
-            if (!symbol || symbol === currentSymbol) return;
+            if (!symbol) return;
+            // Always-works rule: no same-symbol early return. The visitor
+            // may have switched symbol inside the chart, which this closure
+            // cannot see — so a tap on the already-marked pick must still
+            // rebuild, or it reads as a dead button. And if the widget has
+            // not built yet (tv.js still loading, or a load failed), the
+            // tap goes through ensure() instead of going nowhere: build()
+            // reads currentSymbol when it runs, so the last tap wins.
             currentSymbol = symbol;
             picks.querySelectorAll(".filter-pill").forEach(function (b) {
                 b.classList.toggle("active", b === btn);
             });
-            if (built) build();
+            if (built) build(); else ensure();
         });
         var toggle = document.getElementById("theme-toggle");
         if (toggle) toggle.addEventListener("change", function () {
             // Match the backtest's pattern: let the theme class land first.
             // The rebuild keeps the currently picked symbol.
-            setTimeout(function () { if (built) build(); }, 60);
+            setTimeout(function () { if (built) build(); else ensure(); }, 60);
         });
         // The Stack runner's "see it on the chart" link: load any stock
         // through the same build path as the quick picks — open the
