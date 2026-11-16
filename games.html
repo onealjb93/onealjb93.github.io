@@ -92,6 +92,14 @@
         }
         .lr-btn:disabled { opacity: 0.45; cursor: default; }
         .lr-btn:disabled:hover { border-color: var(--border-color); }
+        /* Coloured dot on the line-type buttons: the line's colour, up front. */
+        .lr-dot {
+            display: inline-block;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: -1px;
+        }
         /* Thin divider between control groups (playback / tools / track / view / saves). */
         .lr-sep {
             width: 1px;
@@ -211,12 +219,22 @@
         <div class="lr-toolbar" role="toolbar" aria-label="Line Rider tools">
             <button class="lr-btn" id="lr-restart" type="button">↺ Restart</button>
             <button class="lr-btn" id="lr-playpause" type="button">▶ Play</button>
+            <button class="lr-btn" id="lr-speed" type="button" title="Slow the ride down to watch a landing — or a crash — up close">Speed 1×</button>
             <span class="lr-sep" aria-hidden="true"></span>
             <button class="lr-btn active" id="lr-tool-draw" type="button">✏️ Draw</button>
+            <button class="lr-btn" id="lr-tool-line" type="button">📏 Straight</button>
             <button class="lr-btn" id="lr-tool-move" type="button">✋ Move</button>
             <button class="lr-btn" id="lr-tool-erase" type="button">🧽 Erase</button>
             <button class="lr-btn" id="lr-tool-mushroom" type="button">🍄 Mushroom</button>
             <button class="lr-btn" id="lr-tool-glider" type="button">🪂 Glider</button>
+            <button class="lr-btn" id="lr-tool-flag" type="button" title="Plant a checkpoint flag on the track — Restart then starts him there">🚩 Flag</button>
+            <span class="lr-sep" aria-hidden="true"></span>
+            <button class="lr-btn active" id="lr-type-normal" type="button" title="Normal line — he rides it"><span class="lr-dot" style="background:#4da6ff"></span>Normal</button>
+            <button class="lr-btn" id="lr-type-boost" type="button" title="Boost line — speeds him up while he rides it"><span class="lr-dot" style="background:#e5484d"></span>Boost</button>
+            <button class="lr-btn" id="lr-type-scenery" type="button" title="Scenery line — just for drawing; he passes right through it"><span class="lr-dot" style="background:#2fbf71"></span>Scenery</button>
+            <span class="lr-sep" aria-hidden="true"></span>
+            <button class="lr-btn" id="lr-undo" type="button">↩ Undo</button>
+            <button class="lr-btn" id="lr-redo" type="button">↪ Redo</button>
             <span class="lr-sep" aria-hidden="true"></span>
             <button class="lr-btn" id="lr-clear" type="button">Clear all</button>
             <button class="lr-btn" id="lr-default" type="button">Default track</button>
@@ -240,11 +258,12 @@
     <section class="lr-howto" aria-labelledby="how-to-play-heading">
         <h2 id="how-to-play-heading">How to play</h2>
         <ol>
-            <li><strong>Draw a track</strong> — drag on the canvas with your mouse or finger. Downhill slopes build speed; ramps launch him into the air.</li>
+            <li><strong>Draw a track</strong> — drag on the canvas with your mouse or finger. Downhill slopes build speed; ramps launch him into the air. The 📏 Straight tool draws one straight line between two points — press, drag, let go.</li>
+            <li><strong>Three kinds of line</strong> — pick before you draw. <strong>Normal</strong> (blue) is the track he rides. <strong>Boost</strong> (red) speeds him up while he rides it — and if he hits a mushroom while he's on a red line, the two boosts stack and he goes extra fast. <strong>Scenery</strong> (green) is just for drawing the world around the track; he passes right through it.</li>
             <li><strong>Move the view</strong> — tap ✋ Move, then drag to slide the window around without drawing anything. Zoom with the − / + buttons, scroll on the canvas, or pinch on your phone; "Fit track" shows the entire track at once. The view stays exactly where you leave it — it never snaps back.</li>
             <li><strong>Press Play</strong> (or Space) — the rider sets off from the flag. While he's airborne, ← and → spin him. Land on your wheels, not your head.</li>
             <li><strong>Don't crash</strong> — if his head hits a line, he's done. Pause (Space) to draw more track, then Play to keep going.</li>
-            <li><strong>Tools</strong> — Erase wipes lines, Clear all starts fresh, Default track brings back the starter track, Restart (R) sends him back to the flag. Your best distance is saved on your device.</li>
+            <li><strong>Tools</strong> — Erase wipes lines, Clear all starts fresh, Default track brings back the starter track, Restart (R) sends him back to the flag. Drew a bad line? Undo (Ctrl+Z) takes back the last stroke, Redo (Ctrl+Shift+Z) puts it back, and Backspace deletes the last line. The 🚩 Flag tool plants a checkpoint on the track — Restart then starts him there instead. Speed slows the ride to ½× or ¼× so you can watch a landing up close. Your best distance is saved on your device.</li>
         </ol>
     </section>
 
@@ -279,8 +298,18 @@
         var SNAP = 16;          // px: how close the sled must be to a line to ride it
         var BEST_KEY = 'lr-best-m';
 
-        var lines = [];         // array of polylines: [{x, y}, ...]
-        var tool = 'draw';      // 'draw' | 'move' | 'erase' | 'mushroom' | 'glider'
+        var lines = [];         // array of polylines: [{x, y}, ...], each carrying a .type:
+                                // 'normal' (rides), 'boost' (rides + speeds him up), 'scenery' (never collides)
+        var tool = 'draw';      // 'draw' | 'line' | 'move' | 'erase' | 'mushroom' | 'glider' | 'flag'
+        var drawType = 'normal'; // line type the Draw and Straight tools lay down
+        var speedMul = 1;       // playback speed: 1, 1/2 or 1/4 (slow motion) — ride playback only, never editing
+        var slowQueue = [];     // slow motion: frame times banked and spent in order, one per 2 (or 4) frames
+        var slowTick = 0;       // frames since slow motion last spent a banked frame time
+        var flag = null;        // checkpoint flag {x, y, a, onLine} or null — Restart starts him there when set
+        var lineStart = null;   // first point of a straight line being dragged out
+        var undoStack = [];     // world snapshots (plain data), one per edit gesture
+        var redoStack = [];
+        var gestureSnap = null; // world snapshot taken when an edit gesture begins
         var mode = 'edit';      // 'edit' | 'playing' | 'paused' | 'crashed'
         var rider = null;       // {x, y, vx, vy, angle, omega, state, maxX, startX, stuckT, boostT, glideT}
         var cam = { x: 0, y: 0 };
@@ -308,6 +337,10 @@
         var BOOST_MIN = 420; // minimum speed after a mushroom kick (px/s) — firmly unsticks a slow or stalled rider
         var BOOST_ACCEL = 1200;      // sustained push along the line while boosted (px/s^2) — beats gravity's along-slope pull on all but near-vertical climbs
         var BOOST_AIR_ACCEL = 700;   // sustained push along his flight while boosted (px/s^2)
+        var BOOST_LINE_ACCEL = 900;  // red (boost) line push along the line while he rides it (px/s^2)
+        var BOOST_STACK_MULT = 2;    // stacking: while a mushroom burst lasts, a red line's push is
+                                     // multiplied by this — mushroom + red line together (1200 + 2*900)
+                                     // out-push either one alone (1200 mushroom, 900 red line)
         var GLIDER_TRIGGER_PX = 26; // pickup radius in screen px (airborne rider only)
         var GLIDE_MAX = 7;          // max glide duration, seconds
         var GLIDE_STALL = 120;      // px/s: horizontal speed below this stalls the glider
@@ -322,10 +355,18 @@
         var elBest = document.getElementById('lr-best');
         var elStatus = document.getElementById('lr-status');
         var btnDraw = document.getElementById('lr-tool-draw');
+        var btnLine = document.getElementById('lr-tool-line');
         var btnMove = document.getElementById('lr-tool-move');
         var btnErase = document.getElementById('lr-tool-erase');
         var btnMushroom = document.getElementById('lr-tool-mushroom');
         var btnGlider = document.getElementById('lr-tool-glider');
+        var btnFlag = document.getElementById('lr-tool-flag');
+        var btnTypeNormal = document.getElementById('lr-type-normal');
+        var btnTypeBoost = document.getElementById('lr-type-boost');
+        var btnTypeScenery = document.getElementById('lr-type-scenery');
+        var btnUndo = document.getElementById('lr-undo');
+        var btnRedo = document.getElementById('lr-redo');
+        var btnSpeed = document.getElementById('lr-speed');
         var btnSave = document.getElementById('lr-save');
         var btnSaveDelete = document.getElementById('lr-save-delete');
         var inputSaveName = document.getElementById('lr-save-name');
@@ -374,20 +415,46 @@
            goes airborne off the end. (A second line — landing, long run, kicker —
            used to follow the jump; Johnny asked for it gone for good, so the
            starter track is this one line only. Don't re-add it.) */
+        /* Line types ride along on each polyline as a .type property, so
+           every existing loop still sees a plain array of points; anything
+           without a recognised type is a normal line (that is also how
+           pre-upgrade saved setups load — they carry no type at all). */
+        function lineType(pts) {
+            var t = pts && pts.type;
+            return (t === 'boost' || t === 'scenery') ? t : 'normal';
+        }
+        function mkLine(pts, type) { pts.type = type || 'normal'; return pts; }
+        function typeColor(t) {
+            return t === 'boost' ? '#e5484d' : t === 'scenery' ? '#2fbf71' : colors.accent;
+        }
+
         function starterTrack() {
             lines = [
-                [{ x: 60, y: 120 }, { x: 300, y: 220 }, { x: 520, y: 320 }, { x: 760, y: 400 }, { x: 900, y: 415 }],
-                [{ x: 900, y: 415 }, { x: 980, y: 400 }, { x: 1060, y: 370 }, { x: 1130, y: 320 }, { x: 1200, y: 270 }]
+                mkLine([{ x: 60, y: 120 }, { x: 300, y: 220 }, { x: 520, y: 320 }, { x: 760, y: 400 }, { x: 900, y: 415 }]),
+                mkLine([{ x: 900, y: 415 }, { x: 980, y: 400 }, { x: 1060, y: 370 }, { x: 1130, y: 320 }, { x: 1200, y: 270 }])
             ];
         }
 
         function resetRider() {
+            slowQueue = []; slowTick = 0;  // a fresh ride starts with no banked slow-motion time
+            // Checkpoint flag set? He starts there instead — standing on
+            // the flagged spot with no speed, distance counted from there.
+            if (flag) {
+                rider = { x: flag.x, y: flag.y, vx: 0, vy: 0, angle: flag.a, omega: 0,
+                          state: flag.onLine ? 'riding' : 'air', maxX: flag.x, startX: flag.x,
+                          stuckT: 0, boostT: 0, glideT: 0 };
+                cam.x = flag.x - viewW() * 0.3;
+                cam.y = flag.y - viewH() * 0.55;
+                crashMsg = '';
+                return;
+            }
             // Start on the first drawable line — a stray tap leaves a
             // 1-point line with no direction, so skip those (otherwise a
             // single tap before Play left the rider with nowhere to start).
+            // Scenery never counts: he can't ride it, so he can't start on it.
             var first = null;
             for (var i = 0; i < lines.length; i++) {
-                if (lines[i].length >= 2) { first = lines[i]; break; }
+                if (lines[i].length >= 2 && lineType(lines[i]) !== 'scenery') { first = lines[i]; break; }
             }
             if (!first) { rider = null; return; }
             var p0 = first[0], p1 = first[1];
@@ -413,6 +480,7 @@
         function nearestSegment(px, py, maxD, skip) {
             var bestH = null;
             for (var i = 0; i < lines.length; i++) {
+                if (lineType(lines[i]) === 'scenery') continue;  // scenery never collides — invisible to physics and snapping alike
                 var pts = lines[i];
                 for (var j = 0; j < pts.length - 1; j++) {
                     if (skip && skip.pi === i && (skip.si === j || (skip.uptosi && j < skip.si))) continue;
@@ -459,6 +527,7 @@
             var hp = headPos({ x: nx, y: ny, angle: angle });
             var cp = chestPos({ x: nx, y: ny, angle: angle });
             for (var i = 0; i < lines.length; i++) {
+                if (lineType(lines[i]) === 'scenery') continue;
                 var pts = lines[i];
                 for (var j = 0; j < pts.length - 1; j++) {
                     var hd = segClosest(hp.x, hp.y, pts[j], pts[j + 1]).d;
@@ -518,6 +587,12 @@
                 lines: lines.map(function (pts) {
                     return pts.map(function (p) { return [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]; });
                 }),
+                // Line types ride in a parallel array so the lines format
+                // itself is unchanged: setups saved before line types
+                // existed have no lineTypes field and load as all-Normal.
+                lineTypes: lines.map(function (pts) { return lineType(pts); }),
+                flag: flag ? { x: Math.round(flag.x * 10) / 10, y: Math.round(flag.y * 10) / 10,
+                               a: Math.round(flag.a * 100) / 100, onLine: flag.onLine ? 1 : 0 } : null,
                 mushrooms: mushrooms.map(function (m) {
                     return { x: Math.round(m.x * 10) / 10, y: Math.round(m.y * 10) / 10, a: Math.round(m.a * 100) / 100 };
                 }),
@@ -531,6 +606,7 @@
         }
         function restoreSnap(s) {
             if (!s || typeof s !== 'object' || !Array.isArray(s.lines)) return false;
+            var savedTypes = Array.isArray(s.lineTypes) ? s.lineTypes : [];
             var ls = [];
             for (var i = 0; i < s.lines.length; i++) {
                 var pts = s.lines[i];
@@ -541,7 +617,9 @@
                     if (Array.isArray(pt) && isFinite(pt[0]) && isFinite(pt[1])) pl.push({ x: pt[0], y: pt[1] });
                     else if (pt && isFinite(pt.x) && isFinite(pt.y)) pl.push({ x: pt.x, y: pt.y });
                 }
-                if (pl.length >= 1) ls.push(pl);
+                // A setup with no type for this line (every pre-upgrade
+                // save) loads it as a normal line, exactly as it rode before.
+                if (pl.length >= 1) { pl.type = (savedTypes[i] === 'boost' || savedTypes[i] === 'scenery') ? savedTypes[i] : 'normal'; ls.push(pl); }
             }
             var ms = [];
             if (Array.isArray(s.mushrooms)) {
@@ -558,6 +636,9 @@
                 }
             }
             lines = ls; mushrooms = ms; gliders = gs; pops = [];
+            flag = (s.flag && isFinite(s.flag.x) && isFinite(s.flag.y))
+                ? { x: s.flag.x, y: s.flag.y, a: isFinite(s.flag.a) ? s.flag.a : 0, onLine: !!s.flag.onLine } : null;
+            undoStack = []; redoStack = []; gestureSnap = null;  // a loaded setup starts a fresh edit history
             if (s.cam && isFinite(s.cam.x) && isFinite(s.cam.y)) { cam.x = s.cam.x; cam.y = s.cam.y; }
             if (isFinite(s.zoom) && s.zoom >= ZOOM_MIN && s.zoom <= ZOOM_MAX) { zoom = s.zoom; updateZoomLabel(); }
             rider = null; mode = 'edit'; crashMsg = '';
@@ -646,6 +727,71 @@
             updateUI();
         }
 
+        /* ---------- undo / redo ----------
+           History is kept as plain-data snapshots of the whole world
+           (lines with their types, mushrooms, gliders, checkpoint flag),
+           one per edit gesture: a drawn stroke, an erase drag, a placed
+           item, a Clear all. Undo restores the snapshot; the current
+           world goes onto the redo stack. Applying a snapshot stops any
+           ride — editing and riding never mix. */
+        function worldData() {
+            return {
+                lines: lines.map(function (pts) {
+                    return { t: lineType(pts), pts: pts.map(function (p) { return [p.x, p.y]; }) };
+                }),
+                mushrooms: mushrooms.map(function (m) { return [m.x, m.y, m.a]; }),
+                gliders: gliders.map(function (g) { return [g.x, g.y]; }),
+                flag: flag ? [flag.x, flag.y, flag.a, flag.onLine ? 1 : 0] : null
+            };
+        }
+        function applyWorldData(d) {
+            lines = d.lines.map(function (L) {
+                var a = L.pts.map(function (p) { return { x: p[0], y: p[1] }; });
+                a.type = L.t;
+                return a;
+            });
+            mushrooms = d.mushrooms.map(function (m) { return { x: m[0], y: m[1], a: m[2] }; });
+            gliders = d.gliders.map(function (g) { return { x: g[0], y: g[1] }; });
+            flag = d.flag ? { x: d.flag[0], y: d.flag[1], a: d.flag[2], onLine: !!d.flag[3] } : null;
+            pops = [];
+            rider = null; mode = 'edit'; crashMsg = '';
+        }
+        function pushUndo(data) {
+            undoStack.push(data);
+            if (undoStack.length > 60) undoStack.shift();
+            redoStack = [];
+        }
+        function captureGesture() {
+            var w = worldData();
+            gestureSnap = { world: w, json: JSON.stringify(w) };
+        }
+        function commitGesture() {
+            if (!gestureSnap) return;
+            if (JSON.stringify(worldData()) !== gestureSnap.json) pushUndo(gestureSnap.world);
+            gestureSnap = null;
+        }
+        function undo() {
+            if (mode === 'playing' || !undoStack.length) return;
+            redoStack.push(worldData());
+            applyWorldData(undoStack.pop());
+            updateUI();
+        }
+        function redo() {
+            if (mode === 'playing' || !redoStack.length) return;
+            undoStack.push(worldData());
+            applyWorldData(redoStack.pop());
+            updateUI();
+        }
+        // The classic's Backspace: delete the last drawn line (any type).
+        // It is itself undoable — Ctrl+Z brings the line back.
+        function deleteLastStroke() {
+            if (mode === 'playing' || !lines.length) return;
+            pushUndo(worldData());
+            lines.pop();
+            rider = null; mode = 'edit'; crashMsg = '';
+            updateUI();
+        }
+
         /* Mushroom pickup, tested against the path swept this step —
            (sx, sy) is where the step started, (r.x, r.y) where it ended —
            so a fast rider can never tunnel past a mushroom between steps,
@@ -696,6 +842,17 @@
                 var speed = r.vx * dx + r.vy * dy;
                 if (speed < 0) { dx = -dx; dy = -dy; speed = -speed; }
                 speed += G * dy * dt;  // gravity component along the line
+                // Red (boost) line: while he rides one it pushes him along
+                // it, on top of gravity. Stacking: while a mushroom burst
+                // is also live, the red line's push is multiplied
+                // (BOOST_STACK_MULT) — the two boosts together must out-push
+                // either one alone. Normal lines take neither branch, so
+                // their physics is untouched.
+                if (lineType(lines[hit.pi]) === 'boost') {
+                    var lineAccel = BOOST_LINE_ACCEL;
+                    if (r.boostT > 0) lineAccel *= BOOST_STACK_MULT;
+                    speed += lineAccel * dt;
+                }
                 // Mushroom boost: while the burst lasts he also gets a
                 // sustained push along the line, on top of the pickup kick —
                 // a kick alone is reclaimed by gravity on any climb before
@@ -792,6 +949,7 @@
                 // A gentle gliding landing rides on — no crash check.
                 var gLanded = null;
                 for (var i = 0; i < lines.length && !gLanded; i++) {
+                    if (lineType(lines[i]) === 'scenery') continue;
                     var pts = lines[i];
                     for (var j = 0; j < pts.length - 1; j++) {
                         var gip = segIntersect({ x: gpx, y: gpy }, { x: gnx, y: gny }, pts[j], pts[j + 1]);
@@ -840,6 +998,7 @@
                 // every line he landed on instead of riding it.
                 var landed = null;
                 for (var i = 0; i < lines.length && !landed; i++) {
+                    if (lineType(lines[i]) === 'scenery') continue;
                     var pts = lines[i];
                     for (var j = 0; j < pts.length - 1; j++) {
                         var ip = segIntersect({ x: px, y: py }, { x: nx2, y: ny2 }, pts[j], pts[j + 1]);
@@ -906,18 +1065,32 @@
                     ctx.fillRect(gx, gy, 2 / zoom, 2 / zoom);
                 }
             }
-            // track lines (line width stays ~3px on screen at any zoom)
-            ctx.strokeStyle = colors.text;
+            // track lines (line width stays ~3px on screen at any zoom),
+            // each in its type's colour: blue normal, red boost, green scenery
             ctx.lineWidth = 3 / zoom;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             for (var i = 0; i < lines.length; i++) {
                 var pts = lines[i];
                 if (pts.length < 2) continue;
+                ctx.strokeStyle = typeColor(lineType(pts));
                 ctx.beginPath();
                 ctx.moveTo(pts[0].x, pts[0].y);
                 for (var j = 1; j < pts.length; j++) ctx.lineTo(pts[j].x, pts[j].y);
                 ctx.stroke();
+            }
+            // straight line being dragged out: a live preview in the
+            // current type's colour, so the player sees exactly what
+            // letting go will lay down
+            if (tool === 'line' && lineStart && cursorPos) {
+                ctx.strokeStyle = typeColor(drawType);
+                ctx.lineWidth = 3 / zoom;
+                ctx.globalAlpha = 0.65;
+                ctx.beginPath();
+                ctx.moveTo(lineStart.x, lineStart.y);
+                ctx.lineTo(cursorPos.x / zoom + cam.x, cursorPos.y / zoom + cam.y);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
             }
             // mushrooms: red cap, white spots, drawn with simple shapes
             // (screen-constant size, so they stay visible at any zoom),
@@ -966,6 +1139,25 @@
                 ctx.lineTo(s.x, s.y - 16);
                 ctx.closePath();
                 ctx.fill();
+            }
+            // checkpoint flag (orange, so it never reads as the blue start
+            // flag): when one is planted, Restart starts him here
+            if (flag) {
+                ctx.strokeStyle = '#ff9f1c';
+                ctx.lineWidth = 2 / zoom;
+                ctx.beginPath();
+                ctx.moveTo(flag.x, flag.y);
+                ctx.lineTo(flag.x, flag.y - 26);
+                ctx.stroke();
+                ctx.fillStyle = '#ff9f1c';
+                ctx.beginPath();
+                ctx.moveTo(flag.x, flag.y - 26);
+                ctx.lineTo(flag.x + 14, flag.y - 21);
+                ctx.lineTo(flag.x, flag.y - 16);
+                ctx.closePath();
+                ctx.fill();
+                ctx.lineWidth = 1.5 / zoom;
+                ctx.beginPath(); ctx.arc(flag.x, flag.y, 5 / zoom, 0, Math.PI * 2); ctx.stroke();
             }
             if (rider) drawRider();
             // While gliding, the wing flies level above him, screen-constant size.
@@ -1047,16 +1239,26 @@
                 ctx.beginPath(); ctx.arc(x, y, ERASE_PX, 0, Math.PI * 2); ctx.stroke();
                 ctx.fillStyle = '#e5484d';
                 ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
-            } else if (tool === 'draw') {
-                ctx.strokeStyle = colors.accent;
+            } else if (tool === 'draw' || tool === 'line') {
+                // crosshair in the colour of the line about to be drawn
+                ctx.strokeStyle = typeColor(drawType);
                 ctx.lineWidth = 1.5;
                 var L = 8;
                 ctx.beginPath();
                 ctx.moveTo(x - L, y); ctx.lineTo(x + L, y);
                 ctx.moveTo(x, y - L); ctx.lineTo(x, y + L);
                 ctx.stroke();
-                ctx.fillStyle = colors.accent;
+                ctx.fillStyle = typeColor(drawType);
                 ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill();
+            } else if (tool === 'flag') {
+                // a little flag on a pole, in the checkpoint orange
+                ctx.strokeStyle = '#ff9f1c';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(x, y + 10); ctx.lineTo(x, y - 12); ctx.stroke();
+                ctx.fillStyle = '#ff9f1c';
+                ctx.beginPath();
+                ctx.moveTo(x, y - 12); ctx.lineTo(x + 11, y - 8); ctx.lineTo(x, y - 4);
+                ctx.closePath(); ctx.fill();
             } else { // move: small ring + dot (grab-style indicator)
                 ctx.strokeStyle = colors.text;
                 ctx.lineWidth = 1.5;
@@ -1130,14 +1332,22 @@
         }
         function updateUI() {
             btnDraw.classList.toggle('active', tool === 'draw');
+            btnLine.classList.toggle('active', tool === 'line');
             btnMove.classList.toggle('active', tool === 'move');
             btnErase.classList.toggle('active', tool === 'erase');
             btnMushroom.classList.toggle('active', tool === 'mushroom');
             btnGlider.classList.toggle('active', tool === 'glider');
+            btnFlag.classList.toggle('active', tool === 'flag');
+            btnTypeNormal.classList.toggle('active', drawType === 'normal');
+            btnTypeBoost.classList.toggle('active', drawType === 'boost');
+            btnTypeScenery.classList.toggle('active', drawType === 'scenery');
             canvas.style.cursor = 'none'; // the custom cursor is drawn in drawCursor()
             btnPlayPause.disabled = !lines.length;
             btnPlayPause.textContent = (mode === 'playing') ? '⏸ Pause' : '▶ Play';
             btnRestart.disabled = !lines.length;
+            btnUndo.disabled = !undoStack.length || mode === 'playing';
+            btnRedo.disabled = !redoStack.length || mode === 'playing';
+            btnSpeed.textContent = 'Speed ' + (speedMul === 1 ? '1×' : speedMul === 0.5 ? '½×' : '¼×');
             btnSaveDelete.disabled = !selSaves.value;
         }
 
@@ -1149,7 +1359,7 @@
             updateUI();
         }
         function pause() {
-            if (mode === 'playing') { mode = 'paused'; updateUI(); }
+            if (mode === 'playing') { mode = 'paused'; slowQueue = []; slowTick = 0; updateUI(); }
         }
         function restart() {
             if (!lines.length) return;
@@ -1158,20 +1368,26 @@
             updateUI();
         }
         function clearAll() {
+            var before = worldData();
             lines = [];
             mushrooms = [];
             gliders = [];
             pops = [];
+            flag = null;
             rider = null;
             mode = 'edit';
             cam.x = -viewW() * 0.3; cam.y = -viewH() * 0.55;
+            if (JSON.stringify(worldData()) !== JSON.stringify(before)) pushUndo(before);  // Clear all is undoable
             updateUI();
         }
         function defaultTrack() {
+            var before = worldData();
             starterTrack();
             mushrooms = [];
             gliders = [];
             pops = [];
+            flag = null;
+            if (JSON.stringify(worldData()) !== JSON.stringify(before)) pushUndo(before);  // so is Default track
             resetRider();
             fitTrack();   // show the whole fresh track
             mode = 'edit';
@@ -1180,15 +1396,33 @@
         function setTool(t) {
             // Switching tools stops any line in progress, so a stray drag
             // after tapping Move can never draw.
-            drawing = false; panning = false; curLine = null;
+            drawing = false; panning = false; curLine = null; lineStart = null;
             tool = t;
             updateUI();
         }
+        function setDrawType(t) {
+            drawType = t;
+            updateUI();
+        }
+        function cycleSpeed() {
+            speedMul = speedMul === 1 ? 0.5 : speedMul === 0.5 ? 0.25 : 1;
+            slowQueue = []; slowTick = 0;  // banked frame times belong to the old rate
+            flashStatus(speedMul === 1 ? 'Full speed.' : 'Slow motion — ' + (speedMul === 0.5 ? 'half' : 'quarter') + ' speed.');
+            updateUI();
+        }
         btnDraw.addEventListener('click', function () { setTool('draw'); this.blur(); });
+        btnLine.addEventListener('click', function () { setTool('line'); this.blur(); });
         btnMove.addEventListener('click', function () { setTool('move'); this.blur(); });
         btnErase.addEventListener('click', function () { setTool('erase'); this.blur(); });
         btnMushroom.addEventListener('click', function () { setTool('mushroom'); this.blur(); });
         btnGlider.addEventListener('click', function () { setTool('glider'); this.blur(); });
+        btnFlag.addEventListener('click', function () { setTool('flag'); this.blur(); });
+        btnTypeNormal.addEventListener('click', function () { setDrawType('normal'); this.blur(); });
+        btnTypeBoost.addEventListener('click', function () { setDrawType('boost'); this.blur(); });
+        btnTypeScenery.addEventListener('click', function () { setDrawType('scenery'); this.blur(); });
+        btnUndo.addEventListener('click', function () { undo(); this.blur(); });
+        btnRedo.addEventListener('click', function () { redo(); this.blur(); });
+        btnSpeed.addEventListener('click', function () { cycleSpeed(); this.blur(); });
         btnClear.addEventListener('click', function () { clearAll(); this.blur(); });
         btnDefault.addEventListener('click', function () { defaultTrack(); this.blur(); });
         btnPlayPause.addEventListener('click', function () {
@@ -1222,6 +1456,22 @@
         /* Place a glider: it floats at the tapped point, in the air. */
         function placeGlider(w) {
             gliders.push({ x: w.x, y: w.y });
+        }
+        /* Place the checkpoint flag: like a mushroom it snaps onto the
+           nearest line within 40 screen px, so it sits ON the track and
+           he restarts standing on that line; in empty space it plants
+           where tapped and he restarts in the air there. Planting a new
+           one moves the flag — there is only ever one. */
+        function placeFlag(w) {
+            var R = MUSHROOM_SNAP_SCREEN / zoom;
+            var hit = nearestSegment(w.x, w.y, R);
+            if (hit) {
+                var dl = hit.len || 1;
+                flag = { x: hit.x, y: hit.y, a: Math.atan2(hit.diry / dl, hit.dirx / dl), onLine: true };
+            } else {
+                flag = { x: w.x, y: w.y, a: 0, onLine: false };
+            }
+            flashStatus('🚩 Checkpoint set — Restart starts him there.');
         }
 
         /* ---------- zoom ---------- */
@@ -1284,11 +1534,14 @@
             // A mushroom or glider inside the eraser ring goes too.
             mushrooms = mushrooms.filter(function (m) { return Math.hypot(m.x - w.x, m.y - w.y) > R; });
             gliders = gliders.filter(function (g) { return Math.hypot(g.x - w.x, g.y - w.y) > R; });
+            // So does the checkpoint flag — erasing it returns Restart to the start flag.
+            if (flag && Math.hypot(flag.x - w.x, flag.y - w.y) <= R) flag = null;
             for (var i = 0; i < lines.length; i++) {
                 var pts = lines[i], cur = [];
+                cur.type = lineType(pts);  // split fragments keep the stroke's type
                 for (var j = 0; j < pts.length; j++) {
                     if (Math.hypot(pts[j].x - w.x, pts[j].y - w.y) > R) { cur.push(pts[j]); }
-                    else { if (cur.length >= 2) out.push(cur); cur = []; }
+                    else { if (cur.length >= 2) out.push(cur); cur = []; cur.type = lineType(pts); }
                 }
                 if (cur.length >= 2) out.push(cur);
             }
@@ -1318,6 +1571,7 @@
                          mx: (pp[0].x + pp[1].x) / 2, my: (pp[0].y + pp[1].y) / 2 };
                 return;
             }
+            captureGesture();  // whatever this press goes on to change, Undo gets one step for the whole gesture
             if (tool === 'move') {
                 // Move mode: one finger drags the view itself — draws nothing.
                 panning = true;
@@ -1334,10 +1588,16 @@
                 updateUI();
                 return;
             }
+            if (tool === 'flag') {
+                placeFlag(toWorld(e));
+                updateUI();
+                return;
+            }
             var w = toWorld(e);
             drawing = true;
             lastPt = w;
-            if (tool === 'draw') { curLine = [w]; lines.push(curLine); }
+            if (tool === 'draw') { curLine = [w]; curLine.type = drawType; lines.push(curLine); }
+            else if (tool === 'line') { lineStart = w; }  // straight line: nothing is laid down until release
             else { eraseAt(w); }
             updateUI();
         });
@@ -1368,16 +1628,31 @@
             var w = toWorld(e);
             if (tool === 'draw') {
                 if (Math.hypot(w.x - lastPt.x, w.y - lastPt.y) > 5) { curLine.push(w); lastPt = w; }
-            } else {
+            } else if (tool === 'erase') {
                 eraseAt(w);
             }
+            // tool 'line': the drag only moves the preview (drawn from
+            // lineStart to the cursor in draw()); the segment itself is
+            // committed on release, in endPointer.
         });
         function endPointer(e) {
             cursorPos = null; // ring disappears on release (touch) / pointer up
             if (e && e.pointerId !== undefined) pointers.delete(e.pointerId);
             if (pointers.size < 2) pinch = null;
+            // Straight tool: letting go lays down the one straight segment
+            // between the press point and the release point. A bare tap
+            // (under 2 world px) lays nothing — it was a stray touch.
+            if (tool === 'line' && drawing && lineStart && e && isFinite(e.clientX)) {
+                var endW = toWorld(e);
+                if (Math.hypot(endW.x - lineStart.x, endW.y - lineStart.y) >= 2) {
+                    var seg = [lineStart, endW];
+                    seg.type = drawType;
+                    lines.push(seg);
+                }
+            }
+            commitGesture();  // if this gesture changed the world, it becomes one Undo step
             // Releasing a touch changes nothing about the view: no snap-back.
-            drawing = false; panning = false; curLine = null;
+            drawing = false; panning = false; curLine = null; lineStart = null;
         }
         canvas.addEventListener('pointerup', endPointer);
         canvas.addEventListener('pointercancel', endPointer);
@@ -1387,7 +1662,14 @@
         document.addEventListener('keydown', function (e) {
             var tag = (e.target && e.target.tagName) || '';
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT') return;
-            if (e.code === 'Space') { e.preventDefault(); if (mode === 'playing') pause(); else play(); }
+            if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+            else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') { e.preventDefault(); redo(); }
+            else if (e.code === 'Backspace') { e.preventDefault(); deleteLastStroke(); }
+            else if (e.code === 'Digit1') { setDrawType('normal'); }
+            else if (e.code === 'Digit2') { setDrawType('boost'); }
+            else if (e.code === 'Digit3') { setDrawType('scenery'); }
+            else if (e.code === 'KeyM') { cycleSpeed(); }
+            else if (e.code === 'Space') { e.preventDefault(); if (mode === 'playing') pause(); else play(); }
             else if (e.code === 'KeyR') { restart(); }
             else if (e.code === 'Equal' || e.code === 'NumpadAdd') { setZoom(zoom * 1.25); }
             else if (e.code === 'Minus' || e.code === 'NumpadSubtract') { setZoom(zoom / 1.25); }
@@ -1405,9 +1687,30 @@
             var dt = Math.min(0.05, (now - last) / 1000);
             last = now;
             if (mode === 'playing' && rider) {
-                var steps = Math.max(1, Math.ceil(dt / (1 / 120)));
-                var h = dt / steps;
-                for (var s = 0; s < steps && mode === 'playing'; s++) stepRider(h);
+                if (speedMul === 1) {
+                    var steps = Math.max(1, Math.ceil(dt / (1 / 120)));
+                    var h = dt / steps;
+                    for (var s = 0; s < steps && mode === 'playing'; s++) stepRider(h);
+                } else {
+                    // Slow motion: bank each frame's time and spend the
+                    // banked frames IN ORDER, one per 2 frames (1/2x) or
+                    // 4 frames (1/4x), each through the same step chunker
+                    // full speed uses. The ride's step-by-step series is
+                    // therefore exactly the full-speed series — only its
+                    // rate changes. (Scaling the step size down instead
+                    // would integrate a slightly different ride.) Editing,
+                    // the camera and the HUD keep real time.
+                    slowQueue.push(dt);
+                    slowTick++;
+                    var every = speedMul === 0.5 ? 2 : 4;
+                    if (slowTick >= every && slowQueue.length) {
+                        slowTick = 0;
+                        var bdt = slowQueue.shift();
+                        var bSteps = Math.max(1, Math.ceil(bdt / (1 / 120)));
+                        var bh = bdt / bSteps;
+                        for (var s2 = 0; s2 < bSteps && mode === 'playing'; s2++) stepRider(bh);
+                    }
+                }
             }
             // camera: follow the rider ONLY while playing (at the user's zoom).
             // While editing, paused, or crashed, the view stays exactly where
@@ -1444,8 +1747,13 @@
             getState: function () {
                 return {
                     mode: mode, tool: tool, zoom: zoom,
+                    drawType: drawType, speedMul: speedMul,
+                    flag: flag ? { x: flag.x, y: flag.y, a: flag.a, onLine: flag.onLine } : null,
+                    undo: undoStack.length, redo: redoStack.length,
                     cam: { x: cam.x, y: cam.y },
                     lines: lines.length,
+                    types: lines.map(function (l) { return lineType(l); }),
+                    geo: lines.map(function (l) { return l.map(function (p) { return [Math.round(p.x * 100) / 100, Math.round(p.y * 100) / 100]; }); }),
                     points: lines.reduce(function (n, l) { return n + l.length; }, 0),
                     mushrooms: mushrooms.length,
                     gliders: gliders.length,
