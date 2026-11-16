@@ -105,6 +105,33 @@
     .runner-step td { background: var(--card-bg); font-weight: 600; color: var(--text-color); }
     .runner-notes { font-size: 0.9rem; line-height: 1.55; }
     .runner-verdict { font-size: 1rem; margin: 0 0 0.75rem; }
+    /* Stack runner verdicts, prominence pass (2026-11-16): PASS / FAIL
+       must read at a glance. Bigger, bolder chips with a glyph, a tint
+       across the whole row, and a verdict-coloured left edge on graded
+       rows. Scoped to #runnerResults so the scoreboard's badges and
+       tables keep their existing treatment; every colour is the site's
+       own --pass-* / --fail-* token, so both themes adapt. */
+    #runnerResults .framework-badge { font-size: 0.9rem; font-weight: 800; letter-spacing: 0.05em; padding: 5px 12px; border: 1px solid transparent; white-space: nowrap; }
+    #runnerResults .badge-pass { background-color: color-mix(in srgb, var(--pass-text) 24%, transparent); border-color: var(--pass-text); }
+    #runnerResults .badge-fail { background-color: color-mix(in srgb, var(--fail-text) 24%, transparent); border-color: var(--fail-text); }
+    #runnerResults .badge-pass::before { content: "\2713"; margin-right: 0.3em; }
+    #runnerResults .badge-fail::before { content: "\2715"; margin-right: 0.3em; }
+    #runnerResults .badge-na { background-color: var(--hover-bg); border-color: var(--border-color); color: var(--subtext-color); }
+    #runnerResults tr.runner-row-pass td { background-color: color-mix(in srgb, var(--pass-text) 8%, var(--card-bg)); }
+    #runnerResults tr.runner-row-fail td { background-color: color-mix(in srgb, var(--fail-text) 8%, var(--card-bg)); }
+    #runnerResults tr.runner-row-pass td:first-child { box-shadow: inset 5px 0 0 var(--pass-text), 1px 0 0 var(--border-color); }
+    #runnerResults tr.runner-row-fail td:first-child { box-shadow: inset 5px 0 0 var(--fail-text), 1px 0 0 var(--border-color); }
+    #runnerResults tr.runner-group-fails td { color: var(--fail-text); font-weight: 700; }
+    #runnerResults tr.runner-group-passes td { color: var(--pass-text); font-weight: 700; }
+    .runner-verdict .rv-pass { color: var(--pass-text); }
+    .runner-verdict .rv-fail { color: var(--fail-text); }
+    .runner-verdict .rv-na { color: var(--subtext-color); }
+    /* On a phone the runner's four columns wrap instead of scrolling
+       sideways, so the verdict chip is always on screen. */
+    @media (max-width: 768px) {
+        #runnerResults .spreadsheet-container th, #runnerResults .spreadsheet-container td { white-space: normal; }
+        #runnerResults .spreadsheet-container td { padding: 10px 8px; }
+    }
 
     /* Navigation redesign (2026-11-13): the sticky h2/h3 heading pinning
        above is REPLACED by a single pinned section nav below the frozen
@@ -2476,13 +2503,15 @@
         function runnerBadge(state) {
             if (state === true) return '<span class="framework-badge badge-pass">PASS</span>';
             if (state === false) return '<span class="framework-badge badge-fail">FAIL</span>';
-            return '<span class="framework-badge">&mdash; can&rsquo;t check</span>';
+            return '<span class="framework-badge badge-na">&mdash; can&rsquo;t check</span>';
         }
         function runnerRow(name, value, bar, state) {
-            return '<tr><td>' + name + '</td><td>' + value + '</td><td>' + bar + '</td><td>' + runnerBadge(state) + '</td></tr>';
+            const cls = state === true ? 'runner-row-pass' : (state === false ? 'runner-row-fail' : 'runner-row-na');
+            return '<tr class="' + cls + '"><td>' + name + '</td><td>' + value + '</td><td>' + bar + '</td><td>' + runnerBadge(state) + '</td></tr>';
         }
-        function runnerStepRow(label) {
-            return '<tr class="runner-step"><td colspan="4">' + label + '</td></tr>';
+        function runnerStepRow(label, state) {
+            const cls = state === false ? ' runner-group-fails' : (state === true ? ' runner-group-passes' : '');
+            return '<tr class="runner-step' + cls + '"><td colspan="4">' + label + '</td></tr>';
         }
         function runnerChartButton(symbol, name) {
             return '<p><button type="button" class="filter-pill" data-chart-symbol="' + symbol + '">See ' + name + ' on the Chart &mdash; its 200-week line &uarr;</button></p>';
@@ -2544,7 +2573,7 @@
             const p = checks.filter(c => c.state === true).length;
             const f = checks.filter(c => c.state === false).length;
             const c = checks.length - p - f;
-            return '<p class="runner-verdict"><strong>' + sym + ' &mdash; passes ' + p + ' &middot; fails ' + f + ' &middot; can&rsquo;t check ' + c + '</strong></p>';
+            return '<p class="runner-verdict"><strong>' + sym + ' &mdash; passes <span class="rv-pass">' + p + '</span> &middot; fails <span class="rv-fail">' + f + '</span> &middot; can&rsquo;t check <span class="rv-na">' + c + '</span></strong></p>';
         }
         function renderRunner() {
             const out = document.getElementById('runnerResults');
@@ -2566,7 +2595,7 @@
                 // with the total taken from the runner's own builder
                 // (an empty record — only the count is used).
                 const totalChecks = runnerChecks({ ticker: sym, name: sym, price: null, peg: null, roe: null, debt: null, mcap: null, mcap_str: null }, sym).length;
-                out.innerHTML = '<p class="runner-verdict"><strong>' + sym + ' &mdash; passes 0 &middot; fails 0 &middot; can&rsquo;t check ' + totalChecks + '</strong></p>'
+                out.innerHTML = '<p class="runner-verdict"><strong>' + sym + ' &mdash; passes <span class="rv-pass">0</span> &middot; fails <span class="rv-fail">0</span> &middot; can&rsquo;t check <span class="rv-na">' + totalChecks + '</span></strong></p>'
                     + '<p><strong>' + sym + ' isn&rsquo;t in the graded set yet.</strong> The Stack&rsquo;s checks run on the numbers the weekly data pipeline collects &mdash; prices, PEG, growth, debt, and the fundamentals it pulls from SEC filings (return on equity, margins, market value). ' + sym + ' isn&rsquo;t one of the stocks it collects, so there are no honest numbers to grade here &mdash; and this page won&rsquo;t guess.</p>'
                     + '<p>The Chart above can&rsquo;t draw ' + sym + ' either &mdash; it covers the S&amp;P 500, the Nasdaq, gold, Bitcoin and my 19 stocks.</p>';
                 return;
@@ -2576,7 +2605,7 @@
             [['Fails', false], ['Passes', true], ['Can&rsquo;t check', null]].forEach(([label, st]) => {
                 const group = checks.filter(c => c.state === st);
                 if (!group.length) return;
-                rows += runnerStepRow(label);
+                rows += runnerStepRow(label, st);
                 group.forEach(c => { rows += runnerRow(c.name, c.value, c.bar, c.state); });
             });
             out.innerHTML = runnerVerdict(sym, checks)
