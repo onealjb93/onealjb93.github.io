@@ -279,6 +279,10 @@
            the bottom of the cook view; toggled from the header meta row. */
         #cookScorePanel { flex: none; z-index: 5; margin: 0 12px calc(12px + env(safe-area-inset-bottom, 0px)); overflow: hidden; }
         #cookScorePanel[hidden] { display: none; }
+        #cookScorePanel .combiner-profile-row { padding: 0 0.9rem; }
+        /* With the profile editor open inside, the panel itself scrolls so
+           every field and Apply/Reset stay reachable on a small screen. */
+        #cookScorePanel.profile-open { max-height: calc(100dvh - 120px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
         .cook-score-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.9rem 0.2rem; font-weight: 700; font-size: 0.92rem; }
         .cook-score-panel-head button { cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 999px; width: 30px; height: 30px; font-size: 1rem; line-height: 1; padding: 0; }
         .cook-score-panel-body { max-height: min(55dvh, 520px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 0.2rem 0.9rem 0.8rem; }
@@ -325,6 +329,11 @@
     #combinerBarText { white-space: normal; line-height: 1.3; }
     #combinerBarMeta { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding-top: 0.3rem; flex-wrap: wrap; }
     .profile-chip { flex: none; border: 1px solid var(--link-color); color: var(--link-color); background: transparent; border-radius: 999px; padding: 0.28rem 0.7rem; font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    /* Touch: the pill stays small, its hit area does not (about 48px tall). */
+    @media (pointer: coarse) {
+        .profile-chip { position: relative; }
+        .profile-chip::after { content: ''; position: absolute; inset: -9px -6px; }
+    }
     .combiner-profile-row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin: 0.2rem 0 0.4rem; }
     /* Verdict (scorecard layer): the site's blue dots and pill
        buttons only -- no new visual language. */
@@ -334,9 +343,8 @@
     .verdict-rule { font-size: 0.8rem; color: var(--subtext-color); margin: 0.15rem 0 0.45rem; }
     .verdict-bar { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; font-weight: 600; }
     .profile-day { font-size: 0.85rem; font-weight: 600; }
-    #combinerBarPanel .nutrition-profile { margin-top: 0.7rem; }
-    #combinerBarPanel .nutrition-profile[hidden] { display: none; }
-    .nutrition-profile-pointer { font-size: 0.85rem; color: var(--subtext-color); margin: 0.6rem 0; }
+    .combiner-profile-row + .nutrition-profile { margin-top: 0.7rem; }
+    .nutrition-profile[hidden] { display: none; }
     .combiner-bar-chevron { color: var(--link-color); font-size: 0.85rem; flex: none; display: inline-block; transform: rotate(180deg); transition: transform var(--dur-2) var(--ease-inout); }
     #combinerBar.expanded .combiner-bar-chevron { transform: rotate(0deg); }
     /* Expandable all-nutrients panel: collapsed bar stays slim; tapping the
@@ -347,6 +355,16 @@
     .combiner-panel-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin: 0 0 0.2rem; font-size: 0.78rem; font-weight: 700; }
     .healthy-day-note { margin: 0 0 0.35rem; font-size: 0.72rem; line-height: 1.45; opacity: 0.85; }
     .verdict-frame { font-size: 0.82rem; color: var(--subtext-color); margin: 0.1rem 0 0.4rem; }
+    /* Verdict frame toggle: the site's segmented control -- one pill
+       track, the active side filled with the link colour. The visual
+       stays small; on coarse pointers the buttons grow to a full
+       touch target instead. */
+    .frame-toggle-row { display: flex; align-items: center; margin: 0.15rem 0 0.4rem; }
+    .frame-toggle { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--badge-bg); }
+    .frame-toggle button { border: 0; background: transparent; color: var(--subtext-color); font: inherit; font-size: 0.8rem; font-weight: 600; line-height: 1.2; padding: 0.32rem 0.8rem; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: background var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out); }
+    .frame-toggle button.active { background: var(--link-color); color: #fff; }
+    #cookScorePanel .frame-toggle-row { padding: 0 0.9rem; }
+    @media (pointer: coarse) { .frame-toggle button { padding: 0.6rem 0.85rem; } }
     .verdict-checks { margin: 0 0 0.5rem; }
     .verdict-check { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.45rem; padding: 0.22rem 0; border-bottom: 1px solid var(--border-color); font-size: 0.8rem; line-height: 1.4; }
     .verdict-check:last-child { border-bottom: 0; }
@@ -5579,7 +5597,7 @@
                     <p>Calories: basal metabolic rate (BMR) by Mifflin-St Jeor — men: 10 × weight (kg) + 6.25 × height (cm) − 5 × age + 5; women: the same, minus 161 (Mifflin et al., American Journal of Clinical Nutrition, 1990) — multiplied by an activity factor: sedentary 1.2, lightly active 1.375, moderately active 1.55, very active 1.725, extra active 1.9. Without height, BMR is estimated from weight alone (24 kcal/kg/day (10.9 kcal/lb/day) for men, 22 (10.0 kcal/lb/day) for women) and labelled as a rough estimate. Protein: 1.2–1.6 g per kg of body weight per day (0.55–0.73 g/lb) (Dietary Guidelines for Americans 2025–2030), scaled by activity from 1.2 (sedentary) to 1.6 (very/extra active). Fat: 20–35% of calories and carbohydrate: 45–65% (acceptable ranges, Dietary Guidelines); the dots use the middle of each range. Fiber: about 14 g per 1,000 kcal. Iron, calcium, vitamin D, vitamin C, vitamin A and potassium use age- and sex-specific recommended intakes (NIH Office of Dietary Supplements); sodium (2,300 mg), saturated fat (under 10% of calories) and cholesterol (300 mg) are daily limits. Total sugars has no daily value. Targets are estimates for a generally healthy adult, not medical advice.</p>
                 </details>
             </div>
-            <p class="nutrition-profile-pointer" id="profilePointer" hidden>Your daily targets live in the scorecard bar — pick any recipes below and tap Edit in the panel to set them. They travel with you as you scroll.</p>
+            <div class="combiner-profile-row"><span class="profile-day" data-profile-day></span><button type="button" class="profile-chip" data-profile-edit>Edit</button></div>
             <div class="combiner-layout">
                 <div class="combiner-list" id="combiner-list" aria-label="Choose recipes to combine"></div>
                 <div class="combiner-results" id="combiner-results">
@@ -6376,19 +6394,48 @@
        1. Protein at least 50% of target. 2. Fiber at least 50% of target.
        3. Micronutrient breadth: at least 4 of 6 (calcium, iron, potassium,
        vitamin D, vitamin C, vitamin A) at 50% or more of target.
-       4. Variety: at least 3 different recipes, including one salad, side
-       or soup. 5. Limits kept: saturated fat, sodium and cholesterol within
-       their daily limits on at least 2 of 3, and total sugars under 10% of
-       calories (the DGA added-sugars limit, applied to total sugars as a
-       conservative proxy -- total sugars include fruit and dairy sugars). */
+       4. Variety: a salad, side or soup in the mix, and at least 3 different
+       recipes or at least 4 servings in total. 5. Limits kept: saturated
+       fat, sodium and cholesterol within their daily limits on at least
+       2 of 3. (Sugar is not a base check: the verdict prices it separately,
+       by its share of the selection's calories.) */
     var HEALTHY_DAY_MICROS = ['301', '303', '306', '324', '401', '320'];
     /* The same five criteria, itemised: each check carries its name, the
        selection's own numbers against the threshold, met/missed, and a
        relative-shortfall weight (missW, 0..1) so the verdict can name the
        widest miss. healthyDayScore below is the unchanged count of met
        checks -- the verdict panels render these rows, they do not rescore. */
-    function healthyDayBreakdown(totals, recipeIds) {
-        var targets = activeTargets();
+    /* --- Verdict frame: Meal or Full day ---
+       The verdict judges a selection against a frame: a full day, or
+       a meal -- one third of the day, every target scaled by a third.
+       One global state: an explicit choice is stored
+       (jbo-verdict-frame-v1) and then wins on every surface; until
+       the visitor chooses, the cook surfaces open on Meal and the
+       combiner on Full day, because that is what each surface is
+       for. The meal generator builds whole days and always scores
+       the day frame; it never reads this state. */
+    var FRAME_KEY = 'jbo-verdict-frame-v1';
+    var frameStored = null;
+    try { var frameSaved = localStorage.getItem(FRAME_KEY); if (frameSaved === 'meal' || frameSaved === 'day') frameStored = frameSaved; } catch (e) {}
+    /* A frame argument is 'meal'/'day' outright, or a surface name
+       ('cook'/'combiner') resolved against the stored choice and the
+       surface's own default. No argument is a full day. */
+    function resolveFrame(frame) {
+        if (frame === 'meal' || frame === 'day') return frame;
+        if (frame === 'cook') return frameStored || 'meal';
+        if (frame === 'combiner') return frameStored || 'day';
+        return 'day';
+    }
+    function frameTargets(frame) {
+        var t = activeTargets();
+        if (frame !== 'meal') return t;
+        var out = {};
+        Object.keys(t).forEach(function (num) { out[num] = (typeof t[num] === 'number') ? t[num] / 3 : t[num]; });
+        return out;
+    }
+    function healthyDayBreakdown(totals, recipeIds, servings, frame) {
+        frame = resolveFrame(frame);
+        var targets = frameTargets(frame);
         var pct = function (num) { var t = targets[num]; return t ? totals[num] / t * 100 : 0; };
         var checks = [];
         var pProtein = pct('203');
@@ -6411,18 +6458,17 @@
             if (list.indexOf('salad') !== -1 || list.indexOf('side') !== -1 || list.indexOf('soup') !== -1) veggie = true;
         });
         var nDishes = (recipeIds || []).length;
-        checks.push({ key: 'variety', name: '3+ dishes, with a salad, side or soup', detail: nDishes + (nDishes === 1 ? ' dish' : ' dishes') + (veggie ? ' \u00b7 a salad, side or soup is in the mix' : ' \u00b7 no salad, side or soup in the mix'), met: nDishes >= 3 && veggie, missW: !veggie ? 1 : Math.max(0, 1 - nDishes / 3), veggie: veggie, dishes: nDishes });
+        var nServ = (typeof servings === 'number' && servings > 0) ? servings : nDishes;
+        var vDish = frame === 'meal' ? 2 : 3, vServ = frame === 'meal' ? 2 : 4;
+        checks.push({ key: 'variety', name: (frame === 'meal' ? '2+ dishes or 2+ servings' : '3+ dishes or 4+ servings') + ', with a salad, side or soup', detail: nDishes + (nDishes === 1 ? ' dish' : ' dishes') + ' \u00b7 ' + fmtServQty(nServ) + (nServ === 1 ? ' serving' : ' servings') + (veggie ? ' \u00b7 a salad, side or soup is in the mix' : ' \u00b7 no salad, side or soup in the mix'), met: veggie && (nDishes >= vDish || nServ >= vServ), missW: !veggie ? 1 : Math.max(0, 1 - Math.max(nDishes / vDish, nServ / vServ)), veggie: veggie, dishes: nDishes, servings: nServ });
         var over = 0;
         ['606', '307', '601'].forEach(function (num) { if (pct(num) > 100) over++; });
-        var kcal = totals['208'] || 0;
-        var sugarKcal = (totals['269'] || 0) * 4;
-        var sugarShare = kcal ? sugarKcal / kcal * 100 : 0;
-        checks.push({ key: 'limits', name: 'Limits kept (2 of 3 in range, sugars under 10% of calories)', detail: 'sat. fat ' + Math.round(pct('606')) + '% \u00b7 sodium ' + Math.round(pct('307')) + '% \u00b7 cholesterol ' + Math.round(pct('601')) + '% \u00b7 sugars ' + (Math.round(sugarShare * 10) / 10) + '% of calories', met: over <= 1 && (!kcal || sugarShare < 10), missW: Math.max(over >= 2 ? 0.75 : 0, kcal && sugarShare >= 10 ? Math.max(0, 1 - 10 / sugarShare) : 0), over: over, sugarShare: sugarShare });
+        checks.push({ key: 'limits', name: 'Limits kept (2 of 3 in range)', detail: 'sat. fat ' + Math.round(pct('606')) + '% \u00b7 sodium ' + Math.round(pct('307')) + '% \u00b7 cholesterol ' + Math.round(pct('601')) + '%', met: over <= 1, missW: over >= 2 ? 0.75 : 0, over: over });
         var score = 0;
         checks.forEach(function (c) { if (c.met) score++; });
         return { score: score, checks: checks };
     }
-    function healthyDayScore(totals, recipeIds) { return healthyDayBreakdown(totals, recipeIds).score; }
+    function healthyDayScore(totals, recipeIds, servings, frame) { return healthyDayBreakdown(totals, recipeIds, servings, frame).score; }
     /* Serving-count display: integers plain, halves as a vulgar fraction
        (2.5 -> "2½"), anything else one decimal. */
     function fmtServQty(n) {
@@ -6629,39 +6675,57 @@
         });
     }
 
-    /* --- Profile in the scorecard bar: the personalization travels ---
-       The profile form lives in the bar's expanded panel, so it is
-       reachable from anywhere on the page. The panel carries one quiet
-       line -- the day the percentages are measured against -- with an
-       Edit button that opens the same form. It reads the same stored
-       profile the form saves -- one source of truth. */
+    /* --- Profile rows: one quiet line, three surfaces ---
+       The Nutrition section, the combiner panel and the cook scorecard
+       panel each carry the same row -- the day the percentages are
+       measured against, with an Edit button. Every row renders from
+       renderProfileChip() and opens the one profile form: the form
+       moves under the row that was tapped and hides again on a second
+       tap of the same row. One form, one stored profile, one source
+       of truth. */
     function renderProfileChip() {
-        var day = document.getElementById('profileDayLine');
-        if (day) {
-            var t = activeTargets();
-            day.textContent = current
-                ? 'Your day: ~' + (Math.round(t['208'] / 10) * 10).toLocaleString('en-US') + ' kcal \u00b7 ' + Math.round(t['203']) + ' g protein'
-                : 'Standard day: ' + Math.round(t['208']).toLocaleString('en-US') + ' kcal \u00b7 ' + Math.round(t['203']) + ' g protein';
-        }
+        var t = activeTargets();
+        var txt = current
+            ? 'Your day: ~' + (Math.round(t['208'] / 10) * 10).toLocaleString('en-US') + ' kcal \u00b7 ' + Math.round(t['203']) + ' g protein'
+            : 'Standard day: ' + Math.round(t['208']).toLocaleString('en-US') + ' kcal \u00b7 ' + Math.round(t['203']) + ' g protein';
+        var days = document.querySelectorAll('[data-profile-day]');
+        for (var i = 0; i < days.length; i++) days[i].textContent = txt;
     }
-    /* The bar markup sits after this script in the document, so the move
-       and the chip wiring wait for the DOM; the chip text itself is
-       null-guarded and refreshes on every recompute regardless. */
     var profBlock = document.getElementById('nutrition-profile');
-    var barPanel = null;
+    var profAnchor = null;
+    function hideProfileEditor() {
+        if (!profBlock) return;
+        profBlock.hidden = true;
+        profAnchor = null;
+        var cp = document.getElementById('cookScorePanel');
+        if (cp) cp.classList.remove('profile-open');
+        syncBarSpace();
+    }
+    function toggleProfileEditor(btn) {
+        if (!profBlock || !btn) return;
+        var row = btn.closest ? btn.closest('.combiner-profile-row') : null;
+        if (!profBlock.hidden && profAnchor && row === profAnchor) { hideProfileEditor(); return; }
+        if (row && row.parentNode) row.parentNode.insertBefore(profBlock, row.nextSibling);
+        profBlock.hidden = false;
+        profAnchor = row;
+        var cp = document.getElementById('cookScorePanel');
+        if (cp) cp.classList.toggle('profile-open', !!(row && cp.contains(row)));
+        syncBarSpace();
+        if (profBlock.scrollIntoView) profBlock.scrollIntoView({ block: 'nearest' });
+    }
+    /* One delegated listener wires every surface's Edit button,
+       including markup that sits after this script in the document. */
+    document.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t || !t.closest) return;
+        var btn = t.closest('[data-profile-edit]');
+        if (btn) toggleProfileEditor(btn);
+    });
+    /* The bar and cook markup sit after this script in the document,
+       so the initial hide waits for the DOM; the day lines refresh on
+       every recompute regardless. */
     function initProfileBar() {
-        barPanel = document.getElementById('combinerBarPanel');
-        if (profBlock && barPanel) {
-            barPanel.appendChild(profBlock);
-            profBlock.hidden = true;
-            var pointer = document.getElementById('profilePointer');
-            if (pointer) pointer.hidden = false;
-        }
-        var chipPanelEl = document.getElementById('profileChipPanel');
-        if (chipPanelEl) chipPanelEl.addEventListener('click', function () {
-            if (profBlock) profBlock.hidden = !profBlock.hidden;
-            syncBarSpace();
-        });
+        if (profBlock) profBlock.hidden = true;
         renderProfileChip();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initProfileBar);
@@ -6669,12 +6733,57 @@
     if (applyBtn) applyBtn.addEventListener('click', function () {
         var p = loadProfile();
         var f = readForm();
-        if (p && f.age === p.age && f.sex === p.sex && f.weightLb === p.weightLb && f.activity === p.activity && profBlock) profBlock.hidden = true;
+        if (p && f.age === p.age && f.sex === p.sex && f.weightLb === p.weightLb && f.activity === p.activity) hideProfileEditor();
         renderProfileChip();
         syncBarSpace();
     });
     if (resetBtn) resetBtn.addEventListener('click', function () { renderProfileChip(); syncBarSpace(); });
     renderProfileChip();
+
+    /* --- Verdict frame toggle: the same segmented control on the
+       combiner panel and the cook scorecard panel, rendered from the
+       one frame state. Choosing a frame stores it -- it then wins on
+       every surface -- and re-renders every verdict surface: the
+       combiner (which also refreshes the cook header), the toggles
+       themselves, and the cook scorecard body while its panel is
+       open. One delegated listener wires both toggles, including the
+       cook markup that sits after this script in the document. */
+    function renderFrameToggles() {
+        var groups = document.querySelectorAll('[data-frame-toggle]');
+        for (var i = 0; i < groups.length; i++) {
+            var f = resolveFrame(groups[i].getAttribute('data-frame-toggle'));
+            var btns = groups[i].querySelectorAll('[data-frame-value]');
+            for (var j = 0; j < btns.length; j++) {
+                var on = btns[j].getAttribute('data-frame-value') === f;
+                btns[j].setAttribute('aria-selected', on ? 'true' : 'false');
+                btns[j].classList.toggle('active', on);
+            }
+        }
+        var cs = document.getElementById('cookScore');
+        if (cs) cs.title = resolveFrame('cook') === 'meal'
+            ? 'The verdict scores everything selected, at the servings shown, against a meal\u2019s nutrition targets \u2014 a meal is a third of a full day.'
+            : 'The verdict scores everything selected, at the servings shown, against a full day\u2019s nutrition targets.';
+    }
+    function setVerdictFrame(frame) {
+        if (frame !== 'meal' && frame !== 'day') return;
+        frameStored = frame;
+        try { localStorage.setItem(FRAME_KEY, frame); } catch (e) {}
+        renderFrameToggles();
+        updateCombiner();
+        var panel = document.getElementById('cookScorePanel');
+        var body = document.getElementById('cookScoreBody');
+        if (panel && body && !panel.hidden && window.__jboCookIds && window.__jboCookScorecard) {
+            body.innerHTML = window.__jboCookScorecard(window.__jboCookIds());
+        }
+    }
+    document.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t || !t.closest) return;
+        var btn = t.closest('[data-frame-value]');
+        if (btn) setVerdictFrame(btn.getAttribute('data-frame-value'));
+    });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', renderFrameToggles);
+    else renderFrameToggles();
 
     /* --- Generate daily meals (added 2026-11-13; realism rework same
        day; constrained rebuild 2026-11-14) ---
@@ -6776,7 +6885,7 @@
     }
     /* Healthy Day criteria, mirrored from healthyDayScore but reading the
        cached tag lists (no DOM lookups in the search loop). */
-    function genHealthyFast(totArr, ids) {
+    function genHealthyFast(totArr, ids, servTotal) {
         var targets = activeTargets();
         var pct = function (num) { var t = targets[num]; return t ? totArr[DV_ORDER.indexOf(num)] / t * 100 : 0; };
         var score = 0;
@@ -6790,12 +6899,10 @@
             var t = genTags(id);
             if (t.indexOf('salad') !== -1 || t.indexOf('side') !== -1 || t.indexOf('soup') !== -1) veggie = true;
         });
-        if (ids.length >= 3 && veggie) score++;
+        if (veggie && (ids.length >= 3 || (servTotal || ids.length) >= 4)) score++;
         var over = 0;
         ['606', '307', '601'].forEach(function (num) { if (pct(num) > 100) over++; });
-        var kcal = totArr[0] || 0;
-        var sugarKcal = (totArr[DV_ORDER.indexOf('269')] || 0) * 4;
-        if (over <= 1 && (!kcal || sugarKcal / kcal * 100 < 10)) score++;
+        if (over <= 1) score++;
         return score;
     }
     /* Realism rework (2026-11-13): every dish past the second costs real
@@ -6808,7 +6915,7 @@
        lose points steeply once they pass 85% of the limit. Plus a bonus
        for the page's own verdict base score, so plans that satisfy its
        criteria win ties. */
-    function genObjective(totArr, ids) {
+    function genObjective(totArr, ids, servTotal) {
         var targets = activeTargets();
         var s = 0;
         DV_ORDER.forEach(function (num, i) {
@@ -6821,11 +6928,11 @@
             else c = scoreFromPct(pct) - Math.max(0, pct - 150) / 75;
             s += Math.max(-5, c);
         });
-        return s + 2 * genHealthyFast(totArr, ids) - GEN_DISH_PENALTY * Math.max(0, ids.length - 2);
+        return s + 2 * genHealthyFast(totArr, ids, servTotal) - GEN_DISH_PENALTY * Math.max(0, ids.length - 2);
     }
     function genScoreOf(plan) {
         var t = genTotalsArr(plan);
-        return { score: genObjective(t, Object.keys(plan)), totals: t };
+        return { score: genObjective(t, Object.keys(plan), Object.keys(plan).reduce(function (s, k) { return s + plan[k]; }, 0)), totals: t };
     }
     function genShuffle(a) {
         for (var i = a.length - 1; i > 0; i--) {
@@ -7039,7 +7146,7 @@
                 if (seenKeys[key]) continue;
                 seenKeys[key] = 1;
                 var totArr = genTotalsArr(plan);
-                valid.push({ meals: meals, plan: plan, totArr: totArr, key: key, score: genObjective(totArr, Object.keys(plan)), relaxed: bands !== GEN_BANDS });
+                valid.push({ meals: meals, plan: plan, totArr: totArr, key: key, score: genObjective(totArr, Object.keys(plan), Object.keys(plan).reduce(function (s, k) { return s + plan[k]; }, 0)), relaxed: bands !== GEN_BANDS });
             }
             return tries;
         }
@@ -7087,7 +7194,7 @@
         h += '<div class="recipe-section-title">Combined — this day</div><div class="nutri-bars">';
         DV_ORDER.forEach(function (num) { h += dotRow(num, { value: Math.round(totArr[DV_ORDER.indexOf(num)] * 10) / 10 }); });
         h += '</div>';
-        var dv = window.__jboVerdictFor(Object.keys(plan), plan);
+        var dv = window.__jboVerdictFor(Object.keys(plan), plan, 'day');
         if (dv) h += '<p class="daily-short verdict-line"><strong>Verdict:</strong> ' + verdictLineHTML(dv) + '</p>';
         var targets = activeTargets();
         var short = [], five = 0, scored = 0;
@@ -7156,53 +7263,72 @@
             if (m !== 1) servAllOne = false;
             DV_ORDER.forEach(function (num) { totals[num] += d.perServing[num].value * m; });
         });
-        return { totals: totals, score: healthyDayScore(totals, ok), kcal: Math.round(totals['208']), protein: Math.round(totals['203']), servings: servTotal, allOne: servAllOne, count: ok.length };
+        return { totals: totals, score: healthyDayScore(totals, ok, servTotal), kcal: Math.round(totals['208']), protein: Math.round(totals['203']), servings: servTotal, allOne: servAllOne, count: ok.length };
     }
     window.__jboCombo = function (ids) { return comboCore(ids, null); };
     window.__jboComboWith = function (ids, multMap) { return comboCore(ids, multMap || null); };
 
     /* --- The verdict: a pure consumer of the scorecard's own numbers.
        Bands, not precision: start from the base score, subtract
-       for sugar against its day budget, add for fiber and protein that
-       reach their FULL targets. Labels are the user's approved set,
-       gated at scores 1-2 on the cause below being present. --- */
+       for sugar by its share of the selection's calories, add for fiber
+       and protein that reach their FULL targets. Labels are the user's
+       approved set, gated at scores 1-2 on the cause below being
+       present. --- */
     var VERDICT_LABELS = ['', 'Unhealthy calories', 'Treat-heavy', 'Middle of the road', 'Genuinely healthy', 'Hard to beat'];
     /* At scores 1-2 the cause words ('Unhealthy calories', 'Treat-heavy')
        are used only when a cause is actually present: the sugar penalty
-       applied, sodium over its ceiling, or 2+ of the 3 limits (sat. fat,
-       sodium, cholesterol) over theirs. A low score with no cause is a
-       light day, not a treat day, and takes these quality words. */
+       applied AND the sugar material (at least 10 g of it -- a percentage
+       of almost nothing is not a cause), sodium over its ceiling, or 2+
+       of the 3 limits (sat. fat, sodium, cholesterol) over theirs. A low
+       score with no cause is a light day, not a treat day, and takes
+       these quality words. */
     var VERDICT_LABELS_LIGHT = ['', 'Barely a day', 'Light day'];
-    var VERDICT_RULE = 'The verdict: the day\u2019s base score, minus up to 2 when sugar passes its day budget, plus 1 each when fiber and protein reach their full targets.';
+    /* The same no-cause quality words in the meal frame. */
+    var VERDICT_LABELS_LIGHT_MEAL = ['', 'Barely a meal', 'Light meal'];
+    var VERDICT_RULE = 'The verdict: the base score against the day\u2019s targets \u2014 a meal\u2019s in Meal view, one third of the day \u2014 minus up to 2 for sugar (1 past 10% of the selection\u2019s calories, 2 past 20%), plus 1 each when fiber and protein reach their full targets.';
     function nameOf(rid) {
         var rec = RECIPES.find(function (x) { return x.id === rid; });
         if (rec) return rec.name;
         if (NUTRI.vitamins && NUTRI.vitamins[rid]) return NUTRI.vitamins[rid].name;
         return rid;
     }
-    function verdictFromTotals(totals, ids, multMap) {
+    function verdictFromTotals(totals, ids, multMap, frame) {
         if (!totals || !ids || !ids.length) return null;
-        var targets = activeTargets();
-        var sugarBudget = targets['269'] ? targets['269'] : 50; /* FDA added-sugar DV: code 269 is total sugars and carries no DV of its own */
-        var sugarPct = (totals['269'] || 0) / sugarBudget;
+        frame = resolveFrame(frame);
+        var targets = frameTargets(frame);
         var fiberPct = targets['291'] ? (totals['291'] || 0) / targets['291'] : 0;
         var proteinPct = targets['203'] ? (totals['203'] || 0) / targets['203'] : 0;
         var sodiumPct = targets['307'] ? (totals['307'] || 0) / targets['307'] : 0;
-        var bd = healthyDayBreakdown(totals, ids);
+        var servTotal = 0;
+        ids.forEach(function (rid) {
+            if (NUTRI.recipes[dataKey(rid)] || (NUTRI.vitamins && NUTRI.vitamins[rid])) servTotal += (multMap && multMap[rid] != null) ? multMap[rid] : (servMult[rid] || 1);
+        });
+        var bd = healthyDayBreakdown(totals, ids, servTotal, frame);
         var base = bd.score;
-        var penalty = sugarPct > 1 ? 2 : (sugarPct > 0.5 ? 1 : 0);
+        /* Sugar is priced once, by density: its share of the selection's
+           own calories (sugar grams x 4 / kcal). Past 10% costs 1,
+           past 20% costs 2 -- the same dish pays the same at any
+           serving count, and nothing else in the verdict taxes sugar. */
+        var sugarShare = (totals['208'] || 0) ? (totals['269'] || 0) * 4 / totals['208'] * 100 : 0;
+        var penalty = sugarShare > 20 ? 2 : (sugarShare > 10 ? 1 : 0);
         var lifts = (fiberPct >= 1 ? 1 : 0) + (proteinPct >= 1 ? 1 : 0);
         var score = Math.max(1, Math.min(5, base - penalty + lifts));
         var limitsCheck = null;
         bd.checks.forEach(function (c) { if (c.key === 'limits') limitsCheck = c; });
-        var cause = penalty > 0 || sodiumPct > 1 || !!(limitsCheck && limitsCheck.over >= 2);
-        var label = (score <= 2 && !cause) ? VERDICT_LABELS_LIGHT[score] : VERDICT_LABELS[score];
+        /* The 10 g floor: the penalty taxes the score at any amount, but
+           sugar names the cause only when there is enough of it to be
+           one -- under 10 g the share is a percentage of almost nothing
+           (3 g is 14% of an 83-kcal salad) and the label stays a quality
+           word, with the clause led by the next driver instead. */
+        var sugarCause = penalty > 0 && (totals['269'] || 0) >= 10;
+        var cause = sugarCause || sodiumPct > 1 || !!(limitsCheck && limitsCheck.over >= 2);
+        var label = (score <= 2 && !cause) ? (frame === 'meal' ? VERDICT_LABELS_LIGHT_MEAL : VERDICT_LABELS_LIGHT)[score] : VERDICT_LABELS[score];
         /* The clause names the dominant driver OF THIS LABEL, in the
            label's own direction: a lone positive never leads under a 1-2
            verdict, a lone negative never leads under a 4-5. Candidate
            texts are the established ones where they already existed. */
         var sugarText = null;
-        if (sugarPct > 0.5) {
+        if (sugarCause) {
             var topName = null, topG = -1;
             ids.forEach(function (rid) {
                 var d = NUTRI.recipes[dataKey(rid)] || (NUTRI.vitamins ? NUTRI.vitamins[rid] : null);
@@ -7211,9 +7337,9 @@
                 var g = d.perServing['269'].value * m;
                 if (g > topG) { topG = g; topName = nameOf(rid); }
             });
-            sugarText = 'Sugar is the drag: ' + Math.round(totals['269'] || 0) + ' g' + (topName ? ', mostly from ' + topName + ' (' + Math.round(topG) + ' g)' : '');
+            sugarText = 'Sugar is the drag: ' + Math.round(totals['269'] || 0) + ' g \u2014 ' + Math.round(sugarShare) + '% of the ' + (frame === 'meal' ? 'meal' : 'day') + '\u2019s calories' + (topName ? ', mostly from ' + topName + ' (' + Math.round(topG) + ' g)' : '');
         }
-        var sodiumText = sodiumPct > 1 ? 'Sodium runs over: ' + Math.round(totals['307'] || 0).toLocaleString('en-US') + ' mg \u2014 ' + Math.round(sodiumPct * 100) + '% of the day\u2019s ceiling' : null;
+        var sodiumText = sodiumPct > 1 ? 'Sodium runs over: ' + Math.round(totals['307'] || 0).toLocaleString('en-US') + ' mg \u2014 ' + Math.round(sodiumPct * 100) + '% of the ' + (frame === 'meal' ? 'meal' : 'day') + '\u2019s ceiling' : null;
         var liftText = null, liftW = -1;
         if (fiberPct >= 1) { liftText = 'Fiber clears its target: ' + Math.round(totals['291'] || 0) + ' g of ' + Math.round(targets['291']) + ' g'; liftW = fiberPct; }
         if (proteinPct >= 1 && proteinPct > liftW) { liftText = 'Protein clears its target: ' + Math.round(totals['203'] || 0) + ' g of ' + Math.round(targets['203']) + ' g'; liftW = proteinPct; }
@@ -7223,24 +7349,24 @@
             if (worst.key === 'protein') missText = 'Protein is short: ' + worst.detail;
             else if (worst.key === 'fiber') missText = 'Fiber is short: ' + worst.detail;
             else if (worst.key === 'micros') missText = 'Micronutrients are thin: only ' + worst.count + ' of 6 reach halfway' + (worst.hits.length ? ' (' + worst.hits.join(', ') + ')' : '');
-            else if (worst.key === 'variety') missText = !worst.veggie ? 'No salad, side or soup in the mix \u2014 the variety check needs one' : 'Variety needs 3+ dishes \u2014 this selection has ' + worst.dishes;
-            else if (worst.key === 'limits') missText = worst.over >= 2 ? 'Limits slip: ' + worst.over + ' of 3 (sat. fat, sodium, cholesterol) run over their day' : 'Sugars run ' + (Math.round(worst.sugarShare * 10) / 10) + '% of calories \u2014 over the 10% line';
+            else if (worst.key === 'variety') missText = !worst.veggie ? 'No salad, side or soup in the mix \u2014 the variety check needs one' : 'Variety needs ' + (frame === 'meal' ? '2+ dishes or 2+ servings' : '3+ dishes or 4+ servings') + ' \u2014 this selection has ' + worst.dishes + (worst.dishes === 1 ? ' dish' : ' dishes') + ' and ' + fmtServQty(worst.servings) + (worst.servings === 1 ? ' serving' : ' servings');
+            else if (worst.key === 'limits') missText = 'Limits slip: ' + worst.over + ' of 3 (sat. fat, sodium, cholesterol) run over their ' + (frame === 'meal' ? 'meal' : 'day');
         }
         var clause;
         if (score <= 2) clause = sugarText || missText || sodiumText || ('The base checks leave it at ' + base + ' of 5.');
-        else if (score >= 4) clause = liftText || (base >= 4 ? 'The day\u2019s checks carry it: ' + base + ' of 5 pass.' : 'No single number dominates this selection.');
-        else if (penalty && base + lifts > 3) clause = sugarText;
+        else if (score >= 4) clause = liftText || (base >= 4 ? 'The ' + (frame === 'meal' ? 'meal' : 'day') + '\u2019s checks carry it: ' + base + ' of 5 pass.' : 'No single number dominates this selection.');
+        else if (sugarText && base + lifts > 3) clause = sugarText;
         else if (lifts && base - penalty < 3) clause = liftText;
         else clause = missText || sodiumText || liftText || 'No single number dominates this selection.';
         var dayKcal = targets['208'] || 0;
         var kcalNow = totals['208'] || 0;
-        return { score: score, label: label, cause: cause, clause: clause, totals: totals, base: base, checks: bd.checks, frame: (dayKcal && kcalNow < 0.6 * dayKcal) ? { kcal: Math.round(kcalNow), day: Math.round(dayKcal / 10) * 10 } : null };
+        return { score: score, label: label, cause: cause, clause: clause, totals: totals, base: base, checks: bd.checks, frameName: frame, frame: (dayKcal && kcalNow < 0.6 * dayKcal) ? { kcal: Math.round(kcalNow), day: Math.round(dayKcal / 10) * 10 } : null };
     }
-    window.__jboVerdictFor = function (ids, multMap) {
+    window.__jboVerdictFor = function (ids, multMap, frame) {
         if (!ids || !ids.length) return null;
         var r = comboCore(ids, multMap || null);
         if (!r || !r.count) return null;
-        return verdictFromTotals(r.totals, ids, multMap || null);
+        return verdictFromTotals(r.totals, ids, multMap || null, frame);
     };
     function verdictDotsHTML(score, label) {
         var h = '<span class="nutri-dots" role="img" aria-label="Verdict: ' + score + ' out of 5 \u2014 ' + label + '">';
@@ -7263,13 +7389,13 @@
     }
     function verdictFrameHTML(v) {
         if (!v || !v.frame) return '';
-        return '<p class="verdict-frame">Judged as a full day \u2014 this selection is ' + v.frame.kcal.toLocaleString('en-US') + ' of ~' + v.frame.day.toLocaleString('en-US') + ' kcal.</p>';
+        return '<p class="verdict-frame">Judged as ' + (v.frameName === 'meal' ? 'a meal' : 'a full day') + ' \u2014 this selection is ' + v.frame.kcal.toLocaleString('en-US') + ' of ~' + v.frame.day.toLocaleString('en-US') + ' kcal.</p>';
     }
     /* Compare was removed in the 2026-11-14 scorecard cut; clear
        any parked day a returning visitor still has stored. */
     try { localStorage.removeItem('jbo-compare-v1'); } catch (e) {}
     function renderVerdictSurfaces(totals, ids) {
-        var v = (totals && ids && ids.length) ? verdictFromTotals(totals, ids) : null;
+        var v = (totals && ids && ids.length) ? verdictFromTotals(totals, ids, null, 'combiner') : null;
         var row = document.getElementById('verdictRow');
         if (row) { row.hidden = !v; if (v) document.getElementById('verdictMain').innerHTML = verdictLineHTML(v); }
         var rule = document.getElementById('verdictRule');
@@ -7279,7 +7405,7 @@
         var ck = document.getElementById('verdictChecks');
         if (ck) { var ch = v ? verdictCheckRows(v) : ''; ck.innerHTML = ch; ck.hidden = !ch; }
         var vb = document.getElementById('verdictBar');
-        if (vb) { vb.hidden = !v; vb.innerHTML = v ? verdictDotsHTML(v.score, v.label) + '<span>' + v.label + '</span>' : ''; }
+        if (vb) { vb.hidden = !v; vb.innerHTML = v ? verdictDotsHTML(v.score, v.label) + '<span>' + v.label + (v.frameName === 'meal' ? ' \u00b7 as a meal' : '') + '</span>' : ''; }
     }
     /* Cook scorecard: the cooking set's combined nutrition for the cook
        view's bottom panel. Totals come from __jboCombo (the same numbers
@@ -7299,7 +7425,7 @@
         });
         var h = '';
         h += '<p class="cook-score-total"><strong>' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 ' + r.protein + ' g protein</strong></p>';
-        var vv = verdictFromTotals(r.totals, ids);
+        var vv = verdictFromTotals(r.totals, ids, null, 'cook');
         if (vv) { h += '<p class="verdict-line">' + verdictLineHTML(vv) + '</p><p class="verdict-rule">' + VERDICT_RULE + '</p>' + verdictFrameHTML(vv) + '<div class="verdict-checks">' + verdictCheckRows(vv) + '</div>'; }
         if (dishes.length) {
             h += '<div class="combiner-dishes">';
@@ -7746,9 +7872,10 @@
     <div id="combinerBar" role="group" aria-label="Combined nutrition totals">
         <div id="combinerBarPanel">
             <div class="combiner-panel-head"><span>Combined nutrition</span></button></span></div>
-            <div class="combiner-profile-row"><span class="profile-day" id="profileDayLine"></span><button type="button" class="profile-chip" id="profileChipPanel">Edit</button></div>
+            <div class="combiner-profile-row"><span class="profile-day" data-profile-day></span><button type="button" class="profile-chip" data-profile-edit>Edit</button></div>
+            <div class="frame-toggle-row"><div class="frame-toggle" role="tablist" aria-label="Judge the verdict as a meal or as a full day" data-frame-toggle="combiner"><button type="button" role="tab" data-frame-value="meal" aria-selected="false">Meal</button><button type="button" role="tab" data-frame-value="day" aria-selected="false">Full day</button></div></div>
             <div class="verdict-row" id="verdictRow" hidden><span id="verdictMain"></span></div>
-            <p class="verdict-rule" id="verdictRule" hidden>The verdict: the day’s base score, minus up to 2 when sugar passes its day budget, plus 1 each when fiber and protein reach their full targets.</p>
+            <p class="verdict-rule" id="verdictRule" hidden>The verdict: the base score against the day’s targets — a meal’s in Meal view, one third of the day — minus up to 2 for sugar (1 past 10% of the selection’s calories, 2 past 20%), plus 1 each when fiber and protein reach their full targets.</p>
             <div id="verdictFrame" hidden></div>
             <div class="verdict-checks" id="verdictChecks" hidden></div>
             <div class="combiner-dishes" id="combinerBarDishes"></div>
@@ -7782,6 +7909,8 @@
         <div id="cookRecipes"></div>
         <div id="cookScorePanel" class="glass-bubble" hidden>
             <div class="cook-score-panel-head"><span>Combined nutrition</span><button type="button" id="cookScoreClose" aria-label="Close scorecard">&times;</button></div>
+            <div class="combiner-profile-row"><span class="profile-day" data-profile-day></span><button type="button" class="profile-chip" data-profile-edit>Edit</button></div>
+            <div class="frame-toggle-row"><div class="frame-toggle" role="tablist" aria-label="Judge the verdict as a meal or as a full day" data-frame-toggle="cook"><button type="button" role="tab" data-frame-value="meal" aria-selected="false">Meal</button><button type="button" role="tab" data-frame-value="day" aria-selected="false">Full day</button></div></div>
             <div class="cook-score-panel-body" id="cookScoreBody"></div>
         </div>
     </div>
@@ -8351,13 +8480,13 @@
             var tg = document.getElementById('cookScoreToggle');
             if (!ids || !ids.length || !window.__jboCombo) { el.innerHTML = ''; if (tg) tg.textContent = 'Scorecard'; return; }
             var r = window.__jboCombo(ids);
-            var v = window.__jboVerdictFor ? window.__jboVerdictFor(ids) : null;
+            var v = window.__jboVerdictFor ? window.__jboVerdictFor(ids, null, 'cook') : null;
             var dots = '';
             for (var i = 0; i < 5; i++) dots += '<span class="nutri-dot' + (i < (v ? v.score : 0) ? ' filled' : '') + '"></span>';
             var basis = r.allOne
                 ? '1 serving each'
                 : fmtCookServ(r.servings) + ' serving' + (r.servings === 1 ? '' : 's') + ' total';
-            el.innerHTML = '<span class="cook-score-basis">' + basis + '</span> <span aria-hidden="true">\u00b7</span> ' + (v ? '<span class="nutri-dots" role="img" aria-label="Verdict: ' + v.score + ' out of 5 \u2014 ' + v.label + '">' + dots + '</span> <span class="cook-score-label">' + v.label + '</span> ' : '') + '<span class="cook-score-nums">\u00b7 ' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 '  + r.protein + ' g protein</span>';
+            el.innerHTML = '<span class="cook-score-basis">' + basis + '</span> <span aria-hidden="true">\u00b7</span> ' + (v ? '<span class="nutri-dots" role="img" aria-label="Verdict: ' + v.score + ' out of 5 \u2014 ' + v.label + '">' + dots + '</span> <span class="cook-score-label">' + v.label + (v.frameName === 'meal' ? ' \u00b7 as a meal' : '') + '</span> ' : '') + '<span class="cook-score-nums">\u00b7 ' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 '  + r.protein + ' g protein</span>';
             if (tg) tg.textContent = 'Scorecard \u00b7 ' + r.kcal.toLocaleString('en-US') + ' kcal';
         };
         window.__jboCookRefresh = function () {
