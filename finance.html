@@ -172,6 +172,10 @@
        itself so it can never contradict the badge. */
     button.framework-badge { font-family: inherit; border: none; cursor: pointer; }
     .score-cell-btn { font: inherit; color: inherit; background: none; border: none; padding: 0; margin: 0; cursor: pointer; text-align: left; }
+    /* Founder-led flag (2026-11-16): a factual marker in the scoreboard's
+       company cell — a founder is still CEO. Neutral on purpose: it is
+       not a verdict, so it takes neither the pass nor the fail colour. */
+    .badge-founder { background-color: var(--hover-bg); color: var(--subtext-color); border: 1px solid var(--border-color); margin-left: 0.3rem; }
     #scoreTip { position: fixed; z-index: 1200; max-width: min(340px, calc(100vw - 16px)); padding: 0.7rem 0.85rem; font-size: 0.83rem; line-height: 1.5; color: var(--subtext-color); display: none; }
     #scoreTip.open { display: block; }
     #scoreTip strong { color: var(--text-color); font-size: 0.9rem; }
@@ -2056,6 +2060,24 @@
             }
         })();
 
+        // Founder-led flags (verified 2026-11-16): a founder is the
+        // company's current CEO. A factual marker only — no rule reads
+        // this set and no score changes. AAOI: Thompson Lin, founder,
+        // chairman & CEO (company's Q3 2026 earnings call). IREN: Daniel
+        // and William Roberts, co-founders & co-CEOs (company profile).
+        // NBIS: Arkady Volozh, principal founder, CEO since Aug 2024
+        // (Nebius Group 2026 AGM agenda). PLTR: Alex Karp, co-founder &
+        // CEO (Palantir Q3 2026 release). SPCX: Elon Musk, founder & CEO
+        // (SpaceX final prospectus, Jun 2026). TSLA: Elon Musk, CEO, and
+        // a co-founder under the Sep 2009 Eberhard settlement.
+        // Deliberately NOT flagged: NVDA — Jensen Huang resigned on
+        // 11 Nov 2026 and the interim CEO, Colette Kress, is not a
+        // founder; MSTR — founder Michael Saylor is executive chairman
+        // and Phong Le is CEO; CIFR — sources conflict on Tyler Page
+        // (Cipher was created by Bitfury), so it stays unflagged rather
+        // than guessed.
+        const FOUNDER_LED = new Set(['AAOI', 'IREN', 'NBIS', 'PLTR', 'SPCX', 'TSLA']);
+
         function renderScoreboard() {
             const head = document.getElementById('scoreboardHead');
             const body = document.getElementById('scoreboardBody');
@@ -2087,7 +2109,7 @@
             else if (scoreboardSort === 'score-asc') rows.sort((a, b) => (a.score === null ? 101 : a.score) - (b.score === null ? 101 : b.score) || a.t.name.localeCompare(b.t.name));
             else rows.sort((a, b) => a.t.name.localeCompare(b.t.name));
             body.innerHTML = rows.map(r => {
-                let html = '<tr><td><strong>' + r.t.name + '</strong> (' + r.t.ticker + ')</td>';
+                let html = '<tr><td><strong>' + r.t.name + '</strong>' + (FOUNDER_LED.has(r.t.ticker) ? ' <span class="framework-badge badge-founder">Founder-led</span>' : '') + ' (' + r.t.ticker + ')</td>';
                 let scoreInner = '<strong>' + (r.score === null ? '—' : r.score + '%') + '</strong>';
                 if (r.graded && r.graded < selected.length) {
                     const untested = selected.length - r.graded;
@@ -3283,7 +3305,8 @@ if (typeof module !== "undefined") {
             { term: "Preferred shares", full: "", def: "A class of stock paid before common stock, with a fixed dividend and no maturity date — STRC and SATS here are preferreds, which is why their yields run around 12–15%.", eq: "", keys: ["Preferred shares", "preferred shares", "Preferreds", "preferreds", "preferred stock", "Preferred stock", "Preferred", "preferred"] },
             { term: "Quant", full: "Quantitative investing", def: "Investing by mathematical model and data rather than discretion — Simons's Medallion approach: find statistical patterns and trade them systematically.", eq: "", keys: ["Quant", "quant", "Quants", "quants"] },
             { term: "Momentum", full: "", def: "The tendency of assets that have risen recently to keep rising near-term (and fallers to keep falling) — the signal behind Druckenmiller's confirming leg and O'Shaughnessy's ranking here.", eq: "", keys: ["Momentum", "momentum"] },
-            { term: "Institutional ownership", full: "", def: "The percentage of a company's shares held by institutions (funds, pensions). On this page it is the author's estimate, not live data — as the note under the table says.", eq: "", keys: ["Institutional ownership", "institutional ownership", "Inst. Own"] }
+            { term: "Institutional ownership", full: "", def: "The percentage of a company's shares held by institutions (funds, pensions). On this page it is the author's estimate, not live data — as the note under the table says.", eq: "", keys: ["Institutional ownership", "institutional ownership", "Inst. Own"] },
+            { term: "Founder-led", full: "", def: "Still run by a founder as chief executive — the scoreboard flags the stocks on this page where that is true today. Bain & Company found that founder-led S&P 500 companies delivered about three times the shareholder returns of the rest from 1990 to 2014 (3.1 times, in their headline figure), and Fahlenbrach's peer-reviewed 2009 study likewise found founder-CEO firms outperforming. Read the pattern with care: the samples carry survivorship bias — founder companies that failed drop out of the data — and founder-led companies skew heavily toward tech and growth stocks.", eq: "", keys: ["Founder-led", "founder-led"] }
         ];
 
         // Build the legend list from the same definitions.
