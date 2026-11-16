@@ -104,6 +104,7 @@
     .selector-group input[type="text"]:hover, .selector-group input[type="text"]:focus { border-color: var(--accent-color); }
     .runner-step td { background: var(--card-bg); font-weight: 600; color: var(--text-color); }
     .runner-notes { font-size: 0.9rem; line-height: 1.55; }
+    .runner-verdict { font-size: 1rem; margin: 0 0 0.75rem; }
 
     /* Navigation redesign (2026-11-13): the sticky h2/h3 heading pinning
        above is REPLACED by a single pinned section nav below the frozen
@@ -245,7 +246,7 @@
     <div class="scoreboard-section collapsible-section" id="scoreboard">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="true" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> Investment Scoreboard</button></h2>
         <div class="section-body" id="scoreboard-body">
-        <p>The 19 companies on my list, each tested against 8 investors&rsquo; rules. The score is the share of the rules it passes that could be tested.</p>
+        <p>The scoreboard grades my 19 stocks by each investor&rsquo;s single favourite rule.</p>
                     <div class="chip-row" id="scoreboardInvestors" role="group" aria-label="Investors to score against">
                         <!-- Investor chips are rendered from SCOREBOARD_RULES below: only investors with a scored leg appear. -->
             </div>
@@ -355,7 +356,7 @@
                 <p><button type="button" class="filter-pill" id="runnerYourBtn">Run the Stack</button></p>
             </div>
             <div id="runnerResults" aria-live="polite">
-                <p style="font-size: 0.9rem; color: var(--subtext-color);">Start above &mdash; type your own stock&rsquo;s ticker, or pick from Johnny&rsquo;s list &mdash; and the checklist runs on real numbers: each line shows the stock&rsquo;s figure, the bar from the Stack, and whether it clears it. Lines the data can&rsquo;t judge yet say so, and say what&rsquo;s missing.</p>
+                <p style="font-size: 0.9rem; color: var(--subtext-color);">Run one stock through my full checklist.</p>
             </div>
         </div>
         <p style="font-size: 0.85rem; color: var(--subtext-color);">The runner and the scoreboard grade individual companies. An index, gold or Bitcoin has no earnings or return on equity to grade &mdash; for those, use The Chart below and its 200-week line.</p>
@@ -2462,7 +2463,11 @@
         // shown as "can't check" with the missing input named — never
         // graded by proxy. A typed ticker that isn't in the graded set is
         // never given invented numbers: the runner says what the data
-        // pipeline would have to collect. (The Chart can't draw it either
+        // pipeline would have to collect. The result opens with the
+        // verdict — passes, fails and can't-checks counted in plain
+        // words — and the checks are grouped fails first, then passes,
+        // then can't-checks, so a failure is the first thing seen.
+        // (The Chart can't draw it either
         // — it covers the same 19 stocks plus the S&P 500, the Nasdaq,
         // gold and Bitcoin — and the panel says so rather than offering
         // a chart that doesn't exist.)
@@ -2487,6 +2492,59 @@
                 if (window.jboLoadChartSymbol) window.jboLoadChartSymbol(btn.getAttribute('data-chart-symbol'));
             });
         }
+        // The runner's checks in Stack order, each with its verdict
+        // state: true = pass, false = fail, null = can't check (the
+        // missing input is named in the value cell). Every threshold
+        // is the verbatim Stack; nothing is graded by proxy.
+        function runnerChecks(t, sym) {
+            const missFund = '&mdash; (not in the data yet &mdash; the weekly fundamentals refresh carries it)';
+            const hasMcap = t.mcap !== null && t.mcap !== undefined;
+            const hasRoe = t.roe !== null && t.roe !== undefined;
+            const checks = [];
+            const add = (name, value, bar, state) => checks.push({ name, value, bar, state });
+            // Step 0 — Tradable
+            if (sym === 'TSM') add('US-listed common stock', 'Foreign ADR (Taiwan)', 'US-listed', false);
+            else add('US-listed common stock', 'US-listed', 'US-listed', true);
+            add('Market value (market cap)', hasMcap ? (t.mcap_str || ('$' + fmtNum(t.mcap, 1) + 'B')) : missFund, '$1B or more', hasMcap ? t.mcap >= 1 : null);
+            add('Share price', fmtMoney(t.price), '$10 or more', t.price === null || t.price === undefined ? null : t.price >= 10);
+            add('Trading volume', '&mdash; (average daily volume is not in the data)', '500,000+ shares a day', null);
+            // Step 1A — Cheap
+            add('Earnings yield (EBIT &divide; company value)', '&mdash; (needs EBIT and enterprise value &mdash; not in the data)', '8% or more', null);
+            add('P/E ratio', '&mdash; (the data carries PEG and growth, not the P/E itself)', '20 or less', null);
+            add('Price-to-book (P/B)', '&mdash; (book value is not in the data)', '3 or less', null);
+            add('PEG ratio', t.peg === null || t.peg === undefined ? '&mdash;' : fmtNum(t.peg, 2) + (t.peg < 0.5 ? ' &mdash; standout territory (under 0.5)' : ''), '1 or less', t.peg === null || t.peg === undefined ? null : t.peg <= 1);
+            // Step 1A — Quality
+            add('Return on equity (ROE)', hasRoe ? fmtPct(t.roe) : missFund, '15% or more', hasRoe ? t.roe >= 15 : null);
+            add('Debt vs equity', fmtNum(t.debt, 2), '0.5 or less', t.debt === null || t.debt === undefined ? null : t.debt <= 0.5);
+            add('Net debt vs EBITDA', '&mdash; (needs net debt and EBITDA &mdash; not in the data)', '2 or less', null);
+            add('Cash conversion (free cash flow &divide; profit)', '&mdash; (cash flow is not in the data)', '90% or more', null);
+            add('Gross margin', '&mdash; (the data carries net margin, not gross margin)', '40% or more', null);
+            add('Free-cash-flow yield', '&mdash; (free cash flow is not in the data)', '4% or more', null);
+            add('Profitable every year, last 5 years', '&mdash; (year-by-year profit history is not in the data)', '5 straight years', null);
+            add('Piotroski F-score', '&mdash; (needs nine figures from the financial statements &mdash; not in the data)', '7 or more', null);
+            // Step 1B — Growth & strength
+            add('Latest-quarter EPS growth (O&rsquo;Neil)', '&mdash; (quarterly EPS figures are not in the data &mdash; the growth figure here is revenue growth)', '25% or more', null);
+            add('Return on equity (O&rsquo;Neil&rsquo;s bar)', hasRoe ? fmtPct(t.roe) : missFund, '17% or more', hasRoe ? t.roe >= 17 : null);
+            add('Trend Template (Minervini&rsquo;s 8 rules)', '&mdash; (written in daily averages &mdash; 50/150/200-day; this page&rsquo;s price history is weekly. The Chart below shows the same idea in weekly lines)', 'All 8 rules', null);
+            const rs = relativeStrengths();
+            if (rs[sym] === undefined) {
+                add('Relative strength (12 months, skipping the last month)', '&mdash; (not enough price history yet)', 'Top fifth of this page&rsquo;s stocks', null);
+            } else {
+                const ranked = Object.keys(rs).sort((a, b) => rs[b] - rs[a]);
+                const rank = ranked.indexOf(sym);
+                add('Relative strength (12 months, skipping the last month)', fmtPct(rs[sym], 1, true) + ' &mdash; ranked #' + (rank + 1) + ' of ' + ranked.length + ' on this page', 'Top fifth of this page&rsquo;s stocks', rank < ranked.length * 0.2);
+            }
+            return checks;
+        }
+        // The one-line verdict that opens every result: the runner's
+        // own counts for the stock, in plain words — no aggregate
+        // grade beyond the counts.
+        function runnerVerdict(sym, checks) {
+            const p = checks.filter(c => c.state === true).length;
+            const f = checks.filter(c => c.state === false).length;
+            const c = checks.length - p - f;
+            return '<p class="runner-verdict"><strong>' + sym + ' &mdash; passes ' + p + ' &middot; fails ' + f + ' &middot; can&rsquo;t check ' + c + '</strong></p>';
+        }
         function renderRunner() {
             const out = document.getElementById('runnerResults');
             if (!out) return;
@@ -2502,47 +2560,26 @@
             if (!sym || !marketDataLoaded) return; // keep the intro until a stock is chosen
             const t = tickerData.find(x => x.ticker === sym);
             if (!t) {
-                out.innerHTML = '<p><strong>' + sym + ' isn&rsquo;t in the graded set yet.</strong> The Stack&rsquo;s checks run on the numbers the weekly data pipeline collects &mdash; prices, PEG, growth, debt, and the fundamentals it pulls from SEC filings (return on equity, margins, market value). ' + sym + ' isn&rsquo;t one of the stocks it collects, so there are no honest numbers to grade here &mdash; and this page won&rsquo;t guess.</p>'
+                // No honest numbers exist for this ticker, so no check
+                // can run: the verdict counts them all as can't-check,
+                // with the total taken from the runner's own builder
+                // (an empty record — only the count is used).
+                const totalChecks = runnerChecks({ ticker: sym, name: sym, price: null, peg: null, roe: null, debt: null, mcap: null, mcap_str: null }, sym).length;
+                out.innerHTML = '<p class="runner-verdict"><strong>' + sym + ' &mdash; passes 0 &middot; fails 0 &middot; can&rsquo;t check ' + totalChecks + '</strong></p>'
+                    + '<p><strong>' + sym + ' isn&rsquo;t in the graded set yet.</strong> The Stack&rsquo;s checks run on the numbers the weekly data pipeline collects &mdash; prices, PEG, growth, debt, and the fundamentals it pulls from SEC filings (return on equity, margins, market value). ' + sym + ' isn&rsquo;t one of the stocks it collects, so there are no honest numbers to grade here &mdash; and this page won&rsquo;t guess.</p>'
                     + '<p>The Chart below can&rsquo;t draw ' + sym + ' either &mdash; it covers the S&amp;P 500, the Nasdaq, gold, Bitcoin and my 19 stocks.</p>';
                 return;
             }
-            const missFund = '&mdash; (not in the data yet &mdash; the weekly fundamentals refresh carries it)';
-            const hasMcap = t.mcap !== null && t.mcap !== undefined;
-            const hasRoe = t.roe !== null && t.roe !== undefined;
+            const checks = runnerChecks(t, sym);
             let rows = '';
-            rows += runnerStepRow('Step 0 &mdash; Tradable');
-            if (sym === 'TSM') rows += runnerRow('US-listed common stock', 'Foreign ADR (Taiwan)', 'US-listed', false);
-            else rows += runnerRow('US-listed common stock', 'US-listed', 'US-listed', true);
-            rows += runnerRow('Market value (market cap)', hasMcap ? (t.mcap_str || ('$' + fmtNum(t.mcap, 1) + 'B')) : missFund, '$1B or more', hasMcap ? t.mcap >= 1 : null);
-            rows += runnerRow('Share price', fmtMoney(t.price), '$10 or more', t.price === null || t.price === undefined ? null : t.price >= 10);
-            rows += runnerRow('Trading volume', '&mdash; (average daily volume is not in the data)', '500,000+ shares a day', null);
-            rows += runnerStepRow('Step 1A &mdash; Cheap');
-            rows += runnerRow('Earnings yield (EBIT &divide; company value)', '&mdash; (needs EBIT and enterprise value &mdash; not in the data)', '8% or more', null);
-            rows += runnerRow('P/E ratio', '&mdash; (the data carries PEG and growth, not the P/E itself)', '20 or less', null);
-            rows += runnerRow('Price-to-book (P/B)', '&mdash; (book value is not in the data)', '3 or less', null);
-            rows += runnerRow('PEG ratio', t.peg === null || t.peg === undefined ? '&mdash;' : fmtNum(t.peg, 2) + (t.peg < 0.5 ? ' &mdash; standout territory (under 0.5)' : ''), '1 or less', t.peg === null || t.peg === undefined ? null : t.peg <= 1);
-            rows += runnerStepRow('Step 1A &mdash; Quality');
-            rows += runnerRow('Return on equity (ROE)', hasRoe ? fmtPct(t.roe) : missFund, '15% or more', hasRoe ? t.roe >= 15 : null);
-            rows += runnerRow('Debt vs equity', fmtNum(t.debt, 2), '0.5 or less', t.debt === null || t.debt === undefined ? null : t.debt <= 0.5);
-            rows += runnerRow('Net debt vs EBITDA', '&mdash; (needs net debt and EBITDA &mdash; not in the data)', '2 or less', null);
-            rows += runnerRow('Cash conversion (free cash flow &divide; profit)', '&mdash; (cash flow is not in the data)', '90% or more', null);
-            rows += runnerRow('Gross margin', '&mdash; (the data carries net margin, not gross margin)', '40% or more', null);
-            rows += runnerRow('Free-cash-flow yield', '&mdash; (free cash flow is not in the data)', '4% or more', null);
-            rows += runnerRow('Profitable every year, last 5 years', '&mdash; (year-by-year profit history is not in the data)', '5 straight years', null);
-            rows += runnerRow('Piotroski F-score', '&mdash; (needs nine figures from the financial statements &mdash; not in the data)', '7 or more', null);
-            rows += runnerStepRow('Step 1B &mdash; Growth &amp; strength');
-            rows += runnerRow('Latest-quarter EPS growth (O&rsquo;Neil)', '&mdash; (quarterly EPS figures are not in the data &mdash; the growth figure here is revenue growth)', '25% or more', null);
-            rows += runnerRow('Return on equity (O&rsquo;Neil&rsquo;s bar)', hasRoe ? fmtPct(t.roe) : missFund, '17% or more', hasRoe ? t.roe >= 17 : null);
-            rows += runnerRow('Trend Template (Minervini&rsquo;s 8 rules)', '&mdash; (written in daily averages &mdash; 50/150/200-day; this page&rsquo;s price history is weekly. The Chart below shows the same idea in weekly lines)', 'All 8 rules', null);
-            const rs = relativeStrengths();
-            if (rs[sym] === undefined) {
-                rows += runnerRow('Relative strength (12 months, skipping the last month)', '&mdash; (not enough price history yet)', 'Top fifth of this page&rsquo;s stocks', null);
-            } else {
-                const ranked = Object.keys(rs).sort((a, b) => rs[b] - rs[a]);
-                const rank = ranked.indexOf(sym);
-                rows += runnerRow('Relative strength (12 months, skipping the last month)', fmtPct(rs[sym], 1, true) + ' &mdash; ranked #' + (rank + 1) + ' of ' + ranked.length + ' on this page', 'Top fifth of this page&rsquo;s stocks', rank < ranked.length * 0.2);
-            }
-            out.innerHTML = '<div class="spreadsheet-container"><table class="spreadsheet-table"><thead><tr><th>Check</th><th>' + t.name + ' (' + sym + ')</th><th>The bar (the Stack)</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+            [['Fails', false], ['Passes', true], ['Can&rsquo;t check', null]].forEach(([label, st]) => {
+                const group = checks.filter(c => c.state === st);
+                if (!group.length) return;
+                rows += runnerStepRow(label);
+                group.forEach(c => { rows += runnerRow(c.name, c.value, c.bar, c.state); });
+            });
+            out.innerHTML = runnerVerdict(sym, checks)
+                + '<div class="spreadsheet-container"><table class="spreadsheet-table"><thead><tr><th>Check</th><th>' + t.name + ' (' + sym + ')</th><th>The bar (the Stack)</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
                 + '<p class="runner-notes"><strong>Step 2 &mdash; Rank what&rsquo;s left:</strong> the Scoreboard above already ranks these stocks by every rule that can be tested. The Stack&rsquo;s own ranking also uses earnings yield, return on capital and cash-flow yield &mdash; not in the data yet, so that ranking can&rsquo;t run here yet.</p>'
                 + '<p class="runner-notes"><strong>Steps 3 and 4 &mdash; research and risk rules</strong> stay a checklist (in Full details below): reading the filings and sizing positions are homework and portfolio rules, not numbers a page can grade. <strong>Step 5</strong> is the Backtest below: your picks against the index.</p>'
                 + runnerChartButton(sym, t.name);
