@@ -232,6 +232,61 @@
     .syn-duo > div { display: flex; flex-direction: column; min-width: 0; }
     .syn-duo .book-list-container, .syn-duo .pod-card { height: 600px; display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 16px; padding: 16px 20px; background-color: var(--card-bg); backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,0.04); margin-bottom: 0; max-height: none; overflow: visible; }
     .syn-duo #book-list, .syn-duo .pod-list { flex: 1; min-height: 0; overflow-y: auto; }
+    /* Expand all / Collapse all (2026-11-16): the Books and Podcasts
+       page's component brought to the homepage duo — ONE segmented
+       pair at the right end of each section's heading row
+       (.media-box-head), the very top right of the box, identical on
+       both sections; the toggle's styling is media.html's, verbatim.
+       Homepage state model: collapsed is the resting presentation —
+       the heading row alone, the card hidden — and Expand all shows
+       the card with the full list in flow, the way the expanded list
+       lays out on media.html: no fixed 600px height, no internal
+       scroll. No persistence, same as media.html: every visit starts
+       collapsed. */
+    .syn-duo .media-box-head {
+        display: flex; align-items: flex-end;
+        justify-content: space-between; gap: 8px 16px;
+        flex-wrap: wrap;
+        margin: 0 0 0.6rem;
+    }
+    .syn-duo .media-box-head > h2 { margin: 0; min-width: 0; }
+    .syn-duo .media-box-head .expand-all-toggle { margin-left: auto; }
+    .expand-all-toggle {
+        display: inline-flex;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+    .expand-all-toggle button {
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+        background: var(--bg-color);
+        color: var(--text-color);
+        border: none;
+        padding: 6px 12px;
+        font-size: 0.85rem;
+        cursor: pointer;
+    }
+    .expand-all-toggle button + button { border-left: 1px solid var(--border-color); }
+    .expand-all-toggle button:hover { color: var(--link-color); }
+    .expand-all-toggle button[aria-pressed="true"] {
+        background: var(--link-color);
+        color: var(--bg-color);
+        font-weight: 600;
+    }
+    .expand-all-toggle button:focus-visible {
+        outline: 2px solid var(--link-color);
+        outline-offset: -2px;
+    }
+    .syn-duo .book-list-container:not(.list-expanded), .syn-duo .pod-card:not(.list-expanded) { display: none; }
+    .syn-duo .book-list-container.list-expanded, .syn-duo .pod-card.list-expanded { height: auto; }
+    .syn-duo .list-expanded #book-list, .syn-duo .pod-card.list-expanded .pod-list { flex: none; overflow-y: visible; }
+    /* The filter row's two selects sit side by side in a non-wrapping
+       flex div 354px wide; inside the in-flow expanded card that row
+       protrudes past a 360px viewport (in the old fixed card it was
+       clipped by the list's internal scroll). Let it wrap instead —
+       above ~430px the selects fit on one line and nothing changes. */
+    .syn-duo .book-controls > div { flex-wrap: wrap; }
     /* Unified compact rows: a book and an episode are interchangeable
        line items — same 76px row, same 54px square thumbnail (covers
        centre-cropped to the box), same two-line structure (title +
@@ -996,7 +1051,13 @@
 
     <div class="syn-duo">
     <div>
-    <h2 class="syn-sec-t">A Curated Reading List</h2>
+    <div class="media-box-head">
+        <h2 class="syn-sec-t">A Curated Reading List</h2>
+        <div class="expand-all-toggle" role="group" aria-label="Book list size">
+            <button type="button" id="books-expand" aria-pressed="false">Expand all</button>
+            <button type="button" id="books-collapse" aria-pressed="true">Collapse all</button>
+        </div>
+    </div>
     <div class="book-list-container">
         <div class="book-controls">
             <span style="font-size: 0.85rem; font-weight: 600;">Filter &amp; Sort:</span>
@@ -1141,7 +1202,13 @@
     </div>
     </div>
     <div>
-    <h2 class="syn-sec-t">A Curated Podcast List</h2>
+    <div class="media-box-head">
+        <h2 class="syn-sec-t">A Curated Podcast List</h2>
+        <div class="expand-all-toggle" role="group" aria-label="Podcast list size">
+            <button type="button" id="podcasts-expand" aria-pressed="false">Expand all</button>
+            <button type="button" id="podcasts-collapse" aria-pressed="true">Collapse all</button>
+        </div>
+    </div>
     <div class="pod-card">
     <ul class="pod-list">
 <li class="pod-row" data-pop="We tell the story of the single greatest business ever created: Google search. From its origins as a Stanford research project called BackRub, Google became the front door to the internet."><img class="pod-art" src="https://i.scdn.co/image/ab6765630000ba8ad5e51d63987fab5088a499f2" alt="Artwork for Google Part I: Origins of Search" loading="lazy"><div class="pod-main"><a href="https://open.spotify.com/episode/64V71y4FpMlZ8Mymwu5Xts" target="_blank">Google Part I: Origins of Search</a><span class="pod-show">Acquired</span></div></li>
@@ -1357,6 +1424,45 @@
             items.forEach(item => list.appendChild(item));
         }
 
+    </script>
+    <script>
+        // Expand all / Collapse all — the Books and Podcasts page's
+        // component, two independent instances. Books: toggles
+        // .list-expanded on the list card (the class lives on the
+        // container, so filter/sort, which only touch the items, never
+        // disturb it). Podcasts: toggles .list-expanded on the podcast
+        // card the same way. Page load changes nothing: both pairs
+        // start on Collapse, which is the state both sections are
+        // actually in — heading row shown, card hidden.
+        (function () {
+            function wire(expandId, collapseId, apply) {
+                var expandBtn = document.getElementById(expandId);
+                var collapseBtn = document.getElementById(collapseId);
+                if (!expandBtn || !collapseBtn) return;
+                expandBtn.addEventListener('click', function () {
+                    apply(true);
+                    expandBtn.setAttribute('aria-pressed', 'true');
+                    collapseBtn.setAttribute('aria-pressed', 'false');
+                });
+                collapseBtn.addEventListener('click', function () {
+                    apply(false);
+                    expandBtn.setAttribute('aria-pressed', 'false');
+                    collapseBtn.setAttribute('aria-pressed', 'true');
+                });
+            }
+            var bookBox = document.querySelector('.syn-duo .book-list-container');
+            if (bookBox) {
+                wire('books-expand', 'books-collapse', function (expand) {
+                    bookBox.classList.toggle('list-expanded', expand);
+                });
+            }
+            var podBox = document.querySelector('.syn-duo .pod-card');
+            if (podBox) {
+                wire('podcasts-expand', 'podcasts-collapse', function (expand) {
+                    podBox.classList.toggle('list-expanded', expand);
+                });
+            }
+        })();
     </script>
 
     <script>
