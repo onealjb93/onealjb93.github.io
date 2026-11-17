@@ -1388,7 +1388,16 @@ def main():
                         "its filings did not yield a trailing-twelve-"
                         "month net income figure")
             record["analyst_target"] = None  # filled from OVERVIEW below, if any
-            record["fundamentals_as_of"] = today
+            # Stamp the refresh date only when the refresh yielded the
+            # core fields, or the filings genuinely cannot yield them
+            # yet (diagnosed no-TTM case). A failed attempt must not
+            # reset the weekly clock and hide the ticker for 7 days.
+            if (roe is not None and margin is not None) or (
+                    edgar_gap_detail and "trailing" in edgar_gap_detail
+                    and "cannot be formed" in edgar_gap_detail):
+                record["fundamentals_as_of"] = today
+            else:
+                record["fundamentals_as_of"] = prev.get("fundamentals_as_of")
             record["fundamentals_source"] = "SEC EDGAR filings"
             record["fiscal_period"] = (
                 "fiscal period ended %s" % rev_period if rev_period else None
