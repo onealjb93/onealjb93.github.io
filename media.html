@@ -199,8 +199,8 @@
        controls — it sits under the head, at the top of the section,
        and scrolls away while the one-row bar pins. Same face it had
        inside the bar; only its home moved. */
-    .podcast-search-row { padding-bottom: 10px; }
-    .podcast-search-row input[type="search"] {
+    .podcast-search-row, .book-search-row { padding-bottom: 10px; }
+    .podcast-search-row input[type="search"], .book-search-row input[type="search"] {
         font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
         background: var(--bg-color);
         color: var(--text-color);
@@ -213,9 +213,9 @@
         box-sizing: border-box;
     }
     @media (max-width: 430px) {
-        .podcast-search-row input[type="search"] { font-size: 12px; padding: 6px 8px; }
+        .podcast-search-row input[type="search"], .book-search-row input[type="search"] { font-size: 12px; padding: 6px 8px; }
     }
-    .podcast-empty { font-size: 0.9rem; color: var(--subtext-color); margin: 4px 0 0; }
+    .podcast-empty, .book-empty { font-size: 0.9rem; color: var(--subtext-color); margin: 4px 0 0; }
     /* Cover-led book rows + overview popovers (2026-11-14): the homepage
        library card's treatment, ported with this page's theme variables.
        Same covers, descriptions and links as index.html — the list markup
@@ -326,6 +326,9 @@
             </div>
             <button type="button" class="expand-all-toggle" id="books-toggle" aria-expanded="false">Expand all</button>
         </div>
+    </div>
+    <div class="book-search-row">
+        <input type="search" id="book-search" placeholder="Search books or authors" aria-label="Search books or authors" oninput="filterAndSortBooks()">
     </div>
     <div class="book-list-container">
         <ul id="book-list">
@@ -451,6 +454,7 @@
 <li data-rating="4" data-genre="Business" class="bk-row" data-pop="“Eye-opening, thought-provoking, and enlightening.” —USA Today “An indispensable guide to the business logic of the networked era.” —Clay Shirky, author of Here Comes Everybody “A stimulating exercise in thinking really, really big.” —San Jose Mercury News What Would Google Do?"><img class="bk-cover" onerror="jboImgFallback(this)" src="https://m.media-amazon.com/images/S/compressed.photo.goodreads.com/books/1349060717i/5100525._SY192_.jpg" alt="Cover of What Would Google Do?: Reverse Engineering Business Strategies for Survival and Success in the Internet Era" loading="lazy" decoding="async" width="127" height="192"><div class="bk-main"><a href="https://www.goodreads.com/book/show/5100525" target="_blank">What Would Google Do?: Reverse Engineering Business Strategies for Survival and Success in the Internet Era</a> – Jeff Jarvis <span class="bk-stars">★★★★☆ (4/5)</span> <a class="bk-amz" href="https://www.amazon.com/dp/0061709697/?tag=johnnyoneal-20" target="_blank" rel="sponsored nofollow">Buy on Amazon</a></div></li>
 <li data-rating="5" data-genre="Philosophy" class="bk-row" data-pop="The bestselling author of The Parasitic Mind shows why empathy in politics leads to civilizational collapse. What happens when a society elevates victimhood to a virtue and decides that punishment is cruel? You get the disease Dr. Gad Saad calls suicidal empathy."><img class="bk-cover" onerror="jboImgFallback(this)" src="https://m.media-amazon.com/images/S/compressed.photo.goodreads.com/books/1783454695i/246325800._SY192_.jpg" alt="Cover of Suicidal Empathy: Dying to Be Kind" loading="lazy" decoding="async" width="128" height="192"><div class="bk-main"><a href="https://www.goodreads.com/book/show/246325800" target="_blank">Suicidal Empathy: Dying to Be Kind</a> – Gad Saad <span class="bk-stars">★★★★★ (5/5)</span> <a class="bk-amz" href="https://www.amazon.com/dp/0063446537/?tag=johnnyoneal-20" target="_blank" rel="sponsored nofollow">Buy on Amazon</a></div></li>
 </ul>
+        <p class="book-empty" id="book-empty" hidden>No books match your search.</p>
         <p class="disclaimer-note-static">I earn a small commission if you buy through these links, at no extra cost to you.</p>
     </div>
     </section>
@@ -523,16 +527,33 @@
 
     <script src="script.js"></script>
     <script>
-        // Filtering and Sorting Logic for Books
+        // Filtering and Sorting Logic for Books: a live search over
+        // book titles and authors (the podcast search's mirror, added
+        // 2026-11-17 so the two columns carry the same controls), a
+        // genre filter, plus a sort. Search and filter compose: a
+        // book shows only if it matches both.
         function filterAndSortBooks() {
             const genreFilter = document.getElementById('genre-filter').value;
             const sortOrder = document.getElementById('sort-order').value;
+            const query = document.getElementById('book-search').value.trim().toLowerCase();
             const list = document.getElementById('book-list');
             const items = Array.from(list.getElementsByTagName('li'));
+            let visible = 0;
             items.forEach(item => {
                 const itemGenre = item.getAttribute('data-genre');
-                if (genreFilter === 'all' || itemGenre === genreFilter) {
+                // The haystack is the title link's text plus the
+                // author — the bare text node that follows the link
+                // inside .bk-main. The stars and the Amazon link live
+                // in child elements, so they never enter the haystack.
+                const main = item.querySelector('.bk-main');
+                let haystack = main.querySelector('a').textContent;
+                main.childNodes.forEach(node => {
+                    if (node.nodeType === 3) { haystack += node.textContent; }
+                });
+                const matchesSearch = !query || haystack.toLowerCase().indexOf(query) !== -1;
+                if ((genreFilter === 'all' || itemGenre === genreFilter) && matchesSearch) {
                     item.style.display = '';
+                    visible++;
                 } else {
                     item.style.display = 'none';
                 }
@@ -554,6 +575,7 @@
                 }
             });
             items.forEach(item => list.appendChild(item));
+            document.getElementById('book-empty').hidden = visible !== 0;
         }
     </script>
     <script>
