@@ -36,27 +36,34 @@ Honesty rules (same as fetch_history.py / update_finance.py):
   to that bar's close; a missing volume is 0 (the chart hides the
   volume pane for an instrument whose bars carry no real volume).
 
-P/E history (added 2026-11-16): each stock series also gains a "pe"
-array aligned 1:1 with its bars — the week's close divided by
-trailing-twelve-month diluted EPS from SEC EDGAR companyfacts
-(us-gaap EarningsPerShareDiluted, USD/shares). The TTM is
-point-in-time: a quarter counts only once its first filing was public
-(its earliest `filed` date), so no week uses earnings reported after
-it. Each quarter's VALUE is the latest-filed figure for that quarter
-— later filings restate history split-adjusted, and Yahoo's prices
-are split-adjusted too, so latest values are the only ones that
-divide correctly into those prices. Q4 is derived where no
-standalone Q4 fact exists: the fiscal-year annual minus the three
-standalone quarters inside that year. Annual-only filers (20-F) use
-the latest filed annual EPS as the TTM — coarse, but honest. A week
-whose TTM EPS is zero, negative or not yet knowable gets null: the
-chart's P/E line breaks there rather than drawing a negative or
-invented multiple. Benchmarks (index, gold, Bitcoin) get no pe —
-they have no EPS. TSM is excluded by rule: its reported per-share
-basis (TWD per ordinary share) does not match the listed ADR price.
-Any EDGAR failure leaves the series without fresh pe (the previous
-file's pe is carried over when the old bars are a strict prefix of
-the new ones) — it never blocks or degrades the price data.
+P/E history (added 2026-11-16; split fix 2026-11-16): each stock
+series also gains a "pe" array aligned 1:1 with its bars — the week's
+close divided by trailing-twelve-month diluted EPS from SEC EDGAR
+companyfacts (us-gaap EarningsPerShareDiluted, USD/shares). The TTM
+is point-in-time: a quarter counts only once its first filing was
+public (its earliest `filed` date), so no week uses earnings
+reported after it. Each quarter's VALUE comes from its ORIGINAL
+filing, divided by the cumulative factor of the stock's splits that
+occurred after that filing date (Yahoo split events). That
+adjustment is not optional: Yahoo's closes are split-adjusted, so
+an as-reported pre-split EPS divides into them wrongly — before
+this fix, NVIDIA's full-history median P/E read 1.28. The
+original-filing basis is the same one the scoreboard's EPS history
+uses (update_finance.py): a filing's figures already reflect every
+split on or before its filing date, so only later splits divide.
+Q4 is derived where no standalone Q4 fact exists: the fiscal-year
+annual minus the three standalone quarters inside that year, all on
+the same adjusted basis. Annual-only filers (20-F) use the latest
+filed annual EPS as the TTM — coarse, but honest. A week whose TTM
+EPS is zero, negative or not yet knowable gets null: the chart's
+P/E line breaks there rather than drawing a negative or invented
+multiple. Benchmarks (index, gold, Bitcoin) get no pe — they have
+no EPS. TSM is excluded by rule: its reported per-share basis (TWD
+per ordinary share) does not match the listed ADR price. Any EDGAR
+or split-history failure leaves the series without fresh pe (the
+previous file's pe is carried over when the old bars are a strict
+prefix of the new ones) — it never blocks or degrades the price
+data.
 
 Daily file (added 2026-11-16): the same run also writes
 finance-chart-daily.json — the same instruments as DAILY bars for
@@ -417,45 +424,123 @@ def load_cik_map():
     return out
 
 
-def build_eps_periods(facts):
+def fetch_splits(symbol):
+    """Split events for a ticker from Yahoo's v8 chart API:
+    [(date_iso, factor)] oldest first, factor = numerator/denominator
+    (10 for a 10:1 split). Each event's own `date` is the split day;
+    the map key is only the monthly bar's timestamp, so it is used
+    only when an event carries no date. Raises on any failure — the
+    caller treats that as 'unknown' and ships no fresh P/E rather
+    than an unadjusted one."""
+    last_exc = None
+    for host in HOSTS:
+        url = "https://%s/v8/finance/chart/%s" % (host, symbol)
+        try:
+            resp = requests.get(
+                url,
+                params={"range": "max", "interval": "1mo",
+                        "events": "split"},
+                headers=HEADERS,
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:  # try the mirror host before giving up
+            last_exc = exc
+            continue
+        result = (data.get("chart") or {}).get("result") or []
+        if not result:
+            err = (data.get("chart") or {}).get("error") or {}
+            raise ValueError("no chart result: %s" % err)
+        splits_map = (result[0].get("events") or {}).get("splits") or {}
+        out = []
+        for ts, ev in splits_map.items():
+            num = ev.get("numerator")
+            den = ev.get("denominator")
+            if not num or not den:
+                continue
+            stamp = ev.get("date") or int(ts)
+            day = datetime.fromtimestamp(int(stamp),
+                                         tz=timezone.utc).date()
+            out.append((day.isoformat(), float(num) / float(den)))
+        return sorted(out)
+    raise last_exc if last_exc else ValueError("no host answered")
+
+
+def split_factor_after(day, splits):
+    """Cumulative split factor for splits strictly after `day`.
+    splits: [(date_iso, factor)] with factor = numerator/denominator.
+    (Same helper as update_finance.py's scoreboard block.)"""
+    factor = 1.0
+    for split_date, split_factor in splits:
+        if split_date > day:
+            factor *= split_factor
+    return factor
+
+
+def _pick_original(rows_at_end):
+    """The figure from the ORIGINAL filing for one period end.
+
+    companyfacts carries several rows per period end: the original
+    filing's figure and later filings' restated comparatives. The
+    original filing is the earliest `filed` at the end; within it,
+    the value repeated most often across all filings at that end
+    wins, then the largest magnitude. Returns (val, filed).
+    (Mirrors update_finance.py's scoreboard helper.)
+    """
+    from collections import Counter
+    earliest = min(e.get("filed", "") for e in rows_at_end)
+    group = [e for e in rows_at_end if e.get("filed", "") == earliest]
+    if len({e["val"] for e in group}) == 1:
+        return group[0]["val"], earliest
+    counts = Counter(e["val"] for e in rows_at_end)
+    best = max(group, key=lambda e: (counts[e["val"]], abs(e["val"])))
+    return best["val"], earliest
+
+
+def build_eps_periods(facts, splits):
     """Split EPS facts into standalone quarters and annuals.
 
     A standalone quarter spans 70-110 days, an annual 330-380; the
     6/9-month year-to-date facts income statements also carry fall
-    between those bands and are ignored. Per period end, the value is
-    the latest-filed figure (restated, split-adjusted — matching the
-    prices) and `avail` is the earliest filed date (the first day the
-    period was public). Q4 is then derived for every annual whose
-    three inner quarters are known: annual minus their sum, public
-    from the annual's first filing.
+    between those bands and are ignored. Per period end, the value
+    is the ORIGINAL filing's figure (see _pick_original), divided by
+    the splits that occurred after that filing — Yahoo's closes are
+    split-adjusted, so each period's EPS must be brought onto the
+    same basis before it can divide into them. `avail` is the
+    original filing date (the first day the period was public). Q4
+    is then derived for every annual whose three inner quarters are
+    known: annual minus their sum (all on the adjusted basis),
+    public from the annual's first filing. When `splits` is None
+    the caller does not call this at all — unadjusted history is
+    never shipped.
     """
     def parse(s):
         return date.fromisoformat(s)
 
-    quarters_by_end, annuals_by_end = {}, {}
+    q_rows, a_rows = {}, {}
     for f in facts:
-        if "start" not in f or "end" not in f:
+        if "start" not in f or "end" not in f or "filed" not in f:
             continue
         dur = (parse(f["end"]) - parse(f["start"])).days
         if 70 <= dur <= 110:
-            book = quarters_by_end
+            q_rows.setdefault(f["end"], []).append(f)
         elif 330 <= dur <= 380:
-            book = annuals_by_end
-        else:
-            continue
-        cur = book.get(f["end"])
-        if cur is None:
-            book[f["end"]] = {"end": f["end"], "start": f["start"],
-                              "val": f["val"], "filed_val": f["filed"],
-                              "avail": f["filed"]}
-        else:
-            if f["filed"] < cur["avail"]:
-                cur["avail"] = f["filed"]
-            if f["filed"] >= cur["filed_val"]:
-                cur["val"] = f["val"]
-                cur["filed_val"] = f["filed"]
-    quarters = sorted(quarters_by_end.values(), key=lambda q: q["end"])
-    annuals = sorted(annuals_by_end.values(), key=lambda a: a["end"])
+            a_rows.setdefault(f["end"], []).append(f)
+
+    def build(rows_by_end):
+        out = []
+        for end in sorted(rows_by_end):
+            rows = rows_by_end[end]
+            val, filed = _pick_original(rows)
+            val = val / split_factor_after(filed, splits)
+            out.append({"end": end,
+                        "start": min(r["start"] for r in rows),
+                        "val": val, "avail": filed})
+        return out
+
+    quarters = build(q_rows)
+    annuals = build(a_rows)
     have = {q["end"] for q in quarters}
     for a in annuals:
         if a["end"] in have:
@@ -492,10 +577,10 @@ def ttm_eps_at(quarters, annuals, friday):
     return None
 
 
-def compute_pe(bars, facts):
+def compute_pe(bars, facts, splits):
     """The pe array for one series: close / point-in-time TTM EPS,
     null wherever the TTM is unknown or not positive."""
-    quarters, annuals = build_eps_periods(facts)
+    quarters, annuals = build_eps_periods(facts, splits)
     if not quarters and not annuals:
         return None
     out = []
@@ -536,6 +621,7 @@ def main():
     except Exception as exc:
         log("EDGAR ticker map FAILED (%s) — no fresh P/E this run." % exc)
     facts_cache = {}
+    splits_cache = {}
 
     def pe_for(key, symbol, bars):
         if key in BENCHMARK_KEYS or symbol in PE_EXCLUDE:
@@ -552,7 +638,14 @@ def main():
         eps_facts = facts_cache[cik]
         if not eps_facts:
             return None
-        pe = compute_pe(bars, eps_facts)
+        # Split history, one keyless Yahoo call per symbol. Without
+        # it the EPS history cannot be put on the prices' basis, so
+        # a failure ships no fresh P/E (the previous file's carries
+        # over) rather than an unadjusted one.
+        if symbol not in splits_cache:
+            splits_cache[symbol] = fetch_splits(symbol)
+            time.sleep(0.15)
+        pe = compute_pe(bars, eps_facts, splits_cache[symbol])
         if pe is None or not any(v is not None for v in pe):
             return None
         return pe
@@ -627,7 +720,9 @@ def main():
                   "weekly OHLCV bars dated by each week's Friday; "
                   "completed weeks only. P/E arrays: weekly close / "
                   "trailing-twelve-month diluted EPS from SEC EDGAR "
-                  "companyfacts, point-in-time by first filing date",
+                  "companyfacts, point-in-time by first filing date, "
+                  "each period taken from its original filing and "
+                  "split-adjusted to the prices' basis",
         "through": max(last_dates) if last_dates else None,
         "series": series,
         "nasdaq100": [ticker for ticker, _name in NASDAQ100],
@@ -725,7 +820,9 @@ def main():
                   "daily OHLCV bars for the last five years; "
                   "completed days only. P/E arrays: daily close / "
                   "trailing-twelve-month diluted EPS from SEC EDGAR "
-                  "companyfacts, point-in-time by first filing date",
+                  "companyfacts, point-in-time by first filing date, "
+                  "each period taken from its original filing and "
+                  "split-adjusted to the prices' basis",
         "through": max(d_last_dates) if d_last_dates else None,
         "series": d_series,
         "nasdaq100": [ticker for ticker, _name in NASDAQ100],
