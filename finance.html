@@ -930,7 +930,7 @@
         <p>US-listed common stocks. Market cap $1B+; price $10+; average volume 500K+ shares. Exclude financials and utilities from the ROIC/EBIT steps; screen banks and insurers separately on P/B and ROE.</p>
         <h3>Step 1A — Value + quality screen</h3>
         <p><strong>Cheap (Graham, Lynch):</strong> earnings yield (EBIT / EV) 8%+ — 8% is my cutoff. P/E 20 or less (strict Graham mode: 15 or less). P/B 3 or less (strict Graham: 1.5 or less; P/E &times; P/B 22.5 or less). PEG 1 or less (Lynch); under 0.5 is a standout.</p>
-        <p><strong>Quality (Buffett):</strong> ROIC 15%+. ROE 15%+. Debt/equity 0.5 or less (mine); net debt / EBITDA 2 or less (mine). Free cash flow / net income 90%+. Gross margin 40%+ (mine). FCF yield 4%+ (mine). Positive earnings every year for the last 5 years (Graham uses 10).</p>
+        <p><strong>Quality (Buffett):</strong> ROIC 15%+. ROE 15%+. Debt/equity 0.5 or less (mine); net debt / EBITDA 2 or less (mine). Free cash flow / net income 90%+. Gross margin 40%+ (mine). FCF yield 4%+ (mine). Positive earnings every year for the last 5 years (Graham uses 10). Proven over time (mine): the promise has held for a decade &mdash; ROE 15%+ in at least 7 of the last 10 years, gross margins that never collapsed (the worst year at least 60% of the best), and revenue up in at least 7 of those years. Financials are graded on the first and third &mdash; they report no gross margin.</p>
         <p><strong>Health:</strong> Piotroski F-score 7+ (mine — Piotroski&rsquo;s own &ldquo;strong&rdquo; line is 8–9).</p>
         <h3>Step 2 — Rank the survivors</h3>
         <p>Sum the ranks (1 = best) for: earnings yield, ROIC, FCF yield, 12-month relative strength. Take the top 20–30 or top 10 for a concentrated list. Cheap stocks often fail the trend rules. Pick one lead style, use the other as confirmation.</p>
@@ -2134,6 +2134,40 @@
         let tickerData = [];
         let marketDataLoaded = false;
 
+        // Durability — the decade tests behind the Stack runner's
+        // "Proven over time" check (Step 1A, over time): return on
+        // equity at 15%+ in at least 7 of the last 10 years, a gross
+        // margin whose worst year is at least 60% of its best, and
+        // revenue up in at least 7 of those years, all from SEC EDGAR
+        // annual history. finance-data.json's "durability" block
+        // (written by the same pipeline) replaces this snapshot on
+        // load, per ticker; the snapshot — the verified prototype
+        // figures, Nov 2026 — stands for any ticker the block doesn't
+        // carry, and until the load lands. Financials (JPM, ASST)
+        // report no gross margin: t2 is "na" and they grade on t1+t3.
+        const DURABILITY_BAKED = {
+            "GOOGL": {"years": 10, "t1": {"pass": true, "good": 9, "n": 10}, "t2": {"pass": true, "worst": 53.6, "best": 61.1}, "t3": {"pass": true, "inc": 10, "pairs": 10}, "note": null},
+            "ASST": {"years": 4, "t1": null, "t2": {"na": true}, "t3": null, "note": "short_history"},
+            "CIFR": {"years": 6, "t1": {"pass": false, "good": 0, "n": 6}, "t2": {"pass": true, "worst": 58.8, "best": 75.4}, "t3": {"pass": null, "inc": 3, "pairs": 3}, "note": "short_revenue"},
+            "SPCX": {"years": 0, "t1": null, "t2": null, "t3": null, "note": "no_annuals"},
+            "NBIS": {"years": 8, "t1": {"pass": false, "good": 3, "n": 8}, "t2": {"pass": true, "worst": 51.2, "best": 79.3}, "t3": {"pass": true, "inc": 7, "pairs": 7}, "note": "predecessor"},
+            "IREN": {"years": 7, "t1": {"pass": false, "good": 0, "n": 7}, "t2": {"pass": true, "worst": 47.8, "best": 68.9}, "t3": {"pass": true, "inc": 6, "pairs": 6}, "note": null},
+            "AAOI": {"years": 10, "t1": {"pass": false, "good": 2, "n": 10}, "t2": {"pass": false, "worst": 15.1, "best": 43.5}, "t3": {"pass": false, "inc": 6, "pairs": 10}, "note": null},
+            "NVDA": {"years": 10, "t1": {"pass": true, "good": 10, "n": 10}, "t2": {"pass": true, "worst": 56.9, "best": 75.0}, "t3": {"pass": true, "inc": 9, "pairs": 10}, "note": null},
+            "AMD": {"years": 10, "t1": {"pass": false, "good": 4, "n": 10}, "t2": {"pass": false, "worst": 23.2, "best": 49.5}, "t3": {"pass": true, "inc": 9, "pairs": 10}, "note": null},
+            "PLTR": {"years": 8, "t1": {"pass": false, "good": 1, "n": 8}, "t2": {"pass": true, "worst": 67.4, "best": 82.4}, "t3": {"pass": true, "inc": 7, "pairs": 7}, "note": null},
+            "MU": {"years": 10, "t1": {"pass": false, "good": 6, "n": 10}, "t2": {"pass": false, "worst": -9.1, "best": 80.7}, "t3": {"pass": true, "inc": 7, "pairs": 10}, "note": null},
+            "TSLA": {"years": 10, "t1": {"pass": false, "good": 3, "n": 10}, "t2": {"pass": true, "worst": 16.6, "best": 25.6}, "t3": {"pass": true, "inc": 9, "pairs": 10}, "note": null},
+            "MSTR": {"years": 10, "t1": {"pass": false, "good": 2, "n": 10}, "t2": {"pass": true, "worst": 68.7, "best": 82.0}, "t3": {"pass": false, "inc": 2, "pairs": 10}, "note": "treasury"},
+            "TSM": {"years": 10, "t1": {"pass": true, "good": 10, "n": 10}, "t2": {"pass": true, "worst": 46.0, "best": 59.6}, "t3": {"pass": true, "inc": 8, "pairs": 9}, "note": null},
+            "LLY": {"years": 10, "t1": {"pass": true, "good": 9, "n": 10}, "t2": {"pass": true, "worst": 74.2, "best": 83.0}, "t3": {"pass": true, "inc": 9, "pairs": 10}, "note": null},
+            "WM": {"years": 10, "t1": {"pass": true, "good": 10, "n": 10}, "t2": {"pass": true, "worst": 37.6, "best": 40.4}, "t3": {"pass": true, "inc": 9, "pairs": 10}, "note": null},
+            "COST": {"years": 10, "t1": {"pass": true, "good": 10, "n": 10}, "t2": {"pass": true, "worst": 12.1, "best": 13.3}, "t3": {"pass": true, "inc": 10, "pairs": 10}, "note": null},
+            "JPM": {"years": 10, "t1": {"pass": false, "good": 4, "n": 10}, "t2": {"na": true}, "t3": {"pass": true, "inc": 10, "pairs": 10}, "note": "financial"},
+            "WMT": {"years": 10, "t1": {"pass": true, "good": 7, "n": 10}, "t2": {"pass": true, "worst": 24.1, "best": 25.6}, "t3": {"pass": true, "inc": 10, "pairs": 10}, "note": null}
+        };
+        let durabilityData = DURABILITY_BAKED;
+
         function fmtMoney(v) {
             if (v === null || v === undefined || isNaN(v)) return '—';
             return '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2222,6 +2256,7 @@
                 .then(data => {
                     tickerData = (data.stocks || []).slice().sort((x, y) => x.ticker.localeCompare(y.ticker));
                     marketDataLoaded = true;
+                    if (data.durability) durabilityData = Object.assign({}, DURABILITY_BAKED, data.durability);
                     applyDerivedMomentum(); // no-op until the history file lands (backtest loader)
                     tickerData.forEach(item => {
                         [select1, select2, runnerSel].forEach(sel => {
@@ -2640,7 +2675,14 @@
                 case 'buffett': {
                     if (verdict === null) return { verdict, sentence: 'Can’t be tested — return on equity isn’t in the data for ' + name + ' yet. ' + FUND_PATH, readout: 'The bar: return on equity of 15% or more.', short: 'return on equity not in the data yet' };
                     const v = fmtPct(t.roe);
-                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s return on equity is ' + v + '; Buffett’s bar is 15% or more.', readout: '', short: 'ROE ' + v + ' (bar: 15% or more)' };
+                    // The bar's own history, from the durability block:
+                    // in how many of the graded years the same 15% bar
+                    // was cleared. Only where the decade test could
+                    // grade at all (5+ years of filings) — under that,
+                    // no clause rather than an implied decade.
+                    const d1 = durabilityData[t.ticker];
+                    const persist = (d1 && d1.t1 && d1.t1.n >= 5) ? ' It has cleared that bar in ' + d1.t1.good + ' of the last ' + d1.t1.n + ' years.' : '';
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s return on equity is ' + v + '; Buffett’s bar is 15% or more.' + persist, readout: '', short: 'ROE ' + v + ' (bar: 15% or more)' };
                 }
                 case 'tepper': {
                     if (verdict === null) return { verdict, sentence: 'Can’t be tested — the growth figure isn’t in the data for ' + name + ' yet. ' + DATA_PATH, readout: 'The bar: growth of 10% or more.', short: 'growth not in the data yet' };
@@ -3095,6 +3137,36 @@
             const cls = state === false ? ' runner-group-fails' : (state === true ? ' runner-group-passes' : '');
             return '<tr class="runner-step' + cls + '"><td colspan="4">' + label + '</td></tr>';
         }
+        // "Proven over time" (Step 1A, over time): the decade tests in
+        // the durability block. State: true = every test that applies
+        // passes; false = at least one applicable test fails; null =
+        // can't check — a test that should run can't yet (too little
+        // filings history), which is never graded as a fail or a pass.
+        // Financials skip the margin test by design (t2 "na").
+        function durabilityState(d) {
+            if (!d) return null;
+            const fin = !!(d.t2 && d.t2.na);
+            const tests = fin ? [d.t1, d.t3] : [d.t1, d.t2, d.t3];
+            if (tests.some(x => !x || x.pass === null || x.pass === undefined)) return null;
+            return tests.every(x => x.pass);
+        }
+        function durabilityValue(d) {
+            if (!d) return '&mdash; (a decade of filings history is not in the data for this stock)';
+            if (d.note === 'no_annuals') return '&mdash; (no annual filings yet &mdash; public since 2026, quarterly reports only)';
+            if (d.note === 'short_history') return '&mdash; (only ' + d.years + ' years of filings &mdash; this test needs at least 5; the current business dates from the September 2025 merger)';
+            const seg = [];
+            if (d.t1) seg.push('ROE 15%+ in ' + d.t1.good + ' of ' + d.t1.n + ' years');
+            if (d.t2 && d.t2.na) seg.push('margins don&rsquo;t apply &mdash; banks report no gross margin, and bank ROE runs lower');
+            else if (d.t2) seg.push('margins ' + fmtNum(d.t2.worst, 1) + '&ndash;' + fmtNum(d.t2.best, 1) + '%');
+            if (d.t3) {
+                if (d.t3.pass === null || d.t3.pass === undefined) seg.push('revenue grew ' + d.t3.inc + ' of ' + d.t3.pairs + ' years &mdash; too few years of revenue history to grade');
+                else seg.push('revenue grew ' + d.t3.inc + ' of ' + d.t3.pairs + ' years');
+            }
+            let v = seg.join(' &middot; ');
+            if (d.note === 'predecessor') v += ' &mdash; most of this history is its predecessor, Yandex';
+            if (d.note === 'treasury') v += ' &mdash; grades the operating business; the test can&rsquo;t see its bitcoin treasury';
+            return v;
+        }
         function runnerChartButton(symbol, name) {
             return '<p><button type="button" class="filter-pill" data-chart-symbol="' + symbol + '">See ' + name + ' on the Chart &mdash; its 200-week line &uarr;</button></p>';
         }
@@ -3134,6 +3206,12 @@
             add('Free-cash-flow yield', '&mdash; (free cash flow is not in the data)', '4% or more', null);
             add('Profitable every year, last 5 years', '&mdash; (year-by-year profit history is not in the data)', '5 straight years', null);
             add('Piotroski F-score', '&mdash; (needs nine figures from the financial statements &mdash; not in the data)', '7 or more', null);
+            // Step 1A — Quality, over time (mine): the promise above,
+            // proven over a decade of filings instead of the latest
+            // year. A test that can't run yet makes the whole check
+            // "can't check" — never a guessed grade.
+            const dur = durabilityData[sym];
+            add('Proven over time', durabilityValue(dur), 'ROE 15%+ in 7 of 10 years &middot; margins never collapsed &middot; revenue up 7 of 10 years', durabilityState(dur));
             // Step 1B — Strength
             const rs = relativeStrengths();
             if (rs[sym] === undefined) {

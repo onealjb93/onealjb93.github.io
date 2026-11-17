@@ -1078,6 +1078,236 @@ def build_scoreboard_block(facts, price, fallback_shares, mcap_billions,
     }
 
 
+# =====================================================================
+# Durability block (added 2026-11-17): the three decade tests behind
+# the Stack runner's "Proven over time" check on the page, computed
+# from the same companyfacts payload the run already fetched — no new
+# EDGAR calls. A faithful port of the verified prototype:
+# - T1 return persistence: ROE (net income / AVERAGE equity) at 15%+
+#   in at least 7 of the last 10 fiscal years (>= 70% of the years
+#   available with a shorter history; a company needs >= 5 graded
+#   years before any test is reported).
+# - T2 pricing power: the worst year's gross margin at least 60% of
+#   the best year's, across the window (needs >= 4 margin years).
+#   Financials (JPM, ASST) report no gross margin — t2 is "na" and
+#   they grade on T1 + T3 alone.
+# - T3 demand durability: revenue grew year over year in at least 7
+#   of the last 10 years (>= 70% of the pairs available; needs >= 4
+#   consecutive pairs to run).
+# Annual figures are the latest-filed value per fiscal year (so
+# restatements count), in one reporting currency per company (the
+# unit with the most annual filings across the core tags), fiscal
+# years labelled by period end. Stamp discipline as elsewhere: a
+# failed computation preserves the previous run's block — main()
+# replaces a ticker's block only on a successful computation, and
+# never with an empty one where a real history already exists.
+# =====================================================================
+
+DURABILITY_FINANCIALS = {"JPM", "ASST"}
+
+_DUR_NI_TAGS = [("us-gaap", "NetIncomeLoss"), ("ifrs-full", "ProfitLoss")]
+_DUR_EQ_TAGS = [("us-gaap", "StockholdersEquity"),
+                ("us-gaap", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"),
+                ("ifrs-full", "Equity")]
+_DUR_REV_TAGS = [("us-gaap", "Revenues"),
+                 ("us-gaap", "RevenueFromContractWithCustomerExcludingAssessedTax"),
+                 ("us-gaap", "SalesRevenueNet"),
+                 ("ifrs-full", "Revenue")]
+_DUR_GP_TAGS = [("us-gaap", "GrossProfit"), ("ifrs-full", "GrossProfit")]
+_DUR_COST_TAGS = [("us-gaap", "CostOfRevenue"), ("us-gaap", "CostOfGoodsAndServicesSold"),
+                  ("us-gaap", "CostOfGoodsSold"), ("ifrs-full", "CostOfSales")]
+
+
+def _dur_parse_date(s):
+    y, m, dd = s.split("-")
+    return date(int(y), int(m), int(dd))
+
+
+def _dur_tag_units(facts, taxonomy, tag):
+    try:
+        return facts["facts"][taxonomy][tag]["units"]
+    except (KeyError, TypeError):
+        return None
+
+
+def _dur_annual_flow(facts, tag_list, unit=None):
+    """{end_date: value} for annual (FY, ~1yr duration) flow entries.
+    Latest-filed value wins per period end (captures restatements).
+    If unit is given, only that unit's entries are used."""
+    best = {}  # end -> (filed, val)
+    for taxonomy, tag in tag_list:
+        units = _dur_tag_units(facts, taxonomy, tag)
+        if not units:
+            continue
+        for uname, entries in units.items():
+            if unit is not None and uname != unit:
+                continue
+            for e in entries:
+                if e.get("fp") != "FY":
+                    continue
+                if "start" not in e or "end" not in e or "val" not in e:
+                    continue
+                dur = (_dur_parse_date(e["end"]) - _dur_parse_date(e["start"])).days
+                if not (300 <= dur <= 400):
+                    continue
+                end = e["end"]
+                filed = e.get("filed", "")
+                if end not in best or filed > best[end][0]:
+                    best[end] = (filed, e["val"])
+    return {end: val for end, (f, val) in best.items()}
+
+
+def _dur_instant(facts, tag_list, unit=None):
+    """{end_date: value} for instant (balance-sheet) entries, latest filed wins."""
+    best = {}
+    for taxonomy, tag in tag_list:
+        units = _dur_tag_units(facts, taxonomy, tag)
+        if not units:
+            continue
+        for uname, entries in units.items():
+            if unit is not None and uname != unit:
+                continue
+            for e in entries:
+                if "end" not in e or "val" not in e:
+                    continue
+                if "start" in e:
+                    continue
+                end = e["end"]
+                filed = e.get("filed", "")
+                if end not in best or filed > best[end][0]:
+                    best[end] = (filed, e["val"])
+    return {end: val for end, (f, val) in best.items()}
+
+
+def _dur_merge(facts, tag_list, unit=None):
+    """Merge annual flow series across fallback tags: earlier tags win per year."""
+    merged = {}
+    for tags in tag_list:
+        s = _dur_annual_flow(facts, [tags], unit=unit)
+        for end, val in s.items():
+            if end not in merged:
+                merged[end] = val
+    return merged
+
+
+def _dur_pick_unit(facts):
+    """The reporting unit (currency) with the most annual FY entries
+    across the core tags — used for ALL series so ratios never mix
+    currencies."""
+    counts = {}
+    for tag_list in (_DUR_NI_TAGS, _DUR_REV_TAGS, _DUR_EQ_TAGS, _DUR_GP_TAGS):
+        for taxonomy, tag in tag_list:
+            units = _dur_tag_units(facts, taxonomy, tag)
+            if not units:
+                continue
+            for uname, entries in units.items():
+                n = sum(1 for e in entries if e.get("fp") == "FY")
+                counts[uname] = counts.get(uname, 0) + n
+    if not counts:
+        return None
+    return max(counts, key=counts.get)
+
+
+def build_durability_block(facts, ticker):
+    """The compact per-ticker durability block written into
+    finance-data.json's top-level "durability" object, or None if the
+    payload is unusable. Tests and bars: see the section comment."""
+    if not facts or "facts" not in facts:
+        return None
+    unit = _dur_pick_unit(facts)
+    ni = _dur_merge(facts, _DUR_NI_TAGS, unit)
+    rev = _dur_merge(facts, _DUR_REV_TAGS, unit)
+    gp = _dur_merge(facts, _DUR_GP_TAGS, unit)
+    cost = _dur_merge(facts, _DUR_COST_TAGS, unit)
+    eq = {}
+    for tags in _DUR_EQ_TAGS:
+        s = _dur_instant(facts, [tags], unit)
+        for end, val in s.items():
+            if end not in eq:
+                eq[end] = val
+    # gross profit fallback: revenue - cost of revenue
+    if not gp:
+        gp = {e: rev[e] - cost[e] for e in rev if e in cost}
+
+    years = sorted(set(ni) | set(rev))
+    rows = []
+    prev_end = None
+    for end in years:
+        r = {"end": end, "ni": ni.get(end), "rev": rev.get(end),
+             "eq": eq.get(end), "gp": gp.get(end), "roe": None, "gm": None}
+        # ROE on average equity (prior year-end + this year-end) when
+        # available; year-end equity as the first-year fallback.
+        if r["ni"] is not None and r["eq"] is not None:
+            prev_eq = eq.get(prev_end) if prev_end else None
+            if prev_eq is not None and (prev_eq + r["eq"]) != 0:
+                avg = (prev_eq + r["eq"]) / 2.0
+                r["roe"] = (r["ni"] / avg * 100.0) if avg > 0 else None
+            elif r["eq"] > 0:
+                r["roe"] = r["ni"] / r["eq"] * 100.0
+        if r["rev"] and r["gp"] is not None and r["rev"] != 0:
+            r["gm"] = r["gp"] / r["rev"] * 100.0
+        rows.append(r)
+        prev_end = end
+
+    # revenue growth pairs (consecutive fiscal years, ~1yr apart)
+    rev_years = [r for r in rows if r["rev"] is not None]
+    growth = {}  # end -> True/False grew vs prior year
+    for a, b in zip(rev_years, rev_years[1:]):
+        gap = (_dur_parse_date(b["end"]) - _dur_parse_date(a["end"])).days
+        if 300 <= gap <= 400:
+            growth[b["end"]] = b["rev"] > a["rev"]
+
+    # ---- window: last 10 fiscal years with ROE-relevant data ----
+    roe_rows = [r for r in rows if r["ni"] is not None and r["eq"] is not None][-10:]
+    n_years = len(roe_rows)
+    financial = ticker in DURABILITY_FINANCIALS
+    block = {"years": n_years, "t1": None,
+             "t2": {"na": True} if financial else None,
+             "t3": None, "note": None}
+    if n_years >= 5:
+        # Test 1: return persistence
+        good = sum(1 for r in roe_rows if r["roe"] is not None and r["roe"] >= 15.0)
+        t1_pass = (good >= 7) if n_years == 10 else (good / n_years >= 0.7)
+        block["t1"] = {"pass": t1_pass, "good": good, "n": n_years}
+        # Test 2: pricing power (skipped for financials)
+        if not financial:
+            gms = [r["gm"] for r in roe_rows if r["gm"] is not None]
+            if len(gms) >= 4:
+                worst, bestm = min(gms), max(gms)
+                ratio = (worst / bestm) if bestm > 0 else None
+                block["t2"] = {"pass": (ratio is not None and ratio >= 0.60),
+                               "worst": round(worst, 1), "best": round(bestm, 1)}
+        # Test 3: demand durability — growth pairs ending in the window
+        win_ends = [r["end"] for r in roe_rows]
+        pairs_list = [growth[e] for e in win_ends if e in growth]
+        inc = sum(1 for g in pairs_list if g)
+        if len(pairs_list) == 10:
+            t3_pass = inc >= 7
+        elif len(pairs_list) >= 4:
+            t3_pass = (inc / len(pairs_list)) >= 0.7
+        else:
+            t3_pass = None
+        block["t3"] = {"pass": t3_pass, "inc": inc, "pairs": len(pairs_list)}
+    # The note names the one thing a reader most needs to know about
+    # this ticker's block — derived from the computed state, with the
+    # two standing exceptions: NBIS's graded years are its predecessor
+    # Yandex's, and MSTR's tests grade the operating business only
+    # (its bitcoin treasury is invisible to them by design).
+    if n_years == 0:
+        block["note"] = "no_annuals"
+    elif n_years < 5:
+        block["note"] = "short_history"
+    elif ticker == "NBIS":
+        block["note"] = "predecessor"
+    elif ticker == "MSTR":
+        block["note"] = "treasury"
+    elif financial:
+        block["note"] = "financial"
+    elif block["t3"] is not None and block["t3"]["pass"] is None:
+        block["note"] = "short_revenue"
+    return block
+
+
 def fetch_splits_yahoo(symbol, http_get):
     """Split events for a ticker from Yahoo Finance's v8 chart API:
     [(date_iso, factor)] oldest first, factor = numerator/denominator
@@ -1196,9 +1426,11 @@ def main():
             raw_previous = json.load(fh)
         previous = {s["ticker"]: s for s in raw_previous.get("stocks", [])}
         previous_preferreds = raw_previous.get("preferreds") or {}
+        previous_durability = raw_previous.get("durability") or {}
     except (OSError, ValueError):
         previous = {}
         previous_preferreds = {}
+        previous_durability = {}
 
     # Ticker->CIK map: the committed cik_map.json is the primary source,
     # because the live SEC file 403s automated access from cloud IPs
@@ -1229,6 +1461,7 @@ def main():
 
     today = date.today().isoformat()
     stocks = []
+    durability = {}
     overview_calls = 0
 
     # Tickers whose fundamentals are > 7 days stale (or missing) get refreshed
@@ -1379,6 +1612,24 @@ def main():
                     % (symbol, mcap_currency))
             elif price is not None:
                 log("  no share count for %s; market cap null" % symbol)
+
+        # ---- durability block (decade tests; local computation on
+        # the companyfacts payload already fetched — no new calls).
+        # Stamp discipline: a failed or empty computation preserves
+        # the previous run's block for this ticker.
+        dur_block = None
+        if facts is not None:
+            try:
+                dur_block = build_durability_block(facts, symbol)
+            except Exception as exc:
+                dur_block = None
+                log("  durability block failed for %s: %s" % (symbol, exc))
+        prev_dur = previous_durability.get(symbol)
+        if dur_block is None or (dur_block.get("years") == 0
+                                 and prev_dur and prev_dur.get("years")):
+            dur_block = prev_dur
+        if dur_block is not None:
+            durability[symbol] = dur_block
 
         # ---- fundamentals (weekly rotation) ----
         refresh = symbol in due and facts is not None
@@ -1683,7 +1934,8 @@ def main():
     preferreds = build_preferreds_block(previous_preferreds,
                                         http_get_json_yahoo)
     output = {"last_updated": today, "fundamentals_status": fstatus,
-              "stocks": stocks, "preferreds": preferreds}
+              "stocks": stocks, "preferreds": preferreds,
+              "durability": durability}
     with open(DATA_FILE, "w") as fh:
         json.dump(output, fh, indent=2)
     log("Wrote %s (%d tickers, %d OVERVIEW calls, %d Alpha Vantage calls "
