@@ -150,7 +150,7 @@
             background: var(--bg-color);
             border-bottom: 1px solid var(--border-color);
         }
-        .gen-topbar-text { min-width: 0; flex: 1; }
+        .gen-topbar-text { min-width: 0; flex: 1 1 12rem; }
         /* Heart toggle: lives ON the photo, not in the topbar — a
            glass chip at the stage's bottom-left corner (the same
            chrome as the back-to-top button: translucent card
@@ -317,23 +317,40 @@
         .gen-details li::marker { color: var(--link-color); }
         .gen-source { font-size: 0.78rem; line-height: 1.3; color: var(--subtext-color); opacity: 0.8; margin: 0; }
         .gen-source a { color: var(--subtext-color); }
+        /* BIG GENERATE BUTTON (2026-11-17): the main button is THE
+           control of each generator — it fills the topbar row between
+           the chevrons at a 52px floor, bold at 1.08rem, so nobody has
+           to hunt for how to get another photo. Until a visitor has
+           pressed a generator control once, it also breathes (a soft
+           shadow pulse, .rg-pulse below) — then never again. */
         .gen-btn {
+            flex: 1 1 auto;
+            min-height: 52px;
             background: var(--link-color);
             color: #fff;
             border: none;
-            border-radius: 8px;
-            padding: 0.55rem 1.05rem;
-            font-size: 0.95rem;
+            border-radius: 10px;
+            padding: 0.8rem 1.2rem;
+            font-size: 1.08rem;
             line-height: 1.2;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
         }
         .gen-btn:hover { opacity: 0.9; }
         .gen-btn:active { transform: scale(0.98); }
+        @keyframes gen-btn-pulse {
+            0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--link-color) 45%, transparent); }
+            70% { box-shadow: 0 0 0 12px transparent; }
+            100% { box-shadow: 0 0 0 0 transparent; }
+        }
+        .gen-btn.rg-pulse { animation: gen-btn-pulse 2.4s var(--ease-inout) infinite; }
+        @media (prefers-reduced-motion: reduce) {
+            .gen-btn.rg-pulse { animation: none; }
+        }
         .gen-nav-btn {
             flex: none;
-            width: 38px;
-            height: 38px;
+            width: 44px;
+            height: 44px;
             padding: 0;
             display: flex;
             align-items: center;
@@ -481,7 +498,7 @@
             .gen-topbar-text { order: 2; flex: 1 1 100%; }
             .gen-topbar .gen-name { font-size: 0.98rem; }
             .gen-topbar .gen-sub { font-size: 0.8rem; }
-            .gen-btn { padding: 0.5rem 0.8rem; font-size: 0.9rem; }
+            .gen-btn { padding: 0.7rem 0.9rem; font-size: 1.02rem; }
             .gen-info { padding-top: 0.45rem; }
             .gen-overview { font-size: 0.88rem; line-height: 1.4; margin-bottom: 0.3rem; }
             .gen-details { font-size: 0.84rem; line-height: 1.36; max-height: calc(4 * 1.36em + 0.3rem); margin-bottom: 0.45rem; }
@@ -1366,6 +1383,29 @@
         if (tabsBar) { tabsBar.addEventListener('click', markSoon); }
         window.addEventListener('resize', markCapped);
         markSoon();
+
+        // BIG GENERATE BUTTON (2026-11-17): until the visitor has
+        // pressed a generator control once, every main button carries
+        // .rg-pulse (the breathing shadow in the CSS above). The first
+        // press — any of the four main buttons or the chevrons beside
+        // them — stops it for good, remembered per browser under the
+        // same jbo- key family as the deck and loved states.
+        (function () {
+            var PRESSED_KEY = 'jbo-random-pressed-v1';
+            var already = false;
+            try { already = !!window.localStorage.getItem(PRESSED_KEY); } catch (e) { }
+            if (already) { return; }
+            var ctrls = Array.prototype.slice.call(document.querySelectorAll('.gen-btn, .gen-topbar .gen-nav-btn'));
+            var mains = ctrls.filter(function (el) { return el.classList.contains('gen-btn'); });
+            if (!mains.length) { return; }
+            mains.forEach(function (b) { b.classList.add('rg-pulse'); });
+            function stopPulse() {
+                try { window.localStorage.setItem(PRESSED_KEY, '1'); } catch (e) { }
+                mains.forEach(function (b) { b.classList.remove('rg-pulse'); });
+                ctrls.forEach(function (el) { el.removeEventListener('click', stopPulse); });
+            }
+            ctrls.forEach(function (el) { el.addEventListener('click', stopPulse); });
+        })();
 
         var overlay = document.getElementById('gen-fs');
         var fsImg = document.getElementById('gen-fs-img');
