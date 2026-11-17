@@ -67,7 +67,6 @@
     .agree-block h3 { color: var(--text-color); font-size: 1.05rem; margin: 0 0 0.5rem 0; }
     .agree-block p { color: var(--subtext-color); font-size: 0.875rem; margin: 0 0 0.75rem 0; }
     .agree-block ol { color: var(--subtext-color); font-size: 0.875rem; margin: 0 0 0.75rem 0; padding-left: 1.25rem; line-height: 1.6; }
-    .agree-block .agree-disclaimer { color: var(--text-color); font-size: 0.85rem; font-weight: 600; margin: 0; }
     /* Screener section: same rhythm as the resources section. */
     .screener-section { margin-top: 3rem; margin-bottom: 3rem; }
     .screener-section h3 { margin-top: 1.25rem; }
@@ -78,9 +77,14 @@
     /* Committee table (2026-11-17 merge): each investor row expands its
        full profile (the former card body) in a detail row beneath it.
        The detail cell spans the table; its inner container sticks to the
-       left edge of the table's scrollport at viewport width, so the
-       profile reads at full width on phones while the table scrolls
-       sideways beneath it. */
+       left edge of the table's scrollport, so the profile reads at the
+       scrollport's full width while the table scrolls sideways beneath
+       it. The width below is the no-JS fallback (exact on phones, where
+       the scrollport spans the screen); the row script measures the
+       scrollport itself on open and on resize, because on desktop the
+       1140px column is far narrower than the window and a viewport-based
+       width pushed the profile's right edge past the scrollport, where
+       no scroll position could ever reveal it. */
     .glance-toggle { font: inherit; font-weight: 600; color: inherit; background: none; border: none; padding: 0; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 0.45rem; width: 100%; min-height: 44px; text-align: left; }
     .glance-toggle:hover { color: var(--link-color); }
     .glance-chev { font-size: 0.72em; color: var(--subtext-color); flex: 0 0 auto; }
@@ -89,6 +93,20 @@
     .glance-detail > td { white-space: normal; padding: 0; }
     .glance-detail-inner { position: sticky; left: 0; width: min(100%, calc(100vw - 38px)); }
     .glance-detail .explainer-card { display: block; border-top: none; }
+    /* Committee table scroll parity (2026-11-17): the shared
+       .spreadsheet-container already gives this table the scoreboard's
+       sideways-scrolling wrapper and sticky first column, but it left
+       the frozen Investor column and the right-edge scroll cover in the
+       translucent --card-bg — the ghosting the scoreboard's own fix
+       cured with the solid glass colour. Mirrored here, scoped to the
+       committee: the frozen column and its header take the solid
+       colour, and the cover is painted in it, so the backdrop at the
+       right edge matches the rest of the table. At widths where the
+       table fits, the solid colour sits over the container's own
+       background and nothing changes visually. */
+    #committee .spreadsheet-container td:first-child:not(.empty-state) { background-color: var(--glass-bg-solid); }
+    #committee .spreadsheet-container th:first-child { background-color: color-mix(in srgb, var(--glass-bg-solid), var(--text-color) 5%); }
+    #committee .spreadsheet-container { background-image: linear-gradient(to left, var(--glass-bg-solid) 30%, transparent), radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.22), transparent); }
     /* Chart section (2026-11-16): the page's own weekly chart, drawn
        in-page from finance-chart-data.json — it replaced the TradingView
        embed because the free widget styles studies per type, so its two
@@ -853,7 +871,7 @@
                     <tr><th>Investor</th><th>Style</th><th>Time horizon</th><th>Key test</th><th>Risk stance</th><th>Scored?</th></tr>
                 </thead>
                 <tbody>
-                    <tr class="glance-row" data-themes="" data-member="johnny" id="glance-row-johnny"><td><button type="button" class="glance-toggle" aria-expanded="false" aria-controls="glance-detail-johnny"><span class="glance-chev" aria-hidden="true">&#9654;</span><strong>Johnny O'Neal (mine)</strong></button></td><td>Value / rebalancing</td><td>Long-term (holds)</td><td>Promising and undervalued; price vs its 200-week average</td><td>Trim when overvalued or the thesis breaks; keep the 10% cash</td><td>No</td></tr>
+                    <tr class="glance-row" data-themes="" data-member="johnny" id="glance-row-johnny"><td><button type="button" class="glance-toggle" aria-expanded="false" aria-controls="glance-detail-johnny"><span class="glance-chev" aria-hidden="true">&#9654;</span><strong>Johnny O'Neal (mine)</strong></button></td><td>Growth — when the value is good</td><td>Long-term (holds)</td><td>Promising and undervalued; price vs its 200-week average</td><td>Trim when overvalued or the thesis breaks; keep the 10% cash</td><td>No</td></tr>
                     <tr class="glance-detail" id="glance-detail-johnny" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="johnnyCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
@@ -1999,7 +2017,6 @@
             <li>Know why you own it — be able to explain the thesis in a sentence or two.</li>
             <li>Hold cash when nothing meets your bar — cash is a position, not a failure.</li>
         </ol>
-        <p class="agree-disclaimer">One tension: Lynch is the nearest counter-voice — fully invested, and corrections are buying opportunities. And no large cash percentage is prescribed here: Klarman walked back holding 30%+ cash as "almost certainly" a mistake.</p>
     </div>
     
         </div>
@@ -5556,10 +5573,24 @@ if (typeof module !== "undefined") {
         "use strict";
         var table = document.querySelector('#committee .spreadsheet-container table');
         if (!table) return;
+        var wrap = table.closest('.spreadsheet-container');
+        /* Size an open profile to the scrollport's own visible width.
+           With that width, the sticky inner's travel inside its colspan
+           cell equals the wrapper's scroll range exactly, so the whole
+           profile stays in view at every scroll position. (The CSS
+           width is the fallback; it is viewport-based, which overshoots
+           the scrollport on desktop — see the CSS note.) */
+        function fitInner(detail) {
+            var inner = detail.querySelector('.glance-detail-inner');
+            if (!inner || !wrap) return;
+            var w = wrap.clientWidth;
+            if (w > 0) inner.style.width = w + 'px';
+        }
         function setRow(row, open) {
             var detail = row.nextElementSibling;
             if (!detail || !detail.classList.contains('glance-detail')) return;
             detail.hidden = !open;
+            if (open) fitInner(detail);
             row.classList.toggle('open', open);
             var btn = row.querySelector('.glance-toggle');
             if (btn) {
@@ -5579,6 +5610,10 @@ if (typeof module !== "undefined") {
             var isOpen = !!(detail && !detail.hidden);
             closeOthers(row);
             setRow(row, !isOpen);
+        });
+        window.addEventListener('resize', function () {
+            var open = table.querySelector('.glance-detail:not([hidden])');
+            if (open) fitInner(open);
         });
         function openFromHash() {
             var h = (window.location.hash || '').slice(1);
