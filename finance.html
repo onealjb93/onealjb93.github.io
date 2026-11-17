@@ -276,6 +276,12 @@
     .selector-group input[type="text"]:hover, .selector-group input[type="text"]:focus { border-color: var(--accent-color); }
     .runner-step td { background: var(--card-bg); font-weight: 600; color: var(--text-color); }
     .runner-notes { font-size: 0.9rem; line-height: 1.55; }
+    /* Johnny's card: the STRC/SATS yield equation (2026-11-17) — the
+       rule-item box treatment; values computed on open from
+       finance-data.json's "preferreds" block, seed values in the HTML. */
+    .yield-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.6rem 0.8rem; margin: 0 0 0.75rem 0; }
+    .yield-box p { margin: 0 0 0.35rem 0; color: var(--text-color); }
+    .yield-box p.yield-source { margin: 0; font-size: 0.78rem; color: var(--subtext-color); }
     .runner-verdict { font-size: 1rem; margin: 0 0 0.75rem; }
     /* Stack runner verdicts, prominence pass (2026-11-16): PASS / FAIL
        must read at a glance. Bigger, bolder chips with a glyph, a tint
@@ -871,7 +877,13 @@
             </button>
             <div class="explainer-card" id="johnnyCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
-                <p>My general strategy &mdash; for every $100: $70 invested in Bitcoin and stocks, $10 in cash, $10 in STRC, $10 in SATA.</p>
+                <p>My general strategy &mdash; for every $100: $70 invested in Bitcoin and stocks, $10 in cash, $10 in STRC, $10 in SATS.</p>
+                <p>Stay invested &mdash; and understand what you own. The 70% in stocks and Bitcoin should be generally promising and undervalued. If something becomes overvalued, consider rebalancing: stocks and Bitcoin generally return to their 200-week moving average, even with strong demand and promising growth, so taking some off the table is always OK &mdash; move it from the overvalued to the undervalued, and keep the 10% cash. STRC and SATS help build that cash while you wait:</p>
+                <div class="yield-box">
+                    <p id="yieldStrc">STRC &mdash; $12.00 a year &divide; $99.12 = <strong>12.1%</strong></p>
+                    <p id="yieldSats">SATS &mdash; $15.00 a year &divide; $94.35 = <strong>15.9%</strong></p>
+                    <p class="yield-source" id="yieldSource">Prices: last close, Nov 16, 2026. STRC&rsquo;s dividend rate is declared monthly; SATS pays a fixed 15%.</p>
+                </div>
             </div>
         </div>
 
@@ -2277,6 +2289,35 @@
             return latestFieldAsOf(data, 'price_as_of') || data.last_updated || null;
         }
 
+        // Johnny's card: the STRC/SATS yield equation, computed on open
+        // from finance-data.json's "preferreds" block (same load as the
+        // scoreboard — no second fetch). If the block or a field is
+        // missing, the seed values baked into the card stand, dated.
+        function renderPreferredYields(data) {
+            const block = (data && data.preferreds) || null;
+            if (!block) return;
+            const money = v => '$' + Number(v).toFixed(2);
+            const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const fmtDate = iso => {
+                const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+                return m ? MONTHS[parseInt(m[2], 10) - 1] + ' ' + parseInt(m[3], 10) + ', ' + m[1] : null;
+            };
+            let earliest = null;
+            [['STRC', 'yieldStrc'], ['SATS', 'yieldSats']].forEach(([ticker, elId]) => {
+                const el = document.getElementById(elId);
+                const p = block[ticker];
+                if (!el || !p) return;
+                const price = Number(p.price), div = Number(p.annual_dividend);
+                if (!(price > 0) || !(div >= 0)) return;
+                el.innerHTML = ticker + ' &mdash; ' + money(div) + ' a year &divide; ' + money(price)
+                    + ' = <strong>' + (div / price * 100).toFixed(1) + '%</strong>';
+                if (p.price_date && (!earliest || p.price_date < earliest)) earliest = p.price_date;
+            });
+            const src = document.getElementById('yieldSource');
+            const d = earliest && fmtDate(earliest);
+            if (src && d) src.textContent = 'Prices: last close, ' + d + '. STRC\u2019s dividend rate is declared monthly; SATS pays a fixed 15%.';
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             const select1 = document.getElementById('ticker1');
             const select2 = document.getElementById('ticker2');
@@ -2305,6 +2346,7 @@
                     if (momEl) momEl.textContent = latestFieldAsOf(data, 'momentum_as_of') || 'unavailable';
                     updateComparisonTable();
                     renderScoreboard();
+                    renderPreferredYields(data);
                     loadMinerviniData(); // Minervini's leg grades from the daily price file
                     updateStep0Notes();
                     renderRunner();
