@@ -2620,6 +2620,11 @@
         // missing input and how it truthfully arrives; Lynch's two
         // by-design blanks are worded as by-design, exactly as his rule
         // treats them (the rule working as written, not missing data).
+        // For the six single-rule investors a pass/fail sentence already
+        // carries the value and the bar, so its readout is '' and the
+        // popover renders no second line; a can't-test keeps its readout
+        // (the bar the sentence lacks). Lynch's and Graham's readouts
+        // are per-part breakdowns and always render.
         const FUND_PATH = 'It arrives with the weekday fundamentals refresh, which pulls the figures from SEC filings (EDGAR and Alpha Vantage).';
         const DATA_PATH = 'It arrives with the weekday data refresh.';
         const MOM_MISSING = name => 'Can’t be tested — there is no momentum figure for ' + name + ' yet. Momentum is worked out on this page from the weekly price history, and ' + name + ' doesn’t have the three months of it the measure needs.';
@@ -2630,17 +2635,17 @@
                 case 'druckenmiller': {
                     if (verdict === null) return { verdict, sentence: MOM_MISSING(name), readout: 'The bar: momentum above 0%.', short: 'no momentum figure yet' };
                     const v = fmtPct(t.momentum, 1, true);
-                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s momentum over the last three months is ' + v + '; Druckenmiller’s rule needs it above 0%.', readout: 'Momentum: ' + v + ' · The bar: above 0%.', short: 'momentum ' + v + ' (bar: above 0%)' };
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s momentum over the last three months is ' + v + '; Druckenmiller’s rule needs it above 0%.', readout: '', short: 'momentum ' + v + ' (bar: above 0%)' };
                 }
                 case 'buffett': {
                     if (verdict === null) return { verdict, sentence: 'Can’t be tested — return on equity isn’t in the data for ' + name + ' yet. ' + FUND_PATH, readout: 'The bar: return on equity of 15% or more.', short: 'return on equity not in the data yet' };
                     const v = fmtPct(t.roe);
-                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s return on equity is ' + v + '; Buffett’s bar is 15% or more.', readout: 'Return on equity: ' + v + ' · The bar: 15% or more.', short: 'ROE ' + v + ' (bar: 15% or more)' };
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s return on equity is ' + v + '; Buffett’s bar is 15% or more.', readout: '', short: 'ROE ' + v + ' (bar: 15% or more)' };
                 }
                 case 'tepper': {
                     if (verdict === null) return { verdict, sentence: 'Can’t be tested — the growth figure isn’t in the data for ' + name + ' yet. ' + DATA_PATH, readout: 'The bar: growth of 10% or more.', short: 'growth not in the data yet' };
                     const v = fmtPct(t.growth);
-                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s growth is ' + v + '; Tepper’s bar is 10% or more.', readout: 'Growth: ' + v + ' · The bar: 10% or more.', short: 'growth ' + v + ' (bar: 10% or more)' };
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s growth is ' + v + '; Tepper’s bar is 10% or more.', readout: '', short: 'growth ' + v + ' (bar: 10% or more)' };
                 }
                 case 'alden': {
                     const missing = [];
@@ -2648,28 +2653,27 @@
                     if (t.margin == null) missing.push('net margin');
                     if (verdict === null) return { verdict, sentence: 'Can’t be tested — ' + missing.join(' and ') + (missing.length > 1 ? ' aren’t' : ' isn’t') + ' in the data for ' + name + ' yet. ' + FUND_PATH, readout: 'The bar: return on equity and net margin both above 0%.', short: missing.join(' and ') + ' not in the data yet' };
                     const rv = fmtPct(t.roe), mv = fmtPct(t.margin);
-                    const readout = 'ROE ' + rv + ' · Net margin ' + mv + ' · The bar: both above 0%.';
                     const short = 'ROE ' + rv + ', margin ' + mv + ' (bar: both above 0%)';
-                    if (verdict) return { verdict, sentence: 'Passes — ' + name + '’s return on equity (' + rv + ') and net margin (' + mv + ') are both above zero; Alden’s rule needs both positive.', readout, short };
+                    if (verdict) return { verdict, sentence: 'Passes — ' + name + '’s return on equity (' + rv + ') and net margin (' + mv + ') are both above zero; Alden’s rule needs both positive.', readout: '', short };
                     const bad = [];
                     if (!(t.roe > 0)) bad.push('return on equity is ' + rv);
                     if (!(t.margin > 0)) bad.push('net margin is ' + mv);
-                    return { verdict, sentence: 'Fails — ' + name + '’s ' + bad.join(' and ') + '; Alden’s rule needs return on equity and net margin both above zero.', readout, short };
+                    return { verdict, sentence: 'Fails — ' + name + '’s ' + bad.join(' and ') + '; Alden’s rule needs return on equity and net margin both above zero.', readout: '', short };
                 }
                 case 'oshaughnessy': {
                     if (verdict === null) return { verdict, sentence: MOM_MISSING(name), readout: 'The bar: a top-5 momentum rank in the table.', short: 'no momentum figure yet' };
                     const ranked = all.filter(x => x.momentum != null).map(x => x.momentum).sort((a, b) => b - a);
                     const rank = ranked.indexOf(t.momentum) + 1;
                     const v = fmtPct(t.momentum, 1, true);
-                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s momentum ranks #' + rank + ' of the ' + ranked.length + ' stocks in the table with a momentum figure; O’Shaughnessy’s rule takes the top 5.', readout: 'Momentum: ' + v + ' · Rank: #' + rank + ' of ' + ranked.length + ' · The bar: top 5.', short: 'momentum ' + v + ', ranked #' + rank + ' of ' + ranked.length + ' (bar: top 5)' };
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s momentum of ' + v + ' ranks #' + rank + ' of the ' + ranked.length + ' stocks in the table with a momentum figure; O’Shaughnessy’s rule takes the top 5.', readout: '', short: 'momentum ' + v + ', ranked #' + rank + ' of ' + ranked.length + ' (bar: top 5)' };
                 }
                 case 'baker': {
                     const med = bakerBenchmark(all);
-                    if (t.peg == null) return { verdict, sentence: 'Can’t be tested — the PEG ratio isn’t in the data for ' + name + ' yet. ' + DATA_PATH, readout: 'The bar: PEG under 1.0 and under half the expensive-AI benchmark.', short: 'PEG not in the data yet' };
-                    if (med === null) return { verdict, sentence: 'Can’t be tested — Baker’s rule measures against the expensive AI names’ PEG, and that benchmark (AAOI’s PEG) isn’t in the data yet. ' + DATA_PATH, readout: 'The bar: PEG under 1.0 and under half the expensive-AI benchmark.', short: 'benchmark PEG not in the data yet' };
+                    if (t.peg == null) return { verdict, sentence: 'Can’t be tested — the PEG ratio (P/E divided by growth) isn’t in the data for ' + name + ' yet. ' + DATA_PATH, readout: 'The bar: PEG under 1.0 and under half the expensive-AI benchmark.', short: 'PEG not in the data yet' };
+                    if (med === null) return { verdict, sentence: 'Can’t be tested — Baker’s rule measures against the expensive AI names’ PEG (P/E divided by growth), and that benchmark (AAOI’s PEG) isn’t in the data yet. ' + DATA_PATH, readout: 'The bar: PEG under 1.0 and under half the expensive-AI benchmark.', short: 'benchmark PEG not in the data yet' };
                     const p = fmtNum(t.peg, 2), m = fmtNum(med, 2), half = fmtNum(med / 2, 2);
-                    const barTxt = 'under 1.0 and under half of AAOI’s ' + m + ' (under ' + half + ')';
-                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s PEG is ' + p + '; Baker’s bar is ' + barTxt + '.', readout: 'PEG: ' + p + ' · The bar: ' + barTxt + '.', short: 'PEG ' + p + ' (bar: ' + barTxt + ')' };
+                    const barTxt = 'under 1.0 and under half of the expensive-AI benchmark, AAOI’s ' + m + ' (under ' + half + ')';
+                    return { verdict, sentence: (verdict ? 'Passes' : 'Fails') + ' — ' + name + '’s PEG (P/E divided by growth) is ' + p + '; Baker’s bar is ' + barTxt + '.', readout: '', short: 'PEG ' + p + ' (bar: ' + barTxt + ')' };
                 }
                 case 'lynch': {
                     // Wider checklist: when any of the filings-based
@@ -2684,10 +2688,10 @@
                         const s = sbData(t);
                         const mark = v => v === null ? 'can’t check' : (v ? 'pass' : 'fail');
                         const parts = [];
-                        if (lc.peg !== null) parts.push('PEG ' + fmtNum(t.peg, 2) + ' at ' + fmtPct(t.growth) + ' growth: ' + mark(lc.peg));
-                        else if (t.growth != null && t.growth < 20) parts.push('PEG leg: not graded — growth ' + fmtPct(t.growth) + ' is below his fast-grower test');
-                        else if (t.peg != null && t.peg >= 1.0 && t.peg < 2.0) parts.push('PEG leg: not graded — ' + fmtNum(t.peg, 2) + ' is his fairly-priced band');
-                        else parts.push('PEG leg: can’t check');
+                        if (lc.peg !== null) parts.push('PEG (P/E divided by growth) ' + fmtNum(t.peg, 2) + ' at ' + fmtPct(t.growth) + ' growth: ' + mark(lc.peg));
+                        else if (t.growth != null && t.growth < 20) parts.push('PEG (P/E divided by growth) leg: not graded — growth ' + fmtPct(t.growth) + ' is below his fast-grower test');
+                        else if (t.peg != null && t.peg >= 1.0 && t.peg < 2.0) parts.push('PEG (P/E divided by growth) leg: not graded — ' + fmtNum(t.peg, 2) + ' is his fairly-priced band');
+                        else parts.push('PEG (P/E divided by growth) leg: can’t check');
                         if (lc.growth !== null) parts.push('5-year earnings growth ' + fmtPct(s.eps_cagr_pct) + ' a year (his fast-grower band is 20–50%): ' + mark(lc.growth));
                         else if (s && s.eps_cagr_pct != null) parts.push('5-year earnings growth ' + fmtPct(s.eps_cagr_pct) + ' a year — below his fast-grower band, not graded');
                         else parts.push('growth band: can’t check — needs the split-adjusted earnings history from the filings');
@@ -2721,15 +2725,15 @@
                         if (verdict) return { verdict, sentence: 'Passes — ' + name + ' passes every part of Lynch’s wider checklist that can be checked from the data; the line below lists each part, including any that can’t be checked.', readout, short: 'passes every checkable part of the wider checklist' };
                         return { verdict, sentence: 'Fails — ' + name + ' fails ' + failedNames.join(' and ') + ' on Lynch’s wider checklist; every checkable part has to pass, and the line below lists each part.', readout, short: 'fails ' + failedNames.map(x => x.replace(/^the /, '')).join(', ') };
                     }
-                    const barTxt = 'The bar: fast growers (growth 20%+) — PEG under 1.0 passes, 2.0 or more fails.';
+                    const barTxt = 'The bar: fast growers (growth 20%+) — PEG (P/E divided by growth) under 1.0 passes, 2.0 or more fails.';
                     if (t.growth == null) return { verdict, sentence: 'Can’t be tested — the growth figure isn’t in the data for ' + name + ' yet, and Lynch’s test starts from growth. ' + DATA_PATH, readout: barTxt, short: 'growth not in the data yet' };
                     const g = fmtPct(t.growth);
-                    if (t.growth < 20) return { verdict, byDesign: true, sentence: 'Not graded — Lynch’s PEG test only applies to fast growers, growth of 20% or more. ' + name + '’s growth is ' + g + ', so by his rule this leg doesn’t grade it — that’s the rule working as written, not missing data.', readout: 'Growth: ' + g + ' · The bar: the test applies at 20% growth or more.', short: 'growth ' + g + ' — the fast-grower test doesn’t apply' };
+                    if (t.growth < 20) return { verdict, byDesign: true, sentence: 'Not graded — Lynch’s PEG (P/E divided by growth) test only applies to fast growers, growth of 20% or more. ' + name + '’s growth is ' + g + ', so by his rule this leg doesn’t grade it — that’s the rule working as written, not missing data.', readout: 'Growth: ' + g + ' · The bar: the test applies at 20% growth or more.', short: 'growth ' + g + ' — the fast-grower test doesn’t apply' };
                     if (t.peg == null) return { verdict, sentence: 'Can’t be tested — the PEG ratio isn’t in the data for ' + name + ' yet. ' + DATA_PATH, readout: barTxt, short: 'PEG not in the data yet' };
                     const p = fmtNum(t.peg, 2);
-                    if (t.peg >= 1.0 && t.peg < 2.0) return { verdict, byDesign: true, sentence: 'Not graded — ' + name + '’s PEG of ' + p + ' sits in Lynch’s fairly-priced band (1.0 to 2.0): not cheap enough to pass, not dear enough to fail, so his rule doesn’t grade it.', readout: 'PEG: ' + p + ' · The bar: under 1.0 passes, 2.0 or more fails.', short: 'PEG ' + p + ' — fairly-priced band, not graded' };
-                    if (verdict) return { verdict, sentence: 'Passes — ' + name + ' is a fast grower (growth ' + g + ') with a PEG of ' + p + '; Lynch’s rule wants a fast grower’s PEG under 1.0.', readout: 'PEG: ' + p + ' · Growth: ' + g + ' · The bar: PEG under 1.0.', short: 'PEG ' + p + ' at ' + g + ' growth (bar: under 1.0)' };
-                    return { verdict, sentence: 'Fails — ' + name + ' is a fast grower (growth ' + g + ') with a PEG of ' + p + '; at 2.0 or more, Lynch’s rule calls it too dear.', readout: 'PEG: ' + p + ' · Growth: ' + g + ' · The bar: PEG under 1.0; 2.0 or more fails.', short: 'PEG ' + p + ' at ' + g + ' growth (bar: under 1.0)' };
+                    if (t.peg >= 1.0 && t.peg < 2.0) return { verdict, byDesign: true, sentence: 'Not graded — ' + name + '’s PEG (P/E divided by growth) of ' + p + ' sits in Lynch’s fairly-priced band (1.0 to 2.0): not cheap enough to pass, not dear enough to fail, so his rule doesn’t grade it.', readout: 'PEG: ' + p + ' · The bar: under 1.0 passes, 2.0 or more fails.', short: 'PEG ' + p + ' — fairly-priced band, not graded' };
+                    if (verdict) return { verdict, sentence: 'Passes — ' + name + ' is a fast grower (growth ' + g + ') with a PEG (P/E divided by growth) of ' + p + '; Lynch’s rule wants a fast grower’s PEG under 1.0.', readout: 'PEG: ' + p + ' · Growth: ' + g + ' · The bar: PEG under 1.0.', short: 'PEG ' + p + ' at ' + g + ' growth (bar: under 1.0)' };
+                    return { verdict, sentence: 'Fails — ' + name + ' is a fast grower (growth ' + g + ') with a PEG (P/E divided by growth) of ' + p + '; at 2.0 or more, Lynch’s rule calls it too dear.', readout: 'PEG: ' + p + ' · Growth: ' + g + ' · The bar: PEG under 1.0; 2.0 or more fails.', short: 'PEG ' + p + ' at ' + g + ' growth (bar: under 1.0)' };
                 }
                 case 'graham': {
                     const barTxt = 'The bar: every testable test passes, with at least four of the seven testable.';
@@ -2817,7 +2821,7 @@
             p2.textContent = w.readout;
             scoreTipContent.appendChild(h);
             scoreTipContent.appendChild(p1);
-            scoreTipContent.appendChild(p2);
+            if (w.readout) scoreTipContent.appendChild(p2);
         }
         function fillScoreSummary(t) {
             const s = scoreSummary(t);
