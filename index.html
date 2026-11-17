@@ -91,7 +91,41 @@
            localStorage ('btc-chart-view'), shared with the homepage;
            each view's code loads lazily on first selection (inert in
            text/plain script blocks until then). */
-        .btc-pick { position: relative; margin-bottom: 16px; }
+        /* Chart picker pinning (2026-11-17): while the chart card is on
+           screen the picker sticks under the frozen 55px header, so the
+           view can be changed without scrolling back up — the site's
+           single-slot pinning standard (solid background, hairline
+           bottom border), ported from bitcoin.html, where the same
+           picker already pins this way. The card is its parent, so it
+           pins for the chart's stretch only and releases at the card's
+           end. z-index 95 takes the slot over the section heading (90)
+           while stuck, and stays below the site header (1000) and the
+           glass popups. The panel is the picker's own child and anchors
+           to it, so it opens from the pinned bar, travels with it, and
+           is never clipped — no ancestor clips (the card is a direct
+           child of body here and sets no overflow; #btc-view-anim's
+           overflow: hidden is a sibling, not an ancestor). The vertical
+           padding gives the stuck bar enough height to cover the
+           heading bar beneath it, balanced by a smaller margin-bottom
+           so the gap below the bar is unchanged. */
+        .btc-pick { position: sticky; top: 55px; z-index: 95; background: var(--bg-color); border-bottom: 1px solid var(--border-color); padding: 9px 0 8px; margin-bottom: 7px; }
+        /* Picker pinning fix (2026-11-17, ported from bitcoin.html):
+           the shared card style (style.css) gives .btc-chart-card
+           backdrop-filter: blur(20px), a transform transition, and a
+           :hover transform — and a non-none backdrop-filter (like
+           filter or transform) makes the element the containing block
+           for its positioned descendants, so the sticky picker was
+           captured by the card and scrolled away with it. The
+           backdrop-filter is always on, which is why the pin cannot
+           hold on mobile either, hover or no hover. The two overrides
+           below switch both off for THIS page's card only — style.css
+           also serves the Bitcoin page's card and is untouched. The
+           blur is invisible here (the card sits on the flat page
+           background) and the hover lift is the price of a pin that
+           works; the card keeps its border, radius, shadow and
+           background. */
+        .btc-chart-card { backdrop-filter: none; }
+        .btc-chart-card:hover { transform: none; }
         .btc-pick-face { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; min-height: 44px; padding: 0.3rem 0.8rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-color); font: inherit; font-size: 0.92rem; font-weight: 600; text-align: left; cursor: pointer; }
         .btc-pick-face:hover { background: var(--hover-bg); }
         .btc-pick-face:focus-visible { outline: 2px solid var(--link-color); outline-offset: 1px; }
@@ -3276,14 +3310,70 @@
             // A heading still approaching the slot (below it, in
             // flow) is never marked: it scrolls up under the bar
             // like any other content.
+            // Chart picker cover (2026-11-17): the Bitcoin chart
+            // picker pins in the same slot (see the .btc-pick CSS in
+            // the head), ported from bitcoin.html — while the picker
+            // bar is anywhere across a sticky heading's glyphs,
+            // rising into the slot, pinned in it, or carried back
+            // out, that heading is marked .slot-covered too. The
+            // trigger is the glyph box, not the pin: the bar is inset
+            // by the card's padding (24px + border) while the heading
+            // starts at the column edge, so the heading's first
+            // glyphs would peek out at the bar's left for the whole
+            // approach if the cover waited for the pin. A heading's
+            // glyphs live in its content box: box top plus top
+            // padding, box bottom minus bottom padding and border.
+            // The offsets are cached — they change only with layout
+            // inputs (viewport, root size) — and re-measured on
+            // resize and load.
+            var slotPick = document.getElementById('btcPick');
+            var slotAnim = document.getElementById('btc-view-anim');
+            var slotPads = null;
+            function measureSlotPads(h2s) {
+                slotPads = [];
+                for (var i = 0; i < h2s.length; i++) {
+                    var cs = window.getComputedStyle(h2s[i]);
+                    slotPads.push({
+                        top: parseFloat(cs.paddingTop) || 0,
+                        bottom: (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0)
+                    });
+                }
+            }
             function syncSlotCover() {
                 var anyPinned = !!document.querySelector('.syn-duo .media-box-head.is-pinned');
                 var h2s = document.querySelectorAll('body > h2, .about-section h2');
+                if (!slotPads || slotPads.length !== h2s.length) measureSlotPads(h2s);
+                var pr = slotPick ? slotPick.getBoundingClientRect() : null;
                 for (var i = 0; i < h2s.length; i++) {
                     var r = h2s[i].getBoundingClientRect();
-                    h2s[i].classList.toggle('slot-covered', anyPinned && r.top <= HEADER_H + 1);
+                    var covered = anyPinned && r.top <= HEADER_H + 1;
+                    if (!covered && pr) {
+                        var gTop = r.top + slotPads[i].top;
+                        var gBottom = r.bottom - slotPads[i].bottom;
+                        // Covered from the bar's first touch of the
+                        // glyphs until it clears them, with 1px of
+                        // tolerance so an antialiased edge cannot
+                        // peek at the touch point.
+                        covered = pr.top < gBottom + 1 && pr.bottom > gTop - 1;
+                    }
+                    h2s[i].classList.toggle('slot-covered', covered);
                 }
             }
+            // The picker cover is checked directly on scroll, not
+            // rAF-throttled: the toggle changes only visibility (no
+            // layout), so the rect reads stay cheap and the cover can
+            // never lag a frame behind the pin. (The library bars'
+            // own calls into syncSlotCover keep working unchanged;
+            // the function is stateless, so both paths agree.) A view
+            // switch animates the card's height (0.45s) and can move
+            // the bar's release point without a scroll: recheck as
+            // the animation settles.
+            window.addEventListener('scroll', syncSlotCover, { passive: true });
+            window.addEventListener('resize', function () { slotPads = null; syncSlotCover(); });
+            window.addEventListener('load', function () { slotPads = null; syncSlotCover(); });
+            if (slotAnim) slotAnim.addEventListener('transitionend', syncSlotCover);
+            if (slotPick) slotPick.addEventListener('click', function () { window.setTimeout(syncSlotCover, 500); });
+            syncSlotCover();
             function setup(card, toggleId) {
                 if (!card) return;
                 var wrap = card.parentElement;
