@@ -53,6 +53,39 @@ Sources (all free; only Alpha Vantage needs a key, and only from the env):
   first failure detail verbatim — and every due ticker carries a
   "fundamentals_note" saying what happened to its refresh. A green run
   whose fundamentals failed is now visible in the data itself.
+- Foreign-filer / dead-tag fix (2026-11-16): five tickers still came
+  back partial after the fix above, each for a diagnosed reason —
+  (a) annual/quarterly selection accepted only 10-K/10-Q forms, so
+      20-F filers (TSM, NBIS) read as permanently empty; 20-F/40-F
+      and 6-K forms now count, with a guard that a quarterly series
+      ending at or before the latest annual is a stale fragment
+      (TSM's only 6-K rows are half-year figures from 2020-21), not
+      a current quarter;
+  (b) tag/unit selection took the first series with any data, so a
+      retired tag or unit was read forever: AAOI/AMD revenue (the
+      Revenues tag died in 2017-18), NBIS's legacy RUB unit (ended
+      2023), and — quietly worse — MU's and WM's revenue annuals,
+      COST's and WMT's EPS units, and JPM's revenue quarters were
+      stale fragments too, mixing periods years apart into margins,
+      growth rates and PEGs that were live on the page. A series
+      whose latest end is > ~18 months behind a sibling's is now
+      treated as retired; preference order otherwise stands (a
+      bank's ASC 606 subset is not its total revenue);
+  (c) share counts now come dei-first (the cover-page count — the
+      scoreboard block's order), which also repairs WMT's market
+      cap, stale since its 2024 split; the ifrs IssuedCapital
+      fallback is gone — it is share capital in money, not a count,
+      and reading it as one put TSM's "market cap" at $103 trillion;
+  (d) a non-USD reporter (TSM) gets no market cap and no PEG from
+      these filings: its share count and EPS are ordinary-share TWD
+      figures while the price is the USD ADS price, and a figure
+      multiplied across that mismatch would be wrong, not
+      approximate. Its note says so, as does SPCX's: two 10-Qs
+      since its June 2026 IPO and no annual report yet, so no
+      trailing twelve months exists in its filings to compute.
+  PEG is also no longer computed when earnings or growth are
+  negative — the ratio is undefined there, and a negative "PEG"
+  is a nonsense number, not a bearish signal.
 - Momentum: 3-month % price return computed from Stooq daily closes (free,
   no key): (latest close / close 63 trading days earlier - 1) x 100.
   NOTE: Stooq now serves a JavaScript browser-verification page to
@@ -305,25 +338,85 @@ def fetch_companyfacts(cik):
 
 
 def fact_entries(facts, tag_candidates):
-    """All (end, value, form) entries for the first tag that has data.
+    """All (end, value, form) entries for the best candidate tag.
 
-    tag_candidates is a list of (taxonomy, tag) pairs, tried in order, so
-    us-gaap is preferred and ifrs-full is the fallback for foreign filers.
+    tag_candidates is a list of (taxonomy, tag) pairs in preference
+    order — us-gaap first, ifrs-full as the fallback for foreign
+    filers, and within us-gaap the total-revenue tag before its
+    ASC 606 subset (for a bank the subset is not total revenue, so
+    order matters and is kept). Preference order decides UNLESS an
+    earlier candidate's series is dead — its latest period end more
+    than ~18 months older than a later candidate's — because filers
+    do retire tags: AAOI and AMD stopped tagging revenue as Revenues
+    in 2017-18 and file it as RevenueFromContract... today, so a
+    first-tag-with-anything rule reads 2018 figures forever (it was
+    even publishing a 2018 revenue-growth rate for AAOI). The same
+    staleness rule picks the unit within a tag: NBIS (ex-Yandex)
+    still carries a legacy RUB series that ended in 2023 alongside
+    its live USD one.
     """
+    entries, _unit = fact_entries_with_unit(facts, tag_candidates)
+    return entries
+
+
+# A series whose latest period end is this far behind a sibling
+# series' is a retired tag/unit, not a live alternative.
+STALE_DAYS = 550
+
+
+def _series_key(entries):
+    return entries[-1][0] if entries else ""
+
+
+def _fresher_by_margin(a_end, b_end):
+    """True if ISO date a_end is more than STALE_DAYS after b_end."""
+    if not a_end or not b_end:
+        return False
+    from datetime import date as _date
+    return (_date.fromisoformat(a_end)
+            - _date.fromisoformat(b_end)).days > STALE_DAYS
+
+
+def fact_entries_with_unit(facts, tag_candidates):
+    """fact_entries plus the winning unit name (or None)."""
+    best = None  # (entries, unit)
+    best_end = ""
     for taxonomy, tag in tag_candidates:
         try:
             units = facts["facts"][taxonomy][tag]["units"]
         except KeyError:
             continue
-        for unit_values in units.values():
+        tag_best = None  # (entries, unit)
+        tag_best_end = ""
+        for unit, unit_values in units.items():
             entries = [
                 (e["end"], e["val"], e.get("form", ""))
                 for e in unit_values
                 if "end" in e and "val" in e
             ]
-            if entries:
-                return sorted(entries)
-    return []
+            if not entries:
+                continue
+            entries = sorted(entries)
+            if tag_best is None or _fresher_by_margin(
+                    _series_key(entries), tag_best_end):
+                tag_best = (entries, unit)
+                tag_best_end = _series_key(entries)
+        if tag_best is not None and (
+                best is None
+                or _fresher_by_margin(tag_best_end, best_end)):
+            best = tag_best
+            best_end = tag_best_end
+    if best is None:
+        return [], None
+    return best
+
+
+# Filing forms that carry annual / quarterly financial statements.
+# Foreign private issuers file the same statements as 20-F (annual)
+# and 6-K (interim) instead of 10-K / 10-Q; a 10-K-only filter reads
+# their fundamentals as permanently empty (TSM, NBIS).
+ANNUAL_FORMS = {"10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"}
+QUARTERLY_FORMS = {"10-Q", "10-Q/A", "6-K"}
 
 
 def latest_value(entries):
@@ -335,9 +428,19 @@ def latest_value(entries):
 
 
 def latest_quarterly(entries):
-    """Most recent 10-Q value, or None."""
-    quarters = [e for e in entries if e[2] == "10-Q"]
+    """Most recent quarterly-form value, or None.
+
+    A quarterly series that ends at or before the latest annual in
+    the same entries is a stale fragment, not a current quarter —
+    TSM's only 6-K rows are two half-year figures from 2020-21, and
+    reading them as "the latest quarter" would publish years-old
+    growth and corrupt the TTM. Such a series reads as no quarter.
+    """
+    quarters = [e for e in entries if e[2] in QUARTERLY_FORMS]
     if not quarters:
+        return None, None, None
+    annual_ends = [e[0] for e in entries if e[2] in ANNUAL_FORMS]
+    if annual_ends and quarters[-1][0] <= max(annual_ends):
         return None, None, None
     end, val, _ = quarters[-1]
     prior = [e for e in quarters if e[0] == _shift_year(end)]
@@ -346,12 +449,19 @@ def latest_quarterly(entries):
 
 
 def latest_annual(entries):
-    """Most recent 10-K value plus the prior year's, or None."""
-    annuals = [e for e in entries if e[2] == "10-K"]
+    """Most recent annual value plus the prior year's, or None.
+
+    The prior figure is the latest row with a strictly earlier end:
+    companyfacts repeats each annual in later filings' comparatives,
+    so the second-to-last row can be the same year restated rather
+    than the year before it.
+    """
+    annuals = [e for e in entries if e[2] in ANNUAL_FORMS]
     if not annuals:
         return None, None, None
     end, val, _ = annuals[-1]
-    prior_val = parse_float(annuals[-2][1]) if len(annuals) >= 2 else None
+    prior_rows = [e for e in annuals if e[0] < end]
+    prior_val = parse_float(prior_rows[-1][1]) if prior_rows else None
     return parse_float(val), prior_val, end
 
 
@@ -1122,22 +1232,54 @@ def main():
         else:
             log("  no CIK found for %s; EDGAR fields will be null" % symbol)
 
+        # Specific, diagnosed reason when EDGAR answered but a field
+        # still can't be formed — surfaced in fundamentals_note below
+        # instead of the generic "did not yield" wording.
+        edgar_gap_detail = None
         if facts is not None:
+            # dei cover-page count first, then the us-gaap outstanding
+            # series, then the diluted weighted average (the
+            # scoreboard block's order). The old ifrs IssuedCapital
+            # fallback is gone: it is share CAPITAL in money, not a
+            # share count — reading it as one put TSM's "market cap"
+            # at $103 trillion (its NT$259B issued capital x the ADS
+            # price).
             share_entries = fact_entries(facts, [
+                ("dei", "EntityCommonStockSharesOutstanding"),
                 ("us-gaap", "CommonStockSharesOutstanding"),
                 ("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding"),
-                ("ifrs-full", "IssuedCapital"),
             ])
             shares, _share_end = latest_value(share_entries)
 
-        if price is not None and shares:
+        # A filer reporting in a non-USD currency carries an
+        # ordinary-share count while the page's price is a USD ADS
+        # price (TSM: TWD figures, 1 ADS = 5 ordinary shares). A
+        # market cap multiplied across that mismatch would be wrong,
+        # not approximate — leave it blank and say why (the same
+        # ruling the scoreboard block applies).
+        mcap_currency = None
+        if facts is not None:
+            _eps_rows_probe, _eps_unit_probe = _eps_rows_and_unit(facts)
+            if _eps_unit_probe and "/" in _eps_unit_probe:
+                mcap_currency = _eps_unit_probe.split("/")[0]
+        if price is not None and shares and mcap_currency in (None, "USD"):
             mcap_b = price * shares / 1e9
             record["mcap"] = round(mcap_b, 2)
             record["mcap_str"] = money_str(mcap_b)
         else:
             record["mcap"] = None
             record["mcap_str"] = None
-            if price is not None:
+            if price is not None and shares and mcap_currency not in (None, "USD"):
+                edgar_gap_detail = (
+                    "its filings report in %s and carry an "
+                    "ordinary-share count, while the price is the USD "
+                    "ADS price, so a market cap from these filings "
+                    "would mix the two" % mcap_currency)
+                log("  %s reports in %s; share count is ordinary shares "
+                    "but the price is the USD ADS price — market cap "
+                    "left blank rather than mixing the two"
+                    % (symbol, mcap_currency))
+            elif price is not None:
                 log("  no share count for %s; market cap null" % symbol)
 
         # ---- fundamentals (weekly rotation) ----
@@ -1166,14 +1308,22 @@ def main():
                 ("us-gaap", "ShortTermBorrowings"),
                 ("ifrs-full", "CurrentBorrowings"),
             ])
-            eps_entries = fact_entries(facts, [
+            eps_entries, eps_unit = fact_entries_with_unit(facts, [
                 ("us-gaap", "EarningsPerShareDiluted"),
                 ("ifrs-full", "DilutedEarningsPerShare"),
+                ("ifrs-full", "DilutedEarningsLossPerShare"),
             ])
 
             ttm_rev, rev_period = ttm_value(rev_entries)
             ttm_ni, _ni_period = ttm_value(ni_entries)
             ttm_eps, _eps_period = ttm_value(eps_entries)
+            if eps_unit and not eps_unit.startswith("USD"):
+                # EPS in the filer's own currency (TSM: TWD per
+                # ordinary share) cannot divide a USD ADS price —
+                # the PEG would be wrong, not approximate.
+                log("  EPS for %s is in %s; PEG left blank rather than "
+                    "dividing a USD price by it" % (symbol, eps_unit))
+                ttm_eps = None
             equity, _eq_end = latest_value(eq_entries)
             ltd, _ltd_end = latest_value(ltd_entries)
             cur, _cur_end = latest_value(cur_entries)
@@ -1203,21 +1353,45 @@ def main():
                 margin = round(ttm_ni / ttm_rev * 100.0, 2)
 
             # PEG: computed as (price / diluted EPS TTM) / revenue growth.
+            # Only when both are positive — Lynch's ratio is undefined
+            # for a loss-maker or a shrinking company, and a negative
+            # "PEG" is a nonsense number, not a bearish signal.
             peg = None
             if price is not None and ttm_eps and growth:
                 pe = price / ttm_eps
-                peg = round(pe / growth, 2)
+                if pe > 0 and growth > 0:
+                    peg = round(pe / growth, 2)
 
             record["peg"] = peg
             record["growth"] = growth
             record["debt"] = debt_to_equity
             record["roe"] = roe
             record["margin"] = margin
+            if edgar_gap_detail is None and (roe is None or margin is None):
+                has_annual = any(
+                    e[2] in ANNUAL_FORMS for e in rev_entries + ni_entries)
+                if not has_annual and ttm_rev is None and ttm_ni is None:
+                    # SPCX: two 10-Qs since the June 2026 IPO, no
+                    # annual report, and Q4 of the pre-IPO year was
+                    # never filed as a figure — a trailing twelve
+                    # months does not yet exist in its filings.
+                    edgar_gap_detail = (
+                        "its filings hold quarterly reports only, "
+                        "with no annual report yet, so a trailing "
+                        "twelve months cannot be formed from them")
+                elif ttm_rev is None:
+                    edgar_gap_detail = (
+                        "its filings did not yield a trailing-twelve-"
+                        "month revenue figure")
+                elif ttm_ni is None:
+                    edgar_gap_detail = (
+                        "its filings did not yield a trailing-twelve-"
+                        "month net income figure")
             record["analyst_target"] = None  # filled from OVERVIEW below, if any
             record["fundamentals_as_of"] = today
             record["fundamentals_source"] = "SEC EDGAR filings"
             record["fiscal_period"] = (
-                "10-Q/10-K ended %s" % rev_period if rev_period else None
+                "fiscal period ended %s" % rev_period if rev_period else None
             )
 
             # ---- scoreboard block (Greenblatt / Graham / Lynch) ----
@@ -1357,8 +1531,12 @@ def main():
                 elif edgar_outcome == "failed":
                     edgar_part = "the SEC EDGAR request failed"
                 elif edgar_outcome == "ok":
-                    edgar_part = ("SEC EDGAR answered, but its filings did "
-                                  "not yield ROE, margin and market cap")
+                    if edgar_gap_detail:
+                        edgar_part = ("SEC EDGAR answered, but "
+                                      + edgar_gap_detail)
+                    else:
+                        edgar_part = ("SEC EDGAR answered, but its filings did "
+                                      "not yield ROE, margin and market cap")
                 else:
                     edgar_part = "no SEC CIK is on file for this ticker"
                 if ov_outcome == "throttled" or (
