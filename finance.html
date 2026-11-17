@@ -47,6 +47,21 @@
         background-image: linear-gradient(var(--hover-bg), var(--hover-bg)), linear-gradient(var(--card-bg), var(--card-bg));
         background-color: var(--bg-color);
     }
+    /* Card toggle labels (2026-11-16 repair): the shared .info-toggle is
+       display: flex, and this page's glossary annotator splits label
+       text into fragments around <span class="term"> elements. Under
+       flex, every fragment becomes its own flex item, so a label with
+       two or more terms shrink-wraps into ragged columns and its last
+       item can clip at the card's edge (Buffett / Soros / Klarman).
+       Labels with no terms stay one text node and were never affected.
+       Scoped to this page (the annotator lives here): the toggle
+       becomes a block so the label flows as one inline context again,
+       and the arrow — always the toggle's first child — is centred
+       absolutely at the left, exactly where flex put it. The sticky
+       open-state rule above still wins for position while a card is
+       open, and sticky is itself a valid anchor for the arrow. */
+    .info-toggle { display: block; position: relative; padding-left: 2.1rem; }
+    .info-toggle > span:first-child { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); }
     /* Agreement checklist block (same as the health page's committee list). */
     .agree-block { border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); padding: 1rem 1.25rem 1.25rem 1.25rem; margin-top: 1.5rem; }
     .agree-block h3 { color: var(--text-color); font-size: 1.05rem; margin: 0 0 0.5rem 0; }
@@ -377,8 +392,44 @@
        badge, column or verdict changes. */
     #scoreboard .spreadsheet-container td:first-child:not(.empty-state) { background-color: var(--glass-bg-solid); }
     #scoreboard .spreadsheet-container th:first-child { background-color: color-mix(in srgb, var(--glass-bg-solid), var(--text-color) 5%); }
-    #scoreboard .spreadsheet-container td:nth-child(2) { white-space: normal; min-width: 9.5rem; }
+    #scoreboard .spreadsheet-container:has(#scoreboardBody) td:nth-child(2) { white-space: normal; min-width: 9.5rem; }
     #scoreboard .spreadsheet-container { background-image: linear-gradient(to left, var(--glass-bg-solid) 30%, transparent), radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.22), transparent); }
+
+    /* Scoreboard phone layout (2026-11-16 repair): the ghost fix above
+       cured the see-through frozen column but left the table in AUTO
+       layout (the shared .spreadsheet-container table rule sets only
+       width: 100% — no table-layout anywhere), where the Score cell is
+       the only wrappable cell in a sea of nowrap. The auto algorithm
+       answered by ballooning the frozen Company column (317px of table
+       width on a 393px phone, against a 243px widest company cell) and
+       crushing the Score column, whose ~306px of honest text then
+       wraps to three-plus lines and sets every row's height (~94px,
+       company names floating centred in the tall rows), while the
+       Score and first investor columns sit hidden behind the
+       now-opaque frozen column. In the phone band the scoreboard's own
+       table (scoped by :has(#scoreboardBody) so the comparison table
+       below it in this section is untouched) gets FIXED layout with
+       explicit column widths, each sized from measured text: Company
+       narrow by design — its floor is the longest word it must hold
+       whole ("Optoelectronics", 133px at an 18px root), and every
+       name wraps inside it in at most three lines; Score wide enough
+       for its whole text in two lines; investor columns sized to
+       their widest badge/header. Widths are rem so they scale with
+       the reader's root font, and border-box makes each width the
+       exact column width. Desktop is untouched. */
+    @media (max-width: 768px) {
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) table { table-layout: fixed; width: auto; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) th,
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) td { box-sizing: border-box; padding: 10px 7px; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) th:first-child,
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) td:first-child { width: 8.5rem; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) th:first-child { white-space: normal; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) td:first-child:not(.empty-state) { white-space: normal; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) th:nth-child(2),
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) td:nth-child(2) { width: 9.25rem; min-width: 0; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) th:nth-child(n+3),
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) td:nth-child(n+3) { width: 9rem; }
+    }
 
     /* Disclosed-holdings tables inside investor cards (2026-11-13):
        let long text columns wrap instead of forcing very wide tables. */
