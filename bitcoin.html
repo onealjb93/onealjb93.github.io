@@ -538,6 +538,16 @@
         <p class="btc-cpi-src">US consumer price inflation, year over year — Bureau of Labor Statistics CPI, through September 2026</p>
     </div>
 
+    <div class="btc-cpi">
+        <p class="btc-cpi-title">Productivity keeps rising — since 1947</p>
+        <div class="btc-cpi-wrap">
+            <canvas id="btc-prod-chart" height="240" role="img" aria-label="Line chart of US labor productivity, output per hour, year over year, from 1948 to 2025, with a dashed line at the long-run average. Productivity rose in all but a few years and averaged about 2.2 percent a year across the span."></canvas>
+        </div>
+        <p class="btc-cpi-src">US labor productivity — output per hour, year over year — Bureau of Labor Statistics, through 2025</p>
+    </div>
+
+    <p class="btc-why-close">Since 1948, productivity has risen about 2.2% a year — the force pushing prices down. Over the same years, prices rose about 3.5% a year instead. The distance between those two numbers is the printing.</p>
+
     <p class="btc-why-sustain">Sustainability starts with time. A money that loses value on schedule pushes everyone to spend now, build cheap, and replace often. A money that holds its value rewards the opposite — save, build to last, think in decades. That is the deepest sense in which Bitcoin is sustainable money: it pays people to think long-term.</p>
 
     <details class="btc-fullcase">
@@ -2987,6 +2997,97 @@
             ctx.fillStyle = '#fbbf24';
             ctx.textAlign = 'right';
             ctx.fillText('the 2% target', w - g.padR - 4, ty - 9);
+            ctx.restore();
+        }
+        draw();
+        var rt;
+        window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(draw, 120); });
+    })();
+    </script>
+
+    <script>
+    /* US labor productivity chart — the CPI chart's companion.
+       Annual year-over-year change in output per hour (Bureau of
+       Labor Statistics, nonfarm business sector) against its
+       long-run average. Static: annual-average index levels
+       1947–2025 are baked below as their year-over-year changes
+       (1948–2025), drawn once in the page's chart idiom — no
+       controls, no fetch. */
+    (function () {
+        var cv = document.getElementById('btc-prod-chart');
+        if (!cv) return;
+        var ctx = cv.getContext('2d');
+        var PTS = [
+        [1948,2.53],[1949,3.20],[1950,6.65],[1951,2.59],[1952,1.90],[1953,2.47],[1954,1.94],[1955,4.29],[1956,-0.58],[1957,2.57],
+        [1958,2.28],[1959,3.55],[1960,1.17],[1961,3.26],[1962,4.55],[1963,3.40],[1964,2.68],[1965,3.19],[1966,3.61],[1967,1.86],
+        [1968,3.49],[1969,0.17],[1970,1.43],[1971,3.90],[1972,3.47],[1973,3.08],[1974,-1.68],[1975,2.67],[1976,3.48],[1977,1.73],
+        [1978,1.40],[1979,-0.13],[1980,-0.06],[1981,1.45],[1982,-0.82],[1983,4.09],[1984,2.25],[1985,1.74],[1986,2.97],[1987,0.54],
+        [1988,1.65],[1989,0.88],[1990,1.67],[1991,1.64],[1992,4.46],[1993,0.12],[1994,0.70],[1995,1.08],[1996,2.10],[1997,1.93],
+        [1998,3.35],[1999,3.92],[2000,2.99],[2001,2.58],[2002,4.27],[2003,3.68],[2004,2.98],[2005,2.19],[2006,1.00],[2007,1.59],
+        [2008,1.31],[2009,4.07],[2010,3.16],[2011,-0.02],[2012,0.94],[2013,0.60],[2014,1.01],[2015,1.27],[2016,0.62],[2017,1.50],
+        [2018,1.41],[2019,2.13],[2020,5.31],[2021,2.30],[2022,-1.51],[2023,2.10],[2024,3.13],[2025,2.44]
+        ];
+        var AVG = 2.16;
+        var X0 = PTS[0][0], X1 = PTS[PTS.length - 1][0];
+        var Y0 = -3, Y1 = 9;
+        function geom(w, h) {
+            var padL = w < 520 ? 42 : 50, padR = 14, padT = 12, padB = 26;
+            var iw = w - padL - padR, ih = h - padT - padB;
+            return {
+                padL: padL, padR: padR, padT: padT, padB: padB, iw: iw, ih: ih,
+                x: function (yr) { return padL + (yr - X0) / (X1 - X0) * iw; },
+                y: function (v) { return padT + (Y1 - v) / (Y1 - Y0) * ih; }
+            };
+        }
+        function draw() {
+            var w = cv.clientWidth, h = cv.clientHeight;
+            if (!w || !h) return;
+            var dpr = window.devicePixelRatio || 1;
+            cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, w, h);
+            var g = geom(w, h);
+            var small = w < 520;
+            ctx.font = (small ? 10 : 11) + 'px system-ui, -apple-system, sans-serif';
+            ctx.textBaseline = 'middle';
+            /* grid + y labels, every 2 points */
+            ctx.textAlign = 'right';
+            for (var t = -2; t <= 8; t += 2) {
+                var y = g.y(t);
+                ctx.strokeStyle = t === 0 ? 'rgba(148,163,184,0.30)' : 'rgba(148,163,184,0.14)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText((t < 0 ? '\u2212' : '') + Math.abs(t) + '%', g.padL - 8, y);
+            }
+            /* grid + x labels: a year every 20 years */
+            ctx.textAlign = 'center';
+            [1960, 1980, 2000, 2020].forEach(function (yr) {
+                var x = g.x(yr);
+                ctx.strokeStyle = 'rgba(148,163,184,0.12)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText(String(yr), x, h - g.padB + 13);
+            });
+            /* plot content, clipped to the plot box */
+            ctx.save();
+            ctx.beginPath(); ctx.rect(g.padL, g.padT, g.iw, g.ih); ctx.clip();
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = small ? 1.5 : 2; ctx.setLineDash([]);
+            ctx.beginPath();
+            for (var i = 0; i < PTS.length; i++) {
+                var px = g.x(PTS[i][0]), py = g.y(PTS[i][1]);
+                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+            /* dashed line at the long-run average, labelled at the right edge */
+            var ty = g.y(AVG);
+            ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+            ctx.beginPath(); ctx.moveTo(g.padL, ty); ctx.lineTo(w - g.padR, ty); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#fbbf24';
+            ctx.textAlign = 'right';
+            ctx.fillText('the long-run average', w - g.padR - 4, ty - 9);
             ctx.restore();
         }
         draw();
