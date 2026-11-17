@@ -55,7 +55,22 @@
            peek out sliced beside the bar; the heading is behind the
            bar either way. Visibility, not display, so nothing shifts,
            and the heading returns the moment the picker releases the
-           slot (above the card, or past it). */
+           slot (above the card, or past it).
+           Repair (2026-11-17, later): "pinned" was the wrong trigger.
+           The picker starts crossing the stuck heading's glyphs the
+           moment its top edge rises above the glyphs' bottom edge —
+           some 80px of scroll before it pins — and in that whole
+           approach band the old script left the heading uncovered.
+           The bar is inset by the card's padding (24px + border)
+           while the heading starts at the column edge, so the
+           heading's first ~25px of glyphs ("HO…") stayed exposed at
+           the bar's left (Johnny's screenshot). The script now covers
+           a heading whenever the bar's rect touches its glyph box —
+           arriving, pinned, or leaving — and clears the moment the
+           bar clears the glyphs, so no scroll state can show a
+           sliced sliver. It also runs unthrottled on scroll: the old
+           rAF throttle could lag one frame at the pin and flash the
+           glyph slice below the bar. */
         h2.slot-covered { visibility: hidden; }
         /* Bitcoin chart picker: one button showing the current view,
            opening a glass panel that lists the views as full rows — the
@@ -2813,13 +2828,19 @@
        comparison reads whole before this runs, and picking the dollar
        again restores them exactly. Nothing persists.
        The slot cover keeps the page's single-slot discipline: while
-       the pinned chart picker owns the slot under the 55px header,
-       any sticky heading that has reached the slot is marked
-       .slot-covered and hidden (visibility — no layout shift); it
-       returns the moment the picker releases the slot, above the
-       card or past it. Checked on scroll through the same rAF
-       throttle the back-to-top button uses, plus on resize (the
-       view switcher's height animation ends with one). */
+       the chart picker is anywhere across a sticky heading's glyphs
+       — rising into the slot, pinned in it, or carried back out —
+       that heading is marked .slot-covered and hidden (visibility —
+       no layout shift); it returns the moment the picker clears its
+       glyphs, above the card or past it. The trigger is the glyph
+       box, not the pin: the bar crosses the glyphs ~80px of scroll
+       before it pins, and being inset by the card's padding it
+       cannot hide the heading's left edge physically, so the cover
+       has to engage at first contact. Checked directly on scroll
+       (no throttle, so no lag frame at the pin), plus on resize,
+       on load, and as a view switch's height animation settles
+       (a switch can move the card's end — and with it the bar's
+       release point — without any scroll). */
     (function () {
         var CMP = {
             usd: { name: 'US dollar', cells: [
@@ -2887,20 +2908,49 @@
         var pick = document.getElementById('btcPick');
         if (!pick) return;
         var h2s = document.querySelectorAll('body > h2');
-        var ticking = false;
-        function update() {
-            ticking = false;
-            var r = pick.getBoundingClientRect();
-            var pinned = r.top <= 56 && r.bottom > 56;
+        // A heading's glyphs live in its content box: box top plus
+        // top padding, box bottom minus bottom padding and border.
+        // The offsets are cached — they change only with layout
+        // inputs (viewport, root size), re-measured on resize/load.
+        var pads = [];
+        function measure() {
+            pads = [];
             for (var i = 0; i < h2s.length; i++) {
-                var hr = h2s[i].getBoundingClientRect();
-                h2s[i].classList.toggle('slot-covered', pinned && hr.top <= 56);
+                var cs = window.getComputedStyle(h2s[i]);
+                pads.push({
+                    top: parseFloat(cs.paddingTop) || 0,
+                    bottom: (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0)
+                });
             }
         }
-        window.addEventListener('scroll', function () {
-            if (!ticking) { ticking = true; window.requestAnimationFrame(update); }
-        }, { passive: true });
-        window.addEventListener('resize', update);
+        function update() {
+            var r = pick.getBoundingClientRect();
+            for (var i = 0; i < h2s.length; i++) {
+                var hr = h2s[i].getBoundingClientRect();
+                var gTop = hr.top + pads[i].top;
+                var gBottom = hr.bottom - pads[i].bottom;
+                // Covered from the bar's first touch of the glyphs
+                // until it clears them, with 1px of tolerance so an
+                // antialiased edge cannot peek at the touch point.
+                // Stateless geometry: no scroll position, in either
+                // direction, can leave the heading half-covered.
+                var covered = r.top < gBottom + 1 && r.bottom > gTop - 1;
+                h2s[i].classList.toggle('slot-covered', covered);
+            }
+        }
+        // Direct on scroll, not rAF-throttled: the toggle changes
+        // only visibility (no layout), so the rect reads stay cheap
+        // and the cover can never lag a frame behind the pin.
+        window.addEventListener('scroll', update, { passive: true });
+        window.addEventListener('resize', function () { measure(); update(); });
+        window.addEventListener('load', function () { measure(); update(); });
+        // A view switch animates the card's height (0.45s) and can
+        // move the bar's release point without a scroll: recheck as
+        // the animation settles.
+        var anim = document.getElementById('btc-view-anim');
+        if (anim) anim.addEventListener('transitionend', update);
+        pick.addEventListener('click', function () { window.setTimeout(update, 500); });
+        measure();
         update();
     })();
 </script>
