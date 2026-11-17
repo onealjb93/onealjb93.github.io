@@ -338,12 +338,6 @@
     .selector-group input[type="text"]:hover, .selector-group input[type="text"]:focus { border-color: var(--accent-color); }
     .runner-step td { background: var(--card-bg); font-weight: 600; color: var(--text-color); }
     .runner-notes { font-size: 0.9rem; line-height: 1.55; }
-    /* Johnny's card: the STRC/SATS yield equation (2026-11-17) — the
-       rule-item box treatment; values computed on open from
-       finance-data.json's "preferreds" block, seed values in the HTML. */
-    .yield-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.6rem 0.8rem; margin: 0 0 0.75rem 0; }
-    .yield-box p { margin: 0 0 0.35rem 0; color: var(--text-color); }
-    .yield-box p.yield-source { margin: 0; font-size: 0.78rem; color: var(--subtext-color); }
     /* Johnny's card: the allocation bar (2026-11-17) — the strategy
        line drawn, 70 / 10 / 10 / 10. The $70 segment takes the page
        accent; the three $10 segments are steps of the subtext grey.
@@ -979,7 +973,7 @@
                     <tr><th>Investor</th><th>Style</th><th>Time horizon</th><th>Key test</th><th>Risk stance</th><th>Scored?</th></tr>
                 </thead>
                 <tbody>
-                    <tr class="glance-row" data-themes="" data-member="johnny" id="glance-row-johnny"><td><button type="button" class="glance-toggle" aria-expanded="false" aria-controls="glance-detail-johnny"><span class="glance-chev" aria-hidden="true">&#9654;</span><strong>Johnny O'Neal (mine)</strong></button></td><td>Growth — when the value is good</td><td>Long-term (holds)</td><td>Promising and undervalued; price vs its 200-week average</td><td>Trim when overvalued or the thesis breaks; keep the 10% cash</td><td>No</td></tr>
+                    <tr class="glance-row" data-themes="" data-member="johnny" id="glance-row-johnny"><td><button type="button" class="glance-toggle" aria-expanded="false" aria-controls="glance-detail-johnny"><span class="glance-chev" aria-hidden="true">&#9654;</span><strong>Johnny O'Neal</strong></button></td><td>Growth — when the value is good</td><td>Long-term (holds)</td><td>Promising and undervalued; price vs its 200-week average</td><td>Trim when overvalued or the thesis breaks; keep the 10% cash</td><td>No</td></tr>
                     <tr class="glance-detail" id="glance-detail-johnny" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="johnnyCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
@@ -1011,13 +1005,9 @@
                         <span>Promising and undervalued</span>
                     </div>
                     <div class="rule-item">
-                        <strong>Risk / Exit</strong>
-                        <p>Taking some off the table is always OK when a holding becomes overvalued, or the reason you bought it breaks &mdash; prices return to their fundamentals, or even below them. Move it from the overvalued to the undervalued, and keep the 10% cash.</p>
-                        <span>Trim; keep the 10% cash</span>
-                    </div>
-                    <div class="rule-item">
-                        <strong>The biggest risk</strong>
-                        <p>Not investing is the riskiest move of all. The base comes first &mdash; the S&amp;P 500 and the Nasdaq, Bitcoin, STRC, and SATS &mdash; and promising stocks are added on top, never instead. Money that never gets invested loses purchasing power every year and falls behind the hurdle rate. That isn&rsquo;t safety: what investing skeptics are picturing is bad investing &mdash; trading, speculating, gambling &mdash; not investing itself.</p>
+                        <strong>Risk</strong>
+                        <p>Not investing is the riskiest move of all: money that never gets invested loses purchasing power every year and falls behind the hurdle rate. The base comes first &mdash; the S&amp;P 500 and the Nasdaq, Bitcoin, STRC, and SATS &mdash; and promising stocks are added on top, never instead. What the skeptics are picturing isn&rsquo;t investing; it&rsquo;s trading, speculating, gambling.</p>
+                        <p>Once you&rsquo;re in, the discipline flips: trim a holding when it becomes overvalued, or when the reason you bought it breaks &mdash; prices return to their fundamentals, or even below them. Move it into the undervalued, and keep the 10% cash.</p>
                     </div>
                     <div class="rule-item">
                         <strong>Do it yourself</strong>
@@ -1027,11 +1017,6 @@
                         <strong>Ikigai</strong>
                         <p>Keep a day job you love: work you enjoy, work you&rsquo;re good at, work people need, that pays for your life. When a job like that carries your life, your investments never have to &mdash; and that is what makes an investment process sustainable: nothing ever forces your hand.</p>
                     </div>
-                </div>
-                <div class="yield-box">
-                    <p id="yieldStrc">STRC &mdash; $12.00 a year &divide; $99.12 = <strong>12.1%</strong></p>
-                    <p id="yieldSats">SATS &mdash; $15.00 a year &divide; $94.35 = <strong>15.9%</strong></p>
-                    <p class="yield-source" id="yieldSource">Prices: last close, Nov 16, 2026. STRC&rsquo;s dividend rate is declared monthly; SATS pays a fixed 15%.</p>
                 </div>
             </div>
                     </div></td></tr>
@@ -2206,41 +2191,25 @@
             return latestFieldAsOf(data, 'price_as_of') || data.last_updated || null;
         }
 
-        // Johnny's card: the STRC/SATS yield equation, computed on open
-        // from finance-data.json's "preferreds" block (same load as the
+        // Johnny's card: the STRC/SATS yields carried by the allocation
+        // bar's captions (wide layout + legend), computed on open from
+        // finance-data.json's "preferreds" block (same load as the
         // scoreboard — no second fetch). If the block or a field is
-        // missing, the seed values baked into the card stand, dated.
+        // missing, the seed values baked into the captions stand.
         function renderPreferredYields(data) {
             const block = (data && data.preferreds) || null;
             if (!block) return;
-            const money = v => '$' + Number(v).toFixed(2);
-            const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const fmtDate = iso => {
-                const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
-                return m ? MONTHS[parseInt(m[2], 10) - 1] + ' ' + parseInt(m[3], 10) + ', ' + m[1] : null;
-            };
-            let earliest = null;
-            [['STRC', 'yieldStrc', 'yieldStrcCap', 'yieldStrcLeg'], ['SATS', 'yieldSats', 'yieldSatsCap', 'yieldSatsLeg']].forEach(([ticker, elId, capId, legId]) => {
-                const el = document.getElementById(elId);
+            [['STRC', 'yieldStrcCap', 'yieldStrcLeg'], ['SATS', 'yieldSatsCap', 'yieldSatsLeg']].forEach(([ticker, capId, legId]) => {
                 const p = block[ticker];
-                if (!el || !p) return;
+                if (!p) return;
                 const price = Number(p.price), div = Number(p.annual_dividend);
                 if (!(price > 0) || !(div >= 0)) return;
                 const pct = (div / price * 100).toFixed(1) + '%';
-                el.innerHTML = ticker + ' &mdash; ' + money(div) + ' a year &divide; ' + money(price)
-                    + ' = <strong>' + pct + '</strong>';
-                // The allocation bar's captions (wide layout + legend)
-                // carry the same computed yield; their seed values
-                // stand whenever this block or a field is missing.
                 [capId, legId].forEach(id => {
                     const cap = document.getElementById(id);
                     if (cap) cap.textContent = pct;
                 });
-                if (p.price_date && (!earliest || p.price_date < earliest)) earliest = p.price_date;
             });
-            const src = document.getElementById('yieldSource');
-            const d = earliest && fmtDate(earliest);
-            if (src && d) src.textContent = 'Prices: last close, ' + d + '. STRC\u2019s dividend rate is declared monthly; SATS pays a fixed 15%.';
         }
 
         window.addEventListener('DOMContentLoaded', () => {
