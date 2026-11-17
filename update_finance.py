@@ -143,6 +143,17 @@ CIK_MAP_FILE = "cik_map.json"
 OVERVIEW_MAX_PER_RUN = 4
 FUNDAMENTALS_STALE_DAYS = 7
 
+# Annual dividends ($/share on the $100 stated amount) for the two income
+# preferreds behind the member card's yield equation on finance.html.
+# Issuer-declared rates: STRC (Strategy, variable rate, reset monthly --
+# 12.00% in effect since Jul 1, 2026; re-check against new 8-Ks / press
+# releases around each month-end) and SATS (Strive Series A Perpetual
+# SATS Preferred, FIXED at 15.00%, cumulative). Only the rates live
+# here; prices are fetched from Yahoo on every run (see
+# build_preferreds_block), so the page's yields stay current.
+PREFERRED_DIVIDENDS = {"STRC": 12.00, "SATS": 15.00}
+PREFERRED_TICKERS = ("STRC", "SATS")
+
 EDGAR_HEADERS = {
     # SEC's declared format for automated access: a NAME + a real contact
     # email ("Sample Company Name AdminContact@example.com"). A bare
@@ -1090,6 +1101,90 @@ def fetch_splits_yahoo(symbol, http_get):
     return sorted(out)
 
 
+def http_get_json_yahoo(url):
+    """GET a Yahoo Finance JSON endpoint (keyless). Raises on failure."""
+    resp = requests.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; "
+                              "onealjb93.github.io finance updater)"},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def fetch_preferred_close(symbol, http_get):
+    """Latest COMPLETED trading day's close for a preferred ticker from
+    Yahoo Finance's v8 chart API: (close, date_iso). http_get(url) ->
+    parsed JSON is injected, matching fetch_splits_yahoo's pattern.
+    Raises on any failure -- the caller carries the previous value
+    forward. A bar dated today (America/New_York) counts only after
+    the 4 p.m. ET close; the workflow runs at 22:00 UTC, so on a
+    normal run today's bar is complete."""
+    from datetime import datetime, time as dt_time, timezone
+    try:
+        from zoneinfo import ZoneInfo
+        eastern = ZoneInfo("America/New_York")
+    except Exception:
+        eastern = timezone.utc
+    url = ("https://query1.finance.yahoo.com/v8/finance/chart/%s"
+           "?range=5d&interval=1d" % symbol)
+    data = http_get(url)
+    result = data["chart"]["result"][0]
+    offset = int(result["meta"].get("gmtoffset") or 0)
+    stamps = result.get("timestamp") or []
+    quotes = (result.get("indicators") or {}).get("quote") or [{}]
+    closes = quotes[0].get("close") or []
+    now_et = datetime.now(eastern)
+    best = None
+    for ts, close in zip(stamps, closes):
+        if close is None:
+            continue
+        day = datetime.fromtimestamp(int(ts) + offset,
+                                     tz=timezone.utc).date()
+        if day < now_et.date() or (
+                day == now_et.date() and now_et.time() >= dt_time(16, 0)):
+            if best is None or day > best[1]:
+                best = (round(float(close), 2), day)
+    if best is None:
+        raise ValueError("no completed daily bar for %s" % symbol)
+    return best[0], best[1].isoformat()
+
+
+def build_preferreds_block(previous_preferreds, http_get):
+    """The "preferreds" block for finance-data.json: latest close, its
+    date, and the issuer-declared annual dividend for STRC and SATS,
+    refreshed on EVERY run (Yahoo only -- zero Alpha Vantage calls),
+    so the member card's yield equation is current whenever the page
+    opens. Failure discipline: a failed fetch carries that ticker's
+    previous entry forward unchanged; an entry is omitted only when
+    there is no previous value either. Never writes nulls, never
+    drops an existing entry."""
+    previous_preferreds = previous_preferreds or {}
+    block = {}
+    for symbol in PREFERRED_TICKERS:
+        entry = None
+        try:
+            price, price_date = fetch_preferred_close(symbol, http_get)
+            entry = {"price": price, "price_date": price_date,
+                     "annual_dividend": PREFERRED_DIVIDENDS[symbol]}
+            log("  Preferreds: %s close %.2f on %s (dividend %.2f/yr)"
+                % (symbol, price, price_date, entry["annual_dividend"]))
+        except Exception as exc:
+            old = previous_preferreds.get(symbol)
+            if old:
+                entry = old
+                log("  Preferreds: %s fetch failed (%s); carried the "
+                    "%s entry forward" % (symbol, exc,
+                                          old.get("price_date")))
+            else:
+                log("  Preferreds: %s fetch failed (%s); no previous "
+                    "value to carry forward" % (symbol, exc))
+        if entry is not None:
+            block[symbol] = entry
+    return block
+
+
 def main():
     api_key = os.environ.get("API_KEY")
     if not api_key:
@@ -1098,9 +1193,12 @@ def main():
 
     try:
         with open(DATA_FILE) as fh:
-            previous = {s["ticker"]: s for s in json.load(fh).get("stocks", [])}
+            raw_previous = json.load(fh)
+        previous = {s["ticker"]: s for s in raw_previous.get("stocks", [])}
+        previous_preferreds = raw_previous.get("preferreds") or {}
     except (OSError, ValueError):
         previous = {}
+        previous_preferreds = {}
 
     # Ticker->CIK map: the committed cik_map.json is the primary source,
     # because the live SEC file 403s automated access from cloud IPs
@@ -1582,8 +1680,10 @@ def main():
         stocks.append(record)
 
     fstatus["av_calls"] = _av_call_count[0]
+    preferreds = build_preferreds_block(previous_preferreds,
+                                        http_get_json_yahoo)
     output = {"last_updated": today, "fundamentals_status": fstatus,
-              "stocks": stocks}
+              "stocks": stocks, "preferreds": preferreds}
     with open(DATA_FILE, "w") as fh:
         json.dump(output, fh, indent=2)
     log("Wrote %s (%d tickers, %d OVERVIEW calls, %d Alpha Vantage calls "
