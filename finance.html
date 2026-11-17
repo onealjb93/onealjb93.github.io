@@ -93,6 +93,34 @@
     .chart-controls .chip-row { margin: 0; }
     .chart-controls .selector-group label { display: block; font-size: 0.8rem; line-height: 1.3; color: var(--subtext-color); margin-bottom: 0.2rem; }
     .chart-controls select { padding-top: 8px; padding-bottom: 8px; }
+    /* Stock dropdown (2026-11-16): ONE dropdown, TWO lists inside
+       it, each expandable and contractable in place — Johnny's
+       spec, replacing the native select whose optgroup headers
+       were inert labels (he tapped "Johnny's stocks" and it did
+       nothing). The face keeps the select's box — same padding,
+       border, radius and font size — at a 44px floor. The panel
+       is the site's glass bubble hung under the face, with its
+       own scroll; the two list headers are sticky inside it (the
+       second under the first), so the other list's header stays
+       reachable however far this one is scrolled. */
+    .chart-controls .selector-group .group-label { display: block; font-size: 0.8rem; line-height: 1.3; color: var(--subtext-color); margin-bottom: 0.2rem; }
+    .stock-dd { position: relative; width: min(21rem, 100%); }
+    .stock-dd-face { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; min-height: 44px; padding: 8px 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); font-size: 0.95rem; font-family: inherit; text-align: left; cursor: pointer; }
+    .stock-dd-face:hover, .stock-dd-face:focus-visible { border-color: var(--accent-color); }
+    .stock-dd-face-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stock-dd-chev { flex: none; font-size: 0.72em; color: var(--subtext-color); }
+    .stock-dd-panel { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; max-height: min(24rem, 62vh); overflow-y: auto; padding: 0 0 0.35rem; }
+    .stock-dd-panel[hidden] { display: none; }
+    .stock-dd-head { position: sticky; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; height: 2.75rem; padding: 0 0.8rem; border: none; background: var(--glass-bg-solid); color: var(--text-color); font-family: inherit; font-size: 0.9rem; font-weight: 700; text-align: left; cursor: pointer; z-index: 1; }
+    #chartStockMineHead { top: 0; z-index: 2; border-radius: var(--glass-radius) var(--glass-radius) 0 0; }
+    #chartStockNdxHead { top: 2.75rem; }
+    .stock-dd-head .stock-dd-chev { display: inline-block; transition: transform var(--dur-1) var(--ease-out); }
+    .stock-dd-head[aria-expanded="false"] .stock-dd-chev { transform: rotate(-90deg); }
+    .stock-dd-list { display: flex; flex-direction: column; padding: 0.15rem 0.35rem 0.3rem; }
+    .stock-dd-list[hidden] { display: none; }
+    .stock-dd-opt { display: block; width: 100%; padding: 0.55rem 0.45rem; border: none; border-radius: 8px; background: none; color: var(--text-color); font-family: inherit; font-size: 0.95rem; text-align: left; cursor: pointer; }
+    .stock-dd-opt:hover, .stock-dd-opt:focus-visible { background: var(--badge-bg); }
+    .stock-dd-opt[aria-selected="true"] { background: var(--badge-bg); font-weight: 700; }
     .chart-section .filter-pill { padding-top: 10px; padding-bottom: 10px; }
     /* Front door (2026-11-16): one plain line above the stage —
        what to do first, in the page's muted intro register. The
@@ -140,8 +168,8 @@
         #chart-body .jbo-chart-datanote { font-size: 0.8rem; line-height: 1.4; }
         .chart-controls { column-gap: 0.75rem; row-gap: 0.4rem; }
         .chart-controls .selector-group { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 0.5rem; width: 100%; }
-        .chart-controls .selector-group label { display: inline; margin: 0; white-space: nowrap; }
-        .chart-controls .selector-group select { flex: 1 1 auto; min-width: 0; }
+        .chart-controls .selector-group label, .chart-controls .selector-group .group-label { display: inline; margin: 0; white-space: nowrap; }
+        .chart-controls .selector-group select, .chart-controls .selector-group .stock-dd { flex: 1 1 auto; min-width: 0; }
         .chart-controls .filter-pill { padding-left: 8px; padding-right: 8px; }
         #chartPicks { gap: 0.3rem; }
         #chartPicks .filter-pill { padding-left: 5px; padding-right: 5px; font-size: 0.8rem; }
@@ -156,8 +184,9 @@
         .chart-controls::-webkit-scrollbar { display: none; }
         .chart-controls > * { flex: none; }
         .chart-controls .selector-group { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 0.5rem; }
-        .chart-controls .selector-group label { display: inline; margin: 0; white-space: nowrap; }
-        .chart-controls .selector-group select { min-width: 0; }
+        .chart-controls .selector-group label, .chart-controls .selector-group .group-label { display: inline; margin: 0; white-space: nowrap; }
+        .chart-controls .selector-group select, .chart-controls .selector-group .stock-dd { min-width: 0; }
+        .chart-controls .selector-group .stock-dd { width: 20rem; }
         #chart-body .jbo-chart-datanote { position: absolute; top: calc(100% + 0.4rem); left: 0; right: 0; }
         .chart-intro { margin-top: 2.2rem; }
     }
@@ -417,12 +446,19 @@
         </div>
         <div class="chart-controls">
             <div class="selector-group">
-                <label for="chartStock">Stock</label>
-                <select id="chartStock">
-                    <option value="">Choose a stock&hellip;</option>
-                    <optgroup label="Johnny&rsquo;s stocks" id="chartStockMine"></optgroup>
-                    <optgroup label="Nasdaq-100" id="chartStockNdx"></optgroup>
-                </select>
+                <span class="group-label" id="chartStockLabel">Stock</span>
+                <div class="stock-dd" id="chartStock">
+                    <button type="button" class="stock-dd-face" id="chartStockFace" aria-haspopup="listbox" aria-expanded="false" aria-controls="chartStockPanel">
+                        <span class="stock-dd-face-text" id="chartStockFaceText">Choose a stock&hellip;</span>
+                        <span class="stock-dd-chev" aria-hidden="true">&#9662;</span>
+                    </button>
+                    <div class="stock-dd-panel glass-bubble" id="chartStockPanel" role="listbox" aria-labelledby="chartStockLabel" hidden>
+                        <button type="button" class="stock-dd-head" id="chartStockMineHead" aria-expanded="true" aria-controls="chartStockMine">Johnny&rsquo;s stocks<span class="stock-dd-chev" aria-hidden="true">&#9654;</span></button>
+                        <div class="stock-dd-list" id="chartStockMine" role="group" aria-label="Johnny&rsquo;s stocks"></div>
+                        <button type="button" class="stock-dd-head" id="chartStockNdxHead" aria-expanded="false" aria-controls="chartStockNdx">Nasdaq-100<span class="stock-dd-chev" aria-hidden="true">&#9654;</span></button>
+                        <div class="stock-dd-list" id="chartStockNdx" role="group" aria-label="Nasdaq-100" hidden></div>
+                    </div>
+                </div>
             </div>
             <button type="button" class="filter-pill chart-verdict-chip" id="chartVerdictChip" hidden></button>
             <button type="button" class="filter-pill" id="chartToolsBtn" aria-expanded="false" aria-controls="chartTools">Chart tools<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
@@ -4299,9 +4335,12 @@ if (typeof module !== "undefined") {
     // 5Y: 10Y and All have no daily data to draw, so asking for one
     // returns the chart to Weekly and the data note says why. The
     // two stock dropdowns are one box now (2026-11-16): a single
-    // select whose two optgroups are Johnny's 19 and the
+    // dropdown whose two lists are Johnny's 19 and the
     // Nasdaq-100 — the lists overlapped on 11 names, so the second
-    // box only ever mirrored the first.
+    // box only ever mirrored the first. The box is a custom
+    // dropdown, not a native select: each list's header is a real
+    // button that expands and contracts its list inside the panel
+    // (Johnny's spec — the native optgroup headers were inert).
     (function () {
         "use strict";
         var MA200_COLOR = "#FF9800", MA50_COLOR = "#2962FF", RSI_COLOR = "#7E57C2", PE_COLOR = "#2dd4bf";
@@ -4849,17 +4888,59 @@ if (typeof module !== "undefined") {
             if (!chartData) return [];
             return Object.keys(chartData.series).filter(function (k) { return PICK_KEYS.indexOf(k) < 0 && !chartData.series[k].ndx; });
         }
+        // ---- the stock dropdown: one box, two expandable lists ----
+        // The value contract the rest of the chart already speaks:
+        // #chartStock carries a .value (the picked key, "" while a
+        // quick-pick benchmark is showing) and fires "change" when
+        // the visitor picks a name — the same contract the native
+        // select had, so syncControls, the change listener below
+        // and the verdict chip's own listener never knew it changed.
+        var LISTS_KEY = "jbo-chart-lists-v1";
+        var stockLabels = {};
+        var ddValue = "";
+        var ddOpen = false;
+        // First ever open: Johnny's list expanded, the Nasdaq-100
+        // contracted — his set is the short path, and the long list
+        // is one tap on its header away instead of a 19-name
+        // scroll. Each list's state then persists per browser.
+        var listsOpen = { mine: true, ndx: false };
+        try {
+            var savedLists = window.localStorage.getItem(LISTS_KEY);
+            if (savedLists) {
+                var parsedLists = JSON.parse(savedLists);
+                if (parsedLists && typeof parsedLists === "object") {
+                    listsOpen.mine = parsedLists.mine !== false;
+                    listsOpen.ndx = parsedLists.ndx === true;
+                }
+            }
+        } catch (e) { /* storage unavailable: the defaults stand */ }
+        function stockOption(k) {
+            var label = chartData.series[k].name + " (" + k + ")";
+            stockLabels[k] = label;
+            var o = document.createElement("button");
+            o.type = "button";
+            o.className = "stock-dd-opt";
+            o.setAttribute("role", "option");
+            o.setAttribute("aria-selected", k === ddValue ? "true" : "false");
+            o.setAttribute("data-key", k);
+            o.textContent = label;
+            return o;
+        }
+        function syncStockFace() {
+            var faceText = document.getElementById("chartStockFaceText");
+            if (faceText) faceText.textContent = ddValue && stockLabels[ddValue] ? stockLabels[ddValue] : "Choose a stock\u2026";
+            var root = document.getElementById("chartStock");
+            if (root) root.querySelectorAll(".stock-dd-opt").forEach(function (o) {
+                o.setAttribute("aria-selected", o.getAttribute("data-key") === ddValue ? "true" : "false");
+            });
+        }
         function populateStockSelect() {
             var grp = document.getElementById("chartStockMine");
             if (!grp || !chartData) return;
-            stockKeys().forEach(function (k) {
-                var o = document.createElement("option");
-                o.value = k;
-                o.textContent = chartData.series[k].name + " (" + k + ")";
-                grp.appendChild(o);
-            });
+            stockKeys().forEach(function (k) { grp.appendChild(stockOption(k)); });
+            syncStockFace();
         }
-        // The Nasdaq-100 group of the one stock dropdown: the data
+        // The Nasdaq-100 list of the one stock dropdown: the data
         // file's own constituent list, alphabetical by company
         // name. Membership is the only thing read from the file —
         // the series themselves are the same objects the chart
@@ -4874,13 +4955,72 @@ if (typeof module !== "undefined") {
         function populateNdxSelect() {
             var grp = document.getElementById("chartStockNdx");
             if (!grp || !chartData) return;
-            ndxKeys().forEach(function (k) {
-                var o = document.createElement("option");
-                o.value = k;
-                o.textContent = chartData.series[k].name + " (" + k + ")";
-                grp.appendChild(o);
-            });
+            ndxKeys().forEach(function (k) { grp.appendChild(stockOption(k)); });
+            syncStockFace();
         }
+        // Dropdown behaviour: the face opens and closes the panel;
+        // each list's header expands or contracts its own list,
+        // independently; a pick closes the panel and fires the
+        // "change" the chart has always listened for.
+        var ddRoot = document.getElementById("chartStock");
+        var ddFace = document.getElementById("chartStockFace");
+        var ddPanel = document.getElementById("chartStockPanel");
+        function applyLists() {
+            var mineList = document.getElementById("chartStockMine");
+            var ndxList = document.getElementById("chartStockNdx");
+            var mineHead = document.getElementById("chartStockMineHead");
+            var ndxHead = document.getElementById("chartStockNdxHead");
+            if (mineList) mineList.hidden = !listsOpen.mine;
+            if (ndxList) ndxList.hidden = !listsOpen.ndx;
+            if (mineHead) mineHead.setAttribute("aria-expanded", listsOpen.mine ? "true" : "false");
+            if (ndxHead) ndxHead.setAttribute("aria-expanded", listsOpen.ndx ? "true" : "false");
+        }
+        function storeLists() {
+            try { window.localStorage.setItem(LISTS_KEY, JSON.stringify(listsOpen)); } catch (e) { /* storage unavailable */ }
+        }
+        function setDdOpen(open) {
+            ddOpen = open;
+            if (ddPanel) ddPanel.hidden = !open;
+            if (ddFace) ddFace.setAttribute("aria-expanded", open ? "true" : "false");
+        }
+        if (ddRoot) {
+            Object.defineProperty(ddRoot, "value", {
+                configurable: true,
+                get: function () { return ddValue && stockLabels[ddValue] ? ddValue : ""; },
+                set: function (v) { ddValue = v || ""; syncStockFace(); }
+            });
+            applyLists();
+        }
+        if (ddFace) ddFace.addEventListener("click", function () { setDdOpen(!ddOpen); });
+        [["chartStockMineHead", "mine"], ["chartStockNdxHead", "ndx"]].forEach(function (pair) {
+            var head = document.getElementById(pair[0]);
+            if (head) head.addEventListener("click", function () {
+                listsOpen[pair[1]] = !listsOpen[pair[1]];
+                applyLists(); storeLists();
+            });
+        });
+        if (ddPanel) ddPanel.addEventListener("click", function (e) {
+            var opt = e.target && e.target.closest ? e.target.closest(".stock-dd-opt") : null;
+            if (!opt || !ddRoot) return;
+            ddRoot.value = opt.getAttribute("data-key");
+            setDdOpen(false);
+            ddRoot.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        document.addEventListener("pointerdown", function (e) {
+            if (ddOpen && ddRoot && !ddRoot.contains(e.target)) setDdOpen(false);
+        });
+        // Esc closes the panel first; only once it is closed does
+        // Esc reach the full-screen handler further down (it is
+        // registered after this one, so stopImmediatePropagation
+        // is what holds it back while the panel is open).
+        document.addEventListener("keydown", function (e) {
+            if (ddOpen && (e.key === "Escape" || e.key === "Esc" || e.keyCode === 27)) {
+                setDdOpen(false);
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                if (ddFace && ddFace.focus) ddFace.focus();
+            }
+        });
         // The chart key's wording follows the mode: the approved
         // weekly descriptions, and their day-for-week forms in
         // Daily. The weekly originals are captured from the page
@@ -5299,6 +5439,7 @@ if (typeof module !== "undefined") {
                     loaded: !!chartData, failed: loadFailed, hover: hover,
                     tipOpen: !!(tip && tip.classList.contains("open")),
                     fs: fsOn,
+                    dd: { open: ddOpen, mine: listsOpen.mine, ndx: listsOpen.ndx, value: ddValue },
                     zoom: zoom ? { start: zoom.start, end: zoom.end } : null,
                     layout: layout ? { start: layout.start, end: layout.end, hi: layout.hi, lo: layout.lo, plotW: layout.plotW, priceY: layout.priceY, priceH: layout.priceH } : null,
                     peNote: view ? peNoteText(view) : "",
