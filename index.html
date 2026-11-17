@@ -232,11 +232,12 @@
     .syn-duo > div { display: flex; flex-direction: column; min-width: 0; }
     .syn-duo .book-list-container, .syn-duo .pod-card { height: 600px; display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 16px; padding: 16px 20px; background-color: var(--card-bg); backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,0.04); margin-bottom: 0; max-height: none; overflow: visible; }
     .syn-duo #book-list, .syn-duo .pod-list { flex: 1; min-height: 0; overflow-y: auto; }
-    /* Expand all / Collapse all (2026-11-16): the Books and Podcasts
-       page's component brought to the homepage duo — ONE segmented
-       pair at the right end of each section's heading row
+    /* Expand/Collapse (2026-11-16): the Books and Podcasts
+       page's component brought to the homepage duo — ONE state-aware
+       toggle button at the right end of each section's heading row
        (.media-box-head), the very top right of the box, identical on
-       both sections; the toggle's styling is media.html's, verbatim.
+       both sections (the pair became a single button, the Jobs move);
+       the toggle's styling is media.html's, verbatim.
        Homepage state model: collapsed is the resting presentation —
        the heading row alone, the card hidden — and Expand all shows
        the card with the full list in flow, the way the expanded list
@@ -252,52 +253,55 @@
     .syn-duo .media-box-head > h2 { margin: 0; min-width: 0; }
     .syn-duo .media-box-head .expand-all-toggle { margin-left: auto; }
     .expand-all-toggle {
-        display: inline-flex;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        overflow: hidden;
-        flex-shrink: 0;
-    }
-    .expand-all-toggle button {
         font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
         background: var(--bg-color);
         color: var(--text-color);
-        border: none;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
         padding: 6px 12px;
         font-size: 0.85rem;
         cursor: pointer;
+        min-height: 44px;
+        display: inline-flex; align-items: center; justify-content: center;
+        flex-shrink: 0; white-space: nowrap;
     }
-    .expand-all-toggle button + button { border-left: 1px solid var(--border-color); }
-    .expand-all-toggle button:hover { color: var(--link-color); }
-    .expand-all-toggle button[aria-pressed="true"] {
-        background: var(--link-color);
-        color: var(--bg-color);
-        font-weight: 600;
-    }
-    .expand-all-toggle button:focus-visible {
+    .expand-all-toggle:hover { color: var(--link-color); }
+    .expand-all-toggle:focus-visible {
         outline: 2px solid var(--link-color);
         outline-offset: -2px;
     }
     .syn-duo .book-list-container:not(.list-expanded), .syn-duo .pod-card:not(.list-expanded) { display: none; }
     .syn-duo .book-list-container.list-expanded, .syn-duo .pod-card.list-expanded { height: auto; }
     .syn-duo .list-expanded #book-list, .syn-duo .pod-card.list-expanded .pod-list { flex: none; overflow-y: visible; }
-    /* The filter row's two selects sit side by side in a non-wrapping
-       flex div 354px wide; inside the in-flow expanded card that row
-       protrudes past a 360px viewport (in the old fixed card it was
-       clipped by the list's internal scroll). Let it wrap instead —
-       above ~430px the selects fit on one line and nothing changes. */
+    /* In-card Filter & Sort (2026-11-16, one-row pass): the two
+       selects sit on ONE row inside the card too. On desktop the row
+       may still wrap if the card is narrow (the selects keep their
+       natural width — a select takes its own line before it ever
+       clips a value); at phone widths the selects take the compact
+       treatment (below) and the "Filter & Sort:" label steps aside
+       (visually hidden, still in the accessibility tree), so the row
+       holds one line down to 320px. */
     .syn-duo .book-controls > div { flex-wrap: wrap; }
-    /* Podcast Filter & Sort (2026-11-16): the show filter's longest
-       label is far wider than any genre name, so the podcast selects
-       size to their content (flex: 0 0 auto) and the row wraps — a
-       select takes its own line before it ever clips a value. On
-       phones the podcast selects take the compact treatment the
-       Books and Podcasts page's pinned bar uses (smaller type, a
-       drawn chevron in place of the native one), so the longest
-       show name stays whole at phone widths. */
+    @media (max-width: 600px) {
+        .syn-duo .book-controls { flex-wrap: nowrap; position: relative; }
+        .syn-duo .book-controls > span {
+            position: absolute; width: 1px; height: 1px;
+            overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+        }
+        .syn-duo .book-controls > div { flex-wrap: nowrap; }
+        .syn-duo .book-controls select { min-height: 44px; }
+    }
+    /* Duo Filter & Sort selects (2026-11-16): the podcast show
+       filter's longest label is far wider than any genre name, so the
+       podcast selects size to their content (flex: 0 0 auto) and the
+       row wraps on desktop — a select takes its own line before it
+       ever clips a value. On phones ALL the duo's selects (Books and
+       Podcasts) take the compact treatment the Books and Podcasts
+       page's bar uses (smaller type, a drawn chevron in place of the
+       native one), so the longest names stay whole at phone widths. */
     .syn-duo .podcast-controls .book-filter-selects select { flex: 0 0 auto; }
     @media (max-width: 430px) {
-        .syn-duo .podcast-controls select {
+        .syn-duo .book-controls select {
             appearance: none; -webkit-appearance: none;
             font-size: 12px; padding: 6px 20px 6px 8px;
             background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%237d8590' stroke-width='1.5' stroke-linecap='round'/></svg>");
@@ -305,18 +309,18 @@
             background-position: right 6px center;
             background-size: 10px 6px;
         }
-        body.light-mode .syn-duo .podcast-controls select {
+        body.light-mode .syn-duo .book-controls select {
             background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%2357606a' stroke-width='1.5' stroke-linecap='round'/></svg>");
         }
     }
     @media (max-width: 380px) {
-        .syn-duo .podcast-controls select { font-size: 10.5px; }
+        .syn-duo .book-controls select { font-size: 10.5px; }
     }
     /* Pinned library bar (2026-11-16): while a duo section is expanded
        (its wrapper carries .lib-open, set by the toggle wiring below),
        the section's heading row pins under the frozen 55px site header
        — the site's single-slot sticky pattern (top: 55px, z-index 90,
-       solid var(--bg-color)) — so the Expand/Collapse pair stays one
+       solid var(--bg-color)) — so the Expand/Collapse toggle stays one
        tap away anywhere in the list, and the bar releases at its own
        section's end. align-self: start keeps each grid column exactly
        its own content height, so the release point is the section's
@@ -325,8 +329,8 @@
        bar's background covers its whole box and no list text slides
        through a transparent margin strip. When the bar is actually
        stuck (.is-pinned, set by the script below) it gains the
-       hairline, and the section's Filter & Sort block rides inside it as a
-       full-width second row — the same node relocated by the script,
+       hairline, and the section's Filter & Sort block rides inside it as
+       the one-row bar — the same node relocated by the script,
        never a second copy, so its state stays single-sourced. A
        collapsed section's heading scrolls normally; nothing pins. */
     .syn-duo > div { align-self: start; }
@@ -337,35 +341,77 @@
     }
     .syn-duo .media-box-head.is-pinned { border-bottom: 1px solid var(--border-color); }
     .syn-duo .media-box-head > .book-controls { flex: 1 1 100%; margin: 0 0 14px; }
-    /* One-row pinned bar, wide screens only (2026-11-16): where the
-       column is wide enough for the four controls side by side
-       untruncated — measured: the pair plus both selects need ~454px
-       at a 16px root, ~497px at 18px, and the duo column reaches
-       ~510px only from a 1200px viewport up — the stuck bar compacts
-       to a single row: the pair and both selects on one line, the
-       title and the "Filter & Sort:" label visually hidden (still in
-       the accessibility tree), nothing clipped, nothing overlapping.
-       Below that width the four controls genuinely cannot fit one
-       row, so the bar keeps the two-row form above rather than ever
-       truncating a label or a value. The podcast bar is exempt from
-       the one-row compaction (the selectors below skip a head holding
-       .podcast-controls): the show filter's longest option alone is
-       wider than the whole one-row budget, so its bar keeps the
-       two-row form at every width rather than clip it. */
-    @media (min-width: 1200px) {
-        .syn-duo .media-box-head.is-pinned:not(:has(> .podcast-controls)) { flex-wrap: nowrap; align-items: center; gap: 5px; }
-        .syn-duo .media-box-head.is-pinned:not(:has(> .podcast-controls)) > h2 {
-            position: absolute; width: 1px; height: 1px;
-            overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+    /* One-row pinned bar (2026-11-16, Johnny's order): while stuck,
+       the bar is ONE row — [Filter] [Sort] [the Expand/Collapse
+       toggle] — at every width. The pin script moves the toggle into
+       the controls block (after the selects) while pinned, so the
+       row's order is exact, and returns it to the heading row on
+       release. The title steps out of the bar while pinned (visually
+       hidden, still in the accessibility tree) and returns at rest;
+       the "Filter & Sort:" label is hidden in the bar. The row's
+       selects take the compact treatment (12px type, drawn chevron)
+       with a step ladder at narrow widths, and a stuck bar in the
+       stacked layout bleeds to the screen edges, so Books' longest
+       values ("Philosophy & Meaning", "Rating: High to Low") stay
+       whole down to 320px. The podcast filter's longest label ("The
+       Investor's Podcast (We Study Billionaires)", ~269px at 12px)
+       cannot share a phone-width row with the sort and the toggle
+       (~462px of controls), so below 1200px the pinned podcast bar
+       wraps honestly inside the bar: the filter takes a full-width
+       line, then the sort and the toggle share the next. From
+       1200px up the podcast row is one line like Books'. */
+    .syn-duo .media-box-head.is-pinned { flex-wrap: nowrap; align-items: center; gap: 6px; }
+    .syn-duo .media-box-head.is-pinned > h2 {
+        position: absolute; width: 1px; height: 1px;
+        overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+    }
+    .syn-duo .media-box-head.is-pinned > .book-controls {
+        flex: 1 1 auto; margin: 0;
+        flex-wrap: nowrap; align-items: center; gap: 6px;
+    }
+    .syn-duo .media-box-head.is-pinned .book-controls > span { display: none; }
+    .syn-duo .media-box-head.is-pinned .book-filter-selects {
+        display: flex; flex-wrap: nowrap; gap: 6px;
+    }
+    .syn-duo .media-box-head.is-pinned select {
+        appearance: none; -webkit-appearance: none;
+        font-size: 12px; padding: 6px 20px 6px 8px; min-height: 44px;
+        flex: 0 0 auto;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%237d8590' stroke-width='1.5' stroke-linecap='round'/></svg>");
+        background-repeat: no-repeat;
+        background-position: right 6px center;
+        background-size: 10px 6px;
+    }
+    body.light-mode .syn-duo .media-box-head.is-pinned select {
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%2357606a' stroke-width='1.5' stroke-linecap='round'/></svg>");
+    }
+    .syn-duo .media-box-head.is-pinned .expand-all-toggle { font-size: 12px; flex: 0 0 auto; }
+    @media (max-width: 760px) {
+        .syn-duo .media-box-head.is-pinned {
+            margin-left: -18px; margin-right: -18px;
+            padding-left: 18px; padding-right: 18px;
         }
-        .syn-duo .media-box-head.is-pinned:not(:has(> .podcast-controls)) .expand-all-toggle { flex: 0 0 auto; }
-        .syn-duo .media-box-head.is-pinned:not(:has(> .podcast-controls)) .expand-all-toggle button { font-size: 0.75rem; padding: 4px 8px; }
-        .syn-duo .media-box-head.is-pinned > .book-controls:not(.podcast-controls) {
-            flex: 0 0 auto; margin: 0; flex-wrap: nowrap; align-items: center; gap: 5px;
-        }
-        .syn-duo .media-box-head.is-pinned > .book-controls:not(.podcast-controls) > span { display: none; }
-        .syn-duo .media-box-head.is-pinned > .book-controls:not(.podcast-controls) > div { flex-wrap: nowrap; gap: 5px; }
-        .syn-duo .media-box-head.is-pinned > .book-controls:not(.podcast-controls) select { font-size: 0.75rem; padding: 4px 7px; flex: 0 0 auto; }
+    }
+    @media (min-width: 761px) and (max-width: 900px) {
+        .syn-duo .media-box-head.is-pinned select { font-size: 10.5px; }
+        .syn-duo .media-box-head.is-pinned .expand-all-toggle { font-size: 10.5px; }
+    }
+    @media (max-width: 380px) {
+        .syn-duo .media-box-head.is-pinned select { font-size: 10.5px; }
+        .syn-duo .media-box-head.is-pinned .expand-all-toggle { font-size: 10.5px; }
+    }
+    @media (max-width: 340px) {
+        .syn-duo .media-box-head.is-pinned select { font-size: 9.5px; padding: 6px 16px 6px 6px; }
+        .syn-duo .media-box-head.is-pinned .expand-all-toggle { font-size: 9.5px; padding: 6px 8px; }
+        .syn-duo .media-box-head.is-pinned > .book-controls { gap: 4px; }
+        .syn-duo .media-box-head.is-pinned .book-filter-selects { gap: 4px; }
+    }
+    @media (max-width: 1199px) {
+        .syn-duo .media-box-head.is-pinned > .book-controls.podcast-controls { flex-wrap: wrap; }
+        .syn-duo .media-box-head.is-pinned .podcast-controls .book-filter-selects { display: contents; }
+        .syn-duo .media-box-head.is-pinned .podcast-controls #podcast-show-filter { order: 1; flex: 1 1 100%; }
+        .syn-duo .media-box-head.is-pinned .podcast-controls #podcast-sort { order: 2; flex: 0 0 auto; }
+        .syn-duo .media-box-head.is-pinned .podcast-controls .expand-all-toggle { order: 3; margin-left: auto; }
     }
     /* Unified compact rows: a book and an episode are interchangeable
        line items — same 76px row, same 54px square thumbnail (covers
@@ -1149,10 +1195,7 @@
     <div>
     <div class="media-box-head">
         <h2 class="syn-sec-t">A Curated Reading List</h2>
-        <div class="expand-all-toggle" role="group" aria-label="Book list size">
-            <button type="button" id="books-expand" aria-pressed="false">Expand all</button>
-            <button type="button" id="books-collapse" aria-pressed="true">Collapse all</button>
-        </div>
+        <button type="button" class="expand-all-toggle" id="books-toggle" aria-expanded="false">Expand all</button>
     </div>
     <div class="book-list-container">
         <div class="book-controls">
@@ -1300,10 +1343,7 @@
     <div>
     <div class="media-box-head">
         <h2 class="syn-sec-t">A Curated Podcast List</h2>
-        <div class="expand-all-toggle" role="group" aria-label="Podcast list size">
-            <button type="button" id="podcasts-expand" aria-pressed="false">Expand all</button>
-            <button type="button" id="podcasts-collapse" aria-pressed="true">Collapse all</button>
-        </div>
+        <button type="button" class="expand-all-toggle" id="podcasts-toggle" aria-expanded="false">Expand all</button>
     </div>
     <div class="pod-card">
         <div class="book-controls podcast-controls">
@@ -1581,40 +1621,39 @@
         }
     </script>
     <script>
-        // Expand all / Collapse all — the Books and Podcasts page's
-        // component, two independent instances. Books: toggles
-        // .list-expanded on the list card (the class lives on the
-        // container, so filter/sort, which only touch the items, never
-        // disturb it). Podcasts: toggles .list-expanded on the podcast
-        // card the same way. Page load changes nothing: both pairs
-        // start on Collapse, which is the state both sections are
-        // actually in — heading row shown, card hidden.
+        // Expand/Collapse — the Books and Podcasts page's component,
+        // two independent instances, ONE state-aware toggle button
+        // each (2026-11-16: the pair became a single button). The
+        // label names the tap's action: "Expand all" while collapsed,
+        // "Collapse all" while expanded; aria-expanded carries the
+        // state. Books: toggles .list-expanded on the list card (the
+        // class lives on the container, so filter/sort, which only
+        // touch the items, never disturb it). Podcasts: toggles
+        // .list-expanded on the podcast card the same way. Page load
+        // changes nothing: both sections start collapsed and both
+        // buttons read "Expand all" — heading row shown, card hidden.
         (function () {
-            function wire(expandId, collapseId, apply) {
-                var expandBtn = document.getElementById(expandId);
-                var collapseBtn = document.getElementById(collapseId);
-                if (!expandBtn || !collapseBtn) return;
-                expandBtn.addEventListener('click', function () {
-                    apply(true);
-                    expandBtn.setAttribute('aria-pressed', 'true');
-                    collapseBtn.setAttribute('aria-pressed', 'false');
-                });
-                collapseBtn.addEventListener('click', function () {
-                    apply(false);
-                    expandBtn.setAttribute('aria-pressed', 'false');
-                    collapseBtn.setAttribute('aria-pressed', 'true');
+            function wire(toggleId, apply) {
+                var btn = document.getElementById(toggleId);
+                if (!btn) return;
+                var expanded = false;
+                btn.addEventListener('click', function () {
+                    expanded = !expanded;
+                    apply(expanded);
+                    btn.textContent = expanded ? 'Collapse all' : 'Expand all';
+                    btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
                 });
             }
             var bookBox = document.querySelector('.syn-duo .book-list-container');
             if (bookBox) {
-                wire('books-expand', 'books-collapse', function (expand) {
+                wire('books-toggle', function (expand) {
                     bookBox.classList.toggle('list-expanded', expand);
                     bookBox.parentElement.classList.toggle('lib-open', expand);
                 });
             }
             var podBox = document.querySelector('.syn-duo .pod-card');
             if (podBox) {
-                wire('podcasts-expand', 'podcasts-collapse', function (expand) {
+                wire('podcasts-toggle', function (expand) {
                     podBox.classList.toggle('list-expanded', expand);
                     podBox.parentElement.classList.toggle('lib-open', expand);
                 });
@@ -1628,8 +1667,11 @@
         // each section's stick point and, while the bar is actually
         // stuck, marks it .is-pinned and moves the section's Filter & Sort
         // block into it — the same node, so its change handlers and
-        // current selections are untouched — and moves it back into the
-        // card when the bar releases or the section collapses. The bar
+        // current selections are untouched — with the section's
+        // Expand/Collapse toggle appended after the selects, so the
+        // stuck bar is one row (Filter, Sort, toggle) — and moves both
+        // back into place when the bar releases or the section
+        // collapses. The bar
         // counts as stuck only while some of it is in the slot under
         // the header: once the section's end has pushed it fully out,
         // it has released. Collapsing from the pin lands the visitor
@@ -1644,12 +1686,14 @@
         // rides into its bar exactly the same way.
         (function () {
             var HEADER_H = 55;
-            function setup(card, expandId, collapseId) {
+            function setup(card, toggleId) {
                 if (!card) return;
                 var wrap = card.parentElement;
                 var head = wrap ? wrap.querySelector('.media-box-head') : null;
                 if (!wrap || !head) return;
                 var controls = card.querySelector('.book-controls');
+                var toggle = document.getElementById(toggleId);
+                var toggleNext = toggle ? toggle.nextSibling : null;
                 var sentinel = document.createElement('div');
                 sentinel.setAttribute('aria-hidden', 'true');
                 sentinel.style.cssText = 'height: 0; overflow: hidden;';
@@ -1661,8 +1705,13 @@
                     pinned = on;
                     head.classList.toggle('is-pinned', on);
                     if (controls) {
-                        if (on) { head.appendChild(controls); }
-                        else { card.insertBefore(controls, card.firstChild); }
+                        if (on) {
+                            head.appendChild(controls);
+                            if (toggle) controls.appendChild(toggle);
+                        } else {
+                            if (toggle) head.insertBefore(toggle, toggleNext);
+                            card.insertBefore(controls, card.firstChild);
+                        }
                     }
                 }
                 function update() {
@@ -1679,12 +1728,14 @@
                 }
                 window.addEventListener('scroll', queue, { passive: true });
                 window.addEventListener('resize', queue);
-                var expandBtn = document.getElementById(expandId);
-                var collapseBtn = document.getElementById(collapseId);
-                if (expandBtn) expandBtn.addEventListener('click', function () { tapSeq++; });
-                if (collapseBtn) {
-                    collapseBtn.addEventListener('click', function () {
+                if (toggle) {
+                    toggle.addEventListener('click', function () {
                         tapSeq++;
+                        // The toggle wiring (registered in the earlier
+                        // script) has already flipped the section's
+                        // state by the time this runs: a collapsed card
+                        // here means this tap was the collapse.
+                        if (card.classList.contains('list-expanded')) return;
                         var seq = tapSeq;
                         var wasPinned = pinned;
                         setPinned(false);
@@ -1697,7 +1748,7 @@
                             // Land the heading just below whichever of the
                             // page's own sticky section headings currently
                             // owns the slot (they paint over in-flow
-                            // content there), so the heading and its pair
+                            // content there), so the heading and its toggle
                             // are visible and tappable, not covered.
                             var band = HEADER_H;
                             var h2s = document.querySelectorAll('body > h2');
@@ -1737,8 +1788,8 @@
                 }
                 update();
             }
-            setup(document.querySelector('.syn-duo .book-list-container'), 'books-expand', 'books-collapse');
-            setup(document.querySelector('.syn-duo .pod-card'), 'podcasts-expand', 'podcasts-collapse');
+            setup(document.querySelector('.syn-duo .book-list-container'), 'books-toggle');
+            setup(document.querySelector('.syn-duo .pod-card'), 'podcasts-toggle');
         })();
     </script>
 
