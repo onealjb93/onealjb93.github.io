@@ -82,7 +82,7 @@
        it, and at 259px on a phone it would crush the canvas. */
     .chart-section .section-title { margin-top: 0; padding-bottom: 2px; }
     .chart-section:has(> .section-body[hidden]) > .chart-intro { display: none; }
-    #chart-body { display: flex; flex-direction: column; gap: 0.3rem; height: calc(100vh - 148px - env(safe-area-inset-bottom, 0px)); height: calc(100dvh - 148px - env(safe-area-inset-bottom, 0px)); }
+    #chart-body { display: flex; flex-direction: column; gap: 0.3rem; height: calc(100vh - 175px - env(safe-area-inset-bottom, 0px)); height: calc(100dvh - 175px - env(safe-area-inset-bottom, 0px)); }
     #chart-body[hidden] { display: none; }
     #chart-body > * { margin-top: 0; margin-bottom: 0; flex: none; }
     #chart-body > .jbo-chart-frame { flex: 1 1 auto; min-height: 0; }
@@ -94,6 +94,34 @@
     .chart-controls .selector-group label { display: block; font-size: 0.8rem; line-height: 1.3; color: var(--subtext-color); margin-bottom: 0.2rem; }
     .chart-controls select { padding-top: 8px; padding-bottom: 8px; }
     .chart-section .filter-pill { padding-top: 10px; padding-bottom: 10px; }
+    /* Front door (2026-11-16): one plain line above the stage —
+       what to do first, in the page's muted intro register. The
+       stage budget above grew by the line's height (148 -> 175)
+       so the whole chart block still fits one screen. */
+    .chart-front-door { color: var(--subtext-color); font-size: 0.95rem; line-height: 1.45; margin: 0 0 0.3rem; }
+    /* Chart tools fold (2026-11-16): the range, style, mode, pane
+       and full-screen groups live behind one "Chart tools" toggle
+       in the same controls row. display: contents keeps the groups
+       in the controls row's own flex layout, exactly as if they
+       were never wrapped; [hidden] takes them out entirely. */
+    #chartTools { display: contents; }
+    #chartTools[hidden] { display: none; }
+    #chartToolsBtn .chart-tools-chev { display: inline-block; font-size: 0.72em; margin-left: 0.35rem; transition: transform var(--dur-1) var(--ease-out); }
+    #chartToolsBtn[aria-expanded="true"] .chart-tools-chev { transform: rotate(90deg); }
+    /* Verdict chip (2026-11-16): the picked stock's scoreboard
+       tally beside the picker — a door to its score popover. It
+       wears the pill grammar but toggles nothing. */
+    .chart-verdict-chip[hidden] { display: none; }
+    /* Section glosses (2026-11-16): one plain muted line under a
+       section heading — what the section is, in plain words,
+       visible before the section is even opened. */
+    .section-gloss { color: var(--subtext-color); font-size: 0.85rem; line-height: 1.5; margin: 0.3rem 0 0; }
+    /* Committee balance lead (2026-11-16): Johnny's overarching
+       split as the committee section's lead block — the section's
+       own h3 + framing-text register, no card, no extra chrome. */
+    .balance-lead { margin: 0 0 1.25rem; }
+    .balance-lead h3 { margin: 0 0 0.35rem; }
+    .balance-lead p { margin: 0; color: var(--subtext-color); }
     /* Quick picks (2026-11-16): the four categories share ONE row —
        equal quarters of the stage width, never wrapping. Content-
        sized chips wrapped Bitcoin onto a row of its own on phones
@@ -379,6 +407,7 @@
      pipeline carries — one fixed set of long-term gauges -->
     <div class="chart-section collapsible-section" id="chart">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="chart" aria-expanded="true" aria-controls="chart-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> The Chart</button></h2>
+        <p class="chart-front-door">Pick a stock &mdash; see its chart, and how it grades.</p>
         <div class="section-body" id="chart-body">
         <div class="chip-row" id="chartPicks" role="group" aria-label="Chart quick picks">
             <button type="button" class="filter-pill active" data-key="SPX">S&amp;P 500</button>
@@ -395,6 +424,9 @@
                     <optgroup label="Nasdaq-100" id="chartStockNdx"></optgroup>
                 </select>
             </div>
+            <button type="button" class="filter-pill chart-verdict-chip" id="chartVerdictChip" hidden></button>
+            <button type="button" class="filter-pill" id="chartToolsBtn" aria-expanded="false" aria-controls="chartTools">Chart tools<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
+            <div id="chartTools" hidden>
             <div class="chip-row" id="chartRanges" role="group" aria-label="Chart range">
                 <button type="button" class="filter-pill" data-range="1Y">1Y</button>
                 <button type="button" class="filter-pill active" data-range="5Y">5Y</button>
@@ -416,6 +448,7 @@
             </div>
             <div class="chip-row" id="chartView" role="group" aria-label="Chart view">
                 <button type="button" class="filter-pill" id="chartFsBtn" aria-pressed="false">&#10530; Full screen</button>
+            </div>
             </div>
         </div>
         <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Weekly price chart with 200-week and 50-week moving averages, volume, weekly RSI and an optional P/E pane"></canvas><div class="glass-bubble" id="jboChartTip"></div></div>
@@ -480,9 +513,39 @@
         }
     })();
     </script>
+    <script>
+    // Chart tools fold (2026-11-16): the chart's default face is
+    // the quick picks, the stock picker and the canvas. The range,
+    // style, mode, pane and full-screen groups live behind this
+    // one toggle — nothing is removed, every control works exactly
+    // as before from inside the fold, and the choice persists per
+    // browser in the chart's own key family. Toggling fires the
+    // window resize the chart and the stage-fit already listen to,
+    // so the canvas and the key's floor are re-measured in both
+    // states; the fold lives inside #chart-body, so full-screen
+    // mode offers the same toggle with the same state.
+    (function () {
+        "use strict";
+        var TOOLS_KEY = "jbo-chart-tools-v1";
+        var btn = document.getElementById("chartToolsBtn");
+        var tools = document.getElementById("chartTools");
+        if (!btn || !tools) return;
+        function setOpen(open, store) {
+            tools.hidden = !open;
+            btn.setAttribute("aria-expanded", open ? "true" : "false");
+            if (store) { try { window.localStorage.setItem(TOOLS_KEY, open ? "1" : "0"); } catch (e) { /* storage unavailable */ } }
+            window.dispatchEvent(new Event("resize"));
+        }
+        var startOpen = false;
+        try { startOpen = window.localStorage.getItem(TOOLS_KEY) === "1"; } catch (e) { /* storage unavailable */ }
+        if (startOpen) setOpen(true, false);
+        btn.addEventListener("click", function () { setOpen(tools.hidden, true); });
+    })();
+    </script>
     <!-- Investment Scoreboard -->
     <div class="scoreboard-section collapsible-section" id="scoreboard">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="true" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> Investment Scoreboard</button></h2>
+        <p class="section-gloss">One grade per investor for each of my stocks.</p>
         <div class="section-body" id="scoreboard-body">
         <p>The scoreboard grades stocks by the finance committee&rsquo;s recommended framework.</p>
                     <div class="chip-row" id="scoreboardInvestors" role="group" aria-label="Investors to score against">
@@ -636,6 +699,10 @@
     <div class="frameworks-section collapsible-section" id="committee">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="committee" aria-expanded="false" aria-controls="committee-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> My Investor Committee</button></h2>
         <div class="section-body" id="committee-body" hidden>
+        <div class="balance-lead">
+            <h3>Overarching finance health balance (mine)</h3>
+            <p>My general strategy &mdash; for every $100: $70 invested in Bitcoin and stocks, $10 in cash, $10 in STRC, $10 in SATA.</p>
+        </div>
         <p>Their frameworks, verified against what each investor actually said &mdash; and what they agree on.</p>
         <details class="disclaimer-note">
           <summary><span class="disclaimer-gist">Holdings figures are from each fund&rsquo;s latest SEC 13F filing where one exists</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
@@ -1919,6 +1986,7 @@
 <!-- Portfolio Backtest -->
     <div class="backtest-section collapsible-section" id="backtest">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="backtest" aria-expanded="false" aria-controls="backtest-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> Portfolio Backtest</button></h2>
+        <p class="section-gloss">What these picks would have earned if you&rsquo;d held them.</p>
         <div class="section-body" id="backtest-body" hidden>
         <p>How would this portfolio have performed? Start from equal weight, change the weights, pick a time frame, and compare against an index or a single holding — plus the baskets built from each testable investor framework.</p>
         <p id="backtestLoading" class="empty-state">Loading price history&hellip;</p>
@@ -2011,6 +2079,7 @@
     <!-- Legend: every acronym and investing term used on this page -->
     <div class="legend-section collapsible-section" id="legend">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="legend" aria-expanded="false" aria-controls="legend-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> Legend</button></h2>
+        <p class="section-gloss">Every word on this page, explained in plain language.</p>
         <div class="section-body" id="legend-body" hidden>
         <p>Every acronym and investing term used on this page, defined in one place. The same definitions appear in a small popup when you hover (or tap) a dotted term anywhere above.</p>
         <div class="legend-grid" id="legendList"></div>
@@ -5238,6 +5307,74 @@ if (typeof module !== "undefined") {
             },
             load: function (key) { window.jboLoadChartSymbol(key); }
         };
+    })();
+</script>
+<script>
+    // Verdict chip (2026-11-16): when the chart's stock is one of
+    // Johnny's 19 and the scoreboard can grade it, a chip beside
+    // the picker carries its tally — passes out of the investors
+    // whose tests could grade it — and tapping it goes to that
+    // stock's score popover in the scoreboard. The counts come
+    // from scoreTicker(), the same shared scorer the scoreboard
+    // and the comparison table render from, so the chip can never
+    // disagree with the table. Benchmarks and Nasdaq-100 names
+    // aren't in the graded set, and a stock with no graded
+    // verdicts yet shows no chip — never an invented number. The
+    // chip recounts at every moment the scoreboard re-renders
+    // (data load, momentum landing, Minervini landing) and on
+    // every change of the chart's stock, however it was picked.
+    (function () {
+        "use strict";
+        var chip = document.getElementById("chartVerdictChip");
+        if (!chip) return;
+        function findStock(tk) {
+            if (typeof tickerData === "undefined" || typeof marketDataLoaded === "undefined" || !marketDataLoaded) return null;
+            for (var i = 0; i < tickerData.length; i++) if (tickerData[i].ticker === tk) return tickerData[i];
+            return null;
+        }
+        function refresh() {
+            var key = (window.jboChart && typeof window.jboChart.state === "function") ? window.jboChart.state().key : null;
+            var t = key ? findStock(key) : null;
+            if (!t || typeof scoreTicker !== "function") { chip.hidden = true; chip.removeAttribute("data-ticker"); return; }
+            var res = scoreTicker(t).results, passed = 0, graded = 0;
+            Object.keys(res).forEach(function (id) { if (res[id] !== null) { graded++; if (res[id]) passed++; } });
+            if (!graded) { chip.hidden = true; chip.removeAttribute("data-ticker"); return; }
+            chip.textContent = t.ticker + " \u2014 passes " + passed + " of " + graded + " investors\u2019 tests \u00B7 See why";
+            chip.setAttribute("data-ticker", t.ticker);
+            chip.hidden = false;
+        }
+        window.jboRefreshVerdictChip = refresh;
+        if (typeof window.renderScoreboard === "function") {
+            var rsOrig = window.renderScoreboard;
+            window.renderScoreboard = function () { var r = rsOrig.apply(this, arguments); refresh(); return r; };
+        }
+        if (typeof window.jboLoadChartSymbol === "function") {
+            var lcsOrig = window.jboLoadChartSymbol;
+            window.jboLoadChartSymbol = function (sym) { var r = lcsOrig.apply(this, arguments); refresh(); return r; };
+        }
+        var picks = document.getElementById("chartPicks");
+        if (picks) picks.addEventListener("click", function () { setTimeout(refresh, 0); });
+        var sel = document.getElementById("chartStock");
+        if (sel) sel.addEventListener("change", function () { setTimeout(refresh, 0); });
+        chip.addEventListener("click", function () {
+            var tk = chip.getAttribute("data-ticker");
+            var t = tk ? findStock(tk) : null;
+            if (!t || typeof fillScoreSummary !== "function" || typeof openScoreTip !== "function") return;
+            var chartBody = document.getElementById("chart-body");
+            if (chartBody && chartBody.classList.contains("chart-fs")) {
+                document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+            }
+            var body = document.getElementById("scoreboard-body");
+            var toggle = document.querySelector('.section-toggle[data-section="scoreboard"]');
+            if (body && body.hidden && toggle) toggle.click();
+            var section = document.getElementById("scoreboard");
+            if (section && section.scrollIntoView) section.scrollIntoView({ block: "start" });
+            setTimeout(function () {
+                var btn = document.querySelector('#scoreboardBody .score-why-btn[data-score="1"][data-ticker="' + tk + '"]');
+                if (btn) { fillScoreSummary(t); openScoreTip(btn); }
+            }, 80);
+        });
+        refresh();
     })();
 </script>
 </body>
