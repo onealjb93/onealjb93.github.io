@@ -135,7 +135,12 @@
     #chart-body > .jbo-chart-frame { flex: 1 1 auto; min-height: 0; }
     .chart-intro { margin-top: 1rem; }
     .jbo-chart-frame { position: relative; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; }
-    .jbo-chart-frame canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: crosshair; }
+    /* Inline, the canvas claims no touch drag at all (touch-action:
+       auto): every drag scrolls the page, in every direction, and a
+       tap still inspects. The full-screen view restores pan-y (see
+       the .chart-fs rules below), where the chart's own gestures —
+       horizontal inspect, two-finger pinch — live. */
+    .jbo-chart-frame canvas { display: block; width: 100%; height: 100%; touch-action: auto; cursor: crosshair; }
     .chart-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem 1rem; }
     .chart-controls .chip-row { margin: 0; }
     .chart-controls .selector-group label { display: block; font-size: 0.8rem; line-height: 1.3; color: var(--subtext-color); margin-bottom: 0.2rem; }
@@ -297,6 +302,7 @@
        tucks it under the stage, where this mode's hidden overflow
        would clip it away entirely). */
     #chart-body.chart-fs { position: fixed; inset: 0; z-index: 1100; width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; box-sizing: border-box; overflow: hidden; overscroll-behavior: none; background: var(--bg-color); padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) calc(env(safe-area-inset-right, 0px) + 0.6rem) calc(env(safe-area-inset-bottom, 0px) + 0.6rem) calc(env(safe-area-inset-left, 0px) + 0.6rem); }
+    #chart-body.chart-fs .jbo-chart-frame canvas { touch-action: pan-y; }
     #chart-body.chart-fs #chartPicks { padding-right: 52px; }
     #chart-body.chart-fs .jbo-chart-datanote { position: static; }
     #chartFsClose { display: none; }
@@ -5256,7 +5262,7 @@ if (typeof module !== "undefined") {
                 if (i !== hover) { hover = i; render(); }
                 else { updateTip(); } // same week, new pointer spot: the bubble still follows (a touch finger moving within one week must never end up under it)
             }
-            // ---- pinch zoom: two fingers on the time axis ----
+            // ---- pinch zoom: two fingers on the time axis (full-screen view only) ----
             // A second finger suspends the crosshair and starts a
             // gesture. One formula drives both halves of it: the
             // window's width follows the fingers' distance, and the
@@ -5330,11 +5336,19 @@ if (typeof module !== "undefined") {
                 if (!Object.keys(ptrs).length) gestBlock = false;
             }
             canvas.addEventListener("pointerdown", function (e) {
-                var id = ptrId(e);
-                ptrs[id] = { x: e.clientX, y: e.clientY, raw: e.pointerId };
-                var n = Object.keys(ptrs).length;
-                if (n === 2) { if (!gestureBegin()) gestBlock = true; return; }
-                if (n > 2 || gestBlock) return;
+                // Inline, no pointer is ever tracked toward a gesture:
+                // the page owns every drag (the canvas's touch-action
+                // is auto there), and only taps and the mouse reach
+                // the inspector below. Pointer tracking — and with it
+                // the two-finger pinch — runs solely in the
+                // full-screen view, where fsOn is true.
+                if (fsOn) {
+                    var id = ptrId(e);
+                    ptrs[id] = { x: e.clientX, y: e.clientY, raw: e.pointerId };
+                    var n = Object.keys(ptrs).length;
+                    if (n === 2) { if (!gestureBegin()) gestBlock = true; return; }
+                    if (n > 2 || gestBlock) return;
+                }
                 // Double-tap: a second quick tap at the same spot
                 // hands the window back to the range button.
                 if (e.pointerType === "touch") {
@@ -5366,19 +5380,21 @@ if (typeof module !== "undefined") {
                 gestureEnd(ptrId(e));
                 if (hover !== -1) { hover = -1; render(); }
             });
-            // With two fingers down, the gesture belongs to the
-            // chart, never to the page: the canvas's touch-action
-            // (pan-y) would otherwise let a vertical drift scroll
-            // the page mid-pinch. One finger keeps the shipped
-            // behaviour exactly — a horizontal drag inspects, a
-            // vertical drag scrolls the page.
+            // In the full-screen view, with two fingers down, the
+            // gesture belongs to the chart, never to the page: the
+            // canvas's touch-action there (pan-y) would otherwise
+            // let a vertical drift scroll the page mid-pinch. One
+            // finger in that view keeps the shipped behaviour
+            // exactly — a horizontal drag inspects, a vertical drag
+            // scrolls the page. Inline, none of this runs: the page
+            // owns every touch and the chart only ever sees taps.
             canvas.addEventListener("touchstart", function (e) {
-                if (e.touches && e.touches.length >= 2) e.preventDefault();
+                if (fsOn && e.touches && e.touches.length >= 2) e.preventDefault();
             }, { passive: false });
             canvas.addEventListener("touchmove", function (e) {
-                if (e.touches && e.touches.length >= 2) e.preventDefault();
+                if (fsOn && e.touches && e.touches.length >= 2) e.preventDefault();
             }, { passive: false });
-            canvas.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+            canvas.addEventListener("gesturestart", function (e) { if (fsOn) e.preventDefault(); });
         }
         var themeToggle = document.getElementById("theme-toggle");
         if (themeToggle) themeToggle.addEventListener("change", function () {
