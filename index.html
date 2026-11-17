@@ -166,6 +166,25 @@
     .pl-sw-today { width: 9px; height: 9px; border-radius: 50%; background: #f7931a; border: 2px solid #fff; }
         .pl-sw-mayer { background: #38bdf8; }
         .pl-sw-mvrv { background: #a78bfa; }
+        .btc-zones { margin: 14px 0 16px; padding: 12px 14px 10px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-color); }
+        .btc-zones-row { display: flex; gap: 6px; }
+        .btc-zone { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px 4px; background: none; border: none; border-radius: 10px; cursor: pointer; font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+        .btc-zone:hover { background: var(--card-bg); }
+        .btc-zone:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 1px; }
+        .btc-zone-dot { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--text-muted, #94a3b8); background: transparent; box-sizing: border-box; }
+        .btc-zone.in .btc-zone-dot { background: #ef4444; border-color: #ef4444; }
+        .btc-zone-name { font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+        .btc-zone-dist { font-size: 0.76rem; color: var(--text-muted, #94a3b8); white-space: nowrap; }
+        .btc-zones-line { font-size: 0.92rem; margin: 8px 2px 0; }
+        .btc-zones-note { font-size: 0.78rem; color: var(--text-muted, #94a3b8); margin: 3px 2px 0; }
+        .btc-zones.buy { border-color: var(--accent-color); box-shadow: 0 0 0 1px var(--accent-color); }
+        .btc-zones.buy .btc-zones-line { font-weight: 700; }
+        @media (max-width: 480px) {
+            .btc-zones { padding: 10px 8px 8px; }
+            .btc-zones-row { gap: 2px; }
+            .btc-zone-name { font-size: 0.74rem; }
+            .btc-zone-dist { font-size: 0.7rem; }
+        }
         .pl-sq { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: middle; margin-right: 2px; }
         .pl-sq-hi { background: rgba(239, 68, 68, 0.5); }
         .pl-sq-lo { background: rgba(34, 197, 94, 0.5); }
@@ -718,6 +737,21 @@
                 <button type="button" class="btc-pick-opt" data-view="mvrv" role="option" aria-selected="false">MVRV Z-Score</button>
             </div>
         </div>
+        <!-- Buy-time indicator: one dot per model — filled while the
+             current reading sits in that model's buy zone (the same zones
+             the red dots mark on the charts). Each chart's own readout
+             code publishes its reading (window.BTC_ZONE), so this row can
+             never disagree with the charts. -->
+        <div class="btc-zones" id="btcZones">
+            <div class="btc-zones-row" role="group" aria-label="Buy zones — tap a model to open its chart">
+                <button type="button" class="btc-zone" data-zone="powerlaw"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Power law</span><span class="btc-zone-dist" data-dist>…</span></button>
+                <button type="button" class="btc-zone" data-zone="cost"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Cost</span><span class="btc-zone-dist" data-dist>…</span></button>
+                <button type="button" class="btc-zone" data-zone="mayer"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Mayer</span><span class="btc-zone-dist" data-dist>…</span></button>
+                <button type="button" class="btc-zone" data-zone="mvrv"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">MVRV</span><span class="btc-zone-dist" data-dist>…</span></button>
+            </div>
+            <p class="btc-zones-line" id="btcZonesLine">Reading the four models…</p>
+            <p class="btc-zones-note">The dots mark each model's historical cheap zone, judged in hindsight — a reading of the models, not a promise.</p>
+        </div>
         <div id="btc-view-anim">
             <div id="btc-view-powerlaw" class="powerlaw-card">
                 <h3>The Power Law Chart</h3>
@@ -738,7 +772,7 @@
                 <button type="button" id="pl-zreset" class="pl-zreset" aria-label="Reset view" title="Reset view">Reset</button>
             </div>
         </div>
-        <p class="pl-legend"><span class="pl-sw pl-sw-price"></span> Actual price &nbsp; <span class="pl-sw pl-sw-trend"></span> Fair value &nbsp; <span class="pl-sw pl-sw-floor"></span> Support &nbsp; <span class="pl-sw pl-sw-ceil"></span> Ceiling &nbsp; <span class="pl-sw pl-sw-today"></span> Today &nbsp;·&nbsp; Scroll or pinch to zoom, drag to pan.</p>
+        <p class="pl-legend"><span class="pl-sw pl-sw-price"></span> Actual price &nbsp; <span class="pl-sw pl-sw-trend"></span> Fair value &nbsp; <span class="pl-sw pl-sw-floor"></span> Support &nbsp; <span class="pl-sw pl-sw-ceil"></span> Ceiling &nbsp; <span class="pl-sw pl-sw-below"></span> At or below support &nbsp; <span class="pl-sw pl-sw-today"></span> Today &nbsp;·&nbsp; Scroll or pinch to zoom, drag to pan.</p>
             </div>
             <div id="btc-view-cost" class="powerlaw-card" hidden>
                 <h3>The Production Cost Chart</h3>
@@ -780,7 +814,7 @@
                 <button type="button" id="mm-zreset" class="pl-zreset" aria-label="Reset view" title="Reset view">Reset</button>
             </div>
         </div>
-        <p class="pl-legend"><span class="pl-sw pl-sw-mayer"></span> Mayer Multiple &nbsp; <span class="pl-sq pl-sq-hi"></span> Above 2.4 &nbsp; <span class="pl-sq pl-sq-lo"></span> Below 1.0 &nbsp; <span class="pl-sw pl-sw-today"></span> Latest &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
+        <p class="pl-legend"><span class="pl-sw pl-sw-mayer"></span> Mayer Multiple &nbsp; <span class="pl-sq pl-sq-hi"></span> Above 2.4 &nbsp; <span class="pl-sq pl-sq-lo"></span> Below 1.0 &nbsp; <span class="pl-sw pl-sw-below"></span> At or below 1.0 &nbsp; <span class="pl-sw pl-sw-today"></span> Latest &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
         <p class="pl-fine">Daily closes: Coinbase Exchange, from <span id="mm-hist-start">Jul 20, 2015</span>; the line starts <span id="mm-line-start">Feb 4, 2016</span>. What the 1.0 and 2.4 lines mean is on the <a href="bitcoin.html">Bitcoin page</a>.</p>
         </div>
         <div id="btc-view-mvrv" class="powerlaw-card" hidden>
@@ -801,7 +835,7 @@
                 <button type="button" id="mv-zreset" class="pl-zreset" aria-label="Reset view" title="Reset view">Reset</button>
             </div>
         </div>
-        <p class="pl-legend"><span class="pl-sw pl-sw-mvrv"></span> MVRV Z-Score &nbsp; <span class="pl-sq pl-sq-hi"></span> Above 7 &nbsp; <span class="pl-sq pl-sq-lo"></span> Below 0 &nbsp; <span class="pl-sw pl-sw-today"></span> Latest &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
+        <p class="pl-legend"><span class="pl-sw pl-sw-mvrv"></span> MVRV Z-Score &nbsp; <span class="pl-sq pl-sq-hi"></span> Above 7 &nbsp; <span class="pl-sq pl-sq-lo"></span> Below 0 &nbsp; <span class="pl-sw pl-sw-below"></span> At or below 0 &nbsp; <span class="pl-sw pl-sw-today"></span> Latest &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
         <p class="pl-fine">Daily figures: CoinMetrics, from <span id="mv-hist-start">Jul 18, 2010</span>; the line starts <span id="mv-line-start">Feb 2, 2011</span>. How the score is built &mdash; including how realized cap is derived &mdash; is on the <a href="bitcoin.html">Bitcoin page</a>.</p>
         </div>
         </div>
@@ -854,6 +888,8 @@
             set('pl-dev-note', devPct < 0 ? 'undervalued vs. the model' : 'stretched vs. the model');
             set('pl-floor', money(Math.round(fl / 100) * 100));
             set('pl-ceil', money(Math.round(ce / 100) * 100));
+            (window.BTC_ZONE = window.BTC_ZONE || {}).powerlaw = { dist: (SPOT.price / fl - 1) * 100, inZone: SPOT.price <= fl };
+            if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
         }
         renderReadout();
 
@@ -1016,6 +1052,21 @@
                 i === 0 ? ctx.moveTo(px2, py2) : ctx.lineTo(px2, py2);
             }
             ctx.stroke();
+            /* red markers: the points at or below the support floor — this model's cheap zone,
+               drawn exactly as the cost chart draws its below-cost
+               markers; at most one per four days, the cadence of the
+               power-law / cost grid */
+            var lastZone = -Infinity;
+            for (var zi = 0; zi < PTS.length; zi++) {
+                if (PTS[zi][1] <= fair(PTS[zi][0]) * LO && PTS[zi][0] - lastZone >= 4) {
+                    lastZone = PTS[zi][0];
+                    var zx = g.x(PTS[zi][0]), zy = g.y(PTS[zi][1]);
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath(); ctx.arc(zx, zy, 3.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                    ctx.beginPath(); ctx.arc(zx, zy, 3.5, 0, Math.PI * 2); ctx.stroke();
+                }
+            }
 
             /* hover marker */
             if (hover >= 0 && hover < PTS.length) {
@@ -1404,6 +1455,8 @@
             set('pc-dev-note', devPct < 0 ? 'below the model\u2019s floor' : 'above the model\u2019s floor');
             set('pc-m10', money(Math.round(c * 0.9 / 100) * 100));
             set('pc-m30', money(Math.round(c * 0.7 / 100) * 100));
+            (window.BTC_ZONE = window.BTC_ZONE || {}).cost = { dist: devPct, inZone: devPct <= 0 };
+            if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
         }
         renderReadout();
 
@@ -1901,6 +1954,8 @@
             set('mm-state', stateLine(last[1]));
             set('mm-hist-start', dateStr(FIRST_CLOSE_DAY));
             set('mm-line-start', dateStr(PTS[0][0]));
+            (window.BTC_ZONE = window.BTC_ZONE || {}).mayer = { dist: (last[1] - 1) * 100, inZone: last[1] <= 1 };
+            if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
         }
         renderReadout();
 
@@ -2039,6 +2094,21 @@
                 i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
             }
             ctx.stroke();
+            /* red markers: the points at or below a multiple of 1.0 — this model's cheap zone,
+               drawn exactly as the cost chart draws its below-cost
+               markers; at most one per four days, the cadence of the
+               power-law / cost grid */
+            var lastZone = -Infinity;
+            for (var zi = 0; zi < PTS.length; zi++) {
+                if (PTS[zi][1] <= 1 && PTS[zi][0] - lastZone >= 4) {
+                    lastZone = PTS[zi][0];
+                    var zx = g.x(PTS[zi][0]), zy = g.y(PTS[zi][1]);
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath(); ctx.arc(zx, zy, 3.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                    ctx.beginPath(); ctx.arc(zx, zy, 3.5, 0, Math.PI * 2); ctx.stroke();
+                }
+            }
 
             /* hover marker */
             if (hover >= 0 && hover < PTS.length) {
@@ -2401,6 +2471,8 @@
             set('mv-state', stateLine(last[1]));
             set('mv-hist-start', dateStr(FIRST_DAY));
             set('mv-line-start', dateStr(PTS[0][0]));
+            (window.BTC_ZONE = window.BTC_ZONE || {}).mvrv = { dist: (last[2] / last[3] - 1) * 100, inZone: last[1] <= 0 };
+            if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
         }
         renderReadout();
 
@@ -2544,6 +2616,21 @@
                 i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
             }
             ctx.stroke();
+            /* red markers: the points at or below a score of 0 — this model's cheap zone,
+               drawn exactly as the cost chart draws its below-cost
+               markers; at most one per four days, the cadence of the
+               power-law / cost grid */
+            var lastZone = -Infinity;
+            for (var zi = 0; zi < PTS.length; zi++) {
+                if (PTS[zi][1] <= 0 && PTS[zi][0] - lastZone >= 4) {
+                    lastZone = PTS[zi][0];
+                    var zx = g.x(PTS[zi][0]), zy = g.y(PTS[zi][1]);
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath(); ctx.arc(zx, zy, 3.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                    ctx.beginPath(); ctx.arc(zx, zy, 3.5, 0, Math.PI * 2); ctx.stroke();
+                }
+            }
 
             /* hover marker */
             if (hover >= 0 && hover < PTS.length) {
@@ -3555,6 +3642,10 @@
             }
             if (!animate || reduced) {
                 reveal();
+                /* a view pre-loaded while hidden (the buy-time indicator
+                   loads all four) holds a blank canvas until something
+                   resizes it — repaint now that it is visible */
+                window.dispatchEvent(new Event('resize'));
                 return;
             }
             animating = true;
@@ -3600,8 +3691,69 @@
             }
         });
 
+        /* the buy-time indicator loads all four views up front, so each
+           chart's readout can publish its current zone reading */
+        window.BTC_LOAD_ALL_VIEWS = function () {
+            loadPowerLaw(); loadCost(); loadMayer(); loadMvrv();
+        };
         var sv = saved();
         applyView(sv === 'cost' || sv === 'mayer' || sv === 'mvrv' ? sv : 'powerlaw', false);
+    })();
+    </script>
+    <!-- Buy-time indicator: renders the zone readings the four chart
+         blocks publish (window.BTC_ZONE) and force-loads all four blocks
+         so every reading exists. Tapping a dot opens that model's chart
+         through the picker's own option button — one switching path. -->
+    <script>
+    (function () {
+        var comp = document.getElementById('btcZones');
+        if (!comp) return;
+        var line = document.getElementById('btcZonesLine');
+        var ORDER = ['powerlaw', 'cost', 'mayer', 'mvrv'];
+        var btns = {};
+        ORDER.forEach(function (k) {
+            btns[k] = comp.querySelector('[data-zone="' + k + '"]');
+        });
+        function fmtDist(d) {
+            if (Math.abs(d) <= 0.5) return 'at the floor';
+            return Math.round(Math.abs(d)) + '% ' + (d < 0 ? 'under' : 'above');
+        }
+        function render() {
+            var z = window.BTC_ZONE || {};
+            var sum = 0, count = 0, ready = 0;
+            ORDER.forEach(function (k) {
+                var v = z[k], b = btns[k];
+                if (!v || !b) return;
+                ready++;
+                sum += v.dist;
+                if (v.inZone) count++;
+                b.classList.toggle('in', !!v.inZone);
+                var dEl = b.querySelector('[data-dist]');
+                if (dEl) dEl.textContent = fmtDist(v.dist);
+            });
+            if (ready < 4) return;
+            if (count === 4) {
+                comp.classList.add('buy');
+                line.textContent = 'Buy time — all four models in their cheap zones.';
+            } else {
+                comp.classList.remove('buy');
+                var avg = sum / 4, where;
+                if (Math.abs(avg) <= 0.5) where = 'right at the four bottoms';
+                else where = 'about ' + Math.round(Math.abs(avg)) + '% ' + (avg < 0 ? 'below' : 'above') + ' the four bottoms';
+                line.textContent = 'Overall: ' + where + ' — ' + count + ' of 4 in the buy zone.';
+            }
+        }
+        window.BTC_ZONE_PING = render;
+        ORDER.forEach(function (k) {
+            var b = btns[k];
+            if (!b) return;
+            b.addEventListener('click', function () {
+                var opt = document.querySelector('#btcPickPanel [data-view="' + k + '"]');
+                if (opt) opt.click();
+            });
+        });
+        if (window.BTC_LOAD_ALL_VIEWS) window.BTC_LOAD_ALL_VIEWS();
+        render();
     })();
     </script>
 
