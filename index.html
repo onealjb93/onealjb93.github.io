@@ -287,6 +287,57 @@
        clipped by the list's internal scroll). Let it wrap instead —
        above ~430px the selects fit on one line and nothing changes. */
     .syn-duo .book-controls > div { flex-wrap: wrap; }
+    /* Pinned library bar (2026-11-16): while a duo section is expanded
+       (its wrapper carries .lib-open, set by the toggle wiring below),
+       the section's heading row pins under the frozen 55px site header
+       — the site's single-slot sticky pattern (top: 55px, z-index 90,
+       solid var(--bg-color)) — so the Expand/Collapse pair stays one
+       tap away anywhere in the list, and the bar releases at its own
+       section's end. align-self: start keeps each grid column exactly
+       its own content height, so the release point is the section's
+       own end even beside a taller column. While expanded, the
+       heading's bottom margin becomes padding instead, so the stuck
+       bar's background covers its whole box and no list text slides
+       through a transparent margin strip. When the bar is actually
+       stuck (.is-pinned, set by the script below) it gains the
+       hairline, and the books Filter & Sort block rides inside it as a
+       full-width second row — the same node relocated by the script,
+       never a second copy, so its state stays single-sourced. A
+       collapsed section's heading scrolls normally; nothing pins. */
+    .syn-duo > div { align-self: start; }
+    .syn-duo > div.lib-open > .media-box-head {
+        position: sticky; top: 55px; z-index: 90;
+        background: var(--bg-color);
+        margin-bottom: 0; padding-bottom: 0.6rem;
+    }
+    .syn-duo .media-box-head.is-pinned { border-bottom: 1px solid var(--border-color); }
+    .syn-duo .media-box-head > .book-controls { flex: 1 1 100%; margin: 0 0 14px; }
+    /* One-row pinned bar, wide screens only (2026-11-16): where the
+       column is wide enough for the four controls side by side
+       untruncated — measured: the pair plus both selects need ~454px
+       at a 16px root, ~497px at 18px, and the duo column reaches
+       ~510px only from a 1200px viewport up — the stuck bar compacts
+       to a single row: the pair and both selects on one line, the
+       title and the "Filter & Sort:" label visually hidden (still in
+       the accessibility tree), nothing clipped, nothing overlapping.
+       Below that width the four controls genuinely cannot fit one
+       row, so the bar keeps the two-row form above rather than ever
+       truncating a label or a value. */
+    @media (min-width: 1200px) {
+        .syn-duo .media-box-head.is-pinned { flex-wrap: nowrap; align-items: center; gap: 5px; }
+        .syn-duo .media-box-head.is-pinned > h2 {
+            position: absolute; width: 1px; height: 1px;
+            overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+        }
+        .syn-duo .media-box-head.is-pinned .expand-all-toggle { flex: 0 0 auto; }
+        .syn-duo .media-box-head.is-pinned .expand-all-toggle button { font-size: 0.75rem; padding: 4px 8px; }
+        .syn-duo .media-box-head.is-pinned > .book-controls {
+            flex: 0 0 auto; margin: 0; flex-wrap: nowrap; align-items: center; gap: 5px;
+        }
+        .syn-duo .media-box-head.is-pinned > .book-controls > span { display: none; }
+        .syn-duo .media-box-head.is-pinned > .book-controls > div { flex-wrap: nowrap; gap: 5px; }
+        .syn-duo .media-box-head.is-pinned > .book-controls select { font-size: 0.75rem; padding: 4px 7px; flex: 0 0 auto; }
+    }
     /* Unified compact rows: a book and an episode are interchangeable
        line items — same 76px row, same 54px square thumbnail (covers
        centre-cropped to the box), same two-line structure (title +
@@ -1470,14 +1521,136 @@
             if (bookBox) {
                 wire('books-expand', 'books-collapse', function (expand) {
                     bookBox.classList.toggle('list-expanded', expand);
+                    bookBox.parentElement.classList.toggle('lib-open', expand);
                 });
             }
             var podBox = document.querySelector('.syn-duo .pod-card');
             if (podBox) {
                 wire('podcasts-expand', 'podcasts-collapse', function (expand) {
                     podBox.classList.toggle('list-expanded', expand);
+                    podBox.parentElement.classList.toggle('lib-open', expand);
                 });
             }
+        })();
+    </script>
+
+    <script>
+        // Pinned library bar: while a duo section is expanded, its
+        // heading row is sticky (see the CSS above); this script watches
+        // each section's stick point and, while the bar is actually
+        // stuck, marks it .is-pinned and moves the books Filter & Sort
+        // block into it — the same node, so its change handlers and
+        // current selections are untouched — and moves it back into the
+        // card when the bar releases or the section collapses. The bar
+        // counts as stuck only while some of it is in the slot under
+        // the header: once the section's end has pushed it fully out,
+        // it has released. Collapsing from the pin lands the visitor
+        // back on the section heading, just under whichever of the
+        // page's sticky section headings owns the slot at that point —
+        // unless another tap has superseded it (last tap wins, so a
+        // pending landing never fires after a newer tap). Filtering
+        // from the pin can shrink the list out from under the scroll
+        // position; if the bar was in the slot when the change was
+        // made, it is re-seated at the top of the updated list. The
+        // podcast section has no filter block; its bar pins with
+        // title and pair only.
+        (function () {
+            var HEADER_H = 55;
+            function setup(card, expandId, collapseId) {
+                if (!card) return;
+                var wrap = card.parentElement;
+                var head = wrap ? wrap.querySelector('.media-box-head') : null;
+                if (!wrap || !head) return;
+                var controls = card.querySelector('.book-controls');
+                var sentinel = document.createElement('div');
+                sentinel.setAttribute('aria-hidden', 'true');
+                sentinel.style.cssText = 'height: 0; overflow: hidden;';
+                wrap.insertBefore(sentinel, head);
+                var pinned = false;
+                var tapSeq = 0;
+                function setPinned(on) {
+                    if (on === pinned) return;
+                    pinned = on;
+                    head.classList.toggle('is-pinned', on);
+                    if (controls) {
+                        if (on) { head.appendChild(controls); }
+                        else { card.insertBefore(controls, card.firstChild); }
+                    }
+                }
+                function update() {
+                    if (!card.classList.contains('list-expanded')) { setPinned(false); return; }
+                    var sr = sentinel.getBoundingClientRect();
+                    var hr = head.getBoundingClientRect();
+                    setPinned(sr.top < HEADER_H && hr.bottom > HEADER_H);
+                }
+                var queued = false;
+                function queue() {
+                    if (queued) return;
+                    queued = true;
+                    requestAnimationFrame(function () { queued = false; update(); });
+                }
+                window.addEventListener('scroll', queue, { passive: true });
+                window.addEventListener('resize', queue);
+                var expandBtn = document.getElementById(expandId);
+                var collapseBtn = document.getElementById(collapseId);
+                if (expandBtn) expandBtn.addEventListener('click', function () { tapSeq++; });
+                if (collapseBtn) {
+                    collapseBtn.addEventListener('click', function () {
+                        tapSeq++;
+                        var seq = tapSeq;
+                        var wasPinned = pinned;
+                        setPinned(false);
+                        if (!wasPinned) return;
+                        requestAnimationFrame(function () {
+                            if (seq !== tapSeq) return;
+                            if (card.classList.contains('list-expanded')) return;
+                            var top = head.getBoundingClientRect().top;
+                            if (top >= HEADER_H) return;
+                            // Land the heading just below whichever of the
+                            // page's own sticky section headings currently
+                            // owns the slot (they paint over in-flow
+                            // content there), so the heading and its pair
+                            // are visible and tappable, not covered.
+                            var band = HEADER_H;
+                            var h2s = document.querySelectorAll('body > h2');
+                            for (var i = 0; i < h2s.length; i++) {
+                                var r = h2s[i].getBoundingClientRect();
+                                if (r.top <= HEADER_H + 1 && r.bottom > band) band = r.bottom;
+                            }
+                            try { window.scrollTo(0, window.scrollY + top - band - 2); } catch (e) {}
+                        });
+                    });
+                }
+                if (controls) {
+                    var changeSeq = 0;
+                    var cancelReseat = function () { changeSeq++; };
+                    window.addEventListener('wheel', cancelReseat, { passive: true });
+                    window.addEventListener('touchmove', cancelReseat, { passive: true });
+                    controls.addEventListener('change', function () {
+                        var hr = head.getBoundingClientRect();
+                        if (!pinned && Math.abs(hr.top - HEADER_H) > 1) return;
+                        var seq = ++changeSeq;
+                        var seqTap = tapSeq;
+                        var stable = 0, tries = 0;
+                        (function step() {
+                            if (seq !== changeSeq || seqTap !== tapSeq) return;
+                            if (!card.classList.contains('list-expanded')) return;
+                            var top = head.getBoundingClientRect().top;
+                            if (Math.abs(top - HEADER_H) <= 1) {
+                                if (++stable >= 3) return;
+                            } else {
+                                stable = 0;
+                                var docTop = sentinel.getBoundingClientRect().top + window.scrollY;
+                                try { window.scrollTo(0, docTop - HEADER_H + 2); } catch (e) {}
+                            }
+                            if (++tries < 24) requestAnimationFrame(step);
+                        })();
+                    });
+                }
+                update();
+            }
+            setup(document.querySelector('.syn-duo .book-list-container'), 'books-expand', 'books-collapse');
+            setup(document.querySelector('.syn-duo .pod-card'), 'podcasts-expand', 'podcasts-collapse');
         })();
     </script>
 
