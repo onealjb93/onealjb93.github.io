@@ -46,32 +46,28 @@
             margin-top: 0; padding-top: 48px;
         }
         body > h2:first-of-type { padding-top: 20px; }
-        /* Bitcoin chart switcher: segmented control (mirrors the homepage's
-           .btc-switch, the .gen-tabs pattern from random.html) — "Bitcoin
-           graph" (TradingView advanced chart), "Bitcoin power law" or
-           "Production cost". All choices are always visible and the control
-           is the card's only header. The choice persists in localStorage
-           ('btc-chart-view'), shared with the homepage; the power-law and
-           production-cost code loads lazily on first selection (inert in
-           text/plain script blocks until then). Labels wrap on whole words
-           at narrow widths rather than ever truncating. */
-        .btc-switch { display: flex; gap: 0.25rem; padding: 0.15rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 16px; }
-        .btc-switch button {
-            flex: 1 1 0; min-width: 0; min-height: 44px;
-            display: flex; align-items: center; justify-content: center;
-            background: transparent; border: none; border-radius: 7px;
-            color: var(--subtext-color); font: inherit; font-size: 0.92rem; font-weight: 600;
-            line-height: 1.2; text-align: center; padding: 0.3rem 0.25rem; cursor: pointer;
-        }
-        .btc-switch button:hover { background: var(--hover-bg); }
-        .btc-switch button.active { background: var(--link-color); color: #fff; }
-        .btc-switch button:focus-visible { outline: 2px solid var(--link-color); outline-offset: 1px; }
-        @media (max-width: 480px) {
-            .btc-switch button { font-size: 0.8rem; padding-left: 0.15rem; padding-right: 0.15rem; }
-        }
-        @media (max-width: 380px) {
-            .btc-switch button { font-size: 0.76rem; }
-        }
+        /* Bitcoin chart picker: one button showing the current view,
+           opening a glass panel that lists the views as full rows — the
+           finance chart's dropdown pattern. (The segmented control was
+           retired 2026-11-17: with four views its labels could not fit a
+           phone without truncating, and this site never truncates; the
+           plain TradingView graph view was removed the same day and its
+           panel saved out of the page.) The choice persists in
+           localStorage ('btc-chart-view'), shared with the homepage;
+           each view's code loads lazily on first selection (inert in
+           text/plain script blocks until then). */
+        .btc-ind-lead { font-weight: 700; margin: 0 0 0.3rem; }
+        .btc-ind-note { color: var(--subtext-color); font-size: 0.95rem; line-height: 1.45; margin: 0 0 16px; }
+        .btc-pick { position: relative; margin-bottom: 16px; }
+        .btc-pick-face { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; min-height: 44px; padding: 0.3rem 0.8rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-color); font: inherit; font-size: 0.92rem; font-weight: 600; text-align: left; cursor: pointer; }
+        .btc-pick-face:hover { background: var(--hover-bg); }
+        .btc-pick-face:focus-visible { outline: 2px solid var(--link-color); outline-offset: 1px; }
+        .btc-pick-chev { flex: none; font-size: 0.72em; color: var(--subtext-color); }
+        .btc-pick-panel { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; padding: 0.35rem; }
+        .btc-pick-panel[hidden] { display: none; }
+        .btc-pick-opt { display: block; width: 100%; min-height: 44px; padding: 0.55rem 0.6rem; border: none; border-radius: 8px; background: none; color: var(--text-color); font: inherit; font-size: 0.95rem; text-align: left; cursor: pointer; }
+        .btc-pick-opt:hover, .btc-pick-opt:focus-visible { background: var(--badge-bg); }
+        .btc-pick-opt.active { background: var(--badge-bg); font-weight: 700; }
         #btc-view-anim { overflow: hidden; }
 
         /* Bitcoin Power Law section (bitcoin.html only) */
@@ -101,6 +97,12 @@
         .pl-sw-zone { background: #ef4444; opacity: .5; }
         .pl-sw-below { width: 9px; height: 9px; border-radius: 50%; background: #ef4444; border: 2px solid #fff; }
         .pl-sw-today { width: 9px; height: 9px; border-radius: 50%; background: #f7931a; border: 2px solid #fff; }
+        .pl-sw-mayer { background: #38bdf8; }
+        .pl-sw-mvrv { background: #a78bfa; }
+        .pl-sq { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: middle; margin-right: 2px; }
+        .pl-sq-hi { background: rgba(239, 68, 68, 0.5); }
+        .pl-sq-lo { background: rgba(34, 197, 94, 0.5); }
+        .mm-state { margin: -4px 2px 16px; font-size: 0.95rem; }
         .pl-fine { font-size: 0.85rem; color: var(--text-muted, #94a3b8); margin-top: 14px; }
         @media (max-width: 768px) {
             .pl-chart-wrap canvas { height: 360px; }
@@ -164,40 +166,24 @@
     <h2>Bitcoin Power Law</h2>
     <p>Bitcoin's price has spent fifteen years oscillating around a single straight line. Plot price against time since the genesis block with both axes logarithmic, and the chaos of four boom-and-bust cycles averages out into a power law — price ≈ 10<sup>−16.493</sup> × days<sup>5.688</sup>. Physicist Giovanni Santostasi formalised the model in 2018; the fit still explains about 96% of the variance in log price (R² ≈ 0.96).</p>
 
-    <!-- Bitcoin chart switcher: segmented control picks the TradingView graph, the Power Law graph or the Production Cost graph -->
+    <p class="btc-ind-lead">Indicators — today's value vs. history</p>
+    <p class="btc-ind-note">Each chart below sets today's price against Bitcoin's own history a different way — the long-term trend, the cost to mine it, its 200-day average, what holders paid. Low in its range has historically been the cheap zone; high, the stretched one. History, not a prediction — the decision stays yours.</p>
+    <!-- Bitcoin chart picker: one button opens the list of chart views -->
     <div class="btc-chart-card btc-cursor">
-        <div class="btc-switch" role="tablist" aria-label="Choose Bitcoin chart view">
-            <button type="button" class="active" data-view="graph" role="tab" aria-selected="true" aria-controls="btc-view-graph">Bitcoin graph</button>
-            <button type="button" data-view="powerlaw" role="tab" aria-selected="false" aria-controls="btc-view-powerlaw">Bitcoin power law</button>
-            <button type="button" data-view="cost" role="tab" aria-selected="false" aria-controls="btc-view-cost">Production cost</button>
+        <div class="btc-pick" id="btcPick">
+            <button type="button" class="btc-pick-face" id="btcPickFace" aria-haspopup="listbox" aria-expanded="false" aria-controls="btcPickPanel">
+                <span class="btc-pick-face-text" id="btcPickFaceText">Bitcoin power law</span>
+                <span class="btc-pick-chev" aria-hidden="true">&#9662;</span>
+            </button>
+            <div class="btc-pick-panel glass-bubble" id="btcPickPanel" role="listbox" aria-label="Choose Bitcoin chart view" hidden>
+                <button type="button" class="btc-pick-opt active" data-view="powerlaw" role="option" aria-selected="true">Bitcoin power law</button>
+                <button type="button" class="btc-pick-opt" data-view="cost" role="option" aria-selected="false">Production cost</button>
+                <button type="button" class="btc-pick-opt" data-view="mayer" role="option" aria-selected="false">Mayer Multiple</button>
+                <button type="button" class="btc-pick-opt" data-view="mvrv" role="option" aria-selected="false">MVRV Z-Score</button>
+            </div>
         </div>
         <div id="btc-view-anim">
-            <div id="btc-view-graph" role="tabpanel">
-        <div class="chart-resize-wrapper">
-            <div class="tradingview-widget-container" id="tv-container">
-                <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
-                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
-                {
-                    "width": "100%",
-                    "height": "100%",
-                    "symbol": "BITSTAMP:BTCUSD",
-                    "interval": "1M",
-                    "timezone": "Etc/UTC",
-                    "theme": "dark",
-                    "style": "3",
-                    "locale": "en",
-                    "enable_publishing": false,
-                    "hide_top_toolbar": false,
-                    "hide_legend": false,
-                    "save_image": false,
-                    "calendar": false,
-                    "support_host": "https://www.tradingview.com"
-                }
-                </script>
-            </div>
-        </div>
-            </div>
-            <div id="btc-view-powerlaw" class="powerlaw-card" role="tabpanel" hidden>
+            <div id="btc-view-powerlaw" class="powerlaw-card">
         <h3>The Power Law Chart</h3>
         <p class="pl-sub">Actual price (orange) against the model's fair-value trend (white), with the historical support floor (green) and ceiling (red). Both axes are logarithmic, so the power law is a straight line. Dashed lines past today are the model projected forward — not a prediction.</p>
         <div class="pl-readout" id="pl-readout" aria-live="polite">
@@ -219,7 +205,7 @@
         <p class="pl-legend"><span class="pl-sw pl-sw-price"></span> Actual price &nbsp; <span class="pl-sw pl-sw-trend"></span> Fair value &nbsp; <span class="pl-sw pl-sw-floor"></span> Support &nbsp; <span class="pl-sw pl-sw-ceil"></span> Ceiling &nbsp; <span class="pl-sw pl-sw-today"></span> Today &nbsp;·&nbsp; Scroll or pinch to zoom, drag to pan.</p>
         <p class="pl-fine">Formula: price = 10<sup>−16.493</sup> × (days since the genesis block, Jan 3, 2009)<sup>5.688</sup>. Bands are the ±2σ corridor (support ≈ 0.40× trend, ceiling ≈ 2.51× trend) — price has closed below the floor only briefly, three times in fifteen years. Price history: blockchain.info market-price index, every 4 days, Aug 2010 – <span id="pl-hist-end">Nov 10, 2026</span>. Spot price: <span id="pl-fine-spot">~$68,700 on Nov 13, 2026 (Bitstamp / Kraken)</span>. A refit on the same data gives an exponent of ≈ 5.6 with R² ≈ 0.96 — the same picture; the exact exponent drifts as new data arrives (about 5.8 in 2022, about 5.6–5.7 today). Live daily-refit chart: <a href="https://bitcoinpowerlaw.com/" target="_blank">bitcoinpowerlaw.com</a>.</p>
             </div>
-            <div id="btc-view-cost" class="powerlaw-card" role="tabpanel" hidden>
+            <div id="btc-view-cost" class="powerlaw-card" hidden>
         <h3>The Production Cost Chart</h3>
         <p class="pl-sub">Actual price (orange) against the estimated cost of producing one bitcoin (green) &mdash; the network&rsquo;s electricity bill for a day, divided by the coins mined that day. Dashed lines sit 10%, 20% and 30% below the cost, and red dots mark the days the price closed under it. The price axis is logarithmic; time is linear.</p>
         <div class="pl-readout" id="pc-readout" aria-live="polite">
@@ -241,6 +227,48 @@
         <p class="pl-legend"><span class="pl-sw pl-sw-price"></span> Actual price &nbsp; <span class="pl-sw pl-sw-cost"></span> Production cost &nbsp; <span class="pl-sw pl-sw-below"></span> Closed below cost &nbsp; <span class="pl-sw pl-sw-zone"></span> 10% / 20% / 30% below cost &nbsp; <span class="pl-sw pl-sw-today"></span> Today &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
         <p class="pl-fine">Method: production cost = the network&rsquo;s daily electricity cost &divide; the coins mined that day. The electricity cost comes from difficulty &mdash; difficulty &times; 2<sup>32</sup> hashes per block &times; ~144 blocks a day &mdash; at $0.05 per kWh, with the mining fleet&rsquo;s efficiency stepping down by era as hardware improved: about 1,000,000 J/TH in the CPU and GPU years, 10,000 with the first ASICs in 2013, 1,000 in 2014, 300 in 2016, 130 through the Antminer S9 years, 60 from 2019, 38 from 2021, 28 from 2023 and about 24 J/TH for today&rsquo;s fleet. Coins mined = the block subsidy &times; ~144 blocks (50 BTC at the start, halving roughly every four years &mdash; 3.125 today) plus the day&rsquo;s transaction fees. This is a model built on those stated assumptions, not a measurement &mdash; real miners pay different power prices and run different machines. Difficulty and fees: blockchain.info, Aug 2010 &ndash; <span id="pc-hist-end">Nov 10, 2026</span>; spot, daily closes and the current difficulty then update live on load (Coinbase, mempool.space). If the live fetches fail, the Nov 13, 2026 figures stand, date included.</p>
             </div>
+        <div id="btc-view-mayer" class="powerlaw-card" hidden>
+        <h3>The Mayer Multiple Chart</h3>
+        <p class="pl-sub">The day&rsquo;s price divided by its 200-day average &mdash; Trace Mayer&rsquo;s measure of how far the price has stretched from its own recent history. Under the dashed 1.0 line, the price sits below its average; over the dashed 2.4 line, it has run far ahead of it.</p>
+        <div class="pl-readout" id="mm-readout" aria-live="polite">
+            <div class="pl-stat"><span class="pl-label">Spot</span><span class="pl-value" id="mm-spot">&mdash;</span><span class="pl-note" id="mm-spot-date"></span></div>
+            <div class="pl-stat"><span class="pl-label">200-day average</span><span class="pl-value" id="mm-avg">&mdash;</span><span class="pl-note">of daily closes</span></div>
+            <div class="pl-stat"><span class="pl-label">Mayer Multiple</span><span class="pl-value" id="mm-mult">&mdash;</span><span class="pl-note">price &divide; 200-day average</span></div>
+        </div>
+        <p class="mm-state" id="mm-state"></p>
+        <div class="pl-chart-wrap">
+            <canvas id="mm-chart" height="420" aria-label="Chart of the Mayer Multiple, the bitcoin price divided by its 200-day moving average"></canvas>
+            <div class="pl-tip" id="mm-tip" hidden></div>
+            <div class="pl-zoom" role="group" aria-label="Mayer Multiple chart zoom controls">
+                <button type="button" id="mm-zin" aria-label="Zoom in" title="Zoom in">+</button>
+                <button type="button" id="mm-zout" aria-label="Zoom out" title="Zoom out">&minus;</button>
+                <button type="button" id="mm-zreset" class="pl-zreset" aria-label="Reset view" title="Reset view">Reset</button>
+            </div>
+        </div>
+        <p class="pl-legend"><span class="pl-sw pl-sw-mayer"></span> Mayer Multiple &nbsp; <span class="pl-sq pl-sq-hi"></span> Above 2.4 &nbsp; <span class="pl-sq pl-sq-lo"></span> Below 1.0 &nbsp; <span class="pl-sw pl-sw-today"></span> Latest &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
+        <p class="pl-fine">The Mayer Multiple is the closing price divided by the average of the last 200 daily closes, a gauge proposed by Trace Mayer. Daily closes: Coinbase Exchange, from <span id="mm-hist-start">Jul 20, 2015</span> &mdash; the line starts <span id="mm-line-start">Feb 4, 2016</span>, once the first full 200-day average exists, and until the live data loads it is drawn from a weekly sample of the daily figures. If the live fetch fails, the chart and figures stand as of Nov 16, 2026. The 1.0 and 2.4 lines are the gauge&rsquo;s long-standing reference points &mdash; not buy or sell signals.</p>
+        </div>
+        <div id="btc-view-mvrv" class="powerlaw-card" hidden>
+        <h3>The MVRV Z-Score Chart</h3>
+        <p class="pl-sub">The market&rsquo;s value for all bitcoin against the value holders actually paid &mdash; every coin priced at the last time it moved, summed over all coins. The Z-Score is the gap between the two, divided by the standard deviation of market value across its whole history. A gauge by Murad Mahmudov and David Puell. Over the dashed 7 line has historically been top territory; under the dashed 0 line, bottom territory.</p>
+        <div class="pl-readout" id="mv-readout" aria-live="polite">
+            <div class="pl-stat"><span class="pl-label">MVRV Z-Score</span><span class="pl-value" id="mv-z">&mdash;</span><span class="pl-note" id="mv-z-date"></span></div>
+            <div class="pl-stat"><span class="pl-label">Market cap</span><span class="pl-value" id="mv-mv">&mdash;</span><span class="pl-note">market value of all coins</span></div>
+            <div class="pl-stat"><span class="pl-label">Realized cap</span><span class="pl-value" id="mv-rv">&mdash;</span><span class="pl-note">what holders paid, coin by coin</span></div>
+        </div>
+        <p class="mm-state" id="mv-state"></p>
+        <div class="pl-chart-wrap">
+            <canvas id="mv-chart" height="420" aria-label="Chart of the MVRV Z-Score, the gap between bitcoin's market cap and realized cap in standard deviations of market cap"></canvas>
+            <div class="pl-tip" id="mv-tip" hidden></div>
+            <div class="pl-zoom" role="group" aria-label="MVRV Z-Score chart zoom controls">
+                <button type="button" id="mv-zin" aria-label="Zoom in" title="Zoom in">+</button>
+                <button type="button" id="mv-zout" aria-label="Zoom out" title="Zoom out">&minus;</button>
+                <button type="button" id="mv-zreset" class="pl-zreset" aria-label="Reset view" title="Reset view">Reset</button>
+            </div>
+        </div>
+        <p class="pl-legend"><span class="pl-sw pl-sw-mvrv"></span> MVRV Z-Score &nbsp; <span class="pl-sq pl-sq-hi"></span> Above 7 &nbsp; <span class="pl-sq pl-sq-lo"></span> Below 0 &nbsp; <span class="pl-sw pl-sw-today"></span> Latest &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
+        <p class="pl-fine">The MVRV Z-Score is (market cap &minus; realized cap) &divide; the standard deviation of market cap, the standard deviation built up day by day over the full history. Market cap and the MVRV ratio are CoinMetrics&rsquo; daily figures, from <span id="mv-hist-start">Jul 18, 2010</span>. Realized cap itself is a paid metric on their API, so here it is worked out from the two figures they publish free &mdash; realized cap = market cap &divide; the MVRV ratio, the ratio&rsquo;s own definition, so nothing is estimated. The line starts <span id="mv-line-start">Feb 2, 2011</span>, once the history behind the standard deviation is 200 days deep &mdash; a standard deviation over a days-old market would say nothing. If the live fetch fails, the chart and figures stand as of Nov 16, 2026. The 0 and 7 lines are the gauge&rsquo;s long-standing reference points &mdash; not buy or sell signals.</p>
+        </div>
         </div>
     </div>
 
@@ -1339,51 +1367,993 @@
     })();
 
     </script>
+    <script type="text/plain" id="btc-mayer-code">
+    /* Bitcoin Mayer Multiple chart — canvas, the price divided by its own
+       200-day moving average (linear time axis, linear multiple axis).
+       The gauge is Trace Mayer's: multiple = the day's close / the average
+       of the last 200 daily closes. Data: Coinbase Exchange daily candles
+       (paginated), Jul 20, 2015 onward, Kraken OHLC as the fallback; the
+       baked series below is a weekly sample of the daily computation over
+       the same feed (Feb 4, 2016 — the first day a full 200-day average
+       exists — to Nov 16, 2026), drawn until the live series replaces it. */
+    (function () {
+        var GENESIS = Date.UTC(2009, 0, 3), DAY = 86400000;
+        var BAKED = [[2588,1.2048,388,322],[2595,1.1627,378,325],[2602,1.279,421,329],[2609,1.2657,424,335],[2616,1.2304,419,340],[2623,1.2005,416,346],[2630,1.1848,418,353],[2637,1.1488,413,359],[2644,1.1375,416,366],[2651,1.1333,422,372],[2658,1.1248,426,379],[2665,1.1717,452,386],[2672,1.1481,452,393],[2679,1.1243,450,400],[2686,1.1225,456,407],[2693,1.0649,438,412],[2700,1.0994,455,414],[2707,1.2797,538,420],[2714,1.3459,577,429],[2721,1.747,770,441],[2728,1.3961,631,452],[2735,1.4635,673,460],[2742,1.3721,642,468],[2749,1.3912,662,476],[2756,1.3787,667,484],[2763,1.3377,657,491],[2770,1.179,588,498],[2777,1.1639,588,505],[2784,1.1214,574,512],[2791,1.1089,576,519],[2798,1.0899,573,526],[2805,1.1797,628,532],[2812,1.1239,605,539],[2819,1.0934,596,545],[2826,1.0978,606,552],[2833,1.0947,612,559],[2840,1.1225,636,566],[2847,1.0944,628,574],[2854,1.1873,691,582],[2861,1.1655,690,592],[2868,1.1857,713,601],[2875,1.1973,731,610],[2882,1.1896,738,620],[2889,1.1965,754,630],[2896,1.1976,768,641],[2903,1.1909,776,652],[2910,1.2957,856,661],[2917,1.4443,971,672],[2924,1.4768,1007,682],[2931,1.1777,812,690],[2938,1.2964,903,696],[2945,1.3007,917,705],[2952,1.4102,1008,715],[2959,1.3661,994,728],[2966,1.4031,1039,740],[2973,1.5645,1187,759],[2980,1.6267,1269,780],[2987,1.4899,1197,804],[2994,1.4232,1175,826],[3001,1.218,1025,842],[3008,1.2186,1042,855],[3015,1.3648,1192,874],[3022,1.3157,1177,895],[3029,1.3507,1236,915],[3036,1.4379,1349,938],[3043,1.6174,1563,967],[3050,1.8318,1838,1003],[3057,1.8224,1899,1042],[3064,2.1535,2355,1094],[3071,2.1086,2420,1148],[3078,2.3042,2800,1215],[3085,1.877,2410,1284],[3092,1.9866,2680,1349],[3099,1.7925,2530,1411],[3106,1.7685,2605,1473],[3113,1.5318,2340,1528],[3120,1.8268,2873,1573],[3127,1.6327,2665,1632],[3134,1.6403,2787,1699],[3141,1.9328,3445,1782],[3148,2.2597,4280,1894],[3155,2.1522,4312,2004],[3162,2.2329,4744,2125],[3169,2.0549,4624,2250],[3176,1.382,3250,2352],[3183,1.4815,3617,2442],[3190,1.6519,4189,2536],[3197,1.6322,4320,2647],[3204,1.9588,5440,2777],[3211,1.941,5704,2939],[3218,1.8987,5892,3103],[3225,2.1453,7040,3282],[3232,2.0492,7156,3492],[3239,2.1294,7839,3681],[3246,2.055,8031,3908],[3253,2.3713,9903,4176],[3260,3.8226,17390,4549],[3267,3.3198,16750,5045],[3274,2.8185,15759,5591],[3281,2.4049,14450,6009],[3288,2.3597,15145,6418],[3295,1.9383,13308,6866],[3302,1.5648,11306,7225],[3309,1.4756,11118,7535],[3316,1.1515,9014,7828],[3323,1.0245,8218,8022],[3330,1.2176,10031,8239],[3337,1.1553,9830,8508],[3344,1.2467,10896,8740],[3351,1.0375,9305,8969],[3358,0.9045,8260,9132],[3365,0.9405,8715,9267],[3372,0.7535,7080,9396],[3379,0.7139,6786,9506],[3386,0.8231,7916,9618],[3393,0.8482,8274,9755],[3400,0.9348,9272,9919],[3407,0.9669,9726,10058],[3414,0.8847,9011,10185],[3421,0.7842,8059,10277],[3428,0.7351,7584,10317],[3435,0.7241,7485,10337],[3442,0.7429,7685,10345],[3449,0.6451,6638,10291],[3456,0.6614,6719,10159],[3463,0.5933,5852,9863],[3470,0.6902,6533,9465],[3477,0.6845,6250,9130],[3484,0.8428,7470,8863],[3491,0.9232,7932,8591],[3498,0.8998,7534,8373],[3505,0.7988,6546,8196],[3512,0.7871,6316,8024],[3519,0.8243,6526,7918],[3526,0.8862,6983,7880],[3533,0.8345,6495,7783],[3540,0.8485,6486,7644],[3547,0.867,6493,7489],[3554,0.9056,6680,7376],[3561,0.8957,6547,7310],[3568,0.8509,6155,7233],[3575,0.8886,6395,7197],[3582,0.891,6396,7178],[3589,0.8889,6344,7137],[3596,0.9066,6406,7066],[3603,0.8018,5580,6959],[3610,0.6273,4265,6799],[3617,0.641,4248,6627],[3624,0.5307,3433,6470],[3631,0.5166,3265,6321],[3638,0.6593,4075,6182],[3645,0.5929,3590,6055],[3652,0.6355,3788,5960],[3659,0.6178,3626,5870],[3666,0.6299,3641,5780],[3673,0.6291,3569,5674],[3680,0.6121,3412,5573],[3687,0.6178,3359,5437],[3694,0.6746,3562,5279],[3701,0.757,3898,5149],[3708,0.7498,3792,5058],[3715,0.7763,3857,4968],[3722,0.7905,3854,4875],[3729,0.8334,3973,4767],[3736,0.8584,4011,4673],[3743,1.0656,4906,4604],[3750,1.1063,5041,4557],[3757,1.1719,5282,4507],[3764,1.15,5135,4465],[3771,1.2178,5390,4426],[3778,1.3969,6153,4405],[3785,1.7734,7879,4443],[3792,1.7544,7882,4493],[3799,1.8138,8280,4565],[3806,1.6788,7805,4649],[3813,1.7239,8239,4779],[3820,1.9227,9531,4957],[3827,2.136,11159,5224],[3834,2.0223,11136,5507],[3841,1.9623,11349,5783],[3848,1.7689,10649,6020],[3855,1.5828,9883,6244],[3862,1.6122,10406,6454],[3869,1.7814,11981,6726],[3876,1.4741,10300,6988],[3883,1.3976,10107,7232],[3890,1.2725,9495,7462],[3897,1.3748,10575,7692],[3904,1.3168,10424,7916],[3911,1.262,10275,8142],[3918,0.9674,8060,8332],[3925,0.9713,8240,8484],[3932,0.9947,8588,8633],[3939,0.9199,8076,8780],[3946,0.8363,7431,8885],[3953,1.0147,9159,9027],[3960,1.0033,9199,9169],[3967,0.9288,8630,9291],[3974,0.8114,7616,9387],[3981,0.7889,7432,9421],[3988,0.786,7394,9407],[3995,0.7658,7186,9383],[4002,0.7664,7149,9328],[4009,0.7729,7194,9308],[4016,0.7496,6945,9265],[4023,0.8503,7814,9190],[4030,0.9603,8715,9075],[4037,0.9329,8385,8988],[4044,1.0688,9503,8892],[4051,1.1021,9763,8858],[4058,1.1543,10236,8868],[4065,1.0853,9610,8855],[4072,1.0043,8812,8775],[4079,1.0409,9070,8714],[4086,0.5632,4857,8624],[4093,0.7302,6186,8472],[4100,0.8114,6758,8329],[4107,0.8305,6805,8193],[4114,0.902,7293,8086],[4121,0.8857,7113,8031],[4128,0.937,7489,7993],[4135,1.0809,8624,7979],[4142,1.2484,10005,8014],[4149,1.2177,9795,8044],[4156,1.1253,9062,8053],[4163,1.1899,9580,8051],[4170,1.2101,9788,8088],[4177,1.1359,9268,8160],[4184,1.1393,9376,8230],[4191,1.1137,9244,8300],[4198,1.0865,9092,8368],[4205,1.0942,9237,8442],[4212,1.0728,9130,8511],[4219,1.1199,9613,8584],[4226,1.2821,11116,8670],[4233,1.3431,11774,8766],[4240,1.3289,11796,8876],[4247,1.323,11864,8968],[4254,1.2543,11330,9033],[4261,1.1206,10173,9078],[4268,1.1372,10343,9096],[4275,1.1951,10944,9157],[4282,1.1645,10740,9223],[4289,1.1326,10618,9375],[4296,1.1451,10933,9548],[4303,1.1841,11509,9720],[4310,1.3112,12987,9905],[4317,1.3302,13460,10119],[4324,1.5056,15608,10367],[4331,1.5309,16311,10654],[4338,1.6279,17822,10948],[4345,1.5237,17170,11268],[4352,1.6773,19449,11595],[4359,1.5304,18253,11927],[4366,1.8564,22826,12296],[4373,1.8566,23718,12775],[4380,2.1653,28990,13389],[4387,2.7732,39506,14246],[4394,2.5663,39125,15246],[4401,1.909,30856,16163],[4408,1.9736,33489,16968],[4415,2.0687,36975,17873],[4422,2.5195,47998,19050],[4429,2.5321,51602,20379],[4436,2.1567,47058,21820],[4443,2.0955,48369,23082],[4450,2.3582,57815,24517],[4457,2.2047,57645,26146],[4464,1.8533,51325,27694],[4471,2.0019,58726,29336],[4478,1.8748,58083,30982],[4485,1.9307,63229,32749],[4492,1.505,51702,34352],[4499,1.4963,53580,35809],[4506,1.5095,56441,37391],[4513,1.278,49690,38881],[4520,1.0171,40623,39942],[4527,0.9462,38557,40749],[4534,0.9463,39249,41477],[4541,0.8717,36694,42095],[4548,0.8899,38095,42807],[4555,0.7997,34655,43332],[4562,0.764,33516,43869],[4569,0.7422,32876,44294],[4576,0.7145,31869,44600],[4583,0.7229,32288,44664],[4590,0.8966,40039,44657],[4597,0.9129,40889,44792],[4604,0.9833,44422,45176],[4611,1.0246,46766,45644],[4618,1.0175,46851,46046],[4625,1.0691,49279,46096],[4632,1.0095,46400,45964],[4639,1.0405,47753,45896],[4646,0.9815,44898,45743],[4653,0.9688,43824,45238],[4660,1.1957,53798,44994],[4667,1.273,57360,45060],[4674,1.3758,62204,45212],[4681,1.3378,60592,45293],[4688,1.3556,61444,45327],[4695,1.417,64808,45737],[4702,1.2379,56898,45962],[4709,1.2823,58987,46000],[4716,1.2235,56521,46197],[4723,1.021,47568,46588],[4730,1.014,47634,46975],[4737,1.0736,50842,47355],[4744,0.9856,47122,47809],[4751,0.8959,43084,48089],[4758,0.8795,42582,48415],[4765,0.8354,40671,48682],[4772,0.7624,37188,48778],[4779,0.7622,37330,48979],[4786,0.8821,43528,49343],[4793,0.82,40537,49433],[4800,0.7773,38347,49333],[4807,0.8637,42464,49165],[4814,0.8065,39434,48892],[4821,0.843,40950,48575],[4828,0.9106,44012,48333],[4835,0.9425,45528,48307],[4842,0.9008,43452,48239],[4849,0.8294,39954,48174],[4856,0.8427,40481,48035],[4863,0.8358,39743,47549],[4870,0.7803,36537,46823],[4877,0.6325,28942,45758],[4884,0.6778,30275,44667],[4891,0.6701,29166,43526],[4898,0.7197,30434,42288],[4905,0.729,30080,41261],[4912,0.5075,20372,40140],[4919,0.5419,21104,38946],[4926,0.5268,19986,37941],[4933,0.5844,21615,36986],[4940,0.5721,20577,35969],[4947,0.6601,23154,35079],[4954,0.6945,23852,34345],[4961,0.6722,22624,33655],[4968,0.7233,23945,33103],[4975,0.7106,23189,32634],[4982,0.6739,21562,31996],[4989,0.6457,20134,31183],[4996,0.6352,19322,30418],[5003,0.6608,19704,29820],[5010,0.668,19401,29043],[5017,0.6913,19596,28348],[5024,0.7233,19966,27605],[5031,0.7244,19379,26751],[5038,0.7382,19042,25795],[5045,0.8133,20297,24957],[5052,0.8327,20207,24268],[5059,0.7459,17554,23533],[5066,0.733,16680,22756],[5073,0.7526,16588,22041],[5080,0.7871,16980,21574],[5087,0.8153,17226,21130],[5094,0.8379,17358,20715],[5101,0.831,16816,20235],[5108,0.8403,16628,19788],[5115,0.857,16826,19634],[5122,0.9658,18848,19516],[5129,1.0784,21084,19551],[5136,1.173,23010,19617],[5143,1.1915,23494,19718],[5150,1.1055,21801,19721],[5157,1.1933,23516,19706],[5164,1.212,23943,19755],[5171,1.1893,23468,19733],[5178,1.0332,20367,19712],[5185,1.2658,25052,19791],[5192,1.4133,28353,20061],[5199,1.3797,28035,20320],[5206,1.362,28053,20598],[5213,1.4512,30407,20953],[5220,1.3251,28248,21318],[5227,1.3645,29484,21607],[5234,1.3148,28857,21949],[5241,1.2124,26987,22258],[5248,1.1925,26820,22490],[5255,1.1662,26479,22705],[5262,1.1641,26828,23047],[5269,1.1328,26508,23402],[5276,1.0774,25570,23733],[5283,1.2393,29886,24115],[5290,1.2385,30446,24584],[5297,1.1935,29899,25052],[5304,1.2326,31472,25533],[5311,1.1463,29809,26004],[5318,1.1046,29215,26448],[5325,1.0883,29174,26808],[5332,1.0869,29424,27072],[5339,0.9763,26628,27274],[5346,0.9557,26163,27375],[5353,0.9423,25932,27521],[5360,0.952,26276,27601],[5367,0.9589,26533,27671],[5374,0.9554,26565,27804],[5381,0.9659,27027,27981],[5388,0.9777,27413,28037],[5395,0.9545,26751,28026],[5402,1.0255,28735,28021],[5409,1.2127,34155,28165],[5416,1.2342,34950,28318],[5423,1.2853,36707,28559],[5430,1.2539,36161,28839],[5437,1.2809,37304,29124],[5444,1.2795,37732,29490],[5451,1.4427,43281,30001],[5458,1.408,43028,30560],[5465,1.411,43875,31095],[5472,1.3437,42581,31689],[5479,1.3685,44193,32294],[5486,1.4107,46343,32851],[5493,1.2411,41294,33270],[5500,1.1878,39942,33626],[5507,1.2653,43079,34046],[5514,1.3124,45305,34520],[5521,1.4742,51934,35229],[5528,1.423,51259,36022],[5535,1.6562,61179,36939],[5542,1.7504,66938,38242],[5549,1.7932,71365,39797],[5556,1.5893,65485,41203],[5563,1.6592,70801,42673],[5570,1.5518,68525,44158],[5577,1.5335,70021,45660],[5584,1.3523,63514,46966],[5591,1.3358,64484,48275],[5598,1.1937,59072,49488],[5605,1.2447,63074,50673],[5612,1.2627,65252,51677],[5619,1.2855,67940,52849],[5626,1.2661,68339,53977],[5633,1.2841,70774,55114],[5640,1.1873,66739,56210],[5647,1.1342,64841,57167],[5654,1.0656,61615,57823],[5661,0.9754,57042,58482],[5668,0.9724,57341,58968],[5675,1.0726,63983,59654],[5682,1.0885,65795,60446],[5689,1.0666,65288,61213],[5696,0.9989,61706,61777],[5703,0.9217,57544,62433],[5710,0.9582,60383,63014],[5717,0.9336,59364,63587],[5724,0.8799,56157,63820],[5731,0.9087,58138,63980],[5738,0.9841,62960,63980],[5745,1.0207,65177,63855],[5752,0.9549,60745,63613],[5759,0.9495,60280,63484],[5766,1.0646,67402,63313],[5773,1.0766,68157,63310],[5780,1.1081,70198,63352],[5787,1.1936,75920,63605],[5794,1.3586,87340,64285],[5801,1.5061,98439,65358],[5808,1.4375,95666,66551],[5815,1.4342,97044,67664],[5822,1.4556,100030,68721],[5829,1.3926,97372,69923],[5836,1.35,95669,70868],[5843,1.3493,96903,71816],[5850,1.2685,92547,72958],[5857,1.3476,99982,74193],[5864,1.3718,103926,75758],[5871,1.3543,104743,77339],[5878,1.23,96565,78505],[5885,1.2147,96625,79547],[5892,1.2184,98347,80720],[5899,1.0336,84625,81872],[5906,1.0847,89922,82899],[5913,0.9694,81073,83636],[5920,0.9963,84183,84499],[5927,1.0195,87217,85546],[5934,0.9626,83174,86410],[5941,0.9138,79552,87059],[5948,0.9683,84962,87742],[5955,1.06,94022,88697],[5962,1.0744,96525,89844],[5969,1.1363,103253,90869],[5976,1.1263,103786,92145],[5983,1.196,111723,93417],[5990,1.1162,105573,94585],[5997,1.0679,101570,95114],[6004,1.1069,105721,95515],[6011,1.0918,104672,95867],[6018,1.1139,107030,96086],[6025,1.1379,109629,96345],[6032,1.2,116031,96696],[6039,1.2235,119274,97489],[6046,1.2048,118397,98269],[6053,1.1688,115761,99039],[6060,1.1806,117515,99541],[6067,1.1831,118390,100066],[6074,1.1187,112480,100545],[6081,1.1136,112575,101093],[6088,1.0904,110721,101540],[6095,1.1318,115540,102089],[6102,1.1361,117118,103088],[6109,1.0482,109036,104019],[6116,1.1474,120621,105130],[6123,1.1432,121715,106469],[6130,1.0074,108198,107407],[6137,1.0167,110116,108307],[6144,0.9903,108308,109370],[6151,0.9198,101290,110127],[6158,0.9017,99615,110470],[6165,0.7841,86537,110371],[6172,0.8307,91317,109921],[6179,0.8413,92094,109460],[6186,0.8501,92542,108855],[6193,0.7899,85460,108197],[6200,0.8101,87172,107608],[6207,0.8299,88738,106921],[6214,0.8548,91026,106493],[6221,0.9017,95588,106004],[6228,0.8485,89464,105439],[6235,0.8085,84513,104526],[6242,0.6094,62791,103031],[6249,0.6536,66208,101293],[6256,0.6722,66972,99631],[6263,0.6894,67491,97898],[6270,0.7374,70888,96130],[6277,0.7462,70532,94524],[6284,0.7503,69918,93193],[6291,0.7494,68769,91762],[6298,0.7424,66894,90102],[6305,0.8115,71798,88474],[6312,0.8624,75163,87158],[6319,0.9139,78281,85654],[6326,0.9062,76306,84202],[6333,0.9623,80005,83142],[6340,0.9876,81079,82101],[6347,0.9581,77548,80940],[6354,0.9192,73513,79973],[6361,0.8084,63806,78933],[6368,0.8148,63563,78010],[6375,0.8153,62879,77127],[6382,0.784,59704,76157],[6389,0.819,61484,75072],[6396,0.8511,63175,74226],[6403,0.8689,63771,73394],[6410,0.8966,65051,72557],[6417,0.904,64722,71598],[6424,0.9115,64267,70508],[6431,0.9109,63425,69629],[6438,1.0585,73012,68977],[6445,1.1596,80275,69226],[6452,1.1681,81264,69569],[6459,1.0939,76537,69964],[6466,1.0855,76349,70338],[6473,1.191,84385,70852],[6480,1.1896,84849,71323],[6487,1.1378,81693,71797],[6494,1.1362,82131,72285],[6501,1.117,81307,72794],[6508,1.064,77780,73100],[6515,1.038,75969,73190],[6522,0.9766,71370,73080],[6526,0.8896,64817,72864]];
+        var SPOT = { days: 6526, price: 64817, label: 'Nov 16, 2026', source: 'Coinbase' };
+        var FIRST_CLOSE_DAY = 2389; /* Jul 20, 2015: the feed's first daily close */
+        var SRC = 'Coinbase';
+        var PTS = BAKED.slice();
 
-    <script>
-    /* Bitcoin chart switcher: the segmented control above the chart toggles
-       between the TradingView graph, the Power Law chart and the Production
-       Cost chart — the same
-       switcher as the homepage's Bitcoin card. Default is the TradingView
-       graph; the last choice is remembered in localStorage
-       ('btc-chart-view'), shared with the homepage. The power-law and
-       production-cost code is only executed the first time its view is
-       picked (both sit inert in text/plain blocks above until then). The container height
-       animates between the two views so nothing jumps; a tap that lands
-       mid-animation finishes the running animation instantly, so the
-       last tap always wins. */
+        function money(v) {
+            if (v >= 1000) return '$' + Math.round(v).toLocaleString('en-US');
+            if (v >= 1) return '$' + v.toFixed(2).replace(/\.?0+$/, '');
+            return '$' + v.toFixed(2);
+        }
+        function dateOf(days) { return new Date(GENESIS + days * DAY); }
+        function dateStr(days) {
+            return dateOf(days).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+        }
+
+        /* --- "Where it stands" readout, from the last point of the series --- */
+        function set(id, txt) { var el = document.getElementById(id); if (el) el.textContent = txt; }
+        function stateLine(m) {
+            if (m < 1) return 'Below 1.0 \u2014 the price sits under its own 200-day average. In past cycles, readings under 1.0 lined up with the cheap stretches. That is history, not a forecast.';
+            if (m > 2.4) return 'Above 2.4 \u2014 the price has run far ahead of its 200-day average. In past cycles, readings up here lined up with the froth near tops. That is history, not a forecast.';
+            return 'Between 1.0 and 2.4 \u2014 the band the multiple has spent most of its history in, neither the cheap zone nor the froth.';
+        }
+        function renderReadout() {
+            var last = PTS[PTS.length - 1];
+            set('mm-spot', money(last[2]));
+            set('mm-spot-date', dateStr(last[0]) + ' (' + SRC + ')');
+            set('mm-avg', money(last[3]));
+            set('mm-mult', last[1].toFixed(2));
+            set('mm-state', stateLine(last[1]));
+            set('mm-hist-start', dateStr(FIRST_CLOSE_DAY));
+            set('mm-line-start', dateStr(PTS[0][0]));
+        }
+        renderReadout();
+
+        /* --- Canvas chart, with zoom + pan inspection (the production-cost
+           chart's interaction family, on linear axes): wheel zooms toward
+           the cursor, a two-finger pinch zooms toward its midpoint, drag
+           pans, and the + / - / Reset buttons give touch users the same
+           controls. */
+        var cv = document.getElementById('mm-chart');
+        var tip = document.getElementById('mm-tip');
+        if (!cv) return;
+        var ctx = cv.getContext('2d');
+        var hover = -1;
+        function bakedY1() {
+            var mx = 0;
+            for (var i = 0; i < BAKED.length; i++) if (BAKED[i][1] > mx) mx = BAKED[i][1];
+            return Math.max(3, Math.ceil(mx * 2) / 2);
+        }
+        var X0 = PTS[0][0], X1 = PTS[PTS.length - 1][0] + 20, Y0 = 0, Y1 = bakedY1();
+        var VX0 = X0, VX1 = X1, VY0 = Y0, VY1 = Y1;
+        var viewTouched = false;
+        var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        function geom(w, h) {
+            var padL = w < 520 ? 52 : 64, padR = 14, padT = 14, padB = 28;
+            var iw = w - padL - padR, ih = h - padT - padB;
+            return {
+                padL: padL, padR: padR, padT: padT, padB: padB, iw: iw, ih: ih,
+                x: function (days) { return padL + (days - VX0) / (VX1 - VX0) * iw; },
+                y: function (v) { return padT + (VY1 - v) / (VY1 - VY0) * ih; },
+                daysAt: function (px) { return VX0 + (px - padL) / iw * (VX1 - VX0); },
+                valAt: function (py) { return VY1 - (py - padT) / ih * (VY1 - VY0); }
+            };
+        }
+
+        function trimNum(x) { return String(Math.round(x * 10) / 10).replace(/\.0$/, ''); }
+        function yTickStep() {
+            var range = VY1 - VY0, steps = [1, 0.5, 0.25, 0.1, 0.05];
+            for (var i = 0; i < steps.length; i++) {
+                if (range / steps[i] <= 8) return steps[i];
+            }
+            return 0.05;
+        }
+        function xTicks(dMin, dMax) {
+            var out = [], span = dMax - dMin, days;
+            if (span > 1400) {
+                for (var yr = 2010; yr <= 2036; yr++) {
+                    days = (Date.UTC(yr, 0, 1) - GENESIS) / DAY;
+                    if (days >= dMin && days <= dMax) out.push({ days: days, label: String(yr), major: true });
+                }
+                return out;
+            }
+            var monthStep = span > 300 ? 3 : 1;
+            var start = dateOf(dMin), y = start.getUTCFullYear();
+            var m = Math.floor(start.getUTCMonth() / monthStep) * monthStep;
+            for (var i = 0; i < 240; i++) {
+                days = (Date.UTC(y, m, 1) - GENESIS) / DAY;
+                if (days > dMax) break;
+                if (days >= dMin) out.push({ days: days, label: MONTHS[m] + ' ' + String(y).slice(2), major: m === 0 });
+                m += monthStep; if (m > 11) { m -= 12; y++; }
+            }
+            return out;
+        }
+
+        function draw() {
+            var w = cv.clientWidth, h = cv.clientHeight;
+            if (!w || !h) return;
+            var dpr = window.devicePixelRatio || 1;
+            cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, w, h);
+            var g = geom(w, h);
+            var small = w < 520;
+            ctx.font = (small ? 10 : 11) + 'px system-ui, -apple-system, sans-serif';
+            ctx.textBaseline = 'middle';
+
+            /* grid + y labels (linear axis) */
+            var step = yTickStep();
+            ctx.textAlign = 'right';
+            for (var k = 0; k * step <= VY1 + 1e-9; k++) {
+                var t = k * step, y = g.y(t);
+                var major = Math.abs(t - Math.round(t)) < 1e-9;
+                ctx.strokeStyle = major ? 'rgba(148,163,184,0.16)' : 'rgba(148,163,184,0.07)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText(trimNum(t), g.padL - 8, y);
+            }
+            /* grid + x labels: years zoomed out, months zoomed in */
+            ctx.textAlign = 'center';
+            var minGap = small ? 42 : 56, lastLabelX = -1e9;
+            xTicks(VX0, VX1).forEach(function (tk) {
+                var x = g.x(tk.days);
+                ctx.strokeStyle = tk.major ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.06)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
+                if (x - lastLabelX >= minGap) {
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillText(tk.label, x, h - g.padB + 14);
+                    lastLabelX = x;
+                }
+            });
+
+            /* plot content, clipped to the plot box */
+            ctx.save();
+            ctx.beginPath(); ctx.rect(g.padL, g.padT, g.iw, g.ih); ctx.clip();
+
+            /* zones: above 2.4 (froth) and below 1.0 (cheap), subtly shaded */
+            if (VY1 > 2.4) {
+                ctx.fillStyle = 'rgba(239,68,68,0.08)';
+                ctx.fillRect(g.padL, g.padT, g.iw, g.y(2.4) - g.padT);
+            }
+            if (VY0 < 1) {
+                ctx.fillStyle = 'rgba(34,197,94,0.08)';
+                ctx.fillRect(g.padL, g.y(1), g.iw, g.padT + g.ih - g.y(1));
+            }
+            /* dashed reference lines at 2.4 and 1.0, labelled at the right edge */
+            function refLine(v, color, label) {
+                if (v <= VY0 || v >= VY1) return;
+                var y = g.y(v);
+                ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+                ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = color;
+                ctx.textAlign = 'right';
+                ctx.fillText(label, w - g.padR - 4, y - 8);
+            }
+            refLine(2.4, 'rgba(239,68,68,0.75)', '2.4');
+            refLine(1, 'rgba(34,197,94,0.75)', '1.0');
+
+            /* the multiple itself */
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2; ctx.setLineDash([]);
+            ctx.beginPath();
+            for (var i = 0; i < PTS.length; i++) {
+                var px = g.x(PTS[i][0]), py = g.y(PTS[i][1]);
+                i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+
+            /* hover marker */
+            if (hover >= 0 && hover < PTS.length) {
+                var hd = PTS[hover][0];
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(g.x(hd), g.y(PTS[hover][1]), 4, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#38bdf8';
+                ctx.beginPath(); ctx.arc(g.x(hd), g.y(PTS[hover][1]), 2.5, 0, Math.PI * 2); ctx.fill();
+            }
+
+            /* latest point */
+            var last = PTS[PTS.length - 1];
+            var tx = g.x(last[0]), ty = g.y(last[1]);
+            ctx.fillStyle = '#38bdf8';
+            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
+            ctx.restore();
+        }
+
+        function hideTip() {
+            if (!tip.hidden) tip.hidden = true;
+            if (hover !== -1) { hover = -1; draw(); }
+        }
+
+        function showTip(e) {
+            var rect = cv.getBoundingClientRect();
+            var w = rect.width, h = rect.height;
+            var g = geom(w, h);
+            var px = e.clientX - rect.left;
+            if (px < g.padL || px > w - g.padR) { hideTip(); return; }
+            var days = g.daysAt(px);
+            var idx = 0, best = Infinity;
+            for (var j = 0; j < PTS.length; j++) {
+                var dd = Math.abs(PTS[j][0] - days);
+                if (dd < best) { best = dd; idx = j; }
+            }
+            var d = PTS[idx][0], m = PTS[idx][1], p = PTS[idx][2], a = PTS[idx][3];
+            tip.innerHTML = '<strong>' + dateStr(d) + '</strong><br>Price ' + money(p) +
+                '<br>200-day average ' + money(a) +
+                '<br>Mayer Multiple ' + m.toFixed(2);
+            tip.hidden = false;
+            var tx = g.x(d), ty = g.y(m);
+            var tw = tip.offsetWidth, th = tip.offsetHeight;
+            var lx = tx + 14, ly = ty - th - 10;
+            if (lx + tw > w - 8) lx = tx - tw - 14;
+            if (ly < 8) ly = ty + 16;
+            tip.style.left = Math.max(8, lx) + 'px';
+            tip.style.top = Math.max(8, ly) + 'px';
+            if (hover !== idx) { hover = idx; draw(); }
+        }
+
+        /* --- zoom + pan --- */
+        function clampView() {
+            if (VX1 - VX0 >= X1 - X0) { VX0 = X0; VX1 = X1; }
+            else if (VX0 < X0) { VX1 += X0 - VX0; VX0 = X0; }
+            else if (VX1 > X1) { VX0 -= VX1 - X1; VX1 = X1; }
+            if (VY1 - VY0 >= Y1 - Y0) { VY0 = Y0; VY1 = Y1; }
+            else if (VY0 < Y0) { VY1 += Y0 - VY0; VY0 = Y0; }
+            else if (VY1 > Y1) { VY0 -= VY1 - Y1; VY1 = Y1; }
+        }
+        function zoomViewAt(px, py, w, h, factor) {
+            var g = geom(w, h);
+            var ax = g.daysAt(px), ay = g.valAt(py);
+            var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
+            var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
+            if (nx1 - nx0 < 20 || ny1 - ny0 < 0.05) return false;
+            VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
+            return true;
+        }
+        function panByPixels(dx, dy, w, h) {
+            var g = geom(w, h);
+            var dlx = -dx / g.iw * (VX1 - VX0), dly = dy / g.ih * (VY1 - VY0);
+            VX0 += dlx; VX1 += dlx; VY0 += dly; VY1 += dly;
+        }
+        function zoomCenter(factor) {
+            var w = cv.clientWidth, h = cv.clientHeight;
+            if (!w || !h) return;
+            var g = geom(w, h);
+            hideTip();
+            if (zoomViewAt(g.padL + g.iw / 2, g.padT + g.ih / 2, w, h, factor)) { viewTouched = true; clampView(); }
+            draw();
+        }
+        function resetView() {
+            VX0 = X0; VX1 = X1; VY0 = Y0; VY1 = Y1;
+            viewTouched = false;
+            hideTip();
+            draw();
+        }
+
+        cv.addEventListener('wheel', function (e) {
+            e.preventDefault();
+            var rect = cv.getBoundingClientRect();
+            var dy = e.deltaY * (e.deltaMode === 1 ? 33 : 1);
+            hideTip();
+            if (zoomViewAt(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height, Math.exp(dy * 0.0016))) { viewTouched = true; clampView(); }
+            draw();
+        }, { passive: false });
+
+        var pointers = {}, nPointers = 0;
+        var dragStart = null, pinchStart = null, dragMoved = false;
+        function localPos(e) {
+            var r = cv.getBoundingClientRect();
+            return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height };
+        }
+        function ptrList() { var out = []; for (var id in pointers) out.push(pointers[id]); return out; }
+        function snapshot() { return { vx0: VX0, vx1: VX1, vy0: VY0, vy1: VY1 }; }
+        function restore(s) { VX0 = s.vx0; VX1 = s.vx1; VY0 = s.vy0; VY1 = s.vy1; }
+
+        cv.addEventListener('pointerdown', function (e) {
+            var p = localPos(e);
+            if (!pointers[e.pointerId]) nPointers++;
+            pointers[e.pointerId] = p;
+            try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic event */ }
+            if (nPointers === 1) {
+                dragStart = { x: p.x, y: p.y, view: snapshot() };
+                dragMoved = false;
+            } else if (nPointers === 2) {
+                var pts = ptrList();
+                pinchStart = {
+                    dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+                    midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2,
+                    w: p.w, h: p.h, view: snapshot()
+                };
+                dragStart = null;
+                hideTip();
+            }
+        });
+
+        cv.addEventListener('pointermove', function (e) {
+            if (pointers[e.pointerId]) {
+                var p = localPos(e);
+                pointers[e.pointerId] = p;
+                if (pinchStart && nPointers === 2) {
+                    var pts = ptrList();
+                    var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                    var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+                    restore(pinchStart.view);
+                    if (d > 0 && pinchStart.dist > 0) zoomViewAt(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchStart.dist / d);
+                    panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
+                    viewTouched = true;
+                    clampView();
+                    draw();
+                    return;
+                }
+                if (dragStart) {
+                    var dx = p.x - dragStart.x, dy = p.y - dragStart.y;
+                    if (dragMoved || Math.abs(dx) + Math.abs(dy) > 3) {
+                        dragMoved = true;
+                        restore(dragStart.view);
+                        panByPixels(dx, dy, p.w, p.h);
+                        viewTouched = true;
+                        clampView();
+                        hideTip();
+                        cv.style.cursor = 'grabbing';
+                        draw();
+                    }
+                    return;
+                }
+                return;
+            }
+            showTip(e);
+        });
+
+        function endPointer(e) {
+            if (pointers[e.pointerId]) { delete pointers[e.pointerId]; nPointers--; }
+            if (nPointers < 2) pinchStart = null;
+            if (nPointers === 1) {
+                var pt = ptrList()[0];
+                dragStart = { x: pt.x, y: pt.y, view: snapshot() };
+                dragMoved = true;   /* lifting one pinch finger is not a tap */
+            } else if (nPointers === 0) {
+                var wasTap = dragStart && !dragMoved && e.type === 'pointerup';
+                dragStart = null;
+                cv.style.cursor = '';
+                if (wasTap) showTip(e);
+            }
+        }
+        cv.addEventListener('pointerup', endPointer);
+        cv.addEventListener('pointercancel', endPointer);
+        cv.addEventListener('pointerleave', function () { if (!nPointers) hideTip(); });
+
+        var zin = document.getElementById('mm-zin');
+        var zout = document.getElementById('mm-zout');
+        var zreset = document.getElementById('mm-zreset');
+        if (zin) zin.addEventListener('click', function () { zoomCenter(0.55); });
+        if (zout) zout.addEventListener('click', function () { zoomCenter(1 / 0.55); });
+        if (zreset) zreset.addEventListener('click', resetView);
+
+        var rt;
+        window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(draw, 120); });
+        draw();
+        draw();
+
+        /* --- Live update: spot from Coinbase (Kraken fallback); the daily
+           closes are Coinbase Exchange candles, paginated in 300-day
+           windows back to the feed's start, with Kraken OHLC (its last
+           ~720 days) as the fallback. The series is rebuilt from the raw
+           closes: today's point is the live spot, standing in for today's
+           still-forming candle, exactly as the other charts treat it. If
+           anything fails — or the feed returns fewer than 200 closes, too
+           few for an honest average — the baked figures stand. The fetch
+           runs on the day of the baked snapshot too: the multiple moves
+           with the spot price intraday. --- */
+        var todayDays = Math.floor((Date.now() - GENESIS) / DAY);
+        function fetchJSON(url) {
+            return fetch(url).then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            });
+        }
+        function getSpot() {
+            return fetchJSON('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(function (j) {
+                var v = parseFloat(j && j.data && j.data.amount);
+                if (!(v > 0)) throw new Error('unexpected Coinbase payload');
+                return { price: v, source: 'Coinbase' };
+            }).catch(function () {
+                return fetchJSON('https://api.kraken.com/0/public/Ticker?pair=XBTUSD').then(function (j) {
+                    var res = j && j.result, key = res ? Object.keys(res)[0] : null;
+                    var v = key ? parseFloat(res[key].c[0]) : NaN;
+                    if (!(v > 0)) throw new Error('unexpected Kraken payload');
+                    return { price: v, source: 'Kraken' };
+                });
+            });
+        }
+        function coinbaseCloses() {
+            var firstMs = Date.UTC(2015, 0, 1);
+            var todayMs = GENESIS + todayDays * DAY;
+            var starts = [];
+            for (var t = firstMs; t <= todayMs; t += 300 * DAY) starts.push(t);
+            var map = {};
+            function fetchWindow(t0) {
+                var s = new Date(t0).toISOString();
+                var e = new Date(Math.min(t0 + 300 * DAY, todayMs + DAY)).toISOString();
+                return fetchJSON('https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=86400&start=' + s + '&end=' + e).then(function (rows) {
+                    if (!Array.isArray(rows)) throw new Error('unexpected candles payload');
+                    rows.forEach(function (row) {
+                        var d = Math.round((row[0] * 1000 - GENESIS) / DAY), c = parseFloat(row[4]);
+                        if (c > 0) map[d] = c;
+                    });
+                });
+            }
+            var idx = 0;
+            function nextBatch() {
+                if (idx >= starts.length) return Promise.resolve();
+                var batch = starts.slice(idx, idx + 5);
+                idx += batch.length;
+                return Promise.all(batch.map(fetchWindow)).then(nextBatch);
+            }
+            return nextBatch().then(function () {
+                var out = [];
+                for (var d in map) out.push([+d, map[d]]);
+                out.sort(function (a, b) { return a[0] - b[0]; });
+                return out;
+            });
+        }
+        function krakenCloses() {
+            return fetchJSON('https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440').then(function (j) {
+                var res = j && j.result, key = res ? Object.keys(res).filter(function (k) { return k !== 'last'; })[0] : null;
+                var rows = key ? res[key] : null;
+                if (!Array.isArray(rows)) throw new Error('unexpected OHLC payload');
+                var out = [];
+                rows.forEach(function (row) {
+                    var d = Math.round((row[0] * 1000 - GENESIS) / DAY), c = parseFloat(row[4]);
+                    if (c > 0) out.push([d, c]);
+                });
+                return out;
+            });
+        }
+        function getCloses() {
+            return coinbaseCloses().then(function (rows) { return { rows: rows, source: 'Coinbase' }; })
+                .catch(function () {
+                    return krakenCloses().then(function (rows) { return { rows: rows, source: 'Kraken' }; });
+                });
+        }
+        function rebuild(closes, closesSource, spot) {
+            var pts = closes.filter(function (pt) { return pt[0] <= todayDays; });
+            if (spot) {
+                pts = pts.filter(function (pt) { return pt[0] < spot.day; });
+                pts.push([spot.day, spot.price]);
+            }
+            if (pts.length < 200) return; /* too few closes for an honest average: baked stands */
+            var out = [], run = 0;
+            for (var i = 0; i < pts.length; i++) {
+                run += pts[i][1];
+                if (i >= 200) run -= pts[i - 200][1];
+                if (i >= 199) {
+                    var avg = run / 200;
+                    out.push([pts[i][0], pts[i][1] / avg, pts[i][1], avg]);
+                }
+            }
+            PTS = out;
+            FIRST_CLOSE_DAY = pts[0][0];
+            SRC = spot ? spot.source : closesSource;
+            X0 = PTS[0][0]; X1 = PTS[PTS.length - 1][0] + 20;
+            var mx = 0;
+            for (var j = 0; j < PTS.length; j++) if (PTS[j][1] > mx) mx = PTS[j][1];
+            Y1 = Math.max(3, Math.ceil(mx * 2) / 2);
+            if (!viewTouched) { VX0 = X0; VX1 = X1; VY0 = Y0; VY1 = Y1; }
+            renderReadout();
+            draw();
+        }
+        if (window.fetch && todayDays >= SPOT.days) {
+            getSpot().then(function (spot) {
+                var sp = { day: todayDays, price: Math.round(spot.price), source: spot.source };
+                return getCloses().then(function (res) {
+                    rebuild(res.rows, res.source, sp);
+                });
+            }).catch(function () { /* offline or blocked: the baked figures stand */ });
+        }
+    })();
+
+    </script>
+    <script type="text/plain" id="btc-mvrv-code">
+    /* Bitcoin MVRV Z-Score chart — canvas, the gap between market value
+       and realized value in standard deviations of market value (linear
+       time axis, linear Z axis). The gauge is Murad Mahmudov and David
+       Puell's: Z = (market cap - realized cap) / the standard deviation
+       of market cap over its full history to that day. Data: CoinMetrics
+       daily market cap and MVRV ratio, Jul 18, 2010 onward; realized cap
+       is derived as market cap / MVRV (the ratio's own definition), since
+       realized cap itself is a paid metric on their API. The line starts
+       Feb 2, 2011, once the history behind the standard deviation is 200
+       days deep. The baked series below is a weekly sample of the daily
+       computation over the same feed, drawn until the live series
+       replaces it. */
+    (function () {
+        var GENESIS = Date.UTC(2009, 0, 3), DAY = 86400000;
+        var BAKED = [[760,4.3758,3841,775],[767,4.5852,5445,956],[774,3.5322,5601,1117],[781,2.641,4952,1204],[788,2.4147,5237,1498],[795,1.9953,4857,1575],[802,1.8392,4844,1667],[809,1.7846,4875,1715],[816,1.5309,4574,1789],[823,1.3508,4332,1842],[830,1.9186,5501,1902],[837,2.3871,6816,2075],[844,3.9336,11474,2407],[851,4.8005,20776,4290],[858,5.6204,33559,5812],[865,4.1794,42274,9170],[872,4.4731,54316,10463],[879,4.0276,61620,12380],[886,7.6765,187925,25437],[893,3.1101,127639,40712],[900,2.3032,116171,44209],[907,1.9311,112871,47196],[914,1.439,99398,48046],[921,1.2435,95125,49073],[928,1.2091,93877,47824],[935,1.2116,96033,48678],[942,0.4076,64780,48575],[949,0.583,70593,47393],[956,0.7383,77520,47994],[963,0.715,77427,48623],[970,0.3023,58793,46630],[977,0.1268,51724,46640],[984,-0.0934,40688,44409],[991,-0.0854,40960,44334],[998,-0.2287,35088,44061],[1005,-0.201,36207,44035],[1012,-0.3275,31056,43712],[1019,-0.687,16623,42973],[1026,-0.5714,20937,42690],[1033,-0.4767,24683,42698],[1040,-0.5097,22280,41404],[1047,-0.5163,19561,38798],[1054,-0.5471,18007,38254],[1061,-0.41,23054,38126],[1068,-0.4012,23367,38012],[1075,-0.3689,24855,38231],[1082,-0.2175,30825,38657],[1089,-0.1527,33576,39039],[1096,0.1462,44868,39667],[1103,0.4088,55725,41218],[1110,0.1743,48034,41867],[1117,0.1487,47609,42368],[1124,0.2187,50098,42425],[1131,0.1141,46625,42637],[1138,-0.1707,36112,42048],[1145,-0.1358,37126,41822],[1152,-0.0207,41209,41920],[1159,-0.0009,42095,42127],[1166,0.1086,46142,42442],[1173,-0.0311,41491,42546],[1180,-0.0327,41521,42623],[1187,0.0228,42868,42102],[1194,0.0208,43083,42387],[1201,0.0717,45149,42764],[1208,0.069,45623,43337],[1215,0.0502,45061,43405],[1222,0.0503,45246,43594],[1229,0.0641,45899,43804],[1236,0.0891,46506,43603],[1243,0.0994,46834,43610],[1250,0.1891,49929,43815],[1257,0.3119,54488,44433],[1264,0.5223,62089,45271],[1271,0.4925,61709,45866],[1278,0.458,61100,46378],[1285,0.6592,67769,46574],[1292,1.1796,86281,48183],[1299,1.058,83646,49258],[1306,1.2534,91793,50734],[1313,1.6097,106811,53195],[1320,2.1281,127818,55377],[1327,1.1171,95396,56806],[1334,1.3707,106681,58714],[1341,1.3786,108841,60044],[1348,1.3988,112320,62091],[1355,1.665,124799,63956],[1362,1.5577,123610,65634],[1369,1.6667,130672,67463],[1376,1.4137,122751,68253],[1383,1.3376,121440,69151],[1390,1.2404,119153,70050],[1397,1.1132,114762,70341],[1404,1.057,113352,70840],[1411,1.0442,113957,71613],[1418,1.2111,122559,72915],[1425,1.3276,129501,74372],[1432,1.5215,140131,76037],[1439,1.5577,144196,77478],[1446,1.4864,143121,78460],[1453,1.4387,142543,79048],[1460,1.3701,141067,79776],[1467,1.466,147163,80691],[1474,1.625,156947,82110],[1481,2.1582,187534,85805],[1488,2.4816,211594,90985],[1495,2.6007,227978,96544],[1502,3.0566,265545,102668],[1509,3.6878,322256,111652],[1516,3.5526,338566,120251],[1523,4.9053,470290,137885],[1530,4.6755,512155,152678],[1537,5.9529,695838,173713],[1544,7.0343,973622,216548],[1551,8.2254,1443803,297663],[1558,6.4417,1776046,467460],[1565,2.7917,1025894,423360],[1572,5.0521,1706978,486323],[1579,2.9176,1289236,511506],[1586,2.6538,1259268,514071],[1593,2.3566,1216232,520854],[1600,2.5843,1330853,531310],[1607,2.7706,1453071,550516],[1614,2.3431,1359716,562783],[1621,1.8076,1199987,567834],[1628,1.7121,1180855,568952],[1635,1.5019,1118475,570913],[1642,0.8503,883072,569059],[1649,1.0884,969055,564278],[1656,1.247,1040310,570377],[1663,1.156,1010006,569700],[1670,1.4258,1126123,575986],[1677,1.3584,1118090,586576],[1684,1.3916,1145355,593846],[1691,1.6919,1283882,603244],[1698,1.8545,1374693,614425],[1705,1.8896,1427948,634238],[1712,1.9598,1485082,644902],[1719,1.8906,1487096,659019],[1726,1.7514,1452903,671025],[1733,1.2134,1226799,675251],[1740,1.7238,1488058,691261],[1747,1.9729,1639810,709518],[1754,3.3812,2432896,778161],[1761,2.9746,2359864,838274],[1768,4.1287,3147490,914334],[1775,5.9433,4728902,1103782],[1782,7.5856,7154303,1454446],[1789,8.8811,11599524,2286790],[1796,7.7072,13707359,2905222],[1803,4.7316,10602057,3083374],[1810,1.9049,6388734,3117885],[1817,2.8053,8257497,3224077],[1824,3.1187,9183165,3281350],[1831,3.2585,10040908,3473092],[1838,3.1558,10318377,3592960],[1845,2.8721,10072337,3661764],[1852,2.6151,9780657,3713604],[1859,2.4129,9695440,3889323],[1866,1.7097,8098877,3886206],[1873,1.5356,7744222,3892664],[1880,1.3636,7315406,3850433],[1887,1.7384,8364314,3880462],[1894,1.4547,7937759,4126293],[1901,1.319,7652645,4147014],[1908,1.155,7278830,4175698],[1915,0.5144,5529938,4140264],[1922,0.5395,5591058,4127179],[1929,0.9525,6726256,4130387],[1936,0.7582,6223466,4144528],[1943,0.5678,5706508,4142873],[1950,0.5396,5633671,4142326],[1957,0.5527,5680351,4147229],[1964,0.775,6322158,4163252],[1971,1.1338,7429545,4245844],[1978,1.3885,8278486,4334310],[1985,1.305,8135672,4383967],[1992,1.1651,7847016,4467680],[1999,0.9535,7278655,4490411],[2006,1.3201,8449694,4553493],[2013,1.1728,8085357,4590387],[2020,1.1351,8029056,4615815],[2027,1.135,8090957,4648203],[2034,0.8857,7363663,4658273],[2041,0.9491,7631931,4713492],[2048,0.799,7204016,4731773],[2055,0.6643,6782997,4720741],[2062,0.6435,6731854,4727008],[2069,0.4989,6267940,4709220],[2076,0.5171,6331395,4711787],[2083,0.4289,6060737,4714302],[2090,0.3045,5639571,4682804],[2097,0.1438,5106351,4654452],[2104,0.0467,4735525,4588911],[2111,0.2233,5283109,4581704],[2118,0.1677,5107591,4580890],[2125,-0.0239,4483438,4558404],[2132,0.0081,4563075,4537690],[2139,0.3658,5702391,4554879],[2146,0.1727,5105169,4563189],[2153,0.1345,4977825,4555838],[2160,0.1872,5100819,4513524],[2167,0.0859,4729227,4459796],[2174,-0.028,4362154,4449867],[2181,-0.0005,4407466,4409178],[2188,0.0013,4383963,4379866],[2195,-0.0895,4076100,4355839],[2202,-0.5984,2410559,4277228],[2209,-0.3552,3133550,4239529],[2216,-0.3148,3246829,4225068],[2223,-0.3464,3129549,4204189],[2230,-0.3729,3034994,4189724],[2237,-0.2979,3269257,4190097],[2244,-0.2834,3306536,4180915],[2251,-0.1244,3802354,4185708],[2258,-0.0177,4133202,4187534],[2265,-0.1952,3590471,4190237],[2272,-0.2387,3449458,4181744],[2279,-0.2302,3462434,4167547],[2286,-0.2354,3449620,4169444],[2293,-0.326,3139194,4134502],[2300,-0.2747,3292843,4129959],[2307,-0.3099,3183543,4126210],[2314,-0.2914,3243130,4128075],[2321,-0.2564,3349059,4126392],[2328,-0.2655,3321636,4125229],[2335,-0.2493,3370151,4123425],[2342,-0.297,3205388,4101274],[2349,-0.2787,3259618,4098999],[2356,-0.1866,3542208,4103296],[2363,-0.2217,3440889,4106289],[2370,-0.139,3699045,4115654],[2377,-0.0781,3886052,4119721],[2384,-0.007,4113720,4134700],[2391,-0.0439,4003415,4134454],[2398,0.0127,4185254,4147504],[2405,-0.0225,4083895,4151042],[2412,-0.0834,3885529,4133624],[2419,-0.2742,3298224,4113207],[2426,-0.2631,3288215,4068843],[2433,-0.2446,3343603,4068219],[2440,-0.1985,3484080,4071055],[2447,-0.2433,3348936,4067515],[2454,-0.2359,3370563,4066184],[2461,-0.2026,3473639,4070095],[2468,-0.1669,3582443,4073130],[2475,-0.1172,3727068,4071035],[2482,-0.0458,3953301,4087652],[2489,0.1298,4498158,4118025],[2496,0.6,6002025,4244688],[2503,0.111,4580802,4255755],[2510,0.2429,4987749,4276296],[2517,0.2096,4896144,4282725],[2524,0.3542,5356450,4319371],[2531,0.6331,6239103,4384175],[2538,0.7965,6798393,4459997],[2545,0.7266,6638785,4500915],[2552,0.6376,6401758,4522634],[2559,0.6554,6482654,4547868],[2566,0.6496,6519487,4597853],[2573,0.5936,6353808,4596682],[2580,0.4677,5972376,4587003],[2587,0.3413,5581947,4570508],[2594,0.3978,5760079,4580807],[2601,0.5743,6322494,4618612],[2608,0.6093,6464807,4654671],[2615,0.5941,6461501,4693609],[2622,0.539,6311300,4705831],[2629,0.558,6390910,4726985],[2636,0.5567,6406720,4744998],[2643,0.528,6347050,4769280],[2650,0.5698,6498356,4793487],[2657,0.577,6555533,4827077],[2664,0.6632,6841606,4852079],[2671,0.6669,6900089,4895283],[2678,0.6746,6952735,4921260],[2685,0.6959,7050910,4950969],[2692,0.6892,7071537,4987799],[2699,0.6647,7022214,5009245],[2706,1.0752,8392196,5125026],[2713,1.2757,9117116,5220430],[2720,1.775,10885155,5420427],[2727,1.216,9332297,5548004],[2734,1.414,10034992,5601604],[2741,1.5777,10666561,5678138],[2748,1.4612,10373847,5719493],[2755,1.4836,10523630,5761199],[2762,1.412,10357104,5792682],[2769,1.0001,9008353,5757717],[2776,1.088,9326078,5773499],[2783,1.0057,9075711,5778224],[2790,1.0221,9163251,5798282],[2797,0.9829,9068641,5820384],[2804,1.1786,9764079,5851601],[2811,1.1364,9673305,5882363],[2818,1.0674,9483251,5906433],[2825,1.0961,9614507,5925699],[2832,1.121,9741245,5951621],[2839,1.2205,10138601,5993312],[2846,1.1737,10035205,6028882],[2853,1.3662,10768423,6080023],[2860,1.6364,11819080,6163845],[2867,1.5276,11527230,6211945],[2874,1.5974,11866104,6269681],[2881,1.563,11862392,6344701],[2888,1.5433,11887711,6400129],[2895,1.6055,12263000,6509083],[2902,1.6308,12465512,6573708],[2909,1.8211,13302371,6666309],[2916,2.406,15747702,6869788],[2923,2.9628,18246459,7133929],[2930,1.4535,12689106,7175238],[2937,1.8231,14197733,7220096],[2944,1.8465,14443135,7299362],[2951,2.1811,15937997,7401903],[2958,2.3787,16997946,7552105],[2965,2.1762,16390185,7635251],[2972,2.5641,18276385,7800006],[2979,2.8512,19890971,8016807],[2986,2.4562,18669956,8224414],[2993,2.7743,20412476,8398531],[3000,1.9155,16836521,8439957],[3007,1.895,16888869,8498515],[3014,2.191,18465243,8639285],[3021,2.4098,19786878,8808825],[3028,2.3344,19695203,8906439],[3035,2.569,21127250,9059058],[3042,3.207,24779848,9395562],[3049,3.8833,29095394,9930438],[3056,3.7619,29547967,10362569],[3063,5.2816,39484731,11297042],[3070,4.5865,37627969,11972677],[3077,5.3051,44332360,12828998],[3084,4.1767,40057395,13719235],[3091,4.3917,43294505,14311241],[3098,3.9867,42072044,14660610],[3105,3.8956,42851714,15077291],[3112,3.2354,39053725,15250635],[3119,2.896,37145789,15362153],[3126,3.2732,41546656,16056335],[3133,3.2661,44346375,18051377],[3140,4.1379,55223569,20430099],[3147,5.5491,72063129,22314955],[3154,4.6838,68518129,23916870],[3161,4.9973,75835494,25222210],[3168,4.6142,76249266,26641562],[3175,3.3086,64386275,27190476],[3182,3.21,64583213,27369761],[3189,3.5043,69810134,27959096],[3196,3.3383,70014725,28687995],[3203,3.9004,80013973,29829734],[3210,4.5003,92869180,31678142],[3217,4.3068,95486763,33720979],[3224,5.0741,112054781,35326854],[3231,5.3401,124219810,37898355],[3238,4.7367,121065675,40678646],[3245,5.162,137732275,44234523],[3252,5.8581,163754159,49380270],[3259,8.253,234018219,55573495],[3266,8.1039,276454960,70241830],[3273,6.684,275665282,78936032],[3280,5.5255,258022927,82404164],[3287,4.9437,251880836,85087206],[3294,4.3395,246363833,90132736],[3301,2.5943,187583519,90455580],[3308,2.5696,188869373,90043467],[3315,2.0104,169220358,90109383],[3322,1.0245,128491100,87716431],[3329,1.785,159671226,87751706],[3336,2.1247,176534515,89236810],[3343,1.995,174109343,90788346],[3350,1.7803,167423399,91628004],[3357,1.1283,139114167,90515145],[3364,1.3834,150352940,90201622],[3371,1.0214,134435267,89626328],[3378,0.5985,114986737,88590364],[3385,0.6735,117868111,88014164],[3392,1.1271,138651453,88311731],[3399,1.3566,150535337,89362039],[3406,1.4601,156579111,90057769],[3413,1.4691,158212057,90550085],[3420,1.0987,141887674,90876695],[3427,0.7951,128238492,91071896],[3434,0.7469,125848348,90757339],[3441,0.847,130670649,90659737],[3448,0.3802,107789140,89754794],[3455,0.5474,115517012,89462716],[3462,0.3516,105096511,88316018],[3469,0.517,112712483,87961996],[3476,0.4517,109345176,87653860],[3483,0.8069,126548605,87674008],[3490,1.0865,140849259,88231929],[3497,0.8639,130545589,88476189],[3504,0.4044,107787756,88020561],[3511,0.4158,107922340,87547741],[3518,0.4487,109639314,87597316],[3525,0.6732,121247982,88071074],[3532,0.5864,117152434,88145594],[3539,0.4333,109242573,87755537],[3546,0.4566,110295727,87598456],[3553,0.489,111751327,87379132],[3560,0.4916,111857195,87290879],[3567,0.5139,113053807,87304910],[3574,0.4953,111637253,86765056],[3581,0.4951,111214825,86295933],[3588,0.4622,109431341,86116467],[3595,0.5295,112887229,86117944],[3602,0.2162,96860779,85907543],[3609,-0.096,79101302,83967007],[3616,-0.1868,73220967,82688881],[3623,-0.3497,64578232,82292759],[3630,-0.4171,59627832,80746827],[3637,-0.3071,64458442,79999164],[3644,-0.2631,66426840,79735905],[3651,-0.2208,68060452,79225457],[3658,-0.1791,69966387,79020438],[3665,-0.2987,63069620,78161768],[3672,-0.3101,62149856,77809269],[3679,-0.3414,60198734,77428319],[3686,-0.3592,59010514,77126892],[3693,-0.2801,62712620,76832650],[3700,-0.1541,68997434,76761549],[3707,-0.1955,66724622,76572769],[3714,-0.1738,67697013,76445039],[3721,-0.1708,67743576,76341994],[3728,-0.1067,70942374,76308965],[3735,-0.1055,70930025,76236373],[3742,0.2142,87429740,76657812],[3749,0.3313,93692375,77017149],[3756,0.3003,92251087,77124110],[3763,0.3671,95948460,77445993],[3770,0.3334,93956779,77140381],[3777,0.5401,104933062,77655540],[3784,1.2902,145432203,80054070],[3791,1.0765,135848233,81082642],[3798,1.3709,153466073,83372857],[3805,1.0672,138368735,83549659],[3812,1.1741,144650582,84095029],[3819,1.534,164985851,85418119],[3826,2.6687,228745195,88944866],[3833,2.2947,212702476,91226830],[3840,2.2873,215630337,93213828],[3847,1.4586,172439830,93711469],[3854,1.4687,174664328,94784716],[3861,1.5122,179553899,96803904],[3868,2.0873,213782385,98546419],[3875,1.4318,179204379,99450383],[3882,1.4407,180627041,99812101],[3889,1.3045,174097063,100454585],[3896,1.5607,189500977,100867669],[3903,1.392,181853201,102287617],[3910,1.3839,182336025,102739875],[3917,0.8461,151275588,102366128],[3924,0.8354,150275449,101839998],[3931,0.9083,154626316,101809917],[3938,0.7184,144038130,102138446],[3945,0.5548,134317490,101871922],[3952,1.0701,165487489,102671361],[3959,1.1183,168698728,102772137],[3966,0.9333,158200497,102986922],[3973,0.7251,145852722,102831835],[3980,0.5717,136016205,102039832],[3987,0.4827,130474208,101736968],[3994,0.4819,130302880,101566801],[4001,0.5137,131916225,101240204],[4008,0.4879,130318673,101137984],[4015,0.4847,130045090,101010975],[4022,0.7499,146279253,101276919],[4029,0.9643,160039733,102021669],[4036,0.9082,157183956,102370412],[4043,1.0973,169375757,102946053],[4050,1.1783,175251272,103645736],[4057,1.3661,188701754,105297403],[4064,1.1365,175633654,105934823],[4071,0.8822,160484738,106174465],[4078,0.8728,159828524,105945143],[4085,0.6395,145018062,105442928],[4092,-0.0476,98556167,101500962],[4099,0.3349,122336820,101603710],[4106,0.3302,121567949,101110514],[4113,0.5424,135007499,101372200],[4120,0.3295,121426948,100976682],[4127,0.4765,130649149,101042235],[4134,0.9393,160803083,102340925],[4141,1.0699,170193754,103414217],[4148,1.068,171326434,104450289],[4155,1.11,174916798,105157641],[4162,1.0069,168594311,105135523],[4169,1.1321,177353696,105756746],[4176,1.1915,181953972,106325875],[4183,1.0593,173927345,106477016],[4190,1.0051,171117810,106919361],[4197,0.9822,170228062,107318942],[4204,1.0314,173853011,107608078],[4211,0.9581,169531276,107820926],[4218,1.0484,175753097,108042336],[4225,1.4755,205043166,109365148],[4232,1.6176,216288799,110845191],[4239,1.544,213672366,112469256],[4246,1.5639,216725667,113616970],[4253,1.4742,211908661,114194823],[4260,1.4404,210918284,114955146],[4267,1.111,188969406,114695310],[4274,1.308,202820682,115047977],[4281,1.0972,189296198,115380317],[4288,1.2338,199337235,115896953],[4295,1.1982,197457351,116124110],[4302,1.3866,211413713,116880537],[4309,1.7485,237997872,118206069],[4316,1.8207,246252470,120682816],[4323,1.9812,261869847,124212875],[4330,2.3381,291667576,127609116],[4337,2.7983,330230533,131553758],[4344,2.9383,347861028,136123661],[4351,2.9685,356636727,139749191],[4358,2.7315,344872497,142370414],[4365,3.3251,396917110,146791524],[4372,3.5842,433034298,157363978],[4379,4.625,536101921,170272837],[4386,5.9689,681305813,189201315],[4393,5.5748,693700966,209013266],[4400,4.892,660799563,216201336],[4407,3.6984,565048354,218657836],[4414,4.8948,699653043,225577065],[4421,5.8858,839594905,242179159],[4428,6.6579,973028220,256443010],[4435,5.6401,923821686,277428597],[4442,5.5101,945073444,285217641],[4449,5.9967,1046585270,293742593],[4456,5.93,1094833524,308070675],[4463,4.7947,981610903,315588011],[4470,5.3334,1097654386,325179380],[4477,4.7334,1050864085,336584448],[4484,5.2593,1174574737,347895969],[4491,4.0082,1009625742,357195446],[4498,3.962,1024187403,362517975],[4505,4.0894,1072339979,369685710],[4512,3.2663,953611860,377113943],[4519,1.8492,704442601,372933908],[4526,2.0045,733695914,370766265],[4533,1.8333,704802338,369955761],[4540,1.7983,700038595,368895644],[4547,1.8669,716966667,369972819],[4554,1.4014,629906296,367571306],[4561,1.5563,657312027,364043532],[4568,1.4417,636232696,362774509],[4575,1.3252,615184715,362313473],[4582,1.2514,602657115,362670376],[4589,1.9729,749641700,368585660],[4596,1.9115,746809379,374209627],[4603,2.4331,857951572,378256676],[4610,2.3207,844701769,381582481],[4617,2.6398,921118598,387184124],[4624,2.5646,915526177,390185896],[4631,2.295,868818919,392496223],[4638,2.4368,906361101,395141873],[4645,2.0063,820275901,395133835],[4652,1.7916,780569792,397709058],[4659,2.9518,1043925118,405731717],[4666,3.0446,1080628058,412437986],[4673,3.6673,1245228121,425236743],[4680,2.9609,1104286371,430734077],[4687,3.2261,1187542228,441028132],[4694,3.2816,1221918863,449060759],[4701,2.8226,1135484006,459587705],[4708,2.5527,1078972758,459754986],[4715,2.5066,1080047374,464679165],[4722,1.9832,954233223,462833869],[4729,1.8445,922994595,462439060],[4736,1.822,920678726,462450376],[4743,1.641,878962609,462987164],[4750,1.417,823647362,462132027],[4757,1.4479,832062440,460823992],[4764,1.2874,791227796,459486824],[4771,0.94,697509429,454504209],[4778,0.9452,699953962,454757977],[4785,1.4744,841624618,457381068],[4792,1.4382,835500284,458874422],[4799,0.9538,707612117,456948547],[4806,1.4209,834508465,459567515],[4813,1.2753,796910249,459141178],[4820,1.2062,780330370,459735012],[4827,1.3145,811605189,460765265],[4834,1.5955,895267764,467145864],[4841,1.3185,822997272,467368622],[4848,1.1648,782351626,466950657],[4855,1.1757,787231257,467739022],[4862,1.022,746100752,467453679],[4869,1.0545,754415355,466042161],[4876,0.332,548209906,457261175],[4883,0.3397,547906490,454732704],[4890,0.4028,563428453,452830379],[4897,0.4243,568353965,451718519],[4904,0.4624,576221748,448974081],[4911,-0.0277,429439639,437056823],[4918,-0.1755,381548028,429851306],[4925,-0.1629,383157511,427982141],[4932,-0.1163,392440938,424447549],[4939,-0.1342,384827698,421737456],[4946,0.0908,444636588,419648298],[4953,0.0736,437481053,417232395],[4960,0.0682,435930163,417167397],[4967,0.1475,457362340,416788078],[4974,0.1083,446289697,416479854],[4981,-0.0186,409880720,415011376],[4988,-0.1104,383230006,413614008],[4995,-0.1559,369348929,412233384],[5002,-0.0834,387732683,410675359],[5009,-0.1978,354536184,408926926],[5016,-0.1285,372820281,408128475],[5023,-0.0769,386381543,407505244],[5030,-0.1417,367380564,406305848],[5037,-0.1409,367029905,405732436],[5044,-0.0237,399099408,405613777],[5051,-0.0672,386777142,405218228],[5058,-0.3599,302606640,401357052],[5065,-0.2807,320019245,397001968],[5072,-0.2594,318476371,389596682],[5079,-0.2113,330157250,388054398],[5086,-0.2261,323945839,385877691],[5093,-0.1543,342552091,384780023],[5100,-0.2197,323243271,383355017],[5107,-0.2333,318253244,382060028],[5114,-0.205,324371229,380406941],[5121,-0.1321,343465405,379567534],[5128,0.0666,398995131,380815436],[5135,0.2324,445371057,381886770],[5142,0.2747,457436213,382394398],[5149,0.2173,442355589,382996266],[5156,0.3137,468884953,383187652],[5163,0.3019,466337553,383849025],[5170,0.265,455815312,383395030],[5177,0.1375,419098100,381532315],[5184,0.3264,471562885,382371301],[5191,0.5236,528379507,385200360],[5198,0.5904,548815741,387288683],[5205,0.5938,545148283,382570828],[5212,0.7102,578654885,384035821],[5219,0.6262,557245599,385488492],[5226,0.5956,549435199,385961729],[5233,0.6372,562410584,387384113],[5240,0.5307,535495152,389610569],[5247,0.5112,530933747,390339958],[5254,0.4349,510568857,390896337],[5261,0.494,527734363,391749346],[5268,0.4316,510872748,392005618],[5275,0.3452,486950553,391830509],[5282,0.6947,584185861,392680319],[5289,0.687,584453424,394888167],[5296,0.7091,592297041,396440536],[5303,0.7001,590325511,396789394],[5310,0.6649,581330730,397345142],[5317,0.6259,570788957,397463005],[5324,0.6169,566726821,395745514],[5331,0.6466,575468304,396123245],[5338,0.5875,559543774,396487715],[5345,0.4298,514919209,395592489],[5352,0.4908,531561630,395252399],[5359,0.3846,501656133,394797699],[5366,0.4188,511019170,394630765],[5373,0.4801,528868345,395406199],[5380,0.4247,513493183,395386690],[5387,0.5253,542160521,396016387],[5394,0.4561,523443617,396467870],[5401,0.5592,552896548,397153784],[5408,0.979,673352888,400423510],[5415,1.0335,692005135,403423605],[5422,1.0506,699379861,405560444],[5429,1.1812,739529498,408545318],[5436,1.1419,731230704,410652633],[5443,1.1648,740151719,412468740],[5450,1.5532,855795079,417663737],[5457,1.4807,840280085,421297039],[5464,1.5116,853610951,424607039],[5471,1.4822,850603955,428614564],[5478,1.4229,837886612,431542665],[5485,1.6699,917398870,438854966],[5492,1.3732,836757824,442045902],[5499,1.1866,786296878,444386531],[5506,1.3417,835364222,447730042],[5513,1.4439,868307228,449922055],[5520,1.9273,1017597474,456837664],[5527,1.8947,1015951209,461959106],[5534,2.5545,1226750760,475705216],[5541,2.7037,1298715391,497168012],[5548,3.0497,1436314178,522897580],[5555,2.66,1333885264,529859475],[5562,2.6784,1362223531,545477302],[5569,2.4234,1300942909,555110485],[5576,2.6694,1388940357,559856157],[5583,2.0634,1207201305,561458808],[5590,2.2105,1263882567,566970344],[5597,1.8175,1144969805,568177278],[5604,1.9819,1202993675,569993055],[5611,2.2773,1305663490,573740087],[5618,2.4141,1360911100,578985812],[5625,2.2665,1331764330,591982931],[5632,2.447,1401009939,596161361],[5639,2.2431,1344590982,601195453],[5646,2.0277,1279053591,602608771],[5653,1.7713,1198712186,604450762],[5660,1.7214,1187497691,606951282],[5667,1.5674,1138490509,607625475],[5674,1.925,1266501998,611182955],[5681,1.9642,1289452069,616645102],[5688,1.906,1276596837,619675738],[5695,1.3585,1088088938,617871928],[5702,1.5575,1161508437,619966980],[5709,1.6797,1206957303,620469002],[5716,1.5531,1167027678,622140332],[5723,1.4873,1146137642,622271394],[5730,1.4483,1133991946,622114552],[5737,1.6523,1211156711,624794862],[5744,1.7302,1245988223,629023771],[5751,1.5864,1199279597,630822744],[5758,1.5585,1198084020,637225084],[5765,1.9205,1337598426,643121746],[5772,1.8391,1317749060,649089517],[5779,2.1287,1432735110,654364883],[5786,2.2738,1497164174,660887631],[5793,2.9819,1787666712,681337090],[5800,3.0961,1862965161,701791740],[5807,3.0842,1899452844,728610162],[5814,3.1638,1957769580,742271761],[5821,3.1791,2005399871,768992977],[5828,3.0559,1989090948,785033116],[5835,2.9157,1964968047,803419018],[5842,2.6305,1870627826,812242699],[5849,2.6153,1882482075,818945490],[5856,2.827,1984476850,823591208],[5863,2.9375,2056488045,836304430],[5870,2.8901,2059342337,845267951],[5877,2.5024,1913818766,851897820],[5884,2.5243,1937857411,856902981],[5891,2.4469,1916190866,859096111],[5898,1.8503,1665439114,859733729],[5905,2.1341,1797223681,861771231],[5912,1.8048,1658883455,863155086],[5919,1.9328,1721523624,864568836],[5926,1.9205,1723046786,866500832],[5933,1.7186,1638367661,867652022],[5940,1.7128,1641918232,870014462],[5947,1.7642,1670596612,871340975],[5954,2.1621,1860347456,875000623],[5961,2.1521,1871375203,883697712],[5968,2.245,1929298928,891469785],[5975,2.4787,2057444005,901701475],[5982,2.6926,2179606908,913064910],[5989,2.569,2144012560,924316349],[5996,2.3998,2082493314,933589948],[6003,2.5277,2159611107,939179852],[6010,2.3403,2083754350,944663184],[6017,2.4125,2133590293,950346184],[6024,2.4403,2166189082,959640050],[6031,2.4855,2216077593,977007193],[6038,2.7112,2361929035,997067769],[6045,2.6549,2360720382,1011274856],[6052,2.5771,2342821207,1020582421],[6059,2.4451,2289513377,1024403425],[6066,2.7286,2457237741,1032566023],[6073,2.3457,2275160487,1040028962],[6080,2.2074,2215299879,1044053941],[6087,2.1987,2226197825,1051406149],[6094,2.2519,2269399173,1057539212],[6101,2.3197,2322455566,1064464244],[6108,2.1743,2258070460,1070254801],[6115,2.3273,2359453334,1079270823],[6122,2.462,2459404708,1093746357],[6129,1.9843,2210057728,1101783547],[6136,1.8537,2146719730,1105263635],[6143,1.9189,2197702747,1112841420],[6150,1.6826,2072586206,1116060314],[6157,1.5873,2028344695,1121555758],[6164,1.2265,1821934169,1118616104],[6171,1.1792,1804832329,1126669712],[6178,1.2867,1868172884,1125785360],[6185,1.2306,1838403662,1126074711],[6192,1.0239,1718043516,1123561931],[6199,1.077,1749587094,1122518650],[6206,1.0744,1747687898,1120358145],[6213,1.1944,1821701768,1122101295],[6220,1.3868,1938534838,1123620110],[6227,1.1307,1790095955,1123467878],[6234,1.122,1781913902,1118612317],[6241,0.5921,1460765456,1110062585],[6248,0.4045,1338975460,1099107592],[6255,0.3903,1327048320,1095409078],[6262,0.4523,1360413320,1091716755],[6269,0.6097,1453188795,1090606023],[6276,0.5346,1406034418,1087731091],[6283,0.567,1425341990,1087360796],[6290,0.5695,1426112971,1086215698],[6297,0.4677,1363029290,1083661034],[6304,0.567,1422639794,1083567637],[6311,0.6877,1496456364,1084682353],[6318,0.8054,1567874545,1084897900],[6325,0.7236,1517599040,1082997520],[6332,0.9036,1629376956,1085723713],[6339,0.8322,1588129352,1086496301],[6346,0.7701,1550647126,1085699245],[6353,0.6673,1487995662,1084489714],[6360,0.3479,1287106568,1076507268],[6367,0.2634,1231221031,1071711910],[6374,0.3637,1290856057,1070443897],[6381,0.2509,1221058486,1068923612],[6388,0.2317,1204361710,1063819600],[6395,0.3034,1247624924,1063464083],[6402,0.3922,1298980442,1060766116],[6409,0.4322,1323613921,1060924509],[6416,0.3642,1282113963,1060602438],[6423,0.3915,1296483828,1058262588],[6430,0.3517,1271577034,1057393620],[6437,0.5471,1390378101,1057051112],[6444,0.854,1585067511,1063969340],[6451,0.7919,1549852710,1065919994],[6458,0.8207,1570564994,1068205843],[6465,0.7496,1528138641,1068681749],[6472,1.0124,1696152050,1074468699],[6479,0.9787,1679254956,1077146884],[6486,0.9609,1673378559,1081069952],[6493,0.9001,1637978914,1082203451],[6500,0.9825,1692073451,1084362140],[6507,0.8809,1633273193,1087528068],[6514,0.8581,1618445507,1086093921],[6521,0.6451,1484288398,1083648344],[6526,0.3673,1306188985,1077948869]];
+        var FIRST_DAY = 561; /* Jul 18, 2010: the feed's first daily figures */
+        var SRC = 'CoinMetrics';
+        var PTS = BAKED.slice();
+
+        function trim2(v) { return v.toFixed(2).replace(/\.?0+$/, ''); }
+        /* values are stored in thousands of dollars */
+        function bigMoney(k) {
+            if (k >= 1e9) return '$' + trim2(k / 1e9) + 'T';
+            if (k >= 1e6) return '$' + trim2(k / 1e6) + 'B';
+            if (k >= 1000) return '$' + trim2(k / 1000) + 'M';
+            return '$' + Math.round(k) + 'K';
+        }
+        function dateOf(days) { return new Date(GENESIS + days * DAY); }
+        function dateStr(days) {
+            return dateOf(days).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+        }
+
+        /* --- "Where it stands" readout, from the last point of the series --- */
+        function set(id, txt) { var el = document.getElementById(id); if (el) el.textContent = txt; }
+        function stateLine(z) {
+            if (z < 0) return 'Below 0 \u2014 the market\u2019s total value sits under what holders paid for their coins. In past cycles, readings at or below 0 lined up with the deep-value stretches near bottoms. That is history, not a forecast.';
+            if (z >= 7) return 'Above 7 \u2014 the market\u2019s total value has run far above what holders paid. In past cycles, readings up here lined up with the froth near tops. That is history, not a forecast.';
+            return 'Between 0 and 7 \u2014 the band this gauge has spent most of its history in, between the deep-value zone below 0 and the overheated zone above 7.';
+        }
+        function renderReadout() {
+            var last = PTS[PTS.length - 1];
+            set('mv-z', last[1].toFixed(2));
+            set('mv-z-date', dateStr(last[0]) + ' (' + SRC + ')');
+            set('mv-mv', bigMoney(last[2]));
+            set('mv-rv', bigMoney(last[3]));
+            set('mv-state', stateLine(last[1]));
+            set('mv-hist-start', dateStr(FIRST_DAY));
+            set('mv-line-start', dateStr(PTS[0][0]));
+        }
+        renderReadout();
+
+        /* --- Canvas chart, with zoom + pan inspection (the production-cost
+           chart's interaction family, on linear axes): wheel zooms toward
+           the cursor, a two-finger pinch zooms toward its midpoint, drag
+           pans, and the + / - / Reset buttons give touch users the same
+           controls. */
+        var cv = document.getElementById('mv-chart');
+        var tip = document.getElementById('mv-tip');
+        if (!cv) return;
+        var ctx = cv.getContext('2d');
+        var hover = -1;
+        function yBounds() {
+            var mx = 0, mn = 0;
+            for (var i = 0; i < PTS.length; i++) {
+                if (PTS[i][1] > mx) mx = PTS[i][1];
+                if (PTS[i][1] < mn) mn = PTS[i][1];
+            }
+            return [Math.min(-1, Math.floor(mn * 2) / 2), Math.max(9, Math.ceil(mx * 2) / 2)];
+        }
+        var YB = yBounds();
+        var X0 = PTS[0][0], X1 = PTS[PTS.length - 1][0] + 20, Y0 = YB[0], Y1 = YB[1];
+        var VX0 = X0, VX1 = X1, VY0 = Y0, VY1 = Y1;
+        var viewTouched = false;
+        var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        function geom(w, h) {
+            var padL = w < 520 ? 52 : 64, padR = 14, padT = 14, padB = 28;
+            var iw = w - padL - padR, ih = h - padT - padB;
+            return {
+                padL: padL, padR: padR, padT: padT, padB: padB, iw: iw, ih: ih,
+                x: function (days) { return padL + (days - VX0) / (VX1 - VX0) * iw; },
+                y: function (v) { return padT + (VY1 - v) / (VY1 - VY0) * ih; },
+                daysAt: function (px) { return VX0 + (px - padL) / iw * (VX1 - VX0); },
+                valAt: function (py) { return VY1 - (py - padT) / ih * (VY1 - VY0); }
+            };
+        }
+
+        function trimNum(x) { return String(Math.round(x * 10) / 10).replace(/\.0$/, ''); }
+        function yTickStep() {
+            var range = VY1 - VY0, steps = [5, 2, 1, 0.5, 0.25, 0.1, 0.05];
+            for (var i = 0; i < steps.length; i++) {
+                if (range / steps[i] <= 9) return steps[i];
+            }
+            return 0.05;
+        }
+        function xTicks(dMin, dMax) {
+            var out = [], span = dMax - dMin, days;
+            if (span > 1400) {
+                for (var yr = 2010; yr <= 2036; yr++) {
+                    days = (Date.UTC(yr, 0, 1) - GENESIS) / DAY;
+                    if (days >= dMin && days <= dMax) out.push({ days: days, label: String(yr), major: true });
+                }
+                return out;
+            }
+            var monthStep = span > 300 ? 3 : 1;
+            var start = dateOf(dMin), y = start.getUTCFullYear();
+            var m = Math.floor(start.getUTCMonth() / monthStep) * monthStep;
+            for (var i = 0; i < 240; i++) {
+                days = (Date.UTC(y, m, 1) - GENESIS) / DAY;
+                if (days > dMax) break;
+                if (days >= dMin) out.push({ days: days, label: MONTHS[m] + ' ' + String(y).slice(2), major: m === 0 });
+                m += monthStep; if (m > 11) { m -= 12; y++; }
+            }
+            return out;
+        }
+
+        function draw() {
+            var w = cv.clientWidth, h = cv.clientHeight;
+            if (!w || !h) return;
+            var dpr = window.devicePixelRatio || 1;
+            cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, w, h);
+            var g = geom(w, h);
+            var small = w < 520;
+            ctx.font = (small ? 10 : 11) + 'px system-ui, -apple-system, sans-serif';
+            ctx.textBaseline = 'middle';
+
+            /* grid + y labels (linear axis, reaching below zero) */
+            var step = yTickStep();
+            ctx.textAlign = 'right';
+            var k0 = Math.ceil(VY0 / step);
+            for (var k = k0; k * step <= VY1 + 1e-9; k++) {
+                var t = k * step, y = g.y(t);
+                var major = Math.abs(t - Math.round(t)) < 1e-9;
+                ctx.strokeStyle = major ? 'rgba(148,163,184,0.16)' : 'rgba(148,163,184,0.07)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText(trimNum(t), g.padL - 8, y);
+            }
+            /* grid + x labels: years zoomed out, months zoomed in */
+            ctx.textAlign = 'center';
+            var minGap = small ? 42 : 56, lastLabelX = -1e9;
+            xTicks(VX0, VX1).forEach(function (tk) {
+                var x = g.x(tk.days);
+                ctx.strokeStyle = tk.major ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.06)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
+                if (x - lastLabelX >= minGap) {
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillText(tk.label, x, h - g.padB + 14);
+                    lastLabelX = x;
+                }
+            });
+
+            /* plot content, clipped to the plot box */
+            ctx.save();
+            ctx.beginPath(); ctx.rect(g.padL, g.padT, g.iw, g.ih); ctx.clip();
+
+            /* zones: above 7 (overheated) and below 0 (deep value), shaded */
+            if (VY1 > 7) {
+                ctx.fillStyle = 'rgba(239,68,68,0.08)';
+                ctx.fillRect(g.padL, g.padT, g.iw, g.y(7) - g.padT);
+            }
+            if (VY0 < 0) {
+                ctx.fillStyle = 'rgba(34,197,94,0.08)';
+                ctx.fillRect(g.padL, g.y(0), g.iw, g.padT + g.ih - g.y(0));
+            }
+            /* dashed reference lines at 7 and 0, labelled at the right edge */
+            function refLine(v, color, label) {
+                if (v <= VY0 || v >= VY1) return;
+                var y = g.y(v);
+                ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+                ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = color;
+                ctx.textAlign = 'right';
+                ctx.fillText(label, w - g.padR - 4, y - 8);
+            }
+            refLine(7, 'rgba(239,68,68,0.75)', '7');
+            refLine(0, 'rgba(34,197,94,0.75)', '0');
+
+            /* the Z-Score itself */
+            ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = 2; ctx.setLineDash([]);
+            ctx.beginPath();
+            for (var i = 0; i < PTS.length; i++) {
+                var px = g.x(PTS[i][0]), py = g.y(PTS[i][1]);
+                i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+
+            /* hover marker */
+            if (hover >= 0 && hover < PTS.length) {
+                var hd = PTS[hover][0];
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(g.x(hd), g.y(PTS[hover][1]), 4, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#a78bfa';
+                ctx.beginPath(); ctx.arc(g.x(hd), g.y(PTS[hover][1]), 2.5, 0, Math.PI * 2); ctx.fill();
+            }
+
+            /* latest point */
+            var last = PTS[PTS.length - 1];
+            var tx = g.x(last[0]), ty = g.y(last[1]);
+            ctx.fillStyle = '#a78bfa';
+            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
+            ctx.restore();
+        }
+
+        function hideTip() {
+            if (!tip.hidden) tip.hidden = true;
+            if (hover !== -1) { hover = -1; draw(); }
+        }
+
+        function showTip(e) {
+            var rect = cv.getBoundingClientRect();
+            var w = rect.width, h = rect.height;
+            var g = geom(w, h);
+            var px = e.clientX - rect.left;
+            if (px < g.padL || px > w - g.padR) { hideTip(); return; }
+            var days = g.daysAt(px);
+            var idx = 0, best = Infinity;
+            for (var j = 0; j < PTS.length; j++) {
+                var dd = Math.abs(PTS[j][0] - days);
+                if (dd < best) { best = dd; idx = j; }
+            }
+            var d = PTS[idx][0], z = PTS[idx][1], mv = PTS[idx][2], rv = PTS[idx][3];
+            tip.innerHTML = '<strong>' + dateStr(d) + '</strong><br>MVRV Z-Score ' + z.toFixed(2) +
+                '<br>Market cap ' + bigMoney(mv) +
+                '<br>Realized cap ' + bigMoney(rv);
+            tip.hidden = false;
+            var tx = g.x(d), ty = g.y(z);
+            var tw = tip.offsetWidth, th = tip.offsetHeight;
+            var lx = tx + 14, ly = ty - th - 10;
+            if (lx + tw > w - 8) lx = tx - tw - 14;
+            if (ly < 8) ly = ty + 16;
+            tip.style.left = Math.max(8, lx) + 'px';
+            tip.style.top = Math.max(8, ly) + 'px';
+            if (hover !== idx) { hover = idx; draw(); }
+        }
+
+        /* --- zoom + pan --- */
+        function clampView() {
+            if (VX1 - VX0 >= X1 - X0) { VX0 = X0; VX1 = X1; }
+            else if (VX0 < X0) { VX1 += X0 - VX0; VX0 = X0; }
+            else if (VX1 > X1) { VX0 -= VX1 - X1; VX1 = X1; }
+            if (VY1 - VY0 >= Y1 - Y0) { VY0 = Y0; VY1 = Y1; }
+            else if (VY0 < Y0) { VY1 += Y0 - VY0; VY0 = Y0; }
+            else if (VY1 > Y1) { VY0 -= VY1 - Y1; VY1 = Y1; }
+        }
+        function zoomViewAt(px, py, w, h, factor) {
+            var g = geom(w, h);
+            var ax = g.daysAt(px), ay = g.valAt(py);
+            var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
+            var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
+            if (nx1 - nx0 < 20 || ny1 - ny0 < 0.05) return false;
+            VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
+            return true;
+        }
+        function panByPixels(dx, dy, w, h) {
+            var g = geom(w, h);
+            var dlx = -dx / g.iw * (VX1 - VX0), dly = dy / g.ih * (VY1 - VY0);
+            VX0 += dlx; VX1 += dlx; VY0 += dly; VY1 += dly;
+        }
+        function zoomCenter(factor) {
+            var w = cv.clientWidth, h = cv.clientHeight;
+            if (!w || !h) return;
+            var g = geom(w, h);
+            hideTip();
+            if (zoomViewAt(g.padL + g.iw / 2, g.padT + g.ih / 2, w, h, factor)) { viewTouched = true; clampView(); }
+            draw();
+        }
+        function resetView() {
+            VX0 = X0; VX1 = X1; VY0 = Y0; VY1 = Y1;
+            viewTouched = false;
+            hideTip();
+            draw();
+        }
+
+        cv.addEventListener('wheel', function (e) {
+            e.preventDefault();
+            var rect = cv.getBoundingClientRect();
+            var dy = e.deltaY * (e.deltaMode === 1 ? 33 : 1);
+            hideTip();
+            if (zoomViewAt(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height, Math.exp(dy * 0.0016))) { viewTouched = true; clampView(); }
+            draw();
+        }, { passive: false });
+
+        var pointers = {}, nPointers = 0;
+        var dragStart = null, pinchStart = null, dragMoved = false;
+        function localPos(e) {
+            var r = cv.getBoundingClientRect();
+            return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height };
+        }
+        function ptrList() { var out = []; for (var id in pointers) out.push(pointers[id]); return out; }
+        function snapshot() { return { vx0: VX0, vx1: VX1, vy0: VY0, vy1: VY1 }; }
+        function restore(s) { VX0 = s.vx0; VX1 = s.vx1; VY0 = s.vy0; VY1 = s.vy1; }
+
+        cv.addEventListener('pointerdown', function (e) {
+            var p = localPos(e);
+            if (!pointers[e.pointerId]) nPointers++;
+            pointers[e.pointerId] = p;
+            try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic event */ }
+            if (nPointers === 1) {
+                dragStart = { x: p.x, y: p.y, view: snapshot() };
+                dragMoved = false;
+            } else if (nPointers === 2) {
+                var pts = ptrList();
+                pinchStart = {
+                    dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+                    midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2,
+                    w: p.w, h: p.h, view: snapshot()
+                };
+                dragStart = null;
+                hideTip();
+            }
+        });
+
+        cv.addEventListener('pointermove', function (e) {
+            if (pointers[e.pointerId]) {
+                var p = localPos(e);
+                pointers[e.pointerId] = p;
+                if (pinchStart && nPointers === 2) {
+                    var pts = ptrList();
+                    var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                    var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+                    restore(pinchStart.view);
+                    if (d > 0 && pinchStart.dist > 0) zoomViewAt(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchStart.dist / d);
+                    panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
+                    viewTouched = true;
+                    clampView();
+                    draw();
+                    return;
+                }
+                if (dragStart) {
+                    var dx = p.x - dragStart.x, dy = p.y - dragStart.y;
+                    if (dragMoved || Math.abs(dx) + Math.abs(dy) > 3) {
+                        dragMoved = true;
+                        restore(dragStart.view);
+                        panByPixels(dx, dy, p.w, p.h);
+                        viewTouched = true;
+                        clampView();
+                        hideTip();
+                        cv.style.cursor = 'grabbing';
+                        draw();
+                    }
+                    return;
+                }
+                return;
+            }
+            showTip(e);
+        });
+
+        function endPointer(e) {
+            if (pointers[e.pointerId]) { delete pointers[e.pointerId]; nPointers--; }
+            if (nPointers < 2) pinchStart = null;
+            if (nPointers === 1) {
+                var pt = ptrList()[0];
+                dragStart = { x: pt.x, y: pt.y, view: snapshot() };
+                dragMoved = true;   /* lifting one pinch finger is not a tap */
+            } else if (nPointers === 0) {
+                var wasTap = dragStart && !dragMoved && e.type === 'pointerup';
+                dragStart = null;
+                cv.style.cursor = '';
+                if (wasTap) showTip(e);
+            }
+        }
+        cv.addEventListener('pointerup', endPointer);
+        cv.addEventListener('pointercancel', endPointer);
+        cv.addEventListener('pointerleave', function () { if (!nPointers) hideTip(); });
+
+        var zin = document.getElementById('mv-zin');
+        var zout = document.getElementById('mv-zout');
+        var zreset = document.getElementById('mv-zreset');
+        if (zin) zin.addEventListener('click', function () { zoomCenter(0.55); });
+        if (zout) zout.addEventListener('click', function () { zoomCenter(1 / 0.55); });
+        if (zreset) zreset.addEventListener('click', resetView);
+
+        var rt;
+        window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(draw, 120); });
+        draw();
+        draw();
+
+        /* --- Live update: the full daily history from the CoinMetrics
+           community API in one request (market cap + the MVRV ratio), and
+           the series is rebuilt from the raw figures — realized cap
+           derived as market cap / MVRV, the standard deviation built up
+           day by day (Welford), the score taken from the 200th day on.
+           The API publishes completed days, so the last point is its
+           latest day, named in the readout. Anything short of a full,
+           from-the-start history — a failed fetch, a truncated answer —
+           leaves the baked figures standing: a standard deviation over
+           partial history would not be this gauge. --- */
+        function rebuild(rows) {
+            if (rows.length < 4000 || rows[0][0] > 600) return; /* not the full history: baked stands */
+            var n = 0, mean = 0, m2 = 0, out = [];
+            for (var i = 0; i < rows.length; i++) {
+                var mv = rows[i][1], rv = rows[i][1] / rows[i][2];
+                n++;
+                var delta = mv - mean; mean += delta / n; m2 += delta * (mv - mean);
+                if (i >= 199) {
+                    var std = Math.sqrt(m2 / n);
+                    if (std > 0) out.push([rows[i][0], (mv - rv) / std, Math.round(mv / 1000), Math.round(rv / 1000)]);
+                }
+            }
+            if (out.length < 1000) return;
+            PTS = out;
+            FIRST_DAY = rows[0][0];
+            X0 = PTS[0][0]; X1 = PTS[PTS.length - 1][0] + 20;
+            var yb = yBounds(); Y0 = yb[0]; Y1 = yb[1];
+            if (!viewTouched) { VX0 = X0; VX1 = X1; VY0 = Y0; VY1 = Y1; }
+            renderReadout();
+            draw();
+        }
+        if (window.fetch) {
+            fetch('https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics=CapMrktCurUSD,CapMVRVCur&frequency=1d&page_size=10000&start_time=2010-01-01T00:00:00.000Z&sort=time')
+                .then(function (r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function (j) {
+                    var data = (j && j.data) || [];
+                    var rows = [];
+                    data.forEach(function (row) {
+                        var parts = String(row.time || '').slice(0, 10).split('-');
+                        var mv = parseFloat(row.CapMrktCurUSD), ratio = parseFloat(row.CapMVRVCur);
+                        if (parts.length !== 3 || !(mv > 0) || !(ratio > 0)) return;
+                        var days = Math.round((Date.UTC(+parts[0], +parts[1] - 1, +parts[2]) - GENESIS) / DAY);
+                        rows.push([days, mv, ratio]);
+                    });
+                    rows.sort(function (a, b) { return a[0] - b[0]; });
+                    rebuild(rows);
+                }).catch(function () { /* offline or blocked: the baked figures stand */ });
+        }
+    })();
+
+    </script>
+
+        <script>
+    /* Bitcoin chart switcher: the picker above the chart chooses
+       between the Power Law chart, the Production Cost chart and the
+       Mayer Multiple chart and the
+       MVRV Z-Score chart — the same picker as the homepage's Bitcoin
+       card. Default is the Power Law chart; the last choice is
+       remembered in localStorage ('btc-chart-view'), shared with the
+       homepage. (The plain TradingView graph view was removed on
+       2026-11-17; a stored 'graph' choice now lands on the Power Law
+       chart.) Each view's code is only executed the first time its view
+       is picked (all sit inert in text/plain blocks above until then).
+       The container height animates between the views so nothing jumps;
+       a tap that lands mid-animation finishes the running animation
+       instantly, so the last tap always wins. */
     (function () {
         var KEY = 'btc-chart-view';
-        var btns = document.querySelectorAll('.btc-switch button');
+        var root = document.getElementById('btcPick');
+        var face = document.getElementById('btcPickFace');
+        var faceText = document.getElementById('btcPickFaceText');
+        var panel = document.getElementById('btcPickPanel');
+        var opts = document.querySelectorAll('.btc-pick-opt');
         var anim = document.getElementById('btc-view-anim');
-        var vGraph = document.getElementById('btc-view-graph');
         var vPl = document.getElementById('btc-view-powerlaw');
         var vCost = document.getElementById('btc-view-cost');
-        if (!btns.length || !anim || !vGraph || !vPl || !vCost) return;
-        var current = 'graph', plLoaded = false, costLoaded = false, animating = false, finishAnim = null;
+        var vMayer = document.getElementById('btc-view-mayer');
+        var vMvrv = document.getElementById('btc-view-mvrv');
+        if (!root || !face || !panel || !anim || !vPl || !vCost || !vMayer || !vMvrv) return;
+        var LABELS = { powerlaw: 'Bitcoin power law', cost: 'Production cost', mayer: 'Mayer Multiple', mvrv: 'MVRV Z-Score' };
+        var current = 'powerlaw', plLoaded = false, costLoaded = false, mayerLoaded = false, mvrvLoaded = false, animating = false, finishAnim = null;
+        var open = false;
 
-        function loadPowerLaw() {
-            if (plLoaded) return;
-            plLoaded = true;
-            var code = document.getElementById('btc-pl-code');
+        function execBlock(id) {
+            var code = document.getElementById(id);
             if (!code) return;
             var s = document.createElement('script');
             s.textContent = code.textContent;
             document.body.appendChild(s);
         }
-        function loadCost() {
-            if (costLoaded) return;
-            costLoaded = true;
-            var code = document.getElementById('btc-cost-code');
-            if (!code) return;
-            var s = document.createElement('script');
-            s.textContent = code.textContent;
-            document.body.appendChild(s);
-        }
+        function loadPowerLaw() { if (plLoaded) return; plLoaded = true; execBlock('btc-pl-code'); }
+        function loadCost() { if (costLoaded) return; costLoaded = true; execBlock('btc-cost-code'); }
+        function loadMayer() { if (mayerLoaded) return; mayerLoaded = true; execBlock('btc-mayer-code'); }
+        function loadMvrv() { if (mvrvLoaded) return; mvrvLoaded = true; execBlock('btc-mvrv-code'); }
         function save(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
         function saved() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
-        function syncButtons(view) {
-            btns.forEach(function (b) {
+        function setOpen(o) {
+            open = o;
+            panel.hidden = !o;
+            face.setAttribute('aria-expanded', o ? 'true' : 'false');
+        }
+        function syncPicker(view) {
+            faceText.textContent = LABELS[view] || LABELS.powerlaw;
+            opts.forEach(function (b) {
                 var on = b.getAttribute('data-view') === view;
                 b.classList.toggle('active', on);
                 b.setAttribute('aria-selected', on ? 'true' : 'false');
@@ -1391,16 +2361,19 @@
         }
 
         function applyView(view, animate) {
-            syncButtons(view);
-            var showEl = view === 'powerlaw' ? vPl : (view === 'cost' ? vCost : vGraph);
+            syncPicker(view);
+            var showEl = view === 'cost' ? vCost : (view === 'mayer' ? vMayer : (view === 'mvrv' ? vMvrv : vPl));
             var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             current = view;
             function reveal() {
-                vGraph.hidden = showEl !== vGraph;
                 vPl.hidden = showEl !== vPl;
                 vCost.hidden = showEl !== vCost;
+                vMayer.hidden = showEl !== vMayer;
+                vMvrv.hidden = showEl !== vMvrv;
                 if (view === 'powerlaw') loadPowerLaw();
                 if (view === 'cost') loadCost();
+                if (view === 'mayer') loadMayer();
+                if (view === 'mvrv') loadMvrv();
             }
             if (!animate || reduced) {
                 reveal();
@@ -1431,20 +2404,29 @@
             setTimeout(function () { if (finishAnim === done) done(); }, 600);
         }
 
-        btns.forEach(function (b) {
+        face.addEventListener('click', function () { setOpen(!open); });
+        opts.forEach(function (b) {
             b.addEventListener('click', function () {
                 var v = b.getAttribute('data-view');
+                setOpen(false);
                 if (v === current) return;
-                if (animating && finishAnim) finishAnim();
+            if (animating && finishAnim) finishAnim();
                 save(v);
                 applyView(v, true);
             });
         });
+        document.addEventListener('pointerdown', function (e) {
+            if (open && !root.contains(e.target)) setOpen(false);
+        });
+        document.addEventListener('keydown', function (e) {
+            if (open && (e.key === 'Escape' || e.key === 'Esc')) {
+                setOpen(false);
+                if (face.focus) face.focus();
+            }
+        });
 
         var sv = saved();
-        if (sv === 'powerlaw' || sv === 'cost') {
-            applyView(sv, false);
-        }
+        applyView(sv === 'cost' || sv === 'mayer' || sv === 'mvrv' ? sv : 'powerlaw', false);
     })();
     </script>
 
