@@ -961,6 +961,46 @@
             next.disabled = lovedOnly || st.histPos >= st.hist.length - 1;
         }
 
+        // Speed (2026-11-16): the stage never displays wider than
+        // ~800px, so it loads a right-sized 1280px thumb instead of
+        // the stored 3840px one (roughly 5-6x fewer bytes per tap);
+        // the stored URL stays untouched in the pool data and still
+        // feeds the fullscreen view. Only Wikimedia JPEG thumbs are
+        // derived: the final segment must carry a 3840px- size —
+        // plain, or after a lossy-page1- prefix (TIFF originals) —
+        // and end in .jpg/.jpeg. PNG thumbs, originals, 1920px
+        // entries and every other URL are used exactly as stored.
+        function stageUrl(url) {
+            if (!url || url.indexOf('://thumb.wikimedia.org/') === -1) { return url; }
+            var seg = url.slice(url.lastIndexOf('/') + 1);
+            if (!/(^|-)3840px-/.test(seg) || !/\.jpe?g$/i.test(seg)) { return url; }
+            return url.replace(/3840px-/, '1280px-');
+        }
+
+        // Prefetch: after every render, warm the next two entries of
+        // the active ('all') deck at stage size, so the next taps are
+        // already on the device. The deck is a known sequence; when
+        // fewer than two remain, the next draw reshuffles and there
+        // is nothing honest to warm. Skipped in the Loved view and
+        // when the browser asks to save data.
+        var prefetchedUrls = {};
+        function prefetchNext(prefix) {
+            if (lovedOnly) { return; }
+            var conn = navigator.connection;
+            if (conn && conn.saveData) { return; }
+            var st = GEN[prefix];
+            if (!st) { return; }
+            for (var i = 0; i < st.decks.all.length && i < 2; i++) {
+                var e = st.byId[st.decks.all[i]];
+                if (!e) { continue; }
+                var u = stageUrl(e.img);
+                if (prefetchedUrls[u]) { continue; }
+                prefetchedUrls[u] = 1;
+                var im = new Image();
+                im.src = u;
+            }
+        }
+
         function renderEntry(prefix, entry) {
             var st = GEN[prefix];
             st.shownId = entry.id;
@@ -995,43 +1035,68 @@
             document.getElementById(prefix + '-deepbody').innerHTML = entry.deep || '';
             empty.hidden = true;
             err.hidden = true;
-            img.classList.add('fading');
-            // Generation guard: a rapid Generate tap can supersede a load
-            // still in flight; the superseded load's error event must not
-            // show the error box under the new image.
+            // Swap only when ready (2026-11-16): the incoming stage
+            // image loads offscreen first and takes the stage only
+            // once it has decoded — until then the photo already on
+            // stage stays up, so a slow connection never shows a
+            // blank frame. With nothing on stage yet, the original
+            // fade-in presentation is kept. An error keeps the
+            // current photo; the error box appears only when there
+            // is no photo to keep.
+            var stage = stageUrl(entry.img);
+            img.setAttribute('data-stage', stage);
+            img.setAttribute('data-full', entry.img);
+            // Generation guard: a rapid Generate tap can supersede a
+            // load still in flight; the superseded load must not swap
+            // or show the error box under the new image.
             var gen = (st.gen = (st.gen || 0) + 1);
             var retried = false;
-            if (img.getAttribute('src') === entry.img && !img.hidden) {
+            prefetchNext(prefix);
+            if (st.shownStage === stage && !img.hidden) {
                 img.classList.remove('fading');
                 return;
             }
-            img.onload = function () {
+            if (!st.shownStage) { img.classList.add('fading'); }
+            img.hidden = false;
+            img.onload = null;
+            img.onerror = null;
+            function swapIn(url) {
                 if (gen !== st.gen) { return; }
-                // A good load clears any error state — the box must never sit
-                // under a loaded image.
+                st.shownStage = stage;
+                // A good load clears any error state — the box must
+                // never sit under a loaded image.
                 err.hidden = true;
-                img.hidden = false; img.classList.remove('fading');
-            };
-            img.onerror = function () {
+                img.hidden = false;
+                img.src = url;
+                img.classList.remove('fading');
+            }
+            function loadFailed() {
                 if (gen !== st.gen) { return; }
-                // If the current image actually loaded, this error belongs to
-                // a superseded load — ignore it.
-                if (img.naturalWidth > 0) { return; }
                 // One retry (flaky mobile networks): same file, fresh fetch.
                 if (!retried) {
                     retried = true;
-                    setTimeout(function () {
-                        if (gen !== st.gen) { return; }
-                        img.src = entry.img + (entry.img.indexOf('?') === -1 ? '?retry=1' : '&retry=1');
-                    }, 600);
+                    setTimeout(function () { tryStage(stage + (stage.indexOf('?') === -1 ? '?retry=1' : '&retry=1')); }, 600);
                     return;
                 }
                 img.classList.remove('fading');
-                img.hidden = true;
-                err.hidden = false;
-            };
-            img.hidden = false;
-            img.src = entry.img;
+                if (!st.shownStage) {
+                    img.hidden = true;
+                    err.hidden = false;
+                }
+            }
+            function tryStage(url) {
+                if (gen !== st.gen) { return; }
+                var loader = new Image();
+                loader.onload = function () {
+                    if (gen !== st.gen) { return; }
+                    if (loader.decode) {
+                        loader.decode().then(function () { swapIn(url); }, function () { swapIn(url); });
+                    } else { swapIn(url); }
+                };
+                loader.onerror = loadFailed;
+                loader.src = url;
+            }
+            tryStage(stage);
             syncHeart(prefix);
         }
 
@@ -1383,8 +1448,10 @@
         var fsImg = document.getElementById('gen-fs-img');
         var fsCredit = document.getElementById('gen-fs-credit');
         var fsOpen = false;
+        var fsSeq = 0;
         function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
         function cleanupFS() {
+            fsSeq++;
             overlay.hidden = true;
             fsOpen = false;
             document.body.style.overflow = '';
@@ -1394,8 +1461,22 @@
         function openFS(prefix) {
             var img = document.getElementById(prefix + '-img');
             if (!img || img.hidden || !img.getAttribute('src')) { return; }
+            var mySeq = ++fsSeq;
             fsImg.src = img.currentSrc || img.src;
             fsImg.alt = img.alt || '';
+            // Full-res upgrade (2026-11-16): the stage now carries a
+            // right-sized image, so fullscreen opens with it (already
+            // loaded — instant) and swaps in the stored full-res URL
+            // once it arrives, only if this same view is still open.
+            var full = img.getAttribute('data-full');
+            var stageSrc = img.getAttribute('data-stage');
+            if (full && stageSrc && full !== stageSrc) {
+                var up = new Image();
+                up.onload = function () {
+                    if (mySeq === fsSeq && fsOpen && !overlay.hidden) { fsImg.src = full; }
+                };
+                up.src = full;
+            }
             var src = document.getElementById(prefix + '-source');
             fsCredit.textContent = src ? src.textContent : '';
             fsCredit.href = src ? src.href : '#';
