@@ -191,6 +191,14 @@
         .btc-zl-red { background: #ef4444; }
         .btc-zones.buy { border-color: var(--accent-color); box-shadow: 0 0 0 1px var(--accent-color); }
         .btc-zones.buy .btc-zones-line { font-weight: 700; }
+        .btc-zones.golden { border-color: #d4af37; box-shadow: 0 0 0 1px #d4af37; }
+        .btc-zones.golden .btc-zones-line { font-weight: 700; background: rgba(212, 175, 55, 0.14); border: 1px solid #d4af37; border-radius: 8px; padding: 6px 10px; }
+        .btc-zones.golden .btc-zone .btc-zone-dot { background: transparent; border-color: transparent; display: flex; align-items: center; justify-content: center; }
+        .btc-zones.golden .btc-zone .btc-zone-dot::before { content: "★"; color: #d4af37; font-size: 15px; line-height: 1; }
+        body.light-mode .btc-zones.golden { border-color: #9a7b0a; box-shadow: 0 0 0 1px #9a7b0a; }
+        body.light-mode .btc-zones.golden .btc-zones-line { border-color: #9a7b0a; }
+        body.light-mode .btc-zones.golden .btc-zone .btc-zone-dot::before { color: #9a7b0a; }
+        .btc-zones-sub { font-size: 0.85rem; margin: 5px 2px 0; }
         @media (max-width: 480px) {
             .btc-zones { padding: 10px 8px 8px; }
             .btc-zones-row { gap: 2px; }
@@ -762,7 +770,9 @@
              — their early spikes stretch a position range until
              real bottoms read as partway up. Each chart's own readout
              code publishes its reading (window.BTC_ZONE), so this row
-             can never disagree with the charts. -->
+             can never disagree with the charts. When all four read
+             green at once, the row turns golden: the dots become gold
+             stars and the line becomes a golden callout. -->
         <div class="btc-zones" id="btcZones">
             <div class="btc-zones-row" role="group" aria-label="Buy zones — tap a model to open its chart">
                 <button type="button" class="btc-zone" data-zone="powerlaw"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Power law</span><span class="btc-zone-dist" data-dist>…</span></button>
@@ -3770,6 +3780,22 @@
         var comp = document.getElementById('btcZones');
         if (!comp) return;
         var line = document.getElementById('btcZonesLine');
+        /* the golden state's sub-line is created only when it is
+           first needed, so every other state's DOM is exactly what
+           it was before the golden state existed */
+        var sub = null;
+        function showSub(txt) {
+            if (!sub) {
+                sub = document.createElement('p');
+                sub.className = 'btc-zones-sub';
+                line.parentNode.insertBefore(sub, line.nextSibling);
+            }
+            sub.textContent = txt;
+            sub.hidden = false;
+        }
+        function hideSub() {
+            if (sub) { sub.hidden = true; sub.textContent = ''; }
+        }
         var ORDER = ['powerlaw', 'cost', 'mayer', 'mvrv'];
         var btns = {};
         ORDER.forEach(function (k) {
@@ -3813,19 +3839,36 @@
             });
             if (ready < 4) return;
             var avg = sum / 4;
-            if (avg < 0) {
-                /* the final-bottoms state: on average, price sits under
-                   all four bottom lines at once. On the baked record
-                   since 2016 that has only happened around the final
-                   bottoms — the winter of 2018–19, Mar 2020, Nov 2022
-                   and Jul 2026, 66 days in all. The state is this
-                   average and nothing else: it fires exactly when the
-                   composite crosses below zero, and the four dots keep
-                   their own zones either way. */
-                comp.classList.add('buy');
-                line.textContent = 'Buy time — on average, price is under the four bottoms. That has only happened around the final bottoms: the winter of 2018–19 · Mar 2020 · Nov 2022 · Jul 2026.';
-            } else {
+            /* the final-bottoms sentence: on average, price sits under
+               all four bottom lines at once. On the baked record since
+               2016 that has only happened around the final bottoms —
+               the winter of 2018–19, Mar 2020, Nov 2022 and Jul 2026,
+               66 days in all. The state is this average and nothing
+               else: it fires exactly when the composite crosses below
+               zero, and the four dots keep their own zones either way. */
+            var BOTTOMS = 'Buy time — on average, price is under the four bottoms. That has only happened around the final bottoms: the winter of 2018–19 · Mar 2020 · Nov 2022 · Jul 2026.';
+            if (count === 4) {
+                /* the golden state: all four models in their buy zones
+                   at once — on the baked weekly record since 2016,
+                   5 of 564 weeks, every one of them at the 2022
+                   bear-market bottom. The dots become gold stars and
+                   the line becomes the golden callout; when the
+                   final-bottoms average also holds, its sentence
+                   rides beneath the callout as a sub-line rather than
+                   being replaced by it. */
                 comp.classList.remove('buy');
+                comp.classList.add('golden');
+                line.textContent = 'Golden buying opportunity — all four models in their buy zones at once.';
+                if (avg < 0) showSub(BOTTOMS); else hideSub();
+            } else if (avg < 0) {
+                comp.classList.remove('golden');
+                hideSub();
+                comp.classList.add('buy');
+                line.textContent = BOTTOMS;
+            } else {
+                comp.classList.remove('golden');
+                comp.classList.remove('buy');
+                hideSub();
                 var avgPos = posCount ? posSum / posCount : 0, where;
                 if (avgPos <= 5) where = 'at the bottoms';
                 else if (avgPos <= 25) where = 'low in their ranges';
