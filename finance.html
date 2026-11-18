@@ -214,6 +214,9 @@
     #chartTools[hidden] { display: none; }
     #chartToolsBtn .chart-tools-chev { display: inline-block; font-size: 0.72em; margin-left: 0.35rem; transition: transform var(--dur-1) var(--ease-out); }
     #chartToolsBtn[aria-expanded="true"] .chart-tools-chev { transform: rotate(90deg); }
+    .grades-key-chip[aria-pressed="false"] { opacity: 0.45; }
+    .grades-key-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .grades-explainer { font-size: 0.85rem; color: var(--subtext-color); margin: 0.5rem 0 0; }
     /* Verdict chip (2026-11-16): the picked stock's scoreboard
        tally beside the picker — a door to its score popover. It
        wears the pill grammar but toggles nothing. */
@@ -432,6 +435,24 @@
     .section-nav::-webkit-scrollbar { display: none; }
     .section-nav a { text-decoration: none; flex: 0 0 auto; }
     body:has(.explainer-card.active) .section-nav { position: static; }
+    /* Sticky table headers (2026-11-18): the pin is driven by the
+       script at the end of the page — a transform on the header
+       cells, because the .spreadsheet-container wrappers are
+       horizontal scroll containers and defeat CSS sticky. These
+       rules only give a pinned header its footing: a stacking lift
+       above the rows scrolling under it (the corner cell highest,
+       over the sticky first column — position: relative makes the
+       lift real on the static cells; the corner is already
+       positioned by its sticky rule) and an opaque backing: the
+       shared header tint is translucent, so a pinned header layers
+       that same tint over the container's solid card background —
+       the identical composite colour, with nothing showing
+       through. (The base is --glass-bg-solid, not the card
+       background: the card background is itself translucent
+       glass.) */
+    .spreadsheet-container thead th.jbo-th-pin { z-index: 4; background-image: linear-gradient(var(--hover-bg), var(--hover-bg)); background-color: var(--glass-bg-solid); }
+    .spreadsheet-container thead th.jbo-th-pin:not(:first-child) { position: relative; }
+    .spreadsheet-container thead th.jbo-th-pin:first-child { z-index: 5; }
     .collapsible-section { scroll-margin-top: 112px; }
     .section-title { margin-top: 48px; }
     .section-toggle { font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; background: none; border: none; padding: 0; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 0.55rem; width: 100%; text-align: left; }
@@ -616,7 +637,7 @@
         <a class="site-brand" href="/" aria-label="Johnny O'Neal — home">
             <img class="site-brand-logo" src="jbo-logo.svg" alt="Johnny O'Neal logo" width="32" height="32">
         </a>
-        <a class="golden-star" href="bitcoin.html#btc-value" title="Golden buying opportunity — all four Bitcoin models in their buy zones" aria-label="Golden buying opportunity — all four Bitcoin models in their buy zones" hidden><span class="golden-star-stars" aria-hidden="true">★★★★</span><span class="golden-star-note" aria-hidden="true">Golden buying opportunity</span></a>
+        <a class="golden-star" href="bitcoin.html#btc-value" title="Golden buy zone — all four Bitcoin models in their buy zones" aria-label="Golden buy zone — all four Bitcoin models in their buy zones" hidden><span class="golden-star-stars" aria-hidden="true">★★★★</span><span class="golden-star-note" aria-hidden="true">Golden buy zone · Active now</span></a>
         <div class="site-nav-right">
             <div class="site-nav-menu">
                 <button class="site-nav-toggle" id="nav-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="nav-menu">Explore pages ▾</button>
@@ -658,7 +679,7 @@
         <a class="hub-card" href="#legend"><strong>Look up a term</strong><span>Every acronym on this page, defined</span></a>
     </div>
 
-    <nav class="section-nav" id="sectionNav" data-grab-scroll aria-label="Finance page sections">
+    <nav class="section-nav" id="sectionNav" aria-label="Finance page sections">
         <a class="filter-pill" href="#chart">Chart</a>
         <a class="filter-pill" href="#scoreboard">Scoreboard</a>
         <a class="filter-pill" href="#screener">Screener</a>
@@ -681,7 +702,7 @@
             <button type="button" class="filter-pill" data-key="GOLD">Gold</button>
             <button type="button" class="filter-pill" data-key="BTC">Bitcoin</button>
         </div>
-        <div class="chart-controls" data-grab-scroll>
+        <div class="chart-controls">
             <div class="selector-group">
                 <span class="group-label" id="chartStockLabel">Stock</span>
                 <div class="stock-dd" id="chartStock">
@@ -700,6 +721,10 @@
             <button type="button" class="filter-pill chart-verdict-chip" id="chartVerdictChip" hidden></button>
             <button type="button" class="filter-pill" id="chartToolsBtn" aria-expanded="false" aria-controls="chartTools">Chart tools<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
             <button type="button" class="share-btn chart-share" id="chartShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
+            <div class="chip-row" id="chartKind" role="group" aria-label="Chart kind">
+                <button type="button" class="filter-pill active" data-kind="price">Price</button>
+                <button type="button" class="filter-pill" data-kind="grades">Grades</button>
+            </div>
             <div id="chartTools" hidden>
             <div class="chip-row" id="chartRanges" role="group" aria-label="Chart range">
                 <button type="button" class="filter-pill" data-range="1Y">1Y</button>
@@ -737,6 +762,11 @@
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span id="keyVolma"><strong>Grey &mdash; the 20-week volume average</strong>. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
         </div>
         </details>
+        <details class="chart-key" id="chartKeyGrades" open hidden>
+            <summary><span class="chart-key-chev" aria-hidden="true">&#9654;</span> Grades key</summary>
+            <div class="chip-row" id="gradesKeyList"></div>
+            <p class="grades-explainer">Each line is one investor&rsquo;s grade for this stock that week &mdash; the share of their checkable rules it passed, from only what was knowable then: filings count from the day they were filed, prices are that week&rsquo;s close. The readout always shows how many rules were tested; a dashed stretch means fewer than half of that investor&rsquo;s rules could be. The ten judgment investors can&rsquo;t be re-graded into the past &mdash; their lines start at their November 2026 grading and grow from there. Past grades are not a prediction.</p>
+        </details>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         <button type="button" id="chartFsClose" aria-label="Close full screen">&#10005;</button>
         </div>
@@ -754,19 +784,36 @@
     (function () {
         "use strict";
         var details = document.getElementById("chartKey");
+        var gradesDetails = document.getElementById("chartKeyGrades");
         var frame = document.getElementById("jboChartFrame");
         var body = document.getElementById("chart-body");
         if (!details || !frame || !body) return;
-        var userToggled = false, fitState = true;
-        details.addEventListener("toggle", function () {
-            if (details.open !== fitState) userToggled = true;
-        });
+        // The Grades view carries its own key (the chart's other
+        // key, hidden then): the same floor rule guards whichever
+        // key is showing, so the taller grades key can never
+        // squeeze the canvas away on a short screen either. The
+        // fit bookkeeping is per key — each key's toggle is judged
+        // against its own last fit state, never the other key's.
+        var userToggled = { price: false, grades: false };
+        var fitStates = { price: true, grades: true };
+        function watchKey(el, slot) {
+            if (!el) return;
+            el.addEventListener("toggle", function () {
+                if (el.open !== fitStates[slot]) userToggled[slot] = true;
+            });
+        }
+        watchKey(details, "price");
+        watchKey(gradesDetails, "grades");
         function fit() {
-            if (userToggled || body.hidden) return;
+            if (body.hidden) return;
             if (!body.clientHeight || body.clientHeight < 100) return; // not laid out (or a test DOM)
-            if (!details.open) details.open = true; // measure the open cost; no paint happens mid-task
-            fitState = frame.clientHeight >= 300;
-            details.open = fitState;
+            var useGrades = !!(gradesDetails && !gradesDetails.hidden);
+            var active = useGrades ? gradesDetails : details;
+            var slot = useGrades ? "grades" : "price";
+            if (userToggled[slot]) return;
+            if (!active.open) active.open = true; // measure the open cost; no paint happens mid-task
+            fitStates[slot] = frame.clientHeight >= 300;
+            active.open = fitStates[slot];
         }
         var timer = null;
         function fitSoon() { clearTimeout(timer); timer = setTimeout(fit, 150); }
@@ -837,7 +884,7 @@
                 </select>
             </div>
         </div>
-        <div class="spreadsheet-container" data-grab-scroll>
+        <div class="spreadsheet-container">
             <table>
                 <thead>
                     <tr id="scoreboardHead"><th>Company (Ticker)</th><th>Score</th></tr>
@@ -878,7 +925,7 @@
         <p style="margin-bottom: 0.75rem;"><small style="color: var(--subtext-color);">PEG, growth, ROE and margin (net profit margin) come from SEC filings via EDGAR and Alpha Vantage overview data, refreshed weekly (last refresh: <span id="fundAsOf">loading&hellip;</span>; fiscal period varies by ticker). Momentum is the 3-month % price return worked out on this page from the weekly closes in the price history below (Yahoo Finance), through <span id="momAsOf">loading&hellip;</span>. A dash (&mdash;) means no verified figure is available.</small></p>
           </div>
         </details>
-        <div class="spreadsheet-container" data-grab-scroll>
+        <div class="spreadsheet-container">
             <table id="comparisonTable">
                 <thead>
                     <tr>
@@ -988,7 +1035,7 @@
         </div>
 
         <!-- My Investor Committee (2026-11-17 merge): the table is the committee — tap a row to open that investor’s full profile (the former card, unchanged) beneath it. -->
-        <div class="spreadsheet-container" data-grab-scroll>
+        <div class="spreadsheet-container">
             <table>
                 <thead>
                     <tr><th>Investor</th><th>Style</th><th>Time horizon</th><th>Key test</th><th>Risk stance</th><th>Scored?</th></tr>
@@ -1009,14 +1056,14 @@
                 <div class="alloc-caps">
                     <div style="flex: 70">promising + undervalued only</div>
                     <div style="flex: 10">always kept</div>
-                    <div style="flex: 10">pays <span id="yieldStrcCap">12.1%</span></div>
-                    <div style="flex: 10">pays <span id="yieldSatsCap">15.9%</span></div>
+                    <div style="flex: 10">pays <span id="yieldStrcCap">12.1%</span> &middot; paid daily</div>
+                    <div style="flex: 10">pays <span id="yieldSatsCap">15.9%</span> &middot; paid daily</div>
                 </div>
                 <ul class="alloc-legend">
                     <li><span class="alloc-dot alloc-seg-main"></span><strong>$70 &mdash; Bitcoin, index funds &amp; stocks</strong> <span class="alloc-cap">promising + undervalued only</span></li>
                     <li><span class="alloc-dot alloc-seg-cash"></span><strong>$10 Cash</strong> <span class="alloc-cap">always kept</span></li>
-                    <li><span class="alloc-dot alloc-seg-strc"></span><strong>$10 STRC</strong> <span class="alloc-cap">pays <span id="yieldStrcLeg">12.1%</span></span></li>
-                    <li><span class="alloc-dot alloc-seg-sats"></span><strong>$10 SATS</strong> <span class="alloc-cap">pays <span id="yieldSatsLeg">15.9%</span></span></li>
+                    <li><span class="alloc-dot alloc-seg-strc"></span><strong>$10 STRC</strong> <span class="alloc-cap">pays <span id="yieldStrcLeg">12.1%</span> &middot; paid daily</span></li>
+                    <li><span class="alloc-dot alloc-seg-sats"></span><strong>$10 SATS</strong> <span class="alloc-cap">pays <span id="yieldSatsLeg">15.9%</span> &middot; paid daily</span></li>
                 </ul>
                 <div class="rules-grid">
                     <div class="rule-item">
@@ -1070,7 +1117,7 @@
                     <li><strong>Holdings:</strong> None public — Medallion is private and employee-only, closed to outsiders since 1993 and capped at ~$10B. (Simons died in May 2024; Renaissance’s firm-wide 13F is a separate quant book, not his portfolio.)</li>
                 </ul>
                             <h4 style="margin-top: 1.25rem;">Disclosed Holdings — Q2 2026 13F (Renaissance Technologies)</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th class="wrap">Holding</th><th>Ticker(s)</th><th>$ value</th><th>% of disclosed 13F book</th></tr></thead>
                             <tbody>
@@ -1118,7 +1165,7 @@
                     <li><strong>Holdings:</strong> Founders Fund is private (no 13F). Closed a $6B growth/late-stage fund in May 2026; $1B into Anduril (June 2025 Series G) was its largest single check at the time — the same fund later put $1.25B into Anthropic (early 2026).</li>
                 </ul>
                             <h4 style="margin-top: 1.25rem;">Publicly Disclosed Stakes — no 13F</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th class="wrap">Holding / stake</th><th>Disclosed amount or %</th><th>Date of disclosure</th><th class="wrap">Source</th></tr></thead>
                             <tbody>
@@ -1172,7 +1219,7 @@
                 </ul>
                             <h4 style="margin-top: 1.25rem;">Analyst Ratings &amp; Price Targets — not holdings</h4>
                 <p style="color: var(--text-color); font-weight: 600; margin: 1rem 0 0.5rem 0;">Top 5 into 2027</p>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Rank / name</th><th>Rating</th><th>Price target</th><th>Announced</th><th class="wrap">Source</th></tr></thead>
                             <tbody>
@@ -1185,7 +1232,7 @@
                         </table>
                     </div>
                 <p style="color: var(--text-color); font-weight: 600; margin: 1rem 0 0.5rem 0;">Full current call archive</p>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Company</th><th>Rating</th><th>Price target</th><th>Date of latest note</th><th class="wrap">Source</th></tr></thead>
                             <tbody>
@@ -1237,7 +1284,7 @@
                     <li><strong>Outlook:</strong> “AI is very, very real and could be every bit as impactful as the internet” (Sohn, 2023); by Jan 2026 he called biotech the best AI use case, with AI “no longer driving the engine” of his portfolio.</li>
                 </ul>
                             <h4 style="margin-top: 1.25rem;">Disclosed Holdings — Q2 2026 13F</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Holding</th><th>Ticker</th><th>Shares (stock)</th><th>Stock value</th><th>% of disclosed $5.211B</th><th>Call notional</th></tr></thead>
                             <tbody>
@@ -1296,7 +1343,7 @@
                     <li><strong>Succession:</strong> Stepped down as CEO 1 Jan 2026 (Greg Abel is now President &amp; CEO); stepped down as chairman 18 Sep 2026, becoming Chairman Emeritus — son Howard G. Buffett is chairman.</li>
                 </ul>
                             <h4 style="margin-top: 1.25rem;">Disclosed Holdings — Q2 2026 13F</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th class="wrap">Holding</th><th>Value</th><th>% of disclosed 13F</th><th>Shares</th></tr></thead>
                             <tbody>
@@ -1361,7 +1408,7 @@
                     <li><strong>Outlook:</strong> “Underweight bonds, hold 10–15% of a portfolio in gold and a bit of Bitcoin” (21 Aug 2026) — a US debt crisis could arrive “in three years, give or take two.”</li>
                 </ul>
                             <h4 style="margin-top: 1.25rem;">Disclosed Holdings — Q2 2026 13F</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Holding</th><th>Ticker</th><th>Shares</th><th>Value</th><th>% of disclosed $24.376B</th></tr></thead>
                             <tbody>
@@ -1414,7 +1461,7 @@
                     <li><strong>Holdings — Q2 2026 13F:</strong> $7.47B long equities, 25 positions ($7.72B / 27 positions including options): Amazon $1.19B, Micron $1.13B, TSMC $788M, Alphabet $654M, Uber $555M. Fund +32% (gross) through H1 2026.</li>
                 </ul>
                             <h4 style="margin-top: 1.25rem;">Disclosed Holdings — Q2 2026 13F</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Holding</th><th>Ticker</th><th>$ value</th><th>% of disclosed stock-only portfolio</th></tr></thead>
                             <tbody>
@@ -1478,7 +1525,7 @@
                     <li><strong>Outlook:</strong> June 2026: holding so much cash was something he “almost certainly made a mistake” on. No forward market prediction verified.</li>
                 </ul>
                             <h4 style="margin-top: 1.25rem;">Disclosed Holdings — Q2 2026 13F</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th class="wrap">Holding</th><th>Value</th><th>% of disclosed 13F</th><th>Shares</th></tr></thead>
                             <tbody>
@@ -1541,7 +1588,7 @@
             </ul>
                         <h4 style="margin-top: 1.25rem;">Framework &amp; Public Model Portfolio — no 13F</h4>
                 <p style="color: var(--text-color); font-weight: 600; margin: 1rem 0 0.5rem 0;">The three pillars</p>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Pillar</th><th class="wrap">What it holds</th><th class="wrap">Role</th></tr></thead>
                             <tbody>
@@ -1552,7 +1599,7 @@
                         </table>
                     </div>
                 <p style="color: var(--text-color); font-weight: 600; margin: 1rem 0 0.5rem 0;">Stated positions</p>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th class="wrap">Position / figure</th><th>Size</th><th class="wrap">Nature</th><th class="wrap">As-of / source</th></tr></thead>
                             <tbody>
@@ -1570,7 +1617,7 @@
                         </table>
                     </div>
                 <p style="color: var(--text-color); font-weight: 600; margin: 1rem 0 0.5rem 0;">Public model portfolio — M1 Finance Newsletter Portfolio (June 2026)</p>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Slice</th><th>Actual %</th><th>Target %</th><th>Value (as printed)</th></tr></thead>
                             <tbody>
@@ -1621,7 +1668,7 @@
             </ul>
                         <h4 style="margin-top: 1.25rem;">Publicly Named Positions — no 13F</h4>
                 <p style="color: var(--text-color); font-weight: 600; margin: 1rem 0 0.5rem 0;">Named equity positions</p>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Position</th><th class="wrap">Action / stance</th><th>Size where stated</th><th class="wrap">As-of / source</th></tr></thead>
                             <tbody>
@@ -1637,7 +1684,7 @@
                         </table>
                     </div>
                 <p style="color: var(--text-color); font-weight: 600; margin: 1rem 0 0.5rem 0;">Crypto</p>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Position</th><th class="wrap">Action / stance</th><th>Size where stated</th><th class="wrap">As-of / source</th></tr></thead>
                             <tbody>
@@ -1682,7 +1729,7 @@
                 <li><strong>Holdings:</strong> Positive Sum lists 29 highlighted companies (30+ in total), $600M across its first three funds. No 13F — a venture fund, not a public-stock portfolio.</li>
             </ul>
                         <h4 style="margin-top: 1.25rem;">Positive Sum Portfolio Companies — no 13F</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Company</th><th class="wrap">What is disclosed</th></tr></thead>
                             <tbody>
@@ -1750,7 +1797,7 @@
                 <li><strong>Outlook:</strong> The AI buildout is “still overwhelmingly funded out of operating cash flows” (May 2026) — a debt-funded buildout would change the call; watch-item: TSMC's capacity decisions. In Q2 2026 he cut Astera Labs 64% and sold out of Lumentum and EchoStar.</li>
             </ul>
                         <h4 style="margin-top: 1.25rem;">Disclosed Holdings — Q2 2026 13F</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th>Holding</th><th>Form</th><th>Value</th><th>% of all-rows total ($14.34B)</th><th>% of stock-only total ($11.15B)</th><th class="wrap">Detail</th></tr></thead>
                             <tbody>
@@ -1803,7 +1850,7 @@
                 <li><strong>Outlook:</strong> Bitcoin $400,000–$500,000 by mid-2029 (power-law forecast, What Bitcoin Did, 30 Oct 2026; repeated BMTV, 10–11 Nov 2026) — a lowered base case vs his earlier $1M by 2030/2031; he “would be absolutely shocked” if Bitcoin were not $200,000–$300,000 by then. His $150K–$180K call for 2026 had not materialised by Nov 2026 (BTC ~$73K). He expects a 60–70% drawdown after any such peak.</li>
             </ul>
                         <h4 style="margin-top: 1.25rem;">Stated Positions &amp; Calls — private fund, holdings not public</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th class="wrap">Position or call</th><th>Stated size / target</th><th>Date stated</th><th class="wrap">Source</th><th class="wrap">Status / outcome (as of 11 Nov 2026)</th></tr></thead>
                             <tbody>
@@ -1858,7 +1905,7 @@
                 <li><strong>Outlook:</strong> White House AI &amp; Crypto Czar, 20 Jan 2025–26 Mar 2026 (130 SGE days), then PCAST co-chair (ex officio from Jan 2025). Divested &gt;$200M in crypto-related holdings before taking office (Mar 2025).</li>
             </ul>
                         <h4 style="margin-top: 1.25rem;">Publicly Disclosed Stakes — no 13F</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th class="wrap">Holding / stake</th><th>Disclosed amount or %</th><th>Date of disclosure</th><th class="wrap">Source</th></tr></thead>
                             <tbody>
@@ -1904,7 +1951,7 @@
                 </div>
             </div>
                         <h4 style="margin-top: 1.25rem;">Publicly Disclosed Stakes — no 13F</h4>
-                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;" data-grab-scroll>
+                    <div class="spreadsheet-container" style="margin-bottom: 0.75rem;">
                         <table class="holdings-table">
                             <thead><tr><th class="wrap">Holding / stake</th><th>Disclosed amount or %</th><th>Date of disclosure</th><th class="wrap">Source</th></tr></thead>
                             <tbody>
@@ -2068,7 +2115,7 @@
                 <div class="backtest-legend" id="backtestLegend"></div>
                 <div class="backtest-readout" id="backtestReadout">Hover the chart to read values.</div>
             </div>
-            <div class="spreadsheet-container" data-grab-scroll>
+            <div class="spreadsheet-container">
                 <table>
                     <thead>
                         <tr><th>Portfolio</th><th>Total return</th><th>CAGR</th><th>Max drawdown</th><th>Volatility (ann.)</th><th>Sharpe (rf 0%)</th></tr>
@@ -3711,7 +3758,7 @@
                 group.forEach(c => { rows += runnerRow(c.name, c.value, c.bar, c.state); });
             });
             out.innerHTML = runnerVerdict(sym, checks)
-                + '<div class="spreadsheet-container" data-grab-scroll><table class="spreadsheet-table"><thead><tr><th>Check</th><th>' + t.name + ' (' + sym + ')</th><th>The bar (the Stack)</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+                + '<div class="spreadsheet-container"><table class="spreadsheet-table"><thead><tr><th>Check</th><th>' + t.name + ' (' + sym + ')</th><th>The bar (the Stack)</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
                 + '<p class="runner-notes"><strong>Step 2 &mdash; Rank what&rsquo;s left:</strong> the Scoreboard above already ranks these stocks by every rule that can be tested. The Stack&rsquo;s own ranking also uses earnings yield, return on capital and cash-flow yield &mdash; not in the data yet, so that ranking can&rsquo;t run here yet.</p>'
                 + '<p class="runner-notes"><strong>Steps 3 and 4 &mdash; research and risk rules</strong> stay a checklist (in Full details below): reading the filings and sizing positions are homework and portfolio rules, not numbers a page can grade. <strong>Step 5</strong> is the Backtest below: your picks against the index.</p>'
                 + runnerChartButton(sym, t.name);
@@ -4360,7 +4407,7 @@ if (typeof module !== "undefined") {
         var TERM_DEFS = [
             { term: "P/E", full: "Price-to-Earnings ratio", def: "How many dollars investors pay for $1 of annual earnings.", eq: "P/E = share price ÷ EPS", keys: ["P/E"] },
             { term: "P/B", full: "Price-to-Book ratio", def: "Share price versus book value per share — what would be left if the company sold its assets and paid its debts.", eq: "P/B = share price ÷ BVPS", keys: ["P/B"] },
-            { term: "PEG", full: "Price/Earnings-to-Growth ratio", def: "P/E divided by the expected annual EPS growth rate. Under Lynch's rule of thumb, below 1.0 can mean growth is cheap; above 2.0, expensive.", eq: "PEG = P/E ÷ annual EPS growth (%)", keys: ["PEG"] },
+            { term: "PEG", full: "Price/Earnings-to-Growth ratio", def: "P/E divided by the annual growth rate — on this page, the company's revenue growth from its filings, not a forecast. Under Lynch's rule of thumb, below 1.0 can mean growth is cheap; above 2.0, expensive.", eq: "PEG = P/E ÷ annual growth (%)", keys: ["PEG"] },
             { term: "EPS", full: "Earnings Per Share", def: "A company's net profit divided by its shares — the slice of profit behind each share.", eq: "EPS = net income ÷ shares outstanding", keys: ["EPS"] },
             { term: "ROE", full: "Return on Equity", def: "Profit earned on shareholders' money. Buffett wants 15%+.", eq: "ROE = net income ÷ shareholders' equity", keys: ["ROE"] },
             { term: "ROIC", full: "Return on Invested Capital", def: "Profit earned on all the capital tied up in the business, debt and equity together.", eq: "ROIC = EBIT ÷ invested capital", keys: ["ROIC"] },
@@ -4380,8 +4427,8 @@ if (typeof module !== "undefined") {
             { term: "Net debt / EBITDA", full: "", def: "How many years of operating cash profit it would take to clear debt net of cash. Lower is safer; this page's screener wants 2 or less.", eq: "Net debt ÷ EBITDA, where net debt = total debt − cash", keys: ["Net debt / EBITDA", "net debt / EBITDA"] },
             { term: "Debt/equity", full: "Debt-to-Equity ratio", def: "How much debt funds the company versus owners' money. The Stack wants 0.5 or less outside financials.", eq: "Debt/equity = total debt ÷ shareholders' equity", keys: ["Debt/equity", "debt/equity", "Debt-to-equity", "debt-to-equity"] },
             { term: "F-score", full: "Piotroski F-Score", def: "Joseph Piotroski's 9-point checklist of profitability, leverage and efficiency signals from a company's financial statements. 8–9 is strong; 0–2 is weak.", eq: "", keys: ["F-score", "F-Score"] },
-            { term: "MA", full: "Moving Average", def: "The average closing price over the last N days (50, 150 and 200 here). Prices above rising averages signal an uptrend.", eq: "", keys: ["MA", "MAs"] },
-            { term: "Moving average", full: "", def: "The average closing price over the last N days (50, 150 and 200 here). Prices above rising averages signal an uptrend.", eq: "", keys: ["Moving average", "moving average", "Moving averages", "moving averages"] },
+            { term: "MA", full: "Moving Average", def: "The average closing price over the last N periods — 50 and 200 on this page's chart, counted in weeks in the Weekly view and in days in the Daily view. Prices above rising averages signal an uptrend.", eq: "", keys: ["MA", "MAs"] },
+            { term: "Moving average", full: "", def: "The average closing price over the last N periods — 50 and 200 on this page's chart, counted in weeks in the Weekly view and in days in the Daily view. Prices above rising averages signal an uptrend.", eq: "", keys: ["Moving average", "moving average", "Moving averages", "moving averages"] },
             { term: "RS", full: "Relative Strength", def: "A stock's price performance ranked against the whole universe — here, 12-month return. The leaders are roughly the top 20%.", eq: "", keys: ["RS"] },
             { term: "Relative strength", full: "", def: "A stock's price performance ranked against the whole universe — here, 12-month return. The leaders are roughly the top 20%.", eq: "", keys: ["Relative strength", "relative strength"] },
             { term: "CAGR", full: "Compound Annual Growth Rate", def: "The steady yearly growth rate that connects a starting value to an ending value.", eq: "CAGR = (end ÷ start)^(1 ÷ years) − 1", keys: ["CAGR"] },
@@ -4402,7 +4449,7 @@ if (typeof module !== "undefined") {
             { term: "Moat", full: "Economic Moat", def: "Buffett's term for a durable competitive advantage — brand, cost edge, network effects — that protects a company's profits from competitors.", eq: "", keys: ["Moat", "moat", "Moats", "moats", "Economic moat", "economic moat"] },
             { term: "Margin of safety", full: "", def: "Graham's core idea: buy well below estimated intrinsic value, so being wrong doesn't mean losing money. The Stack's Step 3 wants 25–50%.", eq: "", keys: ["Margin of Safety", "Margin of safety", "margin of safety"] },
             { term: "Intrinsic value", full: "", def: "What an asset is actually worth based on the cash it will produce — as opposed to whatever the market happens to charge for it today.", eq: "", keys: ["Intrinsic value", "intrinsic value"] },
-            { term: "Owner earnings", full: "", def: "Buffett's cash-profit measure: reported earnings plus non-cash charges, minus the capital spending needed to stay competitive.", eq: "Owner earnings ≈ net income + depreciation − maintenance capex", keys: ["Owner earnings", "owner earnings"] },
+            { term: "Owner earnings", full: "", def: "Buffett's cash-profit measure: reported earnings plus non-cash charges, minus the capital spending needed to stay competitive.", eq: "Owner earnings ≈ net income + depreciation − maintenance capital spending", keys: ["Owner earnings", "owner earnings"] },
             { term: "Risk parity", full: "", def: "Dalio's allocation approach: size each asset by its risk (volatility), not its dollars, so every part of the portfolio contributes similar risk — the logic under All Weather.", eq: "", keys: ["Risk parity", "risk parity"] },
             { term: "Drawdown", full: "", def: "The fall from a peak to the trough that follows. Max drawdown is the worst such fall in the period — what holding through it would have felt like.", eq: "", keys: ["Drawdown", "drawdown", "Drawdowns", "drawdowns", "Max drawdown", "max drawdown"] },
             { term: "Volatility", full: "", def: "How wildly returns swing, measured as their standard deviation. The backtest annualises weekly swings (× √52).", eq: "", keys: ["Volatility", "volatility"] },
@@ -4410,18 +4457,28 @@ if (typeof module !== "undefined") {
             { term: "Total return", full: "", def: "Price change plus dividends, with dividends reinvested — the backtest's basis, so dividend payers aren't understated.", eq: "", keys: ["Total return", "total return"] },
             { term: "Benchmark", full: "", def: "The yardstick a portfolio is compared against — here an index ETF (VOO by default) or any single holding.", eq: "", keys: ["Benchmark", "benchmark", "Benchmarks", "benchmarks"] },
             { term: "Dividend", full: "", def: "Cash a company pays its shareholders, usually quarterly. The backtest's dividend column is each holding's stated annual rate.", eq: "", keys: ["Dividend", "dividend", "Dividends", "dividends"] },
-            { term: "Preferred shares", full: "", def: "A class of stock paid before common stock, with a fixed dividend and no maturity date — STRC and SATS here are preferreds, which is why their yields run around 12–15%.", eq: "", keys: ["Preferred shares", "preferred shares", "Preferreds", "preferreds", "preferred stock", "Preferred stock", "Preferred", "preferred"] },
+            { term: "Preferred shares", full: "", def: "A class of stock paid before common stock, with a fixed dividend and no maturity date — STRC and SATS here are preferreds, which is why their yields run around 12–16%. Both pay their dividends daily.", eq: "", keys: ["Preferred shares", "preferred shares", "Preferreds", "preferreds", "preferred stock", "Preferred stock", "Preferred", "preferred"] },
             { term: "Quant", full: "Quantitative investing", def: "Investing by mathematical model and data rather than discretion — Simons's Medallion approach: find statistical patterns and trade them systematically.", eq: "", keys: ["Quant", "quant", "Quants", "quants"] },
-            { term: "Momentum", full: "", def: "The tendency of assets that have risen recently to keep rising near-term (and fallers to keep falling) — the signal behind Druckenmiller's confirming leg and O'Shaughnessy's ranking here.", eq: "", keys: ["Momentum", "momentum"] },
-            { term: "Institutional ownership", full: "", def: "The percentage of a company's shares held by institutions (funds, pensions). On this page it is the author's estimate, not live data — as the note under the table says.", eq: "", keys: ["Institutional ownership", "institutional ownership", "Inst. Own"] },
+            { term: "Momentum", full: "", def: "The tendency of assets that have risen recently to keep rising near-term (and fallers to keep falling). On this page it is the price change over the last 13 weeks — the signal behind Druckenmiller's rule and O'Shaughnessy's ranking here.", eq: "", keys: ["Momentum", "momentum"] },
             { term: "Founder-led", full: "", def: "Still run by a founder as chief executive — the scoreboard flags the stocks on this page where that is true today. Bain & Company found that founder-led S&P 500 companies delivered about three times the shareholder returns of the rest from 1990 to 2014 (3.1 times, in their headline figure), and Fahlenbrach's peer-reviewed 2009 study likewise found founder-CEO firms outperforming. Read the pattern with care: the samples carry survivorship bias — founder companies that failed drop out of the data — and founder-led companies skew heavily toward tech and growth stocks.", eq: "", keys: ["Founder-led", "founder-led"] }
         ];
 
-        // Build the legend list from the same definitions.
+        // Build the legend list from the same definitions. Two
+        // entries can carry one definition (an acronym and its
+        // spelled-out form, kept both for the annotator's keys):
+        // the printed list shows each definition once, under the
+        // entry that carries the full name where there is one.
         var legendList = document.getElementById("legendList");
         if (legendList) {
             var frag = document.createDocumentFragment();
-            TERM_DEFS.slice().sort(function (a, b) { return a.term.toLowerCase().localeCompare(b.term.toLowerCase()); }).forEach(function (d) {
+            var byDef = {}, defOrder = [];
+            TERM_DEFS.forEach(function (d) {
+                var sig = d.def + "|" + d.eq;
+                if (!byDef[sig] || (!byDef[sig].full && d.full)) byDef[sig] = d;
+                if (defOrder.indexOf(sig) < 0) defOrder.push(sig);
+            });
+            var legendDefs = defOrder.map(function (s) { return byDef[s]; });
+            legendDefs.slice().sort(function (a, b) { return a.term.toLowerCase().localeCompare(b.term.toLowerCase()); }).forEach(function (d) {
                 var item = document.createElement("div");
                 item.className = "legend-item";
                 var head = document.createElement("strong");
@@ -4749,6 +4806,7 @@ if (typeof module !== "undefined") {
         // The P/E pane's median line: the P/E's own teal, same treatment.
         var PE_GUIDE_COLOR = "rgba(45, 212, 191, 0.5)";
         var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1", MODE_KEY = "jbo-chart-mode-v1";
+        var KIND_KEY = "jbo-chart-kind-v1", HIDDEN_GRADES_KEY = "jbo-chart-grades-hidden-v1";
         var PICK_KEYS = ["SPX", "IXIC", "GOLD", "BTC"];
         var RANGE_WEEKS = { "1Y": 52, "5Y": 260, "10Y": 520, "ALL": Infinity };
         // Daily ranges: 1Y is a trading year of days; 5Y is the
@@ -4766,6 +4824,27 @@ if (typeof module !== "undefined") {
         // and the daily file only supplies the bars the chart draws.
         var dailyData = null, dailyStarted = false, dailyFailed = false;
         var mode = "weekly";
+        // ---- the Grades view (Price | Grades toggle) ----
+        // "price" is the chart as shipped. "grades" swaps the price
+        // lines for the scored investors' grade lines, from
+        // grades-history.json — a second file, fetched lazily the
+        // first time a visitor switches to Grades (or on load when
+        // Grades was the last-used kind), so the Price view never
+        // pays for it. The kind persists like the mode does.
+        var kind = "price";
+        var gradesData = null, gradesStarted = false, gradesFailed = false;
+        var gradesNote = "";
+        var gView = null; // the grades window: {entry, start, end} over the entry's weeks
+        var hiddenGrades = {};
+        try {
+            if (window.localStorage.getItem(KIND_KEY) === "grades") kind = "grades";
+            var hgRaw = window.localStorage.getItem(HIDDEN_GRADES_KEY);
+            if (hgRaw) JSON.parse(hgRaw).forEach(function (id) { hiddenGrades[id] = true; });
+        } catch (e) { /* storage unavailable: the defaults stand */ }
+        // One colour per scored investor, in scoreboard order —
+        // the same colour in the lines, the key chips and the
+        // readout, in both themes.
+        var GRADE_COLORS = { druckenmiller: "#f58231", buffett: "#2ca02c", tepper: "#4363d8", alden: "#911eb4", oshaughnessy: "#e6194b", baker: "#0891b2", lynch: "#b58900", graham: "#d6336c", marks: "#0e7c86", klarman: "#8c564b", dalio: "#1f77b4", thiel: "#9467bd", andreessen: "#c51b8a", simons: "#666666", ives: "#17a398", lavish: "#6a994e", sacks: "#bc4749", visser: "#5e60ce" };
         // Why the chart is showing Weekly when Daily was asked for
         // (a range Daily cannot cover, or a daily file that failed
         // to arrive) — shown at the head of the data note until the
@@ -4963,6 +5042,7 @@ if (typeof module !== "undefined") {
             }
             if (!chartData) { showTipStatus("Loading chart data…"); return; }
             if (mode === "daily" && !dailyData) { showTipStatus("Loading daily data…"); return; }
+            if (kind === "grades") { renderGrades(); return; }
             view = computeView();
             if (!view) { showTipStatus("No chart data for this instrument yet."); return; }
             rangeStart = view.start; rangeEnd = view.end;
@@ -5481,10 +5561,19 @@ if (typeof module !== "undefined") {
                 b.classList.toggle("active", on);
                 b.setAttribute("aria-pressed", on ? "true" : "false");
             });
+            syncKindUI();
         }
         function setKey(key) {
             if (!chartData || !chartData.series[key]) return;
             cur.key = key; hover = -1; zoom = null; modeNote = "";
+            // Grades cover only the 19 scored stocks: picking
+            // anything else while in Grades returns to the price
+            // chart for it, with the reason in the data note.
+            if (kind === "grades" && gradesData && !gradesData.series[key]) {
+                kind = "price"; storeKind();
+                modeNote = "Grades cover the 19 stocks on the scoreboard — showing the price chart.";
+                syncKindUI();
+            }
             syncControls();
             if (mode === "daily") ensureDaily(); else render();
         }
@@ -5518,6 +5607,11 @@ if (typeof module !== "undefined") {
         // ---- Weekly / Daily mode ----
         function setMode(m) {
             if (m === mode) return;
+            // Grades are weekly by construction: asking for Daily
+            // from the Grades view returns to the price chart in
+            // Daily, with the reason carried into the data note.
+            var kindNote = "";
+            if (kind === "grades") { kind = "price"; storeKind(); syncKindUI(); kindNote = "Grades are weekly — showing the daily price chart."; }
             // Asking for Daily on a range it cannot cover keeps
             // Weekly and says why, in place — the same rule the
             // range buttons apply in reverse.
@@ -5526,7 +5620,7 @@ if (typeof module !== "undefined") {
                 render();
                 return;
             }
-            mode = m; hover = -1; zoom = null; modeNote = "";
+            mode = m; hover = -1; zoom = null; modeNote = kindNote;
             try { window.localStorage.setItem(MODE_KEY, mode); } catch (err) { /* storage unavailable */ }
             syncControls();
             if (mode === "daily") ensureDaily(); else render();
@@ -5625,6 +5719,7 @@ if (typeof module !== "undefined") {
             var ptrs = {}, gest = null, gestBlock = false, lastTap = { t: 0, x: 0, y: 0 };
             function ptrId(e) { return (e.pointerId === undefined || e.pointerId === null) ? "p" : e.pointerId; }
             function setZoomWindow(sF, eF) {
+                if (kind === "grades") return; // ranges still apply; pinch zoom is a price-view gesture
                 if (rangeEnd < rangeStart) return;
                 var rc = rangeEnd - rangeStart + 1;
                 var minC = Math.min(26, rc);
@@ -5642,6 +5737,7 @@ if (typeof module !== "undefined") {
             }
             function gestureBegin() {
                 var ids = Object.keys(ptrs);
+                if (kind === "grades") return false;
                 if (ids.length !== 2 || !view || !layout) return false;
                 var a = ptrs[ids[0]], b = ptrs[ids[1]];
                 var rect = canvas.getBoundingClientRect();
@@ -5769,6 +5865,367 @@ if (typeof module !== "undefined") {
             resizeTimer = setTimeout(function () { if (chartData) render(); }, 120);
         });
 
+
+        // ---- the Grades view ----
+        function storeKind() {
+            try { window.localStorage.setItem(KIND_KEY, kind); } catch (err) { /* storage unavailable */ }
+        }
+        function syncKindUI() {
+            var kindEl = document.getElementById("chartKind");
+            if (kindEl) kindEl.querySelectorAll("button[data-kind]").forEach(function (b) {
+                b.classList.toggle("active", b.getAttribute("data-kind") === kind);
+            });
+            // The price-only rows (line/candles, the sub-panes)
+            // step aside in Grades; ranges and Weekly/Daily stay —
+            // Daily is the documented way back to a daily price
+            // chart, ranges window the grade lines like the price.
+            var styles = document.getElementById("chartStyles");
+            if (styles) styles.style.display = kind === "grades" ? "none" : "";
+            var panes = document.getElementById("chartPanes");
+            if (panes) panes.style.display = kind === "grades" ? "none" : "";
+            var key = document.getElementById("chartKey");
+            if (key) key.hidden = kind === "grades";
+            var gkey = document.getElementById("chartKeyGrades");
+            if (gkey) gkey.hidden = kind !== "grades";
+            if (kind === "grades") {
+                var cv = document.getElementById("jboChartCanvas");
+                if (cv) cv.setAttribute("aria-label", "Weekly grades chart: one line per scored investor — the share of their tested rules this stock passed each week");
+                if (gradesData) buildGradesKey();
+            }
+        }
+        function setKind(k) {
+            if (k === kind) return;
+            if (k === "grades") {
+                // Benchmarks and Nasdaq-100 names carry no grades:
+                // the toggle says so in the data note and stays on
+                // Price, rather than switching to an empty view.
+                var s = chartData && chartData.series[cur.key];
+                if (!s || PICK_KEYS.indexOf(cur.key) >= 0 || s.ndx) {
+                    modeNote = "Grades cover the 19 stocks on the scoreboard — pick one of them to see its grades.";
+                    render();
+                    return;
+                }
+                kind = "grades"; storeKind(); hover = -1; zoom = null; modeNote = "";
+                syncControls();
+                if (!gradesData) ensureGrades(); else render();
+                return;
+            }
+            kind = "price"; storeKind(); hover = -1; zoom = null; modeNote = "";
+            syncControls(); render();
+        }
+        var kindEl2 = document.getElementById("chartKind");
+        if (kindEl2) kindEl2.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest("button[data-kind]") : null;
+            if (btn) setKind(btn.getAttribute("data-kind"));
+        });
+        // ---- loading the grades file (lazy: first Grades switch) ----
+        function ensureGrades() {
+            if (gradesData) { render(); return; }
+            if (gradesStarted && !gradesFailed) { render(); return; }
+            gradesStarted = true; gradesFailed = false;
+            fetch("grades-history.json")
+                .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+                .then(function (d) {
+                    gradesData = d;
+                    buildGradesKey();
+                    if (kind === "grades") render();
+                })
+                .catch(function () {
+                    gradesFailed = true;
+                    if (kind === "grades") {
+                        // The grades file didn't arrive: fall back
+                        // to Price and say so in the data note —
+                        // never a blank or half-switched chart.
+                        kind = "price"; storeKind();
+                        modeNote = "Grades couldn’t be loaded — showing the price chart.";
+                        syncControls(); render();
+                    }
+                });
+            render(); // the loading status, while the file is on its way
+        }
+        // One investor's grade at one week of the entry: formula
+        // investors carry a dense [passed, tested] per week (null =
+        // nothing testable that week); judgment investors carry
+        // dated points the standing grade forward-fills from.
+        function gradesPointAt(entry, inv, i) {
+            var meta = gradesData.investors[inv];
+            if (!meta) return null;
+            if (meta.kind === "judgment") {
+                var pts = entry.judgment[inv];
+                if (!pts || !pts.length) return null;
+                var d = entry.weeks[i], cur2 = null;
+                for (var j = 0; j < pts.length; j++) {
+                    if (pts[j][0] <= d) cur2 = pts[j]; else break;
+                }
+                if (!cur2) return null;
+                return { share: cur2[1] / cur2[2] * 100, passed: cur2[1], tested: cur2[2] };
+            }
+            var cell = entry.formula[inv][i];
+            if (!cell) return null;
+            return { share: cell[0] / cell[1] * 100, passed: cell[0], tested: cell[1] };
+        }
+        function gradesLatest(entry, inv) {
+            var meta = gradesData.investors[inv];
+            if (meta.kind === "judgment") {
+                var pts = entry.judgment[inv];
+                if (!pts || !pts.length) return null;
+                var last = pts[pts.length - 1];
+                return { share: last[1] / last[2] * 100, passed: last[1], tested: last[2] };
+            }
+            var arr = entry.formula[inv];
+            for (var i = arr.length - 1; i >= 0; i--) {
+                if (arr[i]) return { share: arr[i][0] / arr[i][1] * 100, passed: arr[i][0], tested: arr[i][1] };
+            }
+            return null;
+        }
+        var gradesKeySig = "";
+        function buildGradesKey() {
+            var list = document.getElementById("gradesKeyList");
+            if (!list || !gradesData || !chartData) return;
+            var entry = gradesData.series[cur.key];
+            if (!entry) return;
+            var sig = cur.key + "|" + gradesData.generated + "|" + Object.keys(hiddenGrades).sort().join(",");
+            if (sig === gradesKeySig && list.childElementCount) return;
+            gradesKeySig = sig;
+            list.textContent = "";
+            Object.keys(gradesData.investors).forEach(function (inv) {
+                var meta = gradesData.investors[inv];
+                var latest = gradesLatest(entry, inv);
+                var btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "filter-pill grades-key-chip";
+                btn.setAttribute("data-inv", inv);
+                btn.setAttribute("aria-pressed", hiddenGrades[inv] ? "false" : "true");
+                var sw = document.createElement("span");
+                sw.className = "grades-key-swatch";
+                sw.style.background = GRADE_COLORS[inv] || "#888";
+                sw.setAttribute("aria-hidden", "true");
+                btn.appendChild(sw);
+                var txt = document.createElement("span");
+                txt.textContent = meta.name + (latest
+                    ? " · " + Math.round(latest.share) + "% · " + latest.passed + " of " + latest.tested
+                    : "");
+                btn.appendChild(txt);
+                list.appendChild(btn);
+            });
+        }
+        var gradesKeyListEl = document.getElementById("gradesKeyList");
+        if (gradesKeyListEl) gradesKeyListEl.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest("button[data-inv]") : null;
+            if (!btn) return;
+            var inv = btn.getAttribute("data-inv");
+            if (hiddenGrades[inv]) delete hiddenGrades[inv]; else hiddenGrades[inv] = true;
+            try { window.localStorage.setItem(HIDDEN_GRADES_KEY, JSON.stringify(Object.keys(hiddenGrades))); } catch (err) { /* storage unavailable */ }
+            gradesKeySig = "";
+            buildGradesKey();
+            render();
+        });
+        function renderGrades() {
+            var note = document.getElementById("jboChartNote");
+            var dataNote = document.getElementById("jboChartDataNote");
+            if (!gradesData) {
+                showTipStatus(gradesFailed ? "Grades couldn’t be loaded — the grades file didn’t arrive." : "Loading grades…");
+                if (!gradesStarted) ensureGrades();
+                return;
+            }
+            var entry = gradesData.series[cur.key];
+            if (!entry) {
+                // A persisted Grades kind on a benchmark open:
+                // heal back to Price with the reason shown.
+                kind = "price"; storeKind();
+                modeNote = "Grades cover the 19 stocks on the scoreboard — showing the price chart.";
+                syncKindUI(); render();
+                return;
+            }
+            var n = entry.weeks.length;
+            var count = Math.min(n, RANGE_WEEKS[cur.range]);
+            gView = { entry: entry, start: n - count, end: n - 1 };
+            rangeStart = gView.start; rangeEnd = gView.end;
+            if (hover < gView.start || hover > gView.end) hover = -1;
+            if (note) { note.textContent = gradesNote; note.hidden = !gradesNote; }
+            if (dataNote) dataNote.textContent = (modeNote ? modeNote + " " : "") + "Weekly grades through " + fmtDate(entry.weeks[gView.end]) + " — from SEC filings counted from their filed dates and weekly closes, refreshed weekday evenings.";
+            buildGradesKey();
+            drawGrades();
+            updateTipGrades();
+        }
+        function drawGrades() {
+            var frame = document.getElementById("jboChartFrame");
+            var cv = document.getElementById("jboChartCanvas");
+            if (!frame || !cv || !gView) return;
+            var W = frame.clientWidth, H = frame.clientHeight;
+            if (!W || !H || W < 60) return;
+            var dpr = window.devicePixelRatio || 1;
+            var pw = Math.round(W * dpr), ph = Math.round(H * dpr);
+            if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+            var ctx = null;
+            try { ctx = cv.getContext && cv.getContext("2d"); } catch (e) { ctx = null; }
+            if (!ctx) return;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, W, H);
+            var cs = window.getComputedStyle ? window.getComputedStyle(document.body) : null;
+            function varc(name, fb) { var v = cs ? cs.getPropertyValue(name) : ""; v = (v || "").trim(); return v || fb; }
+            var subC = varc("--subtext-color", "#9198a1"),
+                gridC = varc("--border-color", "rgba(128,128,128,0.25)");
+            var entry = gView.entry, start = gView.start, end = gView.end, n = end - start + 1;
+            var axisW = 58, axisH = 20, plotW = W - axisW - 12;
+            var priceY = 6, priceH = H - axisH - priceY;
+            layout = { plotW: plotW, start: start, end: end, W: W, H: H, priceY: priceY, priceH: priceH, hi: 100, lo: 0 };
+            function X(idx) { return 6 + (n <= 1 ? plotW / 2 : (idx - start) / (n - 1) * plotW); }
+            function Y(vv) { return priceY + (100 - vv) / 100 * priceH; }
+            ctx.font = "11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+            // gridlines + right-hand labels at 0/25/50/75/100%
+            ctx.lineWidth = 1;
+            for (var g = 0; g <= 4; g++) {
+                var gv = g * 25, gy = Y(gv);
+                ctx.strokeStyle = gridC;
+                ctx.beginPath(); ctx.moveTo(6, gy); ctx.lineTo(6 + plotW, gy); ctx.stroke();
+                ctx.fillStyle = subC; ctx.textAlign = "left";
+                ctx.fillText(gv + "%", 10 + plotW, gy + 3);
+            }
+            // the lines: consecutive segments batch by coverage —
+            // a stretch where either end had fewer than half of
+            // that investor's own rules tested draws dashed and
+            // faded, so thin coverage never reads like a full
+            // grade. (Relative to the investor's own rule count:
+            // a one-rule investor tested on its one rule is fully
+            // covered, and draws solid.)
+            Object.keys(gradesData.investors).forEach(function (inv) {
+                if (hiddenGrades[inv]) return;
+                var color = GRADE_COLORS[inv] || "#888";
+                var maxT = (gradesData.investors[inv] || {}).max_tested || 1;
+                var runThin = null, started = false;
+                function flush() { if (started) ctx.stroke(); started = false; }
+                for (var i = start; i < end; i++) {
+                    var p0 = gradesPointAt(entry, inv, i), p1 = gradesPointAt(entry, inv, i + 1);
+                    if (!p0 || !p1) { flush(); runThin = null; continue; }
+                    var thin = p0.tested * 2 < maxT || p1.tested * 2 < maxT;
+                    if (runThin === null || thin !== runThin) {
+                        flush();
+                        ctx.strokeStyle = color; ctx.lineWidth = 1.8;
+                        ctx.globalAlpha = thin ? 0.55 : 1;
+                        ctx.setLineDash(thin ? [4, 4] : []);
+                        ctx.beginPath(); ctx.moveTo(X(i), Y(p0.share));
+                        started = true; runThin = thin;
+                    }
+                    ctx.lineTo(X(i + 1), Y(p1.share));
+                }
+                flush();
+                ctx.setLineDash([]); ctx.globalAlpha = 1;
+                // a judgment line can live entirely inside the last
+                // week or two — too short for segments; its point
+                // still draws.
+                if (n >= 1) {
+                    var lp = gradesPointAt(entry, inv, end);
+                    if (lp && end > start && !gradesPointAt(entry, inv, end - 1)) {
+                        ctx.fillStyle = color;
+                        ctx.beginPath(); ctx.arc(X(end), Y(lp.share), 3, 0, Math.PI * 2); ctx.fill();
+                    }
+                }
+            });
+            // x labels: five evenly spaced weeks, same rule as Price
+            ctx.fillStyle = subC;
+            for (var k = 0; k <= 4; k++) {
+                var xi = start + Math.round((n - 1) * k / 4);
+                var iso = entry.weeks[xi], pp = iso.split("-");
+                var lab = (end - start) >= 520 ? pp[0] : MONTHS[Number(pp[1]) - 1] + " ’" + pp[0].slice(2);
+                var lx = Math.max(24, Math.min(W - 24, X(xi)));
+                ctx.textAlign = "center";
+                ctx.fillText(lab, lx, H - 6);
+            }
+            // crosshair + dots
+            if (hover >= start && hover <= end) {
+                var hx = X(hover);
+                ctx.strokeStyle = subC; ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
+                ctx.beginPath(); ctx.moveTo(hx, priceY); ctx.lineTo(hx, priceY + priceH); ctx.stroke();
+                ctx.globalAlpha = 1;
+                Object.keys(gradesData.investors).forEach(function (inv) {
+                    if (hiddenGrades[inv]) return;
+                    var pt = gradesPointAt(entry, inv, hover);
+                    if (!pt) return;
+                    ctx.fillStyle = GRADE_COLORS[inv] || "#888";
+                    ctx.beginPath(); ctx.arc(hx, Y(pt.share), 3, 0, Math.PI * 2); ctx.fill();
+                });
+            }
+        }
+        function fillTipGrades(idx) {
+            var tip = document.getElementById("jboChartTip");
+            if (!tip || !gView) return;
+            var entry = gView.entry;
+            tip.textContent = "";
+            var head = document.createElement("div");
+            head.className = "jbo-tip-head";
+            var nm = document.createElement("strong");
+            var s = chartData && chartData.series[cur.key];
+            nm.textContent = s ? s.name : cur.key;
+            var dt = document.createElement("span");
+            dt.textContent = "Week ending " + fmtDate(entry.weeks[idx]);
+            head.appendChild(nm); head.appendChild(dt);
+            tip.appendChild(head);
+            var rows = [];
+            Object.keys(gradesData.investors).forEach(function (inv) {
+                if (hiddenGrades[inv]) return;
+                var pt = gradesPointAt(entry, inv, idx);
+                if (!pt) return;
+                var meta = gradesData.investors[inv];
+                rows.push({
+                    color: GRADE_COLORS[inv] || "#888",
+                    label: meta.name,
+                    value: Math.round(pt.share) + "% — " + pt.passed + " of " + pt.tested + (meta.kind === "judgment" ? " questions" : " rules"),
+                    share: pt.share
+                });
+            });
+            rows.sort(function (a, b) { return b.share - a.share; });
+            if (!rows.length) {
+                var none = document.createElement("div");
+                none.className = "jbo-tip-row";
+                none.textContent = "No grades this far back.";
+                tip.appendChild(none);
+                return;
+            }
+            rows.forEach(function (r) {
+                var row = document.createElement("div");
+                row.className = "jbo-tip-row";
+                var chip = document.createElement("span");
+                chip.className = "jbo-tip-chip";
+                chip.setAttribute("aria-hidden", "true");
+                chip.style.background = r.color;
+                var lab = document.createElement("span");
+                lab.textContent = r.label;
+                var val = document.createElement("span");
+                val.className = "jbo-tip-val";
+                val.textContent = r.value;
+                row.appendChild(chip); row.appendChild(lab); row.appendChild(val);
+                tip.appendChild(row);
+            });
+        }
+        function updateTipGrades() {
+            var tip = document.getElementById("jboChartTip");
+            if (!tip) return;
+            if (!gView || !layout || hover < gView.start || hover > gView.end) {
+                tip.classList.remove("open");
+                return;
+            }
+            fillTipGrades(hover);
+            tip.classList.add("open");
+            var frame = document.getElementById("jboChartFrame");
+            var W = frame ? frame.clientWidth : 0, H = frame ? frame.clientHeight : 0;
+            if (!W || !H) return;
+            var n = layout.end - layout.start + 1;
+            var x = 6 + (n <= 1 ? layout.plotW / 2 : (hover - layout.start) / (n - 1) * layout.plotW);
+            var topShare = null;
+            var entry = gView.entry;
+            Object.keys(gradesData.investors).forEach(function (inv) {
+                if (hiddenGrades[inv]) return;
+                var pt = gradesPointAt(entry, inv, hover);
+                if (pt && (topShare === null || pt.share > topShare)) topShare = pt.share;
+            });
+            var pointY = topShare === null ? layout.priceY + layout.priceH / 2
+                : layout.priceY + (100 - topShare) / 100 * layout.priceH;
+            var pos = tipPos(W, H, tip.offsetWidth, tip.offsetHeight, x, pointY, lastPtr);
+            tip.style.left = pos.left + "px";
+            tip.style.top = pos.top + "px";
+        }
+
         // ---- loading the daily file (lazy: first Daily switch) ----
         function ensureDaily() {
             if (dailyData) { render(); return; }
@@ -5857,6 +6314,7 @@ if (typeof module !== "undefined") {
                 return {
                     key: cur.key, range: cur.range, style: cur.style, pe: peOn, vol: volOn, rsi: rsiOn,
                     mode: mode, dailyLoaded: !!dailyData, modeNote: modeNote,
+                    kind: kind, gradesLoaded: !!gradesData, gradesFailed: gradesFailed,
                     loaded: !!chartData, failed: loadFailed, hover: hover,
                     tipOpen: !!(tip && tip.classList.contains("open")),
                     fs: fsOn,
@@ -6058,8 +6516,8 @@ if (typeof module !== "undefined") {
         }
         function jboShareUrl(hash) { return location.origin + location.pathname + hash; }
 
-        // The chart carries no Grades mode in this build, so a shared link
-        // encodes the price chart only: ticker + Daily/Weekly.
+        // A shared link encodes the chart as it stands: ticker +
+        // Weekly/Daily — or Grades, when the Grades view is showing.
         function currentChart() {
             var root = document.getElementById('chartStock');
             var key = (root && root.value) ? String(root.value) : '';
@@ -6072,7 +6530,8 @@ if (typeof module !== "undefined") {
                 if (pick) { key = pick.getAttribute('data-key') || ''; label = pick.textContent.trim(); }
             }
             var modeBtn = document.querySelector('#chartModes button.active');
-            return { key: key, label: label, mode: (modeBtn && modeBtn.getAttribute('data-mode')) || 'weekly' };
+            var jst = (window.jboChart && typeof window.jboChart.state === 'function') ? window.jboChart.state() : null;
+            return { key: key, label: label, mode: (jst && jst.kind === 'grades') ? 'grades' : ((modeBtn && modeBtn.getAttribute('data-mode')) || 'weekly') };
         }
         var finBtn = document.getElementById('chartShare');
         if (finBtn) {
@@ -6088,7 +6547,7 @@ if (typeof module !== "undefined") {
         }
         // A shared link applies the ticker and timeframe once the chart's
         // data has built its controls; anything unknown degrades silently.
-        var fm = (location.hash || '').match(/^#chart=([^:]+):(weekly|daily)$/);
+        var fm = (location.hash || '').match(/^#chart=([^:]+):(weekly|daily|grades)$/);
         if (fm) {
             var fKey = decodeURIComponent(fm[1]), fMode = fm[2], fTries = 0;
             var fIv = setInterval(function () {
@@ -6105,11 +6564,93 @@ if (typeof module !== "undefined") {
                         var db = document.querySelector('#chartModes button[data-mode="daily"]');
                         if (db && !db.classList.contains('active')) { db.click(); }
                     }
+                    if (fMode === 'grades') {
+                        var gb = document.querySelector('#chartKind button[data-kind="grades"]');
+                        if (gb) { gb.click(); }
+                    }
                     var sec = document.getElementById('chart');
                     if (sec) { sec.scrollIntoView(); }
                 } else if (fTries > 40) { clearInterval(fIv); }
             }, 250);
         }
+    })();
+    </script>
+    <script>
+    /* Sticky table headers (2026-11-18): every long table on this
+       page keeps its header row pinned under the site header and
+       the section nav while its rows scroll. CSS sticky cannot do
+       it here — each table sits in a .spreadsheet-container whose
+       overflow-x makes the wrapper a scroll container, which
+       defeats page-level sticky — so the pin is a transform on the
+       header cells themselves, driven from the page's scroll: the
+       real header row (never a clone, so column widths and the
+       angled scoreboard labels ride along exactly), translated
+       down to the pin line and clamped so it rides away with the
+       table's last row. The wrapper keeps its sideways grab-scroll
+       untouched — the header lives inside the scrolled content, so
+       columns stay aligned at any sideways position. Tables nested
+       inside another table (the 13F holdings inside committee
+       profiles) are skipped: the outer table's pin governs that
+       screen, and two pins at the same line would overlap. */
+    (function () {
+        "use strict";
+        var nav = document.querySelector(".section-nav");
+        var PIN_BASE = 55; // the site header's height; the section nav sticks at top: 55px
+        function pinLine() {
+            if (!nav) return PIN_BASE;
+            return PIN_BASE + (window.getComputedStyle(nav).position === "sticky" ? nav.offsetHeight : 0);
+        }
+        var items = [];
+        function collect() {
+            items = [];
+            document.querySelectorAll(".spreadsheet-container table").forEach(function (t) {
+                if (t.closest("td, th")) return;
+                var head = t.tHead;
+                if (!head || !head.rows.length) return;
+                items.push({ table: t, head: head, cells: Array.prototype.slice.call(head.rows[0].cells), shift: null });
+            });
+        }
+        function setShift(it, px) {
+            if (it.shift === px) return;
+            it.shift = px;
+            var tf = px > 0 ? "translateY(" + px + "px)" : "";
+            it.cells.forEach(function (c) {
+                c.style.transform = tf;
+                c.classList.toggle("jbo-th-pin", px > 0);
+            });
+        }
+        function update() {
+            var pin = pinLine(), vh = window.innerHeight || 0;
+            for (var i = 0; i < items.length; i++) {
+                var it = items[i];
+                var r = it.table.getBoundingClientRect();
+                if (!r.height || r.bottom <= pin || r.top >= vh) { setShift(it, 0); continue; }
+                var headH = it.head.offsetHeight || 0;
+                var max = Math.max(0, r.height - headH);
+                var shift = Math.min(Math.max(pin - r.top, 0), max);
+                setShift(it, Math.round(shift * 100) / 100);
+            }
+        }
+        var ticking = false;
+        function requestUpdate() {
+            if (ticking) return;
+            ticking = true;
+            window.requestAnimationFrame(function () { ticking = false; update(); });
+        }
+        window.addEventListener("scroll", requestUpdate, { passive: true });
+        window.addEventListener("resize", requestUpdate);
+        // Re-renders (scoreboard, comparison, runner) and section
+        // folds change the table set and every offset: re-collect,
+        // debounced, then re-pin.
+        var moTimer = null;
+        if (window.MutationObserver && document.body) {
+            new MutationObserver(function () {
+                clearTimeout(moTimer);
+                moTimer = setTimeout(function () { collect(); update(); }, 120);
+            }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "open"] });
+        }
+        collect();
+        update();
     })();
     </script>
 </body>

@@ -1308,6 +1308,696 @@ def build_durability_block(facts, ticker):
     return block
 
 
+# =====================================================================
+# Grade-history block (added 2026-11-18): the data behind the finance
+# chart's Grades view — for each of the 19 stocks, each scored
+# investor's grade through time, one point per week: how many of the
+# investor's checkable rules the stock passed that week, and how many
+# could be tested at all. Written to grades-history.json, which the
+# page fetches only when a visitor switches the chart to Grades, so
+# the Price view never pays for it.
+#
+# Point-in-time discipline (the backtest's rule, applied to
+# fundamentals): a week is graded only from what was knowable that
+# week. SEC filings count from their FILED date — the as-of facts are
+# the companyfacts rows with filed <= that week's Friday, run through
+# the SAME build_scoreboard_block and the SAME refresh math the live
+# scoreboard uses, so a historical grade is the live grade as it
+# would have been computed that week. Prices are that week's closes
+# (Yahoo weekly bars, Friday-dated like fetch_chart_data.py's):
+# split-adjusted closes for the ratio tests, adjusted closes for the
+# momentum the page derives the same way from finance-history.json.
+# Share counts are restated into today's share units (x the splits
+# after each period end), the same adjustment the block's EPS history
+# already makes, so per-share tests divide consistently.
+#
+# The eight formula investors get full weekly history. The ten
+# judgment investors cannot be back-graded — their grades are
+# judgments recorded on 2026-11-18, not formulas — so their series
+# begin at that date with the snapshot counts read out of the page's
+# QUALITATIVE_GRADES constant, and gain a new point only when a
+# re-judging changes a count. No history is invented for them.
+#
+# Record-level fields here are EDGAR-only: Alpha Vantage OVERVIEW is
+# a current snapshot with no point-in-time form, so a historical PEG
+# or ROE may differ slightly from the live figure on a week where
+# OVERVIEW filled the live one. That is the honest direction: the
+# history never borrows today's snapshot.
+#
+# Failure discipline, as elsewhere in this updater: a ticker whose
+# facts, bars or split history can't be fetched tonight keeps its
+# previous series unchanged; a failed judgment read keeps the
+# previous judgment points; the file is replaced atomically and only
+# when at least one ticker was recomputed or carried. The whole step
+# runs after finance-data.json is written and can never block it.
+# =====================================================================
+
+GRADES_FILE = "grades-history.json"
+GRADES_JUDGMENT_START = "2026-11-18"
+GRADES_FORMULA_IDS = ["druckenmiller", "buffett", "tepper", "alden",
+                      "oshaughnessy", "baker", "lynch", "graham"]
+GRADES_FORMULA_NAMES = {
+    "druckenmiller": "Druckenmiller", "buffett": "Buffett",
+    "tepper": "Tepper", "alden": "Alden",
+    "oshaughnessy": "O’Shaughnessy", "baker": "Baker",
+    "lynch": "Lynch", "graham": "Graham",
+}
+GRADES_MAX_TESTED = {"druckenmiller": 1, "buffett": 1, "tepper": 1,
+                     "alden": 1, "oshaughnessy": 1, "baker": 1,
+                     "lynch": 6, "graham": 6}
+GRADES_FINANCIALS = {"JPM", "ASST"}
+
+_GH_TAG_LISTS = [
+    EBIT_TAGS, REVENUE_TAGS, NET_INCOME_TAGS, EPS_TAGS, EQUITY_TAGS,
+    LT_DEBT_TAGS, CUR_DEBT_TAGS, CASH_TAGS, CURRENT_ASSET_TAGS,
+    CURRENT_LIAB_TAGS, PPE_TAGS, OCF_TAGS, CAPEX_TAGS,
+    DIVIDENDS_PAID_TAGS, DPS_DECLARED_TAGS, SHARE_TAGS_BLOCK,
+]
+_GH_RELEVANT_TAGS = set()
+for _gh_lst in _GH_TAG_LISTS:
+    for _gh_pair in _gh_lst:
+        _GH_RELEVANT_TAGS.add(_gh_pair)
+_GH_SHARE_TAGS = set(SHARE_TAGS_BLOCK)
+
+
+def gh_extract_relevant(facts):
+    """A copy of the companyfacts payload holding only the tags the
+    graded rules read (the scoreboard block's lists plus the refresh
+    math's). Rows are shallow-copied so the as-of transforms below
+    never mutate the caller's payload."""
+    out = {"facts": {}}
+    src = facts.get("facts") or {}
+    for taxonomy, tag in _GH_RELEVANT_TAGS:
+        try:
+            units = src[taxonomy][tag]["units"]
+        except (KeyError, TypeError):
+            continue
+        new_units = {}
+        for unit, rows in units.items():
+            kept = [dict(e) for e in rows if "end" in e and "val" in e]
+            if kept:
+                new_units[unit] = kept
+        if new_units:
+            out["facts"].setdefault(taxonomy, {})[tag] = {
+                "units": new_units}
+    return out
+
+
+def _gh_filed_of(entry):
+    return entry.get("filed") or entry.get("end") or ""
+
+
+def gh_facts_asof(extracted, asof, splits):
+    """The extracted facts as knowable on `asof`: only rows filed by
+    then. Share-count rows are restated into today's share units
+    (x the splits after the period end) so they divide consistently
+    into split-adjusted prices and per-share figures."""
+    out = {"facts": {}}
+    for taxonomy, tags in extracted["facts"].items():
+        for tag, payload in tags.items():
+            new_units = {}
+            for unit, rows in payload["units"].items():
+                kept = []
+                for e in rows:
+                    if _gh_filed_of(e) > asof:
+                        continue
+                    e = dict(e)
+                    if (taxonomy, tag) in _GH_SHARE_TAGS and unit == "shares":
+                        e["val"] = e["val"] * split_factor_after(
+                            e["end"], splits)
+                    kept.append(e)
+                if kept:
+                    new_units[unit] = kept
+            if new_units:
+                out["facts"].setdefault(taxonomy, {})[tag] = {
+                    "units": new_units}
+    return out
+
+
+def _gh_event_dates(extracted):
+    """Every distinct filed date among the relevant rows: the dates
+    on which the as-of facts state can change."""
+    dates = set()
+    for tags in extracted["facts"].values():
+        for payload in tags.values():
+            for rows in payload["units"].values():
+                for e in rows:
+                    f = _gh_filed_of(e)
+                    if f:
+                        dates.add(f)
+    return sorted(dates)
+
+
+def gh_record_fields_asof(facts_f):
+    """The record-level fields the rules read (ROE, margin, growth,
+    and the raw TTM EPS behind PEG), computed with main()'s own
+    refresh math on the as-of facts. EDGAR only (see the banner)."""
+    rev_entries = fact_entries(facts_f, [
+        ("us-gaap", "Revenues"),
+        ("us-gaap", "RevenueFromContractWithCustomerExcludingAssessedTax"),
+        ("ifrs-full", "Revenue"),
+    ])
+    ni_entries = fact_entries(facts_f, [
+        ("us-gaap", "NetIncomeLoss"),
+        ("ifrs-full", "ProfitLoss"),
+    ])
+    eq_entries = fact_entries(facts_f, [
+        ("us-gaap", "StockholdersEquity"),
+        ("ifrs-full", "Equity"),
+    ])
+    eps_entries, eps_unit = fact_entries_with_unit(facts_f, [
+        ("us-gaap", "EarningsPerShareDiluted"),
+        ("ifrs-full", "DilutedEarningsPerShare"),
+        ("ifrs-full", "DilutedEarningsLossPerShare"),
+    ])
+    ttm_rev, _p = ttm_value(rev_entries)
+    ttm_ni, _p = ttm_value(ni_entries)
+    ttm_eps, _p = ttm_value(eps_entries)
+    if eps_unit and not eps_unit.startswith("USD"):
+        # Per-share earnings in the filer's own currency cannot
+        # divide a USD price — the same ruling as the refresh.
+        ttm_eps = None
+    equity, _e = latest_value(eq_entries)
+    growth = None
+    q_rev, q_rev_prior, _qe = latest_quarterly(rev_entries)
+    if q_rev is not None and q_rev_prior:
+        growth = round((q_rev - q_rev_prior) / abs(q_rev_prior) * 100.0, 2)
+    else:
+        a_rev, a_rev_prior, _ae = latest_annual(rev_entries)
+        if a_rev is not None and a_rev_prior:
+            growth = round((a_rev - a_rev_prior)
+                           / abs(a_rev_prior) * 100.0, 2)
+    roe = None
+    if ttm_ni is not None and equity:
+        roe = round(ttm_ni / equity * 100.0, 2)
+    margin = None
+    if ttm_ni is not None and ttm_rev:
+        margin = round(ttm_ni / ttm_rev * 100.0, 2)
+    return {"roe": roe, "margin": margin, "growth": growth,
+            "eps_ttm_raw": ttm_eps}
+
+
+def _gh_peg(rec, price):
+    """main()'s PEG at an as-of price: (price / TTM EPS) / revenue
+    growth, only when both the multiple and the growth are positive."""
+    eps = rec.get("eps_ttm_raw")
+    growth = rec.get("growth")
+    if price is None or not eps or not growth:
+        return None
+    pe = price / eps
+    if pe > 0 and growth > 0:
+        return round(pe / growth, 2)
+    return None
+
+
+def gh_graham_checks(block, ticker, price):
+    """The page's grahamChecks, verdicts only: a list of seven
+    True / False / None in the page's order (size, strength,
+    stability, dividends, growth, P/E, P/B). None for financials
+    (excluded on the page) and for a missing block. The dividends
+    test is never graded from this data — the page's own ruling."""
+    if ticker in GRADES_FINANCIALS:
+        return None
+    s = block
+    if not s:
+        return None
+    usd = (not s.get("reporting_currency")
+           or s.get("reporting_currency") == "USD")
+    out = []
+    rev = s.get("revenue_ttm")
+    out.append(None if rev is None else rev >= 1e8)
+    if (s.get("current_ratio") is None or s.get("long_term_debt") is None
+            or s.get("net_working_capital_gb") is None):
+        out.append(None)
+    else:
+        out.append(s["current_ratio"] >= 2
+                   and s["long_term_debt"] <= s["net_working_capital_gb"])
+    hist = s.get("eps_history") or []
+    if not s.get("eps_history_adjusted") or len(hist) < 10:
+        out.append(None)
+    else:
+        out.append(all(h[1] > 0 for h in hist[-10:]))
+    out.append(None)  # dividends: reported, never graded
+    growth = None
+    if s.get("eps_history_adjusted") and len(hist) >= 10:
+        last_year = int(str(hist[-1][0])[:4])
+        recent = sum(h[1] for h in hist[-3:]) / 3.0
+        base_pts = [h[1] for h in hist
+                    if last_year - 12 <= int(str(h[0])[:4]) <= last_year - 10]
+        if len(base_pts) >= 2:
+            b = sum(base_pts) / len(base_pts)
+            if b > 0:
+                growth = recent >= b * 4.0 / 3.0
+    out.append(growth)
+    if not usd:
+        out.append(None)
+    elif s.get("eps_avg_3y") is None:
+        out.append(None)
+    elif s["eps_avg_3y"] <= 0:
+        out.append(False)
+    elif price is None:
+        out.append(None)
+    else:
+        out.append(price / s["eps_avg_3y"] <= 15)
+    if not usd:
+        out.append(None)
+    elif s.get("book_value_per_share") is None:
+        out.append(None)
+    elif s["book_value_per_share"] <= 0:
+        out.append(False)
+    elif price is None:
+        out.append(None)
+    else:
+        v = price / s["book_value_per_share"]
+        pe_v = (price / s["eps_avg_3y"]
+                if s.get("eps_avg_3y") and s["eps_avg_3y"] > 0 else None)
+        out.append(v <= 1.5 or (pe_v is not None and pe_v * v <= 22.5))
+    return out
+
+
+def gh_lynch_checks(block, rec, price, ticker):
+    """The page's lynchChecks, verdicts only: a dict of six
+    True / False / None (peg, growth, debt, cash, inventory, divpeg).
+    The dividend-adjusted PEG leg prices the dividend at the week's
+    own close: the block's dps_ttm (a price-free figure) over that
+    close, the block's own formula."""
+    out = {"peg": None, "growth": None, "debt": None, "cash": None,
+           "inventory": None, "divpeg": None}
+    peg = _gh_peg(rec, price)
+    if rec.get("growth") is not None and peg is not None \
+            and rec["growth"] >= 20:
+        if peg < 1.0:
+            out["peg"] = True
+        elif peg >= 2.0:
+            out["peg"] = False
+    s = block
+    if not s:
+        return out
+    if s.get("eps_history_adjusted") and s.get("eps_cagr_pct") is not None:
+        if s["eps_cagr_pct"] > 50:
+            out["growth"] = False
+        elif s["eps_cagr_pct"] >= 20:
+            out["growth"] = True
+    if ticker not in GRADES_FINANCIALS:
+        if s.get("debt_to_equity") is not None:
+            out["debt"] = s["debt_to_equity"] <= 1
+        if s.get("net_cash_per_share") is not None:
+            out["cash"] = s["net_cash_per_share"] > 0
+    if (s.get("inventory_growth_pct") is not None
+            and s.get("revenue_growth_annual_pct") is not None):
+        out["inventory"] = (s["inventory_growth_pct"]
+                            <= s["revenue_growth_annual_pct"])
+    usd = (not s.get("reporting_currency")
+           or s.get("reporting_currency") == "USD")
+    yld = None
+    if s.get("dps_ttm") is not None and price:
+        yld = round(s["dps_ttm"] / price * 100.0, 2)
+    if (usd and yld is not None and yld > 0
+            and s.get("eps_ttm") is not None and s["eps_ttm"] > 0
+            and price is not None and s.get("eps_history_adjusted")
+            and s.get("eps_cagr_pct") is not None):
+        ratio = (s["eps_cagr_pct"] + yld) / (price / s["eps_ttm"])
+        if ratio >= 1.5:
+            out["divpeg"] = True
+        elif ratio < 1:
+            out["divpeg"] = False
+    return out
+
+
+def _gh_passed_tested(checks):
+    vals = (list(checks.values()) if isinstance(checks, dict)
+            else list(checks))
+    return (sum(1 for v in vals if v is True),
+            sum(1 for v in vals if v is not None))
+
+
+def _gh_week_friday(d):
+    """The Friday of d's week — fetch_chart_data.py's convention:
+    the next Friday on or after the date."""
+    from datetime import timedelta
+    return d + timedelta(days=(4 - d.weekday()) % 7)
+
+
+def _gh_last_completed_friday(today, now_utc):
+    """Most recent Friday whose trading week is finished (a Friday
+    counts once past, or at/after 21:00 UTC that day) — the same
+    rule fetch_chart_data.py keeps its bars by."""
+    from datetime import timedelta
+    this_fri = _gh_week_friday(today)
+    if this_fri < today:
+        return this_fri
+    if this_fri == today and now_utc.hour >= 21:
+        return today
+    return this_fri - timedelta(days=7)
+
+
+def gh_fetch_weekly_bars(symbol):
+    """Weekly (friday, close, adjusted close) from Yahoo's v8 chart
+    API, ten years, one call: the raw closes are split-adjusted (the
+    ratio tests' basis) and the adjusted closes fold dividends in
+    (the momentum basis, the page's own). Only completed weeks."""
+    from datetime import datetime, timezone
+    url = "https://query1.finance.yahoo.com/v8/finance/chart/%s" % symbol
+    resp = requests.get(
+        url,
+        params={"range": "10y", "interval": "1wk", "events": "div,split"},
+        headers={"User-Agent": "Mozilla/5.0 (compatible; "
+                               "onealjb93.github.io finance updater)"},
+        timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+    result = (data.get("chart") or {}).get("result") or []
+    if not result:
+        raise ValueError("no chart result for %s" % symbol)
+    result = result[0]
+    stamps = result.get("timestamp") or []
+    quote = result.get("indicators", {}).get("quote", [{}])[0]
+    closes = quote.get("close") or []
+    adj = (result.get("indicators", {}).get("adjclose") or [{}])[0]
+    adjcloses = adj.get("adjclose") or []
+    by_friday = {}
+    for i, ts in enumerate(stamps):
+        close = closes[i] if i < len(closes) else None
+        if close is None or close <= 0:
+            continue
+        a = adjcloses[i] if i < len(adjcloses) else None
+        d = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+        fri = _gh_week_friday(d).isoformat()
+        by_friday[fri] = (fri, round(float(close), 4),
+                          round(float(a), 4) if a
+                          else round(float(close), 4))
+    bars = [by_friday[k] for k in sorted(by_friday)]
+    lcf = _gh_last_completed_friday(
+        date.today(), datetime.now(timezone.utc)).isoformat()
+    return [b for b in bars if b[0] <= lcf]
+
+
+def gh_build_ticker_series(ticker, extracted, splits, bars):
+    """One ticker's weekly (passed, tested) per formula investor,
+    plus the per-week momentum and PEG the cross-sectional rules
+    (O'Shaughnessy's rank, Baker's benchmark) read. The as-of block
+    and record fields are rebuilt only at filing-event dates — the
+    facts state cannot change between filings — and priced per week.
+    """
+    weeks = [b[0] for b in bars]
+    if not weeks:
+        return None
+    events = _gh_event_dates(extracted)
+    state_dates = sorted(set([weeks[0]] + [e for e in events
+                                           if weeks[0] <= e <= weeks[-1]]))
+    states = []
+    for sd in state_dates:
+        f_asof = gh_facts_asof(extracted, sd, splits)
+        try:
+            block = build_scoreboard_block(
+                f_asof, None, None, None, splits,
+                fact_entries, ttm_value, latest_value, sd)
+        except Exception:
+            block = None
+        states.append((sd, block, gh_record_fields_asof(f_asof)))
+    adj = [b[2] for b in bars]
+    inv = {k: [] for k in GRADES_FORMULA_IDS}
+    momentum = []
+    pegs = []
+    si = 0
+    for i, wk in enumerate(weeks):
+        while si + 1 < len(states) and states[si + 1][0] <= wk:
+            si += 1
+        _sd, block, rec = states[si]
+        price = bars[i][1]
+        mom = None
+        if i >= 13 and adj[i - 13]:
+            mom = round((adj[i] / adj[i - 13] - 1.0) * 10000) / 100.0
+        momentum.append(mom)
+        pegs.append(_gh_peg(rec, price))
+        inv["druckenmiller"].append(
+            (0, 0) if mom is None else (1 if mom > 0 else 0, 1))
+        inv["buffett"].append(
+            (0, 0) if rec["roe"] is None
+            else (1 if rec["roe"] >= 15 else 0, 1))
+        inv["tepper"].append(
+            (0, 0) if rec["growth"] is None
+            else (1 if rec["growth"] >= 10 else 0, 1))
+        if rec["roe"] is None or rec["margin"] is None:
+            inv["alden"].append((0, 0))
+        else:
+            inv["alden"].append(
+                (1 if (rec["roe"] > 0 and rec["margin"] > 0) else 0, 1))
+        inv["oshaughnessy"].append((0, 0))  # cross-sectional, below
+        inv["baker"].append((0, 0))         # cross-sectional, below
+        inv["lynch"].append(_gh_passed_tested(
+            gh_lynch_checks(block, rec, price, ticker)))
+        if ticker in GRADES_FINANCIALS:
+            inv["graham"].append((0, 0))
+        else:
+            gc = gh_graham_checks(block, ticker, price)
+            inv["graham"].append(
+                (0, 0) if gc is None else _gh_passed_tested(gc))
+    return {"weeks": weeks, "inv": inv, "momentum": momentum, "peg": pegs}
+
+
+def _gh_apply_cross_sectional(per_ticker):
+    """O'Shaughnessy (a top-5 momentum rank across the table that
+    week — the page's rule, ties sharing the first index) and Baker
+    (PEG under 1 and under half the expensive-AI benchmark, which on
+    this table is AAOI's PEG — the page's EXPENSIVE_AI set)."""
+    week_index = {t: {wk: i for i, wk in enumerate(res["weeks"])}
+                  for t, res in per_ticker.items()}
+    for t, res in per_ticker.items():
+        for i, wk in enumerate(res["weeks"]):
+            mom = res["momentum"][i]
+            if mom is not None:
+                all_moms = []
+                for t2, res2 in per_ticker.items():
+                    j = week_index[t2].get(wk)
+                    if j is not None and res2["momentum"][j] is not None:
+                        all_moms.append(res2["momentum"][j])
+                ranked = sorted(all_moms, reverse=True)
+                res["inv"]["oshaughnessy"][i] = (
+                    1 if ranked.index(mom) < 5 else 0, 1)
+            peg = res["peg"][i]
+            med = None
+            aaoi = per_ticker.get("AAOI")
+            if aaoi is not None:
+                j = week_index["AAOI"].get(wk)
+                if j is not None:
+                    med = aaoi["peg"][j]
+            if peg is not None and med is not None:
+                res["inv"]["baker"][i] = (
+                    1 if (peg < 1.0 and peg < med / 2.0) else 0, 1)
+
+
+def _gh_scan_object(text, start):
+    """Index just past the closing brace of the object literal that
+    opens at text[start], respecting double-quoted strings."""
+    depth = 0
+    i = start
+    in_str = False
+    esc = False
+    while i < len(text):
+        ch = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        else:
+            if ch == '"':
+                in_str = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return i + 1
+        i += 1
+    raise ValueError("unbalanced object literal")
+
+
+def gh_extract_judgments(html):
+    """The judgment investors' snapshot counts from the page's
+    QUALITATIVE_GRADES constant: {investor: {"name":..., "tickers":
+    {ticker: (passed, tested)}}}. The counts are all the history can
+    honestly carry — the reasons stay on the page. Raises on any
+    structural surprise; the caller keeps the previous points."""
+    import re
+    anchor = html.index("const QUALITATIVE_GRADES = {")
+    obj_start = html.index("{", anchor)
+    body = html[obj_start:_gh_scan_object(html, obj_start)]
+    out = {}
+    for m in re.finditer(r"\n            ([a-z]+): \{", body):
+        inv = m.group(1)
+        b_start = body.index("{", m.start())
+        block = body[b_start:_gh_scan_object(body, b_start)]
+        name_m = re.search(r'\bname: "([^"]+)"', block)
+        j_anchor = block.index("judgments: {")
+        j_start = block.index("{", j_anchor)
+        jbody = block[j_start:_gh_scan_object(block, j_start)]
+        per_ticker = {}
+        for tm in re.finditer(r'\n                    "([A-Z]+)": \{',
+                              jbody):
+            tk = tm.group(1)
+            t_start = jbody.index("{", tm.start())
+            tobj = jbody[t_start:_gh_scan_object(jbody, t_start)]
+            answers = re.findall(r'"[a-z]+": \[(true|false),', tobj)
+            if len(answers) != 5:
+                raise ValueError("%s/%s: %d judgments, expected 5"
+                                 % (inv, tk, len(answers)))
+            per_ticker[tk] = (sum(1 for a in answers if a == "true"), 5)
+        if len(per_ticker) != len(TICKERS):
+            raise ValueError("%s: %d tickers, expected %d"
+                             % (inv, len(per_ticker), len(TICKERS)))
+        out[inv] = {"name": name_m.group(1) if name_m else inv,
+                    "tickers": per_ticker}
+    if not out:
+        raise ValueError("no judgment investors found")
+    return out
+
+
+def build_grades_history(previous, extracted_by_ticker, today):
+    """Assemble grades-history.json. extracted_by_ticker maps ticker
+    -> gh_extract_relevant(facts) for the tickers whose companyfacts
+    arrived this run; any other ticker keeps its previous entry.
+    Returns the document, or None when nothing could be carried or
+    computed (the caller then leaves the previous file in place)."""
+    prev_series = (previous or {}).get("series") or {}
+    # Judgment snapshots: read the page's constant from the checkout.
+    judgments = None
+    try:
+        with open("finance.html") as fh:
+            judgments = gh_extract_judgments(fh.read())
+    except Exception as exc:
+        log("  grade history: judgment read failed (%s); previous "
+            "judgment points carried" % exc)
+    per_ticker = {}
+    series = {}
+    for symbol in TICKERS:
+        prev_entry = prev_series.get(symbol)
+        extracted = extracted_by_ticker.get(symbol)
+        res = None
+        if extracted is not None:
+            try:
+                bars = gh_fetch_weekly_bars(symbol)
+                splits = fetch_splits_yahoo(symbol, http_get_json_yahoo)
+                if splits is None:
+                    raise ValueError("split history unavailable")
+                res = gh_build_ticker_series(symbol, extracted, splits,
+                                             bars)
+            except Exception as exc:
+                log("  grade history: %s recomputation failed (%s); "
+                    "previous series carried" % (symbol, exc))
+                res = None
+        if res is not None:
+            per_ticker[symbol] = res
+            entry = {"weeks": res["weeks"], "formula": {}, "judgment": {}}
+            series[symbol] = entry
+        elif prev_entry is not None:
+            entry = {"weeks": prev_entry.get("weeks") or [],
+                     "formula": prev_entry.get("formula") or {},
+                     "judgment": {}}
+            series[symbol] = entry
+        else:
+            continue
+        # Judgment points: begin at the grading date with the
+        # snapshot counts; a new point lands only when a re-judging
+        # changes a count. The page forward-fills the standing grade.
+        prev_judgment = (prev_entry or {}).get("judgment") or {}
+        inv_ids = set(prev_judgment)
+        if judgments:
+            inv_ids |= set(judgments)
+        for inv in sorted(inv_ids):
+            pts = [list(p) for p in (prev_judgment.get(inv) or [])]
+            if judgments and inv in judgments:
+                counts = judgments[inv]["tickers"].get(symbol)
+                if counts is not None:
+                    p, t = counts
+                    if not pts:
+                        pts = [[GRADES_JUDGMENT_START, p, t]]
+                    elif [pts[-1][1], pts[-1][2]] != [p, t]:
+                        pts.append([today, p, t])
+            if pts:
+                entry["judgment"][inv] = pts
+    if not series:
+        return None
+    _gh_apply_cross_sectional(per_ticker)
+    for symbol, res in per_ticker.items():
+        entry = series[symbol]
+        for inv in GRADES_FORMULA_IDS:
+            entry["formula"][inv] = [
+                ([p, t] if t > 0 else None)
+                for (p, t) in res["inv"][inv]]
+    investors = {}
+    for inv in GRADES_FORMULA_IDS:
+        investors[inv] = {"name": GRADES_FORMULA_NAMES[inv],
+                          "kind": "formula",
+                          "max_tested": GRADES_MAX_TESTED[inv]}
+    if judgments:
+        for inv, data in judgments.items():
+            investors[inv] = {"name": data["name"], "kind": "judgment",
+                              "max_tested": 5}
+    else:
+        for inv, meta in ((previous or {}).get("investors") or {}).items():
+            if meta.get("kind") == "judgment":
+                investors[inv] = meta
+    return {
+        "generated": today,
+        "grain": "weekly",
+        "method": "Point-in-time: SEC filings count from the day they "
+                  "were filed and prices are each week's closes, so "
+                  "a grade is what the scoreboard would have said "
+                  "that week.",
+        "judgment_start": GRADES_JUDGMENT_START,
+        "investors": investors,
+        "series": series,
+    }
+
+
+def write_grades_history(previous, extracted_by_ticker, today):
+    """Build and atomically write grades-history.json. Returns True
+    when a file was written."""
+    doc = build_grades_history(previous, extracted_by_ticker, today)
+    if doc is None:
+        log("  grade history: nothing to write; previous file kept")
+        return False
+    tmp_path = GRADES_FILE + ".tmp"
+    with open(tmp_path, "w") as fh:
+        json.dump(doc, fh, separators=(",", ":"))
+    os.replace(tmp_path, GRADES_FILE)
+    log("Wrote %s (%d tickers)." % (GRADES_FILE, len(doc["series"])))
+    return True
+
+
+def grades_only_main():
+    """Standalone rehearsal / backfill: fetch the facts itself and
+    write grades-history.json without the Alpha Vantage run. The
+    weekday workflow never takes this path (it passes no flag)."""
+    try:
+        with open(GRADES_FILE) as fh:
+            previous = json.load(fh)
+    except (OSError, ValueError):
+        previous = {}
+    try:
+        cik_map = load_cik_map()
+    except Exception as exc:
+        log("grade history: could not load cik_map.json: %s" % exc)
+        return 1
+    extracted_by_ticker = {}
+    for symbol in TICKERS:
+        cik = cik_map.get(symbol)
+        if not cik:
+            continue
+        try:
+            facts = fetch_companyfacts(cik)
+            extracted_by_ticker[symbol] = gh_extract_relevant(facts)
+        except Exception as exc:
+            log("  grade history: facts failed for %s: %s" % (symbol, exc))
+    ok = write_grades_history(previous, extracted_by_ticker,
+                              date.today().isoformat())
+    return 0 if ok else 1
+
+
 def fetch_splits_yahoo(symbol, http_get):
     """Split events for a ticker from Yahoo Finance's v8 chart API:
     [(date_iso, factor)] oldest first, factor = numerator/denominator
@@ -1432,6 +2122,12 @@ def main():
         previous_preferreds = {}
         previous_durability = {}
 
+    try:
+        with open(GRADES_FILE) as fh:
+            previous_grades = json.load(fh)
+    except (OSError, ValueError):
+        previous_grades = {}
+
     # Ticker->CIK map: the committed cik_map.json is the primary source,
     # because the live SEC file 403s automated access from cloud IPs
     # ("Request Rate Threshold Exceeded") and a failed map fetch used to
@@ -1462,6 +2158,7 @@ def main():
     today = date.today().isoformat()
     stocks = []
     durability = {}
+    gh_extracted = {}
     overview_calls = 0
 
     # Tickers whose fundamentals are > 7 days stale (or missing) get refreshed
@@ -1630,6 +2327,15 @@ def main():
             dur_block = prev_dur
         if dur_block is not None:
             durability[symbol] = dur_block
+
+        # ---- grade-history inputs: the rule-relevant slice of the
+        # same companyfacts payload, kept for the step after the loop.
+        if facts is not None:
+            try:
+                gh_extracted[symbol] = gh_extract_relevant(facts)
+            except Exception as exc:
+                log("  grade history: extraction failed for %s: %s"
+                    % (symbol, exc))
 
         # ---- fundamentals (weekly rotation) ----
         refresh = symbol in due and facts is not None
@@ -1950,8 +2656,17 @@ def main():
            fstatus["overview"]["throttled"],
            len(fstatus["tickers_filled"]),
            len(fstatus["tickers_still_missing"])))
+    # ---- grade history (grades-history.json): after the main file
+    # is written, and never allowed to fail the run.
+    try:
+        write_grades_history(previous_grades, gh_extracted, today)
+    except Exception as exc:
+        log("ERROR: grade-history step failed (%s); the previous "
+            "grades-history.json stays in place." % exc)
     return 0
 
 
 if __name__ == "__main__":
+    if "--grades-only" in sys.argv:
+        sys.exit(grades_only_main())
     sys.exit(main())
