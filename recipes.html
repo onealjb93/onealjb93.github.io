@@ -635,6 +635,12 @@
     #cookView.cook-panes-wide #cookRecipes { overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
     #cookView.cook-panes-wide #cookRecipes::-webkit-scrollbar { display: none; }
     #cookView.cook-panes-wide .cook-recipe { flex: 0 0 min(760px, calc(100% - 44px)); scroll-snap-align: start; scroll-snap-stop: always; }
+    /* Exactly two panes (the builder marks the count as .cook-two):
+       the pair stretches to fill the whole row. The 760px cap exists
+       so a third pane peeks at the row's edge; with no third pane the
+       cap only leaves dead space at the right edge. One pane keeps
+       the base rule, three keep the cap and the peek. */
+    #cookView.cook-panes-wide.cook-two .cook-recipe { flex: 1 1 0; }
     #cookView:not(.cook-mobile) .cook-recipe.pane-split-on { display: flex; flex-direction: column; overflow: hidden; }
     #cookView:not(.cook-mobile) .cook-recipe.pane-split-on .recipe-wrapper { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
     #cookView:not(.cook-mobile) .recipe-content.pane-split { flex: 1 1 auto; display: flex; gap: 1.4rem; min-height: 0; }
@@ -10012,6 +10018,24 @@
                 if (e.key === 'Enter' || e.key === ' ') onPaneIngEvent(e, true);
             });
         }
+        /* Snap vs. the mouse drag: the pane row is a scroll-snap row
+           (the swipe feel for touch), and the shared grab-scroll drags
+           the same row with the mouse. Mandatory snap fights the drag —
+           every scrollLeft the drag sets is pulled back toward the
+           nearest pane edge until the drag passes half a pane, so the
+           row sits still, then jumps a whole pane at once; on release
+           snap pulls the row off the spot where it was dropped. A mouse
+           press therefore switches the row's snap off for the rest of
+           the view, so the drag tracks the pointer and the row stays
+           where it is dropped; a touch press restores the CSS snap, so
+           phone and tablet swipes keep the snap feel. The drag itself
+           remains entirely the shared grab-scroll's — this only removes
+           the policy that was fighting it. closeCook clears the inline
+           style, so the next open starts from the stylesheet again. */
+        if (cookRecipes) cookRecipes.addEventListener('pointerdown', function (e) {
+            if (e.pointerType === 'mouse') cookRecipes.style.scrollSnapType = 'none';
+            else if (e.pointerType === 'touch') cookRecipes.style.scrollSnapType = '';
+        });
         if (sideMq.addEventListener) sideMq.addEventListener('change', function () {
             refreshCardSplits();
             paneWideResize();
@@ -10021,6 +10045,7 @@
         function openCook() {
             if (selected.length === 0 || !cookView) return;
             cookView.classList.toggle('cook-mobile', !isDesktop.matches);
+            cookView.classList.toggle('cook-two', selected.length === 2);
             cookRecipes.innerHTML = '';
             unsplitAllCards();
             selected.forEach(function (id) {
@@ -10111,6 +10136,8 @@
             refreshCardSplits();
             cookView.classList.remove('open');
             cookView.classList.remove('cook-mobile');
+            cookView.classList.remove('cook-two');
+            if (cookRecipes) cookRecipes.style.scrollSnapType = '';
             setCookScore(false);
             document.body.style.overflow = '';
             if (isDesktop.matches) { if (cookOpen) cookOpen.focus(); }
