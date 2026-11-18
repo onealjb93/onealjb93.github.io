@@ -697,6 +697,43 @@
         })();
     </script>
     <script>
+        // Logo intro click-to-finish: a visitor who does not scroll can
+        // click or tap anywhere on the intro and the logo runs the same
+        // morph up into the header. The morph in script.js is driven by
+        // accumulated wheel input eased toward a target, so the click
+        // feeds that very input — one synthetic wheel event carrying more
+        // than a full morph-range of delta. Everything after that (the
+        // damped glide, the green fade, the hint fade, the landing, the
+        // done class, the listeners detaching) is the scroll path's own
+        // code, untouched. If script.js has not wired the intro yet the
+        // feed retries briefly; if it never does, the setup failsafe
+        // above hides the intro and the click simply does nothing.
+        // Reduced motion never shows the intro at all, so there is
+        // nothing to click — the finish there is already instant.
+        (function () {
+            var intro = document.getElementById('logo-intro');
+            if (!intro) return;
+            intro.addEventListener('click', function () {
+                var root = document.documentElement;
+                if (!root.classList.contains('logo-intro-on') || root.classList.contains('logo-intro-done')) return;
+                var tries = 0;
+                (function feed() {
+                    if (root.classList.contains('logo-intro-done')) return;
+                    try {
+                        window.dispatchEvent(new WheelEvent('wheel', { deltaY: 10000, deltaMode: 0, bubbles: true, cancelable: true }));
+                    } catch (e) {
+                        var ev = document.createEvent('Event');
+                        ev.initEvent('wheel', true, true);
+                        ev.deltaY = 10000;
+                        ev.deltaMode = 0;
+                        window.dispatchEvent(ev);
+                    }
+                    if (!window.__logoIntroReady && ++tries < 20) setTimeout(feed, 100);
+                })();
+            });
+        })();
+    </script>
+    <script>
         // Theme before first paint: stored choice wins, dark is the default.
         // Never follows the OS setting. Storage failure falls back to dark.
         (function () {
@@ -724,7 +761,7 @@
         <a class="site-brand" href="/" aria-label="Johnny O'Neal — home">
             <img class="site-brand-logo" src="jbo-logo.svg" alt="Johnny O'Neal logo" width="32" height="32">
         </a>
-        <a class="golden-star" href="bitcoin.html#btc-value" title="Golden buying opportunity — all four Bitcoin models in their buy zones" aria-label="Golden buying opportunity — all four Bitcoin models in their buy zones" hidden><span class="golden-star-stars" aria-hidden="true">★★★★</span><span class="golden-star-note" aria-hidden="true">Golden buying opportunity</span></a>
+        <a class="golden-star" href="bitcoin.html#btc-value" title="Golden buy zone — all four Bitcoin models in their buy zones" aria-label="Golden buy zone — all four Bitcoin models in their buy zones" hidden><span class="golden-star-stars" aria-hidden="true">★★★★</span><span class="golden-star-note" aria-hidden="true">Golden buy zone · Active now</span></a>
         <div class="site-nav-right">
             <div class="site-nav-menu">
                 <button class="site-nav-toggle" id="nav-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="nav-menu">Explore pages ▾</button>
@@ -828,6 +865,7 @@
                 <div class="btc-zl-row btc-zl-amber">Hold — neither cheap nor stretched</div>
                 <div class="btc-zl-row btc-zl-red">Consider trimming — high above the bottom</div>
             </div>
+            <p class="btc-zones-note">Green is each model's own buy line: Power law and Cost in the bottom 5% of their ranges · Mayer at or under its 200-day average · MVRV at or under the average holder's cost.</p>
             <p class="btc-zones-note">A reading of the models, not a promise.</p>
         </div>
         <div id="btc-view-anim">
@@ -4011,7 +4049,7 @@
                    being replaced by it. */
                 comp.classList.remove('buy');
                 comp.classList.add('golden');
-                line.textContent = 'Golden buying opportunity — all four models in their buy zones at once.';
+                line.textContent = 'Golden buy zone — all four models in their buy zones at once.';
                 if (avg < 0) showSub(BOTTOMS); else hideSub();
             } else if (avg < 0) {
                 comp.classList.remove('golden');
