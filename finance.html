@@ -4829,7 +4829,7 @@ if (typeof module !== "undefined") {
         // The P/E pane's median line: the P/E's own teal, same treatment.
         var PE_GUIDE_COLOR = "rgba(45, 212, 191, 0.5)";
         var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1", MODE_KEY = "jbo-chart-mode-v1";
-        var KIND_KEY = "jbo-chart-kind-v1", HIDDEN_GRADES_KEY = "jbo-chart-grades-hidden-v1";
+        var KIND_KEY = "jbo-chart-kind-v1", HIDDEN_GRADES_KEY = "jbo-chart-grades-hidden-v1", LAST_GRADED_KEY = "jbo-chart-last-graded-v1";
         var PICK_KEYS = ["SPX", "IXIC", "GOLD", "BTC"];
         var RANGE_WEEKS = { "1Y": 52, "5Y": 260, "10Y": 520, "ALL": Infinity };
         // Daily ranges: 1Y is a trading year of days; 5Y is the
@@ -4859,8 +4859,13 @@ if (typeof module !== "undefined") {
         var gradesNote = "";
         var gView = null; // the grades window: {entry, start, end} over the entry's weeks
         var hiddenGrades = {};
+        // The most recently viewed of the graded 19 — where the
+        // Grades toggle lands when the chart is showing something
+        // that carries no grades (a benchmark, a Nasdaq-100 name).
+        var lastGraded = "";
         try {
             if (window.localStorage.getItem(KIND_KEY) === "grades") kind = "grades";
+            lastGraded = window.localStorage.getItem(LAST_GRADED_KEY) || "";
             var hgRaw = window.localStorage.getItem(HIDDEN_GRADES_KEY);
             if (hgRaw) JSON.parse(hgRaw).forEach(function (id) { hiddenGrades[id] = true; });
         } catch (e) { /* storage unavailable: the defaults stand */ }
@@ -5589,6 +5594,7 @@ if (typeof module !== "undefined") {
         function setKey(key) {
             if (!chartData || !chartData.series[key]) return;
             cur.key = key; hover = -1; zoom = null; modeNote = "";
+            noteGradedKey(key);
             // Grades cover only the 19 scored stocks: picking
             // anything else while in Grades returns to the price
             // chart for it, with the reason in the data note.
@@ -5893,6 +5899,25 @@ if (typeof module !== "undefined") {
         function storeKind() {
             try { window.localStorage.setItem(KIND_KEY, kind); } catch (err) { /* storage unavailable */ }
         }
+        // Remember a graded stock when it is viewed, so the
+        // Grades toggle can land on it later (see setKind).
+        function noteGradedKey(key) {
+            if (!key || PICK_KEYS.indexOf(key) >= 0) return;
+            if (chartData && (!chartData.series[key] || chartData.series[key].ndx)) return;
+            lastGraded = key;
+            try { window.localStorage.setItem(LAST_GRADED_KEY, key); } catch (err) { /* storage unavailable */ }
+        }
+        // Whose grades the toggle shows when the current
+        // instrument has none: the most recently viewed of the
+        // 19, else NVDA — the scoreboard's marquee name.
+        function gradesFallbackKey() {
+            if (chartData) {
+                var ks = stockKeys();
+                if (lastGraded && ks.indexOf(lastGraded) >= 0) return lastGraded;
+                return ks.indexOf("NVDA") >= 0 ? "NVDA" : (ks[0] || "NVDA");
+            }
+            return lastGraded || "NVDA";
+        }
         function syncKindUI() {
             var kindEl = document.getElementById("chartKind");
             if (kindEl) kindEl.querySelectorAll("button[data-kind]").forEach(function (b) {
@@ -5920,12 +5945,21 @@ if (typeof module !== "undefined") {
             if (k === kind) return;
             if (k === "grades") {
                 // Benchmarks and Nasdaq-100 names carry no grades:
-                // the toggle says so in the data note and stays on
-                // Price, rather than switching to an empty view.
+                // the toggle still switches — to the grades of the
+                // most recently viewed of the 19 (NVDA if none) —
+                // with the picker set to that stock and the data
+                // note saying whose grades are on screen. A toggle
+                // that silently stays on Price reads as a dead
+                // button, so the switch always happens.
                 var s = chartData && chartData.series[cur.key];
                 if (!s || PICK_KEYS.indexOf(cur.key) >= 0 || s.ndx) {
-                    modeNote = "Grades cover the 19 stocks on the scoreboard — pick one of them to see its grades.";
-                    render();
+                    cur.key = gradesFallbackKey();
+                    hover = -1; zoom = null;
+                    modeNote = "Grades cover the 19 stocks on the scoreboard — showing " + cur.key + ".";
+                    kind = "grades"; storeKind();
+                    syncControls();
+                    if (window.jboRefreshVerdictChip) window.jboRefreshVerdictChip();
+                    if (!gradesData) ensureGrades(); else render();
                     return;
                 }
                 kind = "grades"; storeKind(); hover = -1; zoom = null; modeNote = "";
@@ -6316,9 +6350,10 @@ if (typeof module !== "undefined") {
             var section = document.getElementById("chart");
             if (section && section.scrollIntoView) section.scrollIntoView({ behavior: "smooth", block: "start" });
             if (chartData) {
-                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; modeNote = ""; syncControls(); if (mode === "daily") ensureDaily(); else render(); }
+                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; modeNote = ""; noteGradedKey(symbol); syncControls(); if (mode === "daily") ensureDaily(); else render(); }
             } else {
                 pendingKey = symbol;
+                noteGradedKey(symbol);
                 ensure();
             }
         };
