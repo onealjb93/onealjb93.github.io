@@ -522,6 +522,45 @@
     #cookView.cook-mobile #cookRecipes { overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; padding: 10px 10px calc(12px + env(safe-area-inset-bottom, 0px)); }
     #cookView.cook-mobile .cook-recipe { flex: 0 0 93%; scroll-snap-align: start; scroll-snap-stop: always; }
     @media (min-width: 700px) { #cookView.cook-mobile .cook-recipe { flex-basis: calc(50% - 5px); } }
+    /* Two-pane cook view (single recipe, added 2026-11-18): the
+       ingredients and the instructions sit side by side, each in its
+       own scrolling column, so an amount can be checked without
+       losing the step being read. On mobile the ingredients column
+       hides and the same list opens as a glass bubble from the
+       Ingredients button in the cook header. Tapping an ingredient
+       highlights the steps that use it. */
+    #cookView:not(.cook-mobile) .cook-recipe.cook-two-pane { display: flex; flex-direction: column; overflow: hidden; }
+    #cookView:not(.cook-mobile) .cook-recipe.cook-two-pane .recipe-wrapper { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    #cookView:not(.cook-mobile) .recipe-content.cook-split { flex: 1 1 auto; display: flex; gap: 1.4rem; min-height: 0; }
+    .cook-col-ing, .cook-col-steps { min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    .cook-col-ing { flex: 0 0 clamp(290px, 34%, 430px); padding-right: 0.4rem; }
+    .cook-col-steps { flex: 1 1 auto; min-width: 0; }
+    .cook-col-ing > :first-child, .cook-col-steps > :first-child { margin-top: 0; }
+    .cook-col-ing .recipe-card-photo { margin-bottom: 0.9rem; }
+    #cookView.cook-mobile .recipe-content.cook-split .cook-col-ing { display: none; }
+    /* Ingredient <-> step linking: the tappable ingredient rows and
+       the steps they light up. One accent, the site's own tokens. */
+    .cook-ing-tap { cursor: pointer; border-radius: 0 6px 6px 0; transition: background-color 0.18s ease, box-shadow 0.18s ease; }
+    .cook-ing-on { background: var(--badge-bg); box-shadow: inset 3px 0 0 var(--link-color); }
+    .recipe-steps > li.cook-step-on { background: var(--hover-bg); box-shadow: inset 3px 0 0 var(--link-color); border-radius: 0 6px 6px 0; transition: background-color 0.18s ease, box-shadow 0.18s ease; }
+    @media (prefers-reduced-motion: reduce) { .cook-ing-tap, .recipe-steps > li.cook-step-on { transition: none; } }
+    /* Ingredients button in the cook header (mobile, single recipe):
+       the Scorecard toggle's sibling, same pill language. */
+    .cook-head-btns { display: inline-flex; gap: 0.5rem; }
+    #cookIngBtn { border-color: var(--link-color); color: var(--link-color); }
+    #cookIngBtn[aria-expanded="true"] { background: var(--link-color); color: #fff; }
+    #cookIngBtn[hidden] { display: none; }
+    /* Ingredients bubble (mobile): the site's glass popup standard --
+       a floating bubble over the dimmed, blurred cook view, with
+       safe-area-aware insets. */
+    #cookIngPop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
+    #cookIngPop[hidden] { display: none; }
+    .cook-ing-bubble { width: min(560px, 100%); max-height: min(78dvh, 720px); display: flex; flex-direction: column; overflow: hidden; }
+    .cook-ing-bubble-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem 0.35rem; font-weight: 700; font-size: 0.95rem; }
+    .cook-ing-bubble-head button { cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 999px; width: 30px; height: 30px; font-size: 1rem; line-height: 1; padding: 0; }
+    .cook-ing-bubble-body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 0.2rem 1rem 1rem; font-size: calc(1.05rem * var(--rts, 1)); line-height: 1.6; }
+    .cook-ing-bubble-body .recipe-section-title { font-size: calc(1.15rem * var(--rts, 1)); }
+    .cook-ing-bubble-body .dish-scaler { display: none; }
     /* Glass fallback for the pane head (the panes and scorecard take the
        shared .glass-bubble fallback in style.css). */
     @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .cook-pane-head { background: var(--glass-bg-solid); } }
@@ -7993,7 +8032,7 @@
                     <button type="button" id="cookViewClose">&times; Close</button>
                 </div>
             </div>
-            <div class="cook-head-meta"><span class="cook-score" id="cookScore" aria-live="polite" title="The verdict scores everything selected, at the servings shown, against a full day's nutrition targets."></span><button type="button" id="cookScoreToggle" aria-expanded="false" aria-controls="cookScorePanel">Scorecard</button></div>
+            <div class="cook-head-meta"><span class="cook-score" id="cookScore" aria-live="polite" title="The verdict scores everything selected, at the servings shown, against a full day's nutrition targets."></span><span class="cook-head-btns"><button type="button" id="cookIngBtn" hidden aria-expanded="false" aria-controls="cookIngPop">Ingredients</button><button type="button" id="cookScoreToggle" aria-expanded="false" aria-controls="cookScorePanel">Scorecard</button></span></div>
         </div>
         <div id="cookNav" hidden>
             <div class="cook-nav-row">
@@ -8007,6 +8046,12 @@
             <div class="combiner-profile-row"><span class="profile-day" data-profile-day></span><button type="button" class="profile-chip" data-profile-edit>Edit</button></div>
             <div class="frame-toggle-row"><div class="frame-toggle" role="tablist" aria-label="Judge the verdict as a meal or as a full day" data-frame-toggle="cook"><button type="button" role="tab" data-frame-value="meal" aria-selected="false">Meal</button><button type="button" role="tab" data-frame-value="day" aria-selected="false">Full day</button></div></div>
             <div class="cook-score-panel-body" id="cookScoreBody"></div>
+        </div>
+        <div id="cookIngPop" class="glass-scrim" hidden>
+            <div class="cook-ing-bubble glass-bubble" role="dialog" aria-label="Ingredients">
+                <div class="cook-ing-bubble-head"><span>Ingredients</span><button type="button" id="cookIngClose" aria-label="Close ingredients">&times;</button></div>
+                <div class="cook-ing-bubble-body" id="cookIngBody"></div>
+            </div>
         </div>
     </div>
 
@@ -8225,6 +8270,10 @@
         var cookScorePanel = document.getElementById('cookScorePanel');
         var cookScoreBody = document.getElementById('cookScoreBody');
         var cookScoreClose = document.getElementById('cookScoreClose');
+        var cookIngBtn = document.getElementById('cookIngBtn');
+        var cookIngPop = document.getElementById('cookIngPop');
+        var cookIngBody = document.getElementById('cookIngBody');
+        var cookIngClose = document.getElementById('cookIngClose');
         var scoreOpen = false;
 
         function refreshToggle(btn) {
@@ -8385,6 +8434,285 @@
         }
         if (cookScoreToggle) cookScoreToggle.addEventListener('click', function () { setCookScore(!scoreOpen); });
         if (cookScoreClose) cookScoreClose.addEventListener('click', function () { setCookScore(false); if (cookScoreToggle) cookScoreToggle.focus(); });
+        /* ---- Two-pane cook view (single recipe, added 2026-11-18) ----
+           Desktop: the ingredients get their own scrolling column beside
+           the instructions column, both visible at once. Mobile: the
+           ingredients column hides and the same list opens as a glass
+           bubble from the Ingredients button in the cook header.
+           Tapping an ingredient highlights the steps that use it.
+           The matcher is deliberately conservative, in the spirit of
+           the page's coherence audit: a step lights up only when the
+           ingredient's own name -- its full phrase, its head phrase, or
+           a word that names no other ingredient in this recipe --
+           appears in the step's text. No fuzzy guessing. */
+        var CK_UNITS = {}, CK_MEASURE_TAIL = {}, CK_FILLER = {}, CK_PREP = {}, CK_SEG_DROP = {}, CK_TOKEN_STOP = {};
+        'cup cups tbsp tablespoon tablespoons tsp teaspoon teaspoons oz ounce ounces lb lbs pound pounds g gram grams kg ml l liter liters clove cloves can cans head heads bunch bunches stalk stalks slice slices package packages pkg pinch dash stick sticks scoop scoops piece pieces sprig sprigs bottle bottles jar jars box bag bags container containers drop drops sheet sheets bulb bulbs rib ribs ear ears fillet fillets packed quart quarts pint pints gallon gallons dozen'.split(' ').forEach(function (w) { CK_UNITS[w] = 1; });
+        'clove head stalk sprig bunch can bulb rib ear sheet bottle jar box bag package stick slice piece'.split(' ').forEach(function (w) { CK_MEASURE_TAIL[w] = 1; });
+        'fresh freshly large medium small whole ripe extra virgin finely coarsely thinly roughly lightly heaping scant about approximately plus more optional boneless skinless additional low sodium air chilled pasture raised flat leaf'.split(' ').forEach(function (w) { CK_FILLER[w] = 1; });
+        'ground minced chopped diced grated shredded crushed melted softened beaten sifted sliced halved peeled trimmed washed hulled pitted deveined cubed juiced zested torn crumbled flaked loosely toasted roasted smoked chunky pressed flaky'.split(' ').forEach(function (w) { CK_PREP[w] = 1; });
+        Object.keys(CK_PREP).forEach(function (w) { CK_SEG_DROP[w] = 1; });
+        'quartered smashed rinsed drained seeded cored stemmed cut small fine'.split(' ').forEach(function (w) { CK_SEG_DROP[w] = 1; });
+        'and or the for with into over from any except your taste style type piece dry red black white green golden dark light hot cold sweet sour of off out per via one two all own used using use'.split(' ').forEach(function (w) { CK_TOKEN_STOP[w] = 1; });
+        var CK_ALIASES = { evoo: 'olive oil' };
+        function ckFold(s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+        function ckSingular(w) {
+            if (w === 'brussels') return w;
+            if (w.length > 3 && /ies$/.test(w)) return w.slice(0, -3) + 'y';
+            if (w.length > 3 && /oes$/.test(w)) return w.slice(0, -2);
+            if (w.length > 4 && /sses$/.test(w)) return w.slice(0, -2);
+            if (w.length > 2 && /s$/.test(w) && !/(ss|us|is)$/.test(w)) return w.slice(0, -1);
+            return w;
+        }
+        function ckNormWords(text) {
+            var t = ckFold(text.toLowerCase().replace(/[¼½¾⅓⅔⅛⅜⅝⅞]/g, ' ')).replace(/[^a-z0-9 ]/g, ' ');
+            return t.split(/\s+/).filter(Boolean).map(ckSingular);
+        }
+        function ckQty(w) { return /^[\d¼½¾⅓⅔⅛⅜⅝⅞\/\.\-–—~+x×]+$/.test(w); }
+        function ckSplitItems(seg) {
+            var parts = seg.split(',').map(function (p) { return p.trim(); });
+            var items = [parts[0]];
+            for (var i = 1; i < parts.length; i++) {
+                var p = parts[i];
+                if (!p) continue;
+                if (/^[\d¼½¾⅓⅔]/.test(p)) { items.push(p); continue; }
+                var w = ckFold(p.toLowerCase()).replace(/[^a-z0-9¼½¾⅓ ]/g, ' ').split(/\s+/).filter(Boolean);
+                if (w.length && CK_SEG_DROP[w[0]]) break;
+                items[items.length - 1] += ' ' + p;
+            }
+            return items;
+        }
+        function ckNameSources(line) {
+            var names = [];
+            line = line.replace(/\s+/g, ' ').trim();
+            var m = line.match(/^([^:]{2,40}):\s*(.*)$/);
+            if (m && /[\d¼½¾⅓⅔]/.test(m[2])) { names.push(m[1]); line = m[2]; }
+            var groups = line.match(/\([^)]*\)/g) || [];
+            groups.forEach(function (g) {
+                var inner = g.slice(1, -1).trim();
+                if (/^or /i.test(inner)) names.push(inner.slice(3));
+            });
+            line = line.replace(/\([^)]*\)/g, ' ');
+            line.split('&').forEach(function (seg0) {
+                var seg = seg0.trim();
+                if (!seg) return;
+                ckSplitItems(seg).forEach(function (item) {
+                    names.push(item);
+                    var parts = item.split(' and ');
+                    if (parts.length === 2 && parts.every(function (p) { return p.split(/\s+/).filter(Boolean).length <= 4 && !/\d/.test(p); })) {
+                        parts.forEach(function (p) { names.push(p); });
+                    }
+                    if (item.indexOf(' or ') !== -1) item.split(' or ').forEach(function (p) { names.push(p); });
+                    var mm = item.match(/\bof\s+(.+)$/);
+                    if (mm && /\b(juice|zest)\b/i.test(item)) names[names.length - 1] = mm[1];
+                });
+            });
+            return names;
+        }
+        function ckCleanName(raw) {
+            var s = ckFold(raw.trim().replace(/\.+$/, '').toLowerCase());
+            s = s.replace(/\([^)]*\)/g, ' ');
+            s = s.replace(/\bto (your )?taste\b.*$/, '');
+            s = s.replace(/\bfor (serving|garnish|the table)\b.*$/, '');
+            s = s.replace(/(\d)\s*(lbs?|oz|kg|g|ml|tbsp|tsp)\b/g, '$1 $2');
+            var words = s.replace(/[^a-z0-9¼½¾⅓⅔⅛\/\.\-–— ]/g, ' ').split(/\s+/).filter(Boolean);
+            var flat = [];
+            words.forEach(function (w) { w.replace(/-/g, ' ').split(/\s+/).forEach(function (x) { if (x) flat.push(x); }); });
+            words = flat.map(function (w) { return w.replace(/^\.+|\.+$/g, ''); }).filter(Boolean);
+            while (words.length > 1 && (ckQty(words[0]) || CK_UNITS[words[0]] || words[0] === 'to')) words.shift();
+            words = words.filter(function (w) { return w !== 'of' && !/\d/.test(w); });
+            return words.map(ckSingular);
+        }
+        function ckVariants(words) {
+            var out = [words];
+            var v = words.slice();
+            for (var i = 0; i < 3; i++) {
+                if (v.length > 1 && (CK_FILLER[v[0]] || CK_PREP[v[0]])) { v = v.slice(1); out.push(v); }
+                else break;
+            }
+            if (words.length >= 2 && CK_MEASURE_TAIL[words[words.length - 1]]) out.push(words.slice(0, -1));
+            return out;
+        }
+        function ckLineNames(line) {
+            var names = [];
+            ckNameSources(line).forEach(function (raw) {
+                var w = ckCleanName(raw);
+                if (!w.length) return;
+                ckVariants(w).forEach(function (v) { names.push(v); });
+                var joined = w.join(' ');
+                if (CK_ALIASES[joined]) ckVariants(ckCleanName(CK_ALIASES[joined])).forEach(function (v) { names.push(v); });
+            });
+            return names;
+        }
+        function ckPhraseKeys(names) {
+            var set = {};
+            names.forEach(function (v) {
+                if (!v.length) return;
+                set[v.join(' ')] = 1;
+                if (v.length >= 3) set[v.slice(-2).join(' ')] = 1;
+                if (v.length === 2 && CK_PREP[v[0]]) set[v[1]] = 1;
+            });
+            return set;
+        }
+        function ckRecipeKeys(lines) {
+            var allNames = lines.map(ckLineNames);
+            var lineWords = allNames.map(function (names) {
+                var set = {};
+                names.forEach(function (v) { v.forEach(function (w) { set[w] = 1; }); });
+                return set;
+            });
+            var sigSeen = {}, freq = {};
+            lineWords.forEach(function (set) {
+                var sig = Object.keys(set).sort().join('');
+                if (sigSeen[sig]) return;
+                sigSeen[sig] = 1;
+                Object.keys(set).forEach(function (w) { freq[w] = (freq[w] || 0) + 1; });
+            });
+            return allNames.map(function (names, i) {
+                var keys = ckPhraseKeys(names);
+                Object.keys(lineWords[i]).forEach(function (w) {
+                    if (freq[w] === 1 && !CK_FILLER[w] && !CK_PREP[w] && !CK_TOKEN_STOP[w] && !CK_UNITS[w] && w.length >= 3) keys[w] = 1;
+                });
+                return Object.keys(keys);
+            });
+        }
+        function ckComputePairs(ingLis, stepLis) {
+            var streams = stepLis.map(function (s) { return ' ' + ckNormWords(s.textContent).join(' ') + ' '; });
+            var keysets = ckRecipeKeys(ingLis.map(function (li) { return li.textContent; }));
+            var pairs = [];
+            ingLis.forEach(function (li, i) {
+                var keys = keysets[i] || [];
+                var hits = [];
+                streams.forEach(function (ss, si) {
+                    for (var k = 0; k < keys.length; k++) {
+                        if (keys[k] && ss.indexOf(' ' + keys[k] + ' ') !== -1) { hits.push(stepLis[si]); break; }
+                    }
+                });
+                if (hits.length) {
+                    li.classList.add('cook-ing-tap');
+                    li.setAttribute('data-hit', String(hits.length));
+                    li.setAttribute('tabindex', '0');
+                    li.setAttribute('aria-pressed', 'false');
+                    li.title = 'Highlight the steps that use this';
+                }
+                pairs.push({ li: li, steps: hits });
+            });
+            return pairs;
+        }
+        var ckPairs = [], ckActiveIdx = -1, ckActiveSteps = [], ckIngCol = null;
+        function ckMarkActive() {
+            [ckIngCol, cookIngBody].forEach(function (root) {
+                if (!root) return;
+                var lis = root.querySelectorAll('.recipe-list > li');
+                Array.prototype.forEach.call(lis, function (li, i) {
+                    var on = i === ckActiveIdx;
+                    li.classList.toggle('cook-ing-on', on);
+                    if (li.hasAttribute('aria-pressed')) li.setAttribute('aria-pressed', on ? 'true' : 'false');
+                });
+            });
+        }
+        function ckClearHighlight() {
+            ckActiveSteps.forEach(function (s) { s.classList.remove('cook-step-on'); });
+            ckActiveSteps = [];
+            ckActiveIdx = -1;
+            ckMarkActive();
+        }
+        function ckActivate(idx) {
+            if (ckActiveIdx === idx) { ckClearHighlight(); return; }
+            ckClearHighlight();
+            var pair = ckPairs[idx];
+            if (!pair || !pair.steps.length) return;
+            ckActiveIdx = idx;
+            ckActiveSteps = pair.steps;
+            pair.steps.forEach(function (s) { s.classList.add('cook-step-on'); });
+            ckMarkActive();
+            if (cookIngPop && cookIngPop.hidden) pair.steps[0].scrollIntoView({ block: 'nearest' });
+        }
+        function ckPairIndexFor(li) {
+            var root = li.closest('.cook-col-ing, .cook-ing-bubble-body');
+            if (!root) return -1;
+            var lis = root.querySelectorAll('.recipe-list > li');
+            return Array.prototype.indexOf.call(lis, li);
+        }
+        function findIngredientsBlock(content) {
+            var kids = Array.prototype.slice.call(content.children);
+            var firstList = -1, lastList = -1, stepsIdx = -1;
+            kids.forEach(function (k, i) {
+                if (k.tagName === 'UL' && k.classList.contains('recipe-list')) { if (firstList < 0) firstList = i; lastList = i; }
+                if (k.tagName === 'OL' && k.classList.contains('recipe-steps')) stepsIdx = i;
+            });
+            if (firstList < 0 || stepsIdx < 0 || lastList > stepsIdx) return null;
+            var start = firstList;
+            while (start > 0 && (kids[start - 1].classList.contains('recipe-section-title') || kids[start - 1].classList.contains('dish-scaler'))) start--;
+            return kids.slice(start, lastList + 1);
+        }
+        function setupCookSingle() {
+            ckPairs = []; ckActiveIdx = -1; ckActiveSteps = []; ckIngCol = null;
+            if (selected.length !== 1 || !cookRecipes || !cookRecipes.children.length) return;
+            var pane = cookRecipes.children[0];
+            var content = pane.querySelector('.recipe-content');
+            if (!content) return;
+            var block = findIngredientsBlock(content);
+            if (!block || !block.length) return;
+            var ingCol = document.createElement('div');
+            ingCol.className = 'cook-col-ing';
+            var stepsCol = document.createElement('div');
+            stepsCol.className = 'cook-col-steps';
+            block.forEach(function (n) { ingCol.appendChild(n); });
+            while (content.firstChild) stepsCol.appendChild(content.firstChild);
+            content.appendChild(ingCol);
+            content.appendChild(stepsCol);
+            content.classList.add('cook-split');
+            ckIngCol = ingCol;
+            var mobile = cookView.classList.contains('cook-mobile');
+            var stepsOl = stepsCol.querySelector('.recipe-steps');
+            if (mobile) {
+                /* The dish-size scaler stays with the reading column so
+                   it keeps working while the ingredients are tucked
+                   into the bubble. */
+                var scaler = ingCol.querySelector('.dish-scaler');
+                if (scaler && stepsOl) stepsCol.insertBefore(scaler, stepsOl.previousElementSibling || stepsOl);
+                if (cookIngBtn) { cookIngBtn.hidden = false; cookIngBtn.setAttribute('aria-expanded', 'false'); }
+            } else {
+                pane.classList.add('cook-two-pane');
+                /* The photo leads the ingredients column, not the
+                   instructions: the reading column starts with the
+                   recipe itself, and the card's share chip (anchored
+                   to the wrapper's top-left) lands back on the
+                   photo's corner, as on the card. */
+                var photo = stepsCol.querySelector('.recipe-card-photo');
+                if (photo) ingCol.insertBefore(photo, ingCol.firstChild);
+            }
+            var ingLis = Array.prototype.slice.call(ingCol.querySelectorAll('.recipe-list > li'));
+            var stepLis = stepsOl ? Array.prototype.slice.call(stepsOl.children) : [];
+            ckPairs = ckComputePairs(ingLis, stepLis);
+        }
+        function teardownCookSingle() {
+            ckClearHighlight();
+            ckPairs = [];
+            ckIngCol = null;
+            if (cookIngPop) cookIngPop.hidden = true;
+            if (cookIngBody) cookIngBody.innerHTML = '';
+            if (cookIngBtn) { cookIngBtn.hidden = true; cookIngBtn.setAttribute('aria-expanded', 'false'); }
+        }
+        function openCookIng() {
+            if (!cookIngPop || !cookIngBody || !ckIngCol) return;
+            cookIngBody.innerHTML = '';
+            Array.prototype.slice.call(ckIngCol.childNodes).forEach(function (n) { cookIngBody.appendChild(n.cloneNode(true)); });
+            cookIngPop.hidden = false;
+            cookIngBody.scrollTop = 0;
+            if (cookIngBtn) cookIngBtn.setAttribute('aria-expanded', 'true');
+            if (cookIngClose) cookIngClose.focus();
+        }
+        function closeCookIng(refocus) {
+            if (!cookIngPop || cookIngPop.hidden) return;
+            cookIngPop.hidden = true;
+            if (cookIngBtn) {
+                cookIngBtn.setAttribute('aria-expanded', 'false');
+                if (refocus) cookIngBtn.focus();
+            }
+            /* The steps pane is never scrolled by the bubble: closing
+               returns to the exact scroll position the cook left. */
+        }
         function openCook() {
             if (selected.length === 0 || !cookView) return;
             cookView.classList.toggle('cook-mobile', !isDesktop.matches);
@@ -8456,6 +8784,7 @@
                 if (cookHead) section.insertBefore(cookHead, clone);
                 cookRecipes.appendChild(section);
             });
+            setupCookSingle();
             cookViewTitle.textContent = 'Cooking ' + selected.length + ' recipe' + (selected.length === 1 ? '' : 's');
             if (window.__jboRenderCookScore) window.__jboRenderCookScore(selected);
             cookView.classList.add('open');
@@ -8470,6 +8799,7 @@
         window.__jboOpenCook = openCook;
         function closeCook() {
             if (!cookView) return;
+            teardownCookSingle();
             cookView.classList.remove('open');
             cookView.classList.remove('cook-mobile');
             setCookScore(false);
@@ -8477,6 +8807,31 @@
             if (isDesktop.matches) { if (cookOpen) cookOpen.focus(); }
             else if (window.__jboMobileCookReturn) window.__jboMobileCookReturn();
         }
+        if (cookIngBtn) cookIngBtn.addEventListener('click', function () {
+            if (cookIngPop && !cookIngPop.hidden) closeCookIng(false);
+            else openCookIng();
+        });
+        if (cookIngClose) cookIngClose.addEventListener('click', function () { closeCookIng(true); });
+        if (cookIngPop) cookIngPop.addEventListener('click', function (e) { if (e.target === cookIngPop) closeCookIng(true); });
+        document.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Escape' && cookIngPop && !cookIngPop.hidden) { ev.stopPropagation(); closeCookIng(true); }
+        }, true);
+        function onCkIngTap(e) {
+            var li = e.target && e.target.closest ? e.target.closest('li.cook-ing-tap') : null;
+            if (!li) return;
+            var idx = ckPairIndexFor(li);
+            if (idx >= 0) ckActivate(idx);
+        }
+        function onCkIngKey(e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            var li = e.target && e.target.closest ? e.target.closest('li.cook-ing-tap') : null;
+            if (!li) return;
+            e.preventDefault();
+            var idx = ckPairIndexFor(li);
+            if (idx >= 0) ckActivate(idx);
+        }
+        if (cookRecipes) { cookRecipes.addEventListener('click', onCkIngTap); cookRecipes.addEventListener('keydown', onCkIngKey); }
+        if (cookIngBody) { cookIngBody.addEventListener('click', onCkIngTap); cookIngBody.addEventListener('keydown', onCkIngKey); }
         if (cookOpen) cookOpen.addEventListener('click', openCook);
         if (cookClear) cookClear.addEventListener('click', clearSelection);
         if (cookViewClose) cookViewClose.addEventListener('click', closeCook);
