@@ -201,6 +201,10 @@
         body.light-mode .btc-zones.golden { border-color: #9a7b0a; box-shadow: 0 0 0 1px #9a7b0a; }
         body.light-mode .btc-zones.golden .btc-zones-line { border-color: #9a7b0a; }
         body.light-mode .btc-zones.golden .btc-zone .btc-zone-dot::before { color: #9a7b0a; }
+        .btc-zones.top { border-color: #ef4444; box-shadow: 0 0 0 1px #ef4444; }
+        .btc-zones.top .btc-zones-line { font-weight: 700; background: rgba(239, 68, 68, 0.14); border: 1px solid #ef4444; border-radius: 8px; padding: 6px 10px; }
+        body.light-mode .btc-zones.top { border-color: #dc2626; box-shadow: 0 0 0 1px #dc2626; }
+        body.light-mode .btc-zones.top .btc-zones-line { border-color: #dc2626; }
         .btc-zones-sub { font-size: 0.85rem; margin: 5px 2px 0; }
         @media (max-width: 480px) {
             .btc-zones { padding: 10px 8px 8px; }
@@ -4015,6 +4019,7 @@
         function render() {
             var z = window.BTC_ZONE || {};
             var sum = 0, posSum = 0, posCount = 0, count = 0, ready = 0;
+            var bands = {};
             ORDER.forEach(function (k) {
                 var v = z[k], b = btns[k];
                 if (!v || !b) return;
@@ -4022,6 +4027,7 @@
                 sum += v.dist;
                 if (typeof v.pos === 'number') { posSum += v.pos; posCount++; }
                 var band = v.band || bandOf(v.pos);
+                bands[k] = band;
                 if (band === 'green') count++;
                 b.classList.remove('band-green', 'band-yellow', 'band-red');
                 b.classList.add('band-' + band);
@@ -4030,6 +4036,20 @@
             });
             if (ready < 4) return;
             var avg = sum / 4;
+            /* the top state test: each model stretched by its own
+               lines — the power law by its position (95 or over,
+               the top 5% of its range), production cost by its
+               ratio (price at least 10x the cost of production —
+               the reading's dist is the % above cost, so 10x is
+               dist 900; the cost position's own range is anchored
+               to the December 2017 peak ratio, whose top 5% has
+               never been reached, so like Mayer and MVRV it is
+               judged by a threshold), the published red band for
+               the two threshold models (Mayer red is exactly 2.4
+               or over, MVRV red exactly Z of 7 or over) */
+            var isTop = typeof z.powerlaw.pos === 'number' && z.powerlaw.pos >= 95 &&
+                typeof z.cost.dist === 'number' && z.cost.dist >= 900 &&
+                bands.mayer === 'red' && bands.mvrv === 'red';
             /* the final-bottoms sentence: on average, price sits under
                all four bottom lines at once. On the baked record since
                2016 that has only happened around the final bottoms —
@@ -4048,17 +4068,40 @@
                    rides beneath the callout as a sub-line rather than
                    being replaced by it. */
                 comp.classList.remove('buy');
+                comp.classList.remove('top');
                 comp.classList.add('golden');
                 line.textContent = 'Golden buy zone — all four models in their buy zones at once.';
                 if (avg < 0) showSub(BOTTOMS); else hideSub();
+            } else if (isTop) {
+                /* the top state: the golden state's mirror — all
+                   four models stretched at once. The line becomes
+                   a red callout in the golden callout's slot and
+                   style; the dots keep their own zones (already
+                   red) and the header stars stay buy-only. On the
+                   baked weekly record since 2016 it has fired in
+                   2 of 564 weeks — a single episode at the
+                   December 2017 top (the weeks of Dec 7 and 14,
+                   2017), the only weeks all four models have ever
+                   been stretched at once. Golden is tested first
+                   and wins:
+                   the two states can never co-fire (each model's
+                   bands are mutually exclusive), but the order
+                   keeps the precedence explicit. */
+                comp.classList.remove('golden');
+                comp.classList.remove('buy');
+                comp.classList.add('top');
+                hideSub();
+                line.textContent = 'Top zone — all four models stretched at once.';
             } else if (avg < 0) {
                 comp.classList.remove('golden');
+                comp.classList.remove('top');
                 hideSub();
                 comp.classList.add('buy');
                 line.textContent = BOTTOMS;
             } else {
                 comp.classList.remove('golden');
                 comp.classList.remove('buy');
+                comp.classList.remove('top');
                 hideSub();
                 var avgPos = posCount ? posSum / posCount : 0, where;
                 if (avgPos <= 5) where = 'at the bottoms';
