@@ -8,10 +8,18 @@ one tiny file, btc-state.json, at the repo root:
 
     {"golden": bool, "as_of": "<UTC ISO timestamp>",
      "price": <spot USD>, "data": {"mvrv_day": "YYYY-MM-DD"},
-     "readings": {"powerlaw": {"pos": ..., "band": ...},
-                  "cost":     {"pos": ..., "band": ...},
-                  "mayer":    {"ratio": ..., "band": ...},
-                  "mvrv":     {"z": ..., "band": ...}}}
+     "readings": {"powerlaw": {"pos": ..., "band": ..., "pct": ...},
+                  "cost":     {"pos": ..., "band": ..., "pct": ...},
+                  "mayer":    {"ratio": ..., "band": ..., "pct": ...},
+                  "mvrv":     {"z": ..., "band": ..., "pct": ...}}}
+
+Each reading's "pct" is the percent note the page's indicator prints
+beside the model's name (its fmtDist input): how far the price sits
+from that model's own bottom line, as a signed percent — negative is
+under the line, positive is above it. The quantities are the page's
+own, per model: power law, price vs the corridor floor (fair x LO);
+production cost, price vs today's cost; Mayer, the ratio minus one;
+MVRV, market cap vs realized cap (the CoinMetrics ratio minus one).
 
 "golden" is true exactly when all four models read green at once —
 the page's own rule (power-law position <= 5, cost position <= 5,
@@ -279,13 +287,19 @@ def reading_powerlaw(today, price):
     ceil = fair * PL_HI
     pos = (math.log10(price) - math.log10(floor)) / \
           (math.log10(ceil) - math.log10(floor)) * 100
-    return {"pos": round(pos, 2), "band": band_of_pos(pos)}
+    # the page's zone dist: (SPOT.price / fl - 1) * 100
+    pct = (price / floor - 1) * 100
+    return {"pos": round(pos, 2), "band": band_of_pos(pos),
+            "pct": round(pct, 4)}
 
 
 def reading_cost(today, price, inputs, peak, diff_t):
     c = cost_for(today, diff_t, inputs["fees"][-1], inputs["eff"], inputs["sub"])
     pos = (price / c - 1) / (peak - 1) * 100
-    return {"pos": round(pos, 2), "band": band_of_pos(pos)}
+    # the page's zone dist is its readout devPct: (SPOT.price / c - 1) * 100
+    pct = (price / c - 1) * 100
+    return {"pos": round(pos, 2), "band": band_of_pos(pos),
+            "pct": round(pct, 4)}
 
 
 def reading_mayer(today, price, closes):
@@ -297,7 +311,9 @@ def reading_mayer(today, price, closes):
     window = [c for _, c in pts[-200:]]
     ratio = price / (sum(window) / 200)
     band = "green" if ratio <= 1 else ("red" if ratio >= 2.4 else "yellow")
-    return {"ratio": round(ratio, 4), "band": band}
+    # the page's zone dist: (last[1] - 1) * 100, from the unrounded ratio
+    return {"ratio": round(ratio, 4), "band": band,
+            "pct": round((ratio - 1) * 100, 4)}
 
 
 def reading_mvrv(rows):
@@ -316,12 +332,15 @@ def reading_mvrv(rows):
         if i >= 199:
             std = math.sqrt(m2 / n)
             if std > 0:
-                last = (day, (mv - rv) / std)
+                last = (day, (mv - rv) / std, ratio)
     if last is None:
         fail("MVRV series too short")
-    day, z = last
+    day, z, ratio = last
     band = "green" if z <= 0 else ("red" if z >= 7 else "yellow")
-    return {"z": round(z, 4), "band": band}, day
+    # the page's zone dist: (last[2] / last[3] - 1) * 100, market cap
+    # over realized cap — which is the CoinMetrics ratio itself, minus 1
+    return {"z": round(z, 4), "band": band,
+            "pct": round((ratio - 1) * 100, 4)}, day
 
 
 # ------------------------------------------------------------------------- main
