@@ -13,7 +13,7 @@ page-cards — from the CURRENT sources of truth in the repo checkout:
     media.html          book titles, authors, ratings
     random.html         the POOLS data (photo entries + stage URLs)
     quotes-data.js      quote texts and authors
-    math-data.js        math entry names and meanings
+    engineering-data.js engineering entry names, overviews and photos
 
 ...and rewrites ONLY what changed:
 
@@ -38,10 +38,12 @@ brand-new book with no stub yet gets one fetch on any night — that is
 creating, not re-checking. A failed fetch never loses a cover: the
 previous value (or, for a new book, the JBO logo) is kept.
 
-Math doorway images (s/img/math/<id>.png) are RENDERED DIAGRAMS — code,
-not photos — so they are out of scope for auto-refresh: a math stub
-points at its PNG whenever the PNG file exists in the tree, exactly as
-generate.py decided, and this script never re-renders one.
+Engineering doorways (s/engineering/<id>.html) carry the entry's own
+photo, derived exactly like the other photo pools (the entry's img run
+through the stage-URL rule). The retired Math pool's doorways and
+diagram PNGs (s/math/, s/img/math/) are no longer derived: they stay
+in the tree as orphans, logged by the orphan pass, never deleted —
+the same treatment the sea doorways got when Sea became Animals.
 
 House rules:
     * Idempotent and quiet: an unchanged repo -> zero file changes,
@@ -497,8 +499,8 @@ class Refresher:
             self.log('covers: re-checked %d, fresh og:image on %d'
                      % (checked, found))
 
-    # ---- random pools, quotes, math ------------------------------------
-    def derive_random(self, random_src, quotes, math_entries):
+    # ---- random pools, quotes, engineering -----------------------------
+    def derive_random(self, random_src, quotes, eng_entries):
         i = random_src.find('var POOLS = ')
         blob = random_src[i + len('var POOLS = '):
                           random_src.find('\n', i)].rstrip().rstrip(';')
@@ -530,18 +532,18 @@ class Refresher:
                           '%s/random.html#share/quotes/%s' % (SITE, q['id']))
             except Exception as ex:
                 self.problems.append('quote ?: %s' % ex)
-        for m in math_entries:
+        for e in eng_entries:
             try:
-                png = self.path('s', 'img', 'math', '%s.png' % m['id'])
-                img = ('%s/s/img/math/%s.png' % (SITE, m['id'])
-                       if os.path.exists(png) else LOGO)
-                self.emit('math', 'math/%s.html' % m['id'], m['name'],
-                          ' '.join((m.get('meaning') or m.get('sub')
-                                    or '').split()),
-                          img, '%s/random.html#share/math/%s'
-                          % (SITE, m['id']))
+                desc = (e.get('overview') or e.get('sub')
+                        or e.get('name') or '')
+                desc = ' '.join(desc.split())
+                self.emit('engineering',
+                          'engineering/%s.html' % e['id'],
+                          e['name'], desc, stage_url(e['img']),
+                          '%s/random.html#share/engineering/%s'
+                          % (SITE, e['id']))
             except Exception as ex:
-                self.problems.append('math ?: %s' % ex)
+                self.problems.append('engineering ?: %s' % ex)
         return carina_url
 
     # ---- the three photo page-cards ------------------------------------
@@ -638,9 +640,9 @@ class Refresher:
         random_src = self.read_source('random.html')
         qsrc = self.read_source('quotes-data.js')
         quotes = json.loads(qsrc[qsrc.index('['):qsrc.rindex(']') + 1])
-        msrc = self.read_source('math-data.js')
-        math_entries = json.loads(msrc[msrc.index('['):
-                                       msrc.rindex(']') + 1])
+        esrc = self.read_source('engineering-data.js')
+        eng_entries = json.loads(esrc[esrc.index('['):
+                                      esrc.rindex(']') + 1])
 
         state_path = self.path(STATE_NAME)
         state = {}
@@ -657,7 +659,7 @@ class Refresher:
         monday = datetime.now(timezone.utc).weekday() == 0
         cover_check = self.force_covers or monday
         self.derive_books(media_doc, cover_check)
-        carina_url = self.derive_random(random_src, quotes, math_entries)
+        carina_url = self.derive_random(random_src, quotes, eng_entries)
         self.refresh_cards(photos, sust_doc, carina_url, state)
         self.log_orphans()
 
