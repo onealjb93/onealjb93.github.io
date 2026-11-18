@@ -583,6 +583,19 @@
     .holdings-table td.wrap, .holdings-table th.wrap { white-space: normal; }
     .holdings-table td.wrap { min-width: 190px; }
 </style>
+
+    <style>
+        /* Sharing (2026-11-18): one quiet glyph, the same on every surface —
+           the system share sheet where the device offers one, a copied link
+           (with a brief confirmation) where it does not. */
+        .share-btn { flex: none; width: 36px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: none; border-radius: 50%; color: var(--subtext-color); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .share-btn:hover { color: var(--link-color); }
+        .share-btn:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+        .share-toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(6px); background: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 999px; padding: 7px 15px; font-size: 0.82rem; line-height: 1.25; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease; z-index: 3000; }
+        .share-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        .chart-share { align-self: center; }
+    </style>
 </head>
 <body>
     <script>
@@ -684,6 +697,7 @@
             </div>
             <button type="button" class="filter-pill chart-verdict-chip" id="chartVerdictChip" hidden></button>
             <button type="button" class="filter-pill" id="chartToolsBtn" aria-expanded="false" aria-controls="chartTools">Chart tools<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
+            <button type="button" class="share-btn chart-share" id="chartShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
             <div id="chartTools" hidden>
             <div class="chip-row" id="chartRanges" role="group" aria-label="Chart range">
                 <button type="button" class="filter-pill" data-range="1Y">1Y</button>
@@ -6066,6 +6080,101 @@ if (typeof module !== "undefined") {
         if (document.readyState === 'complete') openFromHash();
         else window.addEventListener('load', openFromHash);
         window.addEventListener('hashchange', openFromHash);
+    })();
+    </script>
+
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true"><defs><symbol id="jboShareIcon" viewBox="0 0 24 24"><path d="M12 14.2V2.8"/><path d="M7.2 5.8 12 1.4l4.8 4.4"/><path d="M9.9 10H5.6a1.1 1.1 0 0 0-1.1 1.1v9.3a1.1 1.1 0 0 0 1.1 1.1h12.8a1.1 1.1 0 0 0 1.1-1.1v-9.3a1.1 1.1 0 0 0-1.1-1.1h-4.3"/></symbol></defs></svg>
+
+    <div class="share-toast" id="shareToast" role="status" aria-live="polite">Link copied</div>
+    <script>
+    // Sharing (2026-11-18)
+    (function () {
+        function jboShareNow(title, text, url) {
+            function toast() {
+                var t = document.getElementById('shareToast');
+                if (!t) { return; }
+                t.classList.add('show');
+                clearTimeout(t._h);
+                t._h = setTimeout(function () { t.classList.remove('show'); }, 1600);
+            }
+            function copyIt() {
+                function legacy() {
+                    var ta = document.createElement('textarea');
+                    ta.value = url; ta.setAttribute('readonly', '');
+                    ta.style.position = 'fixed'; ta.style.opacity = '0';
+                    document.body.appendChild(ta); ta.select();
+                    try { document.execCommand('copy'); } catch (e) {}
+                    document.body.removeChild(ta); toast();
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(toast, legacy);
+                } else { legacy(); }
+            }
+            if (navigator.share) {
+                try {
+                    var p = navigator.share({ title: title, text: text, url: url });
+                    if (p && p.catch) {
+                        p.catch(function (err) {
+                            if (!err || err.name !== 'AbortError') { copyIt(); }
+                        });
+                    }
+                } catch (e) { copyIt(); }
+            } else { copyIt(); }
+        }
+        function jboShareUrl(hash) { return location.origin + location.pathname + hash; }
+
+        // The chart carries no Grades mode in this build, so a shared link
+        // encodes the price chart only: ticker + Daily/Weekly.
+        function currentChart() {
+            var root = document.getElementById('chartStock');
+            var key = (root && root.value) ? String(root.value) : '';
+            var label = '';
+            if (key) {
+                var ft = document.getElementById('chartStockFaceText');
+                label = ft ? ft.textContent.trim() : key;
+            } else {
+                var pick = document.querySelector('#chartPicks button.active');
+                if (pick) { key = pick.getAttribute('data-key') || ''; label = pick.textContent.trim(); }
+            }
+            var modeBtn = document.querySelector('#chartModes button.active');
+            return { key: key, label: label, mode: (modeBtn && modeBtn.getAttribute('data-mode')) || 'weekly' };
+        }
+        var finBtn = document.getElementById('chartShare');
+        if (finBtn) {
+            finBtn.addEventListener('click', function () {
+                var c = currentChart();
+                if (c.key) {
+                    jboShareNow(document.title, c.label || c.key,
+                        jboShareUrl('#chart=' + encodeURIComponent(c.key) + ':' + c.mode));
+                } else {
+                    jboShareNow(document.title, document.title, jboShareUrl(''));
+                }
+            });
+        }
+        // A shared link applies the ticker and timeframe once the chart's
+        // data has built its controls; anything unknown degrades silently.
+        var fm = (location.hash || '').match(/^#chart=([^:]+):(weekly|daily)$/);
+        if (fm) {
+            var fKey = decodeURIComponent(fm[1]), fMode = fm[2], fTries = 0;
+            var fIv = setInterval(function () {
+                fTries++;
+                var opt = document.querySelector('.stock-dd-opt[data-key="' + fKey.replace(/"/g, '') + '"]');
+                var pick = document.querySelector('#chartPicks button[data-key="' + fKey.replace(/"/g, '') + '"]');
+                if (opt || pick) {
+                    clearInterval(fIv);
+                    var tog = document.querySelector('.section-toggle[data-section="chart"]');
+                    if (tog && tog.getAttribute('aria-expanded') === 'false') { tog.click(); }
+                    if (opt) { opt.click(); }
+                    else if (pick && !pick.classList.contains('active')) { pick.click(); }
+                    if (fMode === 'daily') {
+                        var db = document.querySelector('#chartModes button[data-mode="daily"]');
+                        if (db && !db.classList.contains('active')) { db.click(); }
+                    }
+                    var sec = document.getElementById('chart');
+                    if (sec) { sec.scrollIntoView(); }
+                } else if (fTries > 40) { clearInterval(fIv); }
+            }, 250);
+        }
     })();
     </script>
 </body>

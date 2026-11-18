@@ -304,6 +304,20 @@
         }
     </style>
 
+
+    <style>
+        /* Sharing (2026-11-18): one quiet glyph, the same on every surface —
+           the system share sheet where the device offers one, a copied link
+           (with a brief confirmation) where it does not. */
+        .share-btn { flex: none; width: 36px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: none; border-radius: 50%; color: var(--subtext-color); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .share-btn:hover { color: var(--link-color); }
+        .share-btn:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+        .share-toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(6px); background: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 999px; padding: 7px 15px; font-size: 0.82rem; line-height: 1.25; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease; z-index: 3000; }
+        .share-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        #btcPick { display: flex; align-items: center; gap: 0.5rem; }
+        #btcPick .btc-pick-face { flex: 1 1 auto; width: auto; }
+    </style>
 </head>
 <body class="bitcoin-page">
     <script>
@@ -582,6 +596,7 @@
                 <span class="btc-pick-face-text" id="btcPickFaceText">Bitcoin power law</span>
                 <span class="btc-pick-chev" aria-hidden="true">&#9662;</span>
             </button>
+            <button type="button" class="share-btn" id="btcShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
             <div class="btc-pick-panel glass-bubble" id="btcPickPanel" role="listbox" aria-label="Choose Bitcoin chart view" hidden>
                 <button type="button" class="btc-pick-opt active" data-view="powerlaw" role="option" aria-selected="true">Bitcoin power law</button>
                 <button type="button" class="btc-pick-opt" data-view="cost" role="option" aria-selected="false">Production cost</button>
@@ -3634,5 +3649,66 @@
         });
     })();
 </script>
+
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true"><defs><symbol id="jboShareIcon" viewBox="0 0 24 24"><path d="M12 14.2V2.8"/><path d="M7.2 5.8 12 1.4l4.8 4.4"/><path d="M9.9 10H5.6a1.1 1.1 0 0 0-1.1 1.1v9.3a1.1 1.1 0 0 0 1.1 1.1h12.8a1.1 1.1 0 0 0 1.1-1.1v-9.3a1.1 1.1 0 0 0-1.1-1.1h-4.3"/></symbol></defs></svg>
+
+    <div class="share-toast" id="shareToast" role="status" aria-live="polite">Link copied</div>
+    <script>
+    // Sharing (2026-11-18)
+    (function () {
+        function jboShareNow(title, text, url) {
+            function toast() {
+                var t = document.getElementById('shareToast');
+                if (!t) { return; }
+                t.classList.add('show');
+                clearTimeout(t._h);
+                t._h = setTimeout(function () { t.classList.remove('show'); }, 1600);
+            }
+            function copyIt() {
+                function legacy() {
+                    var ta = document.createElement('textarea');
+                    ta.value = url; ta.setAttribute('readonly', '');
+                    ta.style.position = 'fixed'; ta.style.opacity = '0';
+                    document.body.appendChild(ta); ta.select();
+                    try { document.execCommand('copy'); } catch (e) {}
+                    document.body.removeChild(ta); toast();
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(toast, legacy);
+                } else { legacy(); }
+            }
+            if (navigator.share) {
+                try {
+                    var p = navigator.share({ title: title, text: text, url: url });
+                    if (p && p.catch) {
+                        p.catch(function (err) {
+                            if (!err || err.name !== 'AbortError') { copyIt(); }
+                        });
+                    }
+                } catch (e) { copyIt(); }
+            } else { copyIt(); }
+        }
+        function jboShareUrl(hash) { return location.origin + location.pathname + hash; }
+
+        var BTC_VIEW_NAMES = { powerlaw: 'Power Law', cost: 'Production Cost', mayer: 'Mayer Multiple', mvrv: 'MVRV Z-Score' };
+        var btcBtn = document.getElementById('btcShare');
+        if (btcBtn) {
+            btcBtn.addEventListener('click', function () {
+                var active = document.querySelector('.btc-pick-opt.active');
+                var view = active ? active.getAttribute('data-view') : 'powerlaw';
+                jboShareNow(document.title, 'Bitcoin \u2014 ' + (BTC_VIEW_NAMES[view] || 'Power Law'),
+                    jboShareUrl('#view=' + view));
+            });
+        }
+        // A shared link selects that view and lands on the section.
+        var vm = (location.hash || '').match(/^#view=(powerlaw|cost|mayer|mvrv)$/);
+        if (vm) {
+            var opt = document.querySelector('.btc-pick-opt[data-view="' + vm[1] + '"]');
+            if (opt && !opt.classList.contains('active')) { opt.click(); }
+            var head = document.getElementById('btc-value');
+            if (head) { head.scrollIntoView(); }
+        }
+    })();
+    </script>
 </body>
 </html>
