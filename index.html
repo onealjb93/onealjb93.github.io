@@ -599,6 +599,44 @@
     @media (max-height: 500px) { .logo-intro-hint { margin-top: calc(min(39vmin, 320px) + 4px); font-size: 0.78rem; line-height: 1.2; gap: 2px; } }
     @media (prefers-reduced-motion: reduce) { .logo-intro-hint svg { animation: none; } }
 
+
+    /* Bitcoin send sheet (2026-11-18): tapping the donate QR opens this
+       sheet in the site's glass standard (glass-scrim over the dimmed,
+       blurred page, glass-bubble floating inside it, safe-area insets),
+       following the sustainability photo viewer's pattern. Compact list
+       rows, one line per action; the bubble scrolls internally if a
+       short screen ever needs it. Tokens only. */
+    .btc-sheet {
+        position: fixed; inset: 0; z-index: 1500;
+        display: flex; align-items: center; justify-content: center;
+        padding: 1rem;
+        padding-top: max(1rem, env(safe-area-inset-top));
+        padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+    .btc-sheet[hidden] { display: none; }
+    .btc-sheet-bubble { position: relative; width: 100%; max-width: 400px; max-height: 100%; overflow-y: auto; padding: 1.1rem 1.25rem 1.25rem; }
+    .btc-sheet-title { margin: 0 2rem 0.6rem 0; font-size: 1.05rem; font-weight: 650; color: var(--text-color); }
+    .btc-sheet-address { margin: 0 0 0.9rem; }
+    .btc-sheet-actions { display: flex; flex-direction: column; gap: 6px; }
+    .btc-sheet-btn {
+        display: block; width: 100%; box-sizing: border-box;
+        text-align: center; padding: 10px 14px;
+        border-radius: 10px; border: 1px solid var(--border-color);
+        background: var(--card-bg); color: var(--text-color);
+        font: inherit; font-size: 0.92rem; font-weight: 600; line-height: 1.3;
+        text-decoration: none; cursor: pointer; white-space: nowrap;
+        transition: border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+    }
+    .btc-sheet-btn:hover { border-color: var(--link-color); }
+    .btc-sheet-btn:active { transform: scale(0.99); }
+    .btc-sheet-note { margin: 0.8rem 0 0; font-size: 0.82rem; line-height: 1.5; color: var(--subtext-color); }
+    .btc-sheet-close {
+        position: absolute; top: 0.5rem; right: 0.5rem;
+        width: 2.25rem; height: 2.25rem; border-radius: 999px;
+        border: 1px solid var(--border-color); background: var(--card-bg);
+        color: var(--text-color); font-size: 1.25rem; line-height: 1;
+        cursor: pointer;
+    }
 </style>
 
 </head>
@@ -3159,7 +3197,7 @@
         <!-- Bitcoin Wallet Address Sub-section -->
         <div style="text-align: center; margin-bottom: 12px;">
             <p style="margin-bottom: 6px; font-weight: 600; color: var(--text-color);">Bitcoin Address:</p>
-            <div class="btc-qr-card" style="display: inline-block; background: #ffffff; padding: 10px; border-radius: 12px; line-height: 0; margin: 2px 0 12px;"><a href="bitcoin:bc1qrl6qaq05y84gv8grhuhcyyel3nklvhk8ylemee" aria-label="Open in a Bitcoin wallet app"><img src="btc-qr.png" alt="Bitcoin address QR code" width="140" height="140" loading="lazy" decoding="async"></a></div>
+            <div class="btc-qr-card" style="display: inline-block; background: #ffffff; padding: 10px; border-radius: 12px; line-height: 0; margin: 2px 0 12px;"><a href="bitcoin:bc1qrl6qaq05y84gv8grhuhcyyel3nklvhk8ylemee" id="btcQrLink" aria-label="Choose how to send Bitcoin"><img src="btc-qr.png" alt="Bitcoin address QR code" width="140" height="140" loading="lazy" decoding="async"></a></div>
             <div class="btc-address-box" id="btc-wallet-address">bc1qrl6qaq05y84gv8grhuhcyyel3nklvhk8ylemee</div>
             <button class="copy-btn" onclick="copyBtcAddress()">Copy Address</button>
         </div>
@@ -3205,6 +3243,93 @@
         <div class="footer-quote">"Humanity needs a vision of an expanding and unending future. This spiritual craving cannot be satisfied by the colonization of space. The true frontier for humanity is life on Earth, its exploration and the transport of knowledge about it into science, art and practical affairs." <span class="footer-quote-attrib">— E. O. Wilson</span></div>
         <div class="footer-cc" style="width: 100%; text-align: center; font-size: 0.72rem; opacity: 0.75;">© 2026 Johnny O'Neal · Writing <a href="https://creativecommons.org/licenses/by/4.0/" style="color: inherit;">CC BY 4.0</a> · Other works © their creators.</div>
     </footer>
+
+    <div class="btc-sheet glass-scrim" id="btcSheet" hidden role="dialog" aria-modal="true" aria-labelledby="btcSheetTitle">
+        <div class="btc-sheet-bubble glass-bubble">
+            <button type="button" class="btc-sheet-close" id="btcSheetClose" aria-label="Close">&times;</button>
+            <h3 class="btc-sheet-title" id="btcSheetTitle">Send Bitcoin</h3>
+            <div class="btc-address-box btc-sheet-address">bc1qrl6qaq05y84gv8grhuhcyyel3nklvhk8ylemee</div>
+            <div class="btc-sheet-actions">
+                <a class="btc-sheet-btn" id="btcOpenCoinbase" href="https://www.coinbase.com/send">Open in Coinbase</a>
+                <a class="btc-sheet-btn" id="btcOpenRiver" href="https://river.com/login">Open in River</a>
+                <a class="btc-sheet-btn" id="btcOpenSwan" href="https://app.swanbitcoin.com/app/login">Open in Swan</a>
+                <a class="btc-sheet-btn" id="btcOpenKraken" href="https://kraken.com/pay">Open in Kraken</a>
+                <a class="btc-sheet-btn" href="bitcoin:bc1qrl6qaq05y84gv8grhuhcyyel3nklvhk8ylemee">Open in wallet</a>
+                <button type="button" class="btc-sheet-btn" id="btcSheetCopy">Copy address</button>
+            </div>
+            <p class="btc-sheet-note">Opening an app copies the address — paste it in the app. Or scan the code with any wallet app.</p>
+        </div>
+    </div>
+    <script>
+        // Bitcoin send sheet: tapping the donate QR opens the sheet
+        // instead of following its bitcoin: link (the link stays in place
+        // as the no-JS route and the long-press target, and lives on as
+        // the sheet's own "Open in wallet" row). Each app row is that
+        // service's own published app link, from its
+        // apple-app-site-association file: Coinbase lists /send for its
+        // app (its send screen); River lists /login, Swan lists
+        // /app/login on its app host, and Kraken lists /pay for its app —
+        // those three publish no send link, so they open the app itself.
+        // Each app row first copies the address, so it is on the
+        // clipboard ready to paste in the app. No row can dead-end: with
+        // the app installed the link opens the app; without it, the
+        // service's website.
+        (function () {
+            var sheet = document.getElementById('btcSheet');
+            var qrLink = document.getElementById('btcQrLink');
+            if (!sheet || !qrLink) return;
+            var ADDRESS = 'bc1qrl6qaq05y84gv8grhuhcyyel3nklvhk8ylemee';
+            var closeBtn = document.getElementById('btcSheetClose');
+            var copyBtn = document.getElementById('btcSheetCopy');
+            var lastFocus = null;
+            function fallbackCopy() {
+                var ta = document.createElement('textarea');
+                ta.value = ADDRESS;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); } catch (e) {}
+                document.body.removeChild(ta);
+            }
+            function copyAddress() {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    return navigator.clipboard.writeText(ADDRESS).catch(function () { fallbackCopy(); });
+                }
+                fallbackCopy();
+                return Promise.resolve();
+            }
+            function openSheet() {
+                lastFocus = document.activeElement;
+                sheet.hidden = false;
+                document.body.style.overflow = 'hidden';
+                closeBtn.focus();
+            }
+            function closeSheet() {
+                sheet.hidden = true;
+                document.body.style.overflow = '';
+                if (lastFocus && lastFocus.focus) lastFocus.focus();
+            }
+            qrLink.addEventListener('click', function (e) { e.preventDefault(); openSheet(); });
+            closeBtn.addEventListener('click', closeSheet);
+            sheet.addEventListener('click', function (e) { if (e.target === sheet) closeSheet(); });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !sheet.hidden) closeSheet();
+            });
+            ['btcOpenCoinbase', 'btcOpenRiver', 'btcOpenSwan', 'btcOpenKraken'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) el.addEventListener('click', function () { copyAddress(); });
+            });
+            copyBtn.addEventListener('click', function () {
+                copyAddress().then(function () {
+                    var old = copyBtn.textContent;
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(function () { copyBtn.textContent = old; }, 2000);
+                });
+            });
+        })();
+    </script>
 
     <div class="jbo-pop glass-bubble" id="jbo-pop" hidden></div>
 
