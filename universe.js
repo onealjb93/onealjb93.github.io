@@ -12,7 +12,12 @@
    symbol sizes follow a logarithm of each object's real brightness or
    width, squeezed until everything catalogued registers, and a star's
    brightness is worked out from the camera's true distance to it, not
-   from the Sun. Flight is faster than light — the HUD says by how much.
+   from the Sun. A faint haze is summed from the catalog itself — where
+   mapped stars crowd together their light is added into a soft glow,
+   so the sky's texture is the catalog's own density and no light
+   appears where no stars are mapped; the brightest stars shimmer
+   slightly, and the view drifts very slowly when left alone. Flight
+   is faster than light — the HUD says by how much.
    Those are the only liberties, and the game states them.
 
    Data file: universe-data.bin (baked by build_data.py; layout documented
@@ -115,19 +120,22 @@ function fmtSpeed(pcPerSec) {
 var STAR_VERT = [
     'attribute float aAbsMag;',
     'attribute float aCi;',
+    'attribute float aPhase;',
     'uniform float uScaleH;',   /* (height px * 0.5 * proj[1][1]) * dpr */
     'uniform float uDpr;',
+    'uniform float uTime;',
     'varying vec3 vCol;',
     'varying float vAlpha;',
     'varying float vGlow;',
+    'varying float vShim;',
     'vec3 ciColor(float ci) {',
-    '    vec3 c1 = vec3(0.61, 0.69, 1.00);',  /* -0.33 blue-white      */
-    '    vec3 c2 = vec3(0.82, 0.87, 1.00);',  /*  0.00 white-blue      */
-    '    vec3 c3 = vec3(1.00, 0.97, 0.90);',  /*  0.32 white           */
-    '    vec3 c4 = vec3(1.00, 0.88, 0.68);',  /*  0.65 yellow-white    */
-    '    vec3 c5 = vec3(1.00, 0.72, 0.44);',  /*  1.15 orange          */
-    '    vec3 c6 = vec3(1.00, 0.55, 0.30);',  /*  1.65 red-orange      */
-    '    vec3 c7 = vec3(1.00, 0.40, 0.20);',  /*  2.40 deepest red     */
+    '    vec3 c1 = vec3(0.50, 0.62, 1.00);',  /* -0.33 blue-white      */
+    '    vec3 c2 = vec3(0.72, 0.82, 1.00);',  /*  0.00 white-blue      */
+    '    vec3 c3 = vec3(1.00, 0.95, 0.84);',  /*  0.32 white           */
+    '    vec3 c4 = vec3(1.00, 0.84, 0.55);',  /*  0.65 yellow-white    */
+    '    vec3 c5 = vec3(1.00, 0.64, 0.30);',  /*  1.15 orange          */
+    '    vec3 c6 = vec3(1.00, 0.46, 0.19);',  /*  1.65 red-orange      */
+    '    vec3 c7 = vec3(1.00, 0.33, 0.12);',  /*  2.40 deepest red     */
     '    vec3 col = c1;',
     '    col = mix(col, c2, smoothstep(-0.33, 0.00, ci));',
     '    col = mix(col, c3, smoothstep( 0.00, 0.32, ci));',
@@ -145,19 +153,28 @@ var STAR_VERT = [
        Fly close and a dwarf blazes; fall back and only the giants hold
        up — that is the real behaviour of light, then squeezed below. */
     '    float mCam = aAbsMag + 5.0 * (log(dist) * 0.4342945) - 5.0;',
+    /* A stable per-star phase for the shimmer — a hash of the star's
+       real position, so it invents nothing and never changes. */
+    '    float phase = aPhase;',
     /* Size: a logarithm of real brightness. Each magnitude step shrinks
        the symbol by a fixed gentle ratio (10^-0.11) instead of the true
        2.512x flux step, and a 2px floor keeps every catalogued star
        registered; the cap keeps a near giant from filling the screen. */
     '    float sz = 9.0 * pow(10.0, -0.11 * mCam);',
-    '    gl_PointSize = clamp(sz, 2.0, 36.0) * uDpr;',
+    /* Glow is earned by brightness alone — only genuinely bright stars
+       (from wherever you stand) carry a wide halo. */
+    '    float szN = sz * 0.1111111;',
+    '    vGlow = clamp(1.288 * szN * szN, 0.0, 1.0);',
+    /* Shimmer: only halo-carrying stars breathe, by a few percent,
+       each on its own slow phase — the field feels alive standing
+       still without anything visibly twinkling. */
+    '    float shim = sin(uTime * 0.8 + phase * 6.28318);',
+    '    vShim = 1.0 + 0.13 * vGlow * shim;',
+    '    gl_PointSize = clamp(sz * (1.0 + 0.05 * vGlow * shim), 2.0, 46.0) * uDpr;',
     '    vCol = ciColor(aCi);',
     /* Brightness follows the same squeezed scale, floored so the
        faintest catalogued stars stay faint but never vanish. */
-    '    vAlpha = clamp(pow(10.0, -0.16 * (mCam - 2.0)), 0.28, 1.0);',
-    /* Glow is earned by brightness alone — only genuinely bright stars
-       (from wherever you stand) carry a wide halo. */
-    '    vGlow = clamp(pow(10.0, -0.22 * (mCam - 0.5)), 0.0, 1.0);',
+    '    vAlpha = clamp(pow(10.0, -0.145 * (mCam - 2.0)), 0.30, 1.0);',
     '    gl_Position = projectionMatrix * mv;',
     '}'
 ].join('\n');
@@ -166,13 +183,84 @@ var STAR_FRAG = [
     'varying vec3 vCol;',
     'varying float vAlpha;',
     'varying float vGlow;',
+    'varying float vShim;',
     'void main() {',
     '    vec2 q = gl_PointCoord - 0.5;',
     '    float d = length(q) * 2.0;',
-    '    float core = exp(-d * d * 10.0);',
-    '    float halo = exp(-d * d * 2.6) * (0.16 + 0.55 * vGlow);',
-    '    float a = clamp(core + halo, 0.0, 1.0) * vAlpha;',
+    /* Push the colour away from grey — starlight should read as
+       colour (white, pale blue, yellow, orange, red), not as noise. */
+    '    vec3 col = mix(vec3(dot(vCol, vec3(0.3333))), vCol, 1.30);',
+    '    float g = max(0.0, 1.0 - d * d);',
+    '    float g2 = g * g;',
+    '    float core = g2 * g2 * g2 * g2 * g * (1.0 + 0.35 * vGlow);',
+    '    float halo = g2 * (0.20 + 0.85 * vGlow);',
+    '    float a = clamp(core + halo, 0.0, 1.0) * vAlpha * vShim;',
     '    if (a < 0.004) discard;',
+    '    gl_FragColor = vec4(col, a);',
+    '}'
+].join('\n');
+/* Starlight glow — one sprite per occupied cell of a space grid,
+   baked at runtime from the catalog itself (see buildGlowLayer).
+   aW: the cell's summed real starlight, log-squeezed 0..1.
+   aCiW: its light-weighted mean B-V colour. aDiam: sprite diameter
+   in parsecs — world-sized like the galaxies, so the haze sits IN
+   the space the stars occupy. */
+var GLOW_VERT = [
+    'attribute float aW;',
+    'attribute float aCiW;',
+    'attribute float aDiam;',
+    'uniform float uScaleH;',
+    'uniform float uDpr;',
+    'uniform float uTime;',
+    'uniform float uAlpha;',
+    'varying vec3 vCol;',
+    'varying float vAlpha;',
+    'vec3 ciColor(float ci) {',
+    '    vec3 c1 = vec3(0.50, 0.62, 1.00);',
+    '    vec3 c2 = vec3(0.72, 0.82, 1.00);',
+    '    vec3 c3 = vec3(1.00, 0.95, 0.84);',
+    '    vec3 c4 = vec3(1.00, 0.84, 0.55);',
+    '    vec3 c5 = vec3(1.00, 0.64, 0.30);',
+    '    vec3 c6 = vec3(1.00, 0.46, 0.19);',
+    '    vec3 c7 = vec3(1.00, 0.33, 0.12);',
+    '    vec3 col = c1;',
+    '    col = mix(col, c2, smoothstep(-0.33, 0.00, ci));',
+    '    col = mix(col, c3, smoothstep( 0.00, 0.32, ci));',
+    '    col = mix(col, c4, smoothstep( 0.32, 0.65, ci));',
+    '    col = mix(col, c5, smoothstep( 0.65, 1.15, ci));',
+    '    col = mix(col, c6, smoothstep( 1.15, 1.65, ci));',
+    '    col = mix(col, c7, smoothstep( 1.65, 2.40, ci));',
+    '    return col;',
+    '}',
+    'void main() {',
+    '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+    '    float dist = max(1.0, -mv.z);',
+    '    float px = aDiam * uScaleH / dist;',
+    '    gl_PointSize = clamp(px, 4.0, 420.0) * uDpr;',
+    '    vCol = ciColor(aCiW);',
+    /* A cell you are inside, or right beside, must not white out the
+       view — the haze belongs to the distance. */
+    '    float close = smoothstep(0.06, 0.70, dist / aDiam);',
+    /* From far out the whole layer stacks into a small patch of sky;
+       dim it so the island glows instead of blowing out. */
+    '    float far = clamp(700.0 / dist, 0.12, 1.0);',
+    /* The fabric breathes: a slow undulation travelling across the
+       field, phased by each cell's real position. */
+    '    float und = 0.84 + 0.16 * sin(uTime * 0.12 + dot(position, vec3(0.011, 0.0073, 0.0091)));',
+    '    vAlpha = uAlpha * (0.22 + 0.78 * aW) * close * far * und;',
+    '    gl_Position = projectionMatrix * mv;',
+    '}'
+].join('\n');
+var GLOW_FRAG = [
+    'precision mediump float;',
+    'varying vec3 vCol;',
+    'varying float vAlpha;',
+    'void main() {',
+    '    vec2 q = gl_PointCoord - 0.5;',
+    '    float d = length(q) * 2.0;',
+    '    float g = max(0.0, 1.0 - d * d);',
+    '    float a = g * g * vAlpha;',
+    '    if (a < 0.003) discard;',
     '    gl_FragColor = vec4(vCol, a);',
     '}'
 ].join('\n');
@@ -185,6 +273,7 @@ var GAL_VERT = [
     'attribute float aSeed;',
     'uniform float uScaleH;',
     'uniform float uDpr;',
+    'uniform mediump float uHalo;',   /* mediump: must match the fragment stage's precision or strict drivers reject the program */
     'varying vec3 vCol;',
     'varying float vAlpha;',
     'varying float vAng;',
@@ -196,7 +285,7 @@ var GAL_VERT = [
     '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
     '    float dist = max(1.0, -mv.z);',
     '    float px = aDiam * uScaleH / dist;',   /* true angular size */
-    '    gl_PointSize = clamp(px, 2.0, 460.0) * uDpr;',
+    '    gl_PointSize = clamp(px, mix(2.6, 2.0, uHalo), 460.0) * uDpr;',
     '    vec3 majView = (modelViewMatrix * vec4(aMajor, 0.0)).xyz;',
     '    vAng = atan(majView.y, majView.x);',
     '    vAxis = aAxis;',
@@ -211,13 +300,14 @@ var GAL_VERT = [
     '    vDetail = clamp(px / 42.0, 0.0, 1.0);',
     '    float a = aBright;',
     '    a *= smoothstep(0.10, 0.55, dist / aDiam);',  /* fade when flying through */
-    '    a *= clamp(px / 2.5, 0.35, 1.0);',           /* far specks stay faint   */
+    '    a *= clamp(px / 2.5, mix(0.48, 0.35, uHalo), 1.0);',  /* far specks stay faint — the deep cloud's floor sits a touch higher, so its real walls and filaments survive full-catalog distance */
     '    vAlpha = a;',
     '    gl_Position = projectionMatrix * mv;',
     '}'
 ].join('\n');
 var GAL_FRAG = [
     'precision mediump float;',
+    'uniform float uHalo;',   /* 1 for the named set, 0 for the cloud */
     'varying vec3 vCol;',
     'varying float vAlpha;',
     'varying float vAng;',
@@ -263,6 +353,12 @@ var GAL_FRAG = [
     '        lum = mix(exp(-d * d * 4.5) * 0.6, clumps, vDetail);',
     '        col = mix(vCol, vec3(0.80, 0.88, 1.05), 0.35);',
     '    }',
+    /* Named galaxies carry a wide, soft halo beyond their catalogued
+       edge — the same starlight-glow treatment as the star field —
+       so the showpieces (Andromeda, M87, the Magellanic Clouds) read
+       with real presence instead of ending at a hard rim. */
+    '    lum += exp(-d * d * 1.6) * 0.38 * uHalo;',
+    '    lum *= 1.0 + 0.18 * uHalo;',
     '    float a = clamp(lum, 0.0, 1.0) * vAlpha;',
     '    if (a < 0.004) discard;',
     '    gl_FragColor = vec4(col, a);',
@@ -308,12 +404,19 @@ export function initUniverse(stage) {
 
     var data = null, renderer = null, scene = null, camera = null;
     var starPoints = null, galNamedPoints = null, galCloudPoints = null, sunPoints = null;
+    var glowFine = null, glowBroad = null;
+    var solarGroup = null, solarBodies = null;
+    var sysSurf = Infinity, sysRad = 0;   /* nearest solar-body surface distance + that body's radius */
+    var sysBodyPos = null;                /* nearest solar body's centre (approach governor) */
+    var govTmp = new THREE.Vector3();
+    var labelFwd = new THREE.Vector3();   /* camera forward, for the label behind-camera cull */
     var rafId = 0, lastT = 0;
     var camPos = new THREE.Vector3();
     var yaw = 0, pitch = 0;
     var F0 = null;             /* initial forward = toward the galactic center */
     var keys = {};
     var thrust = false, dragging = false;
+    var lastInputT = 0;        /* last deliberate input — drives the idle drift */
     var speedT = 0.373;        /* ~2.5 pc/s default */
     var labelsOn = true;
     var nearestName = '', nearestDist = Infinity;
@@ -321,7 +424,7 @@ export function initUniverse(stage) {
     var tour = { on: false, index: 0, t: 0, dwell: 0, keys: [] };
     var pointers = new Map();
     var pinchDist = 0;
-    var dprCap = Math.min(window.devicePixelRatio || 1, 3);
+    var dprCap = Math.min(window.devicePixelRatio || 1, 4);
     var dprLevel = 0;          /* index into DPR_STEPS */
     var frameAcc = 0, frameN = 0;
     var DPR_STEPS = [1, 0.85, 0.7, 0.55, 0.4];
@@ -369,6 +472,165 @@ export function initUniverse(stage) {
         });
     }
 
+    /* ---------------- starlight glow ----------------
+       The sky in the reference has no empty black in it: it is lit
+       where stars crowd and dark where they do not, like folded
+       fabric. That texture is baked here from the catalog itself —
+       every star's real light (10^-0.4·M from its absolute magnitude)
+       is summed into the cell of space it occupies, and each occupied
+       cell gets one large, very faint sprite at the light-weighted
+       centre of its stars, tinted by their light-weighted colour.
+       No light appears where no stars are mapped; nothing external
+       is brought in. Two scales of the same bake: a fine grain and a
+       broad wash for the large tonal variation along the plane. */
+    function buildGlowLayer(cell, diamMul, alphaMax) {
+        var map = new Map();
+        for (var i = 0; i < data.starCount; i++) {
+            var x = data.starPos[i * 3], y = data.starPos[i * 3 + 1], z = data.starPos[i * 3 + 2];
+            var key = Math.floor(x / cell) + ':' + Math.floor(y / cell) + ':' + Math.floor(z / cell);
+            var L = Math.pow(10, -0.4 * data.starAbsMag[i]);
+            var c = map.get(key);
+            if (!c) { c = { L: 0, x: 0, y: 0, z: 0, ci: 0 }; map.set(key, c); }
+            c.L += L; c.x += x * L; c.y += y * L; c.z += z * L; c.ci += data.starCi[i] * L;
+        }
+        var cells = Array.from(map.values());
+        var n = cells.length;
+        var pos = new Float32Array(n * 3), w = new Float32Array(n),
+            ci = new Float32Array(n), dia = new Float32Array(n);
+        var logs = new Float32Array(n), maxLog = 0;
+        for (var j = 0; j < n; j++) {
+            logs[j] = Math.log10(1 + cells[j].L);
+            if (logs[j] > maxLog) maxLog = logs[j];
+        }
+        for (var k = 0; k < n; k++) {
+            var cc = cells[k];
+            pos[k * 3] = cc.x / cc.L; pos[k * 3 + 1] = cc.y / cc.L; pos[k * 3 + 2] = cc.z / cc.L;
+            w[k] = maxLog > 0 ? logs[k] / maxLog : 0;
+            ci[k] = cc.ci / cc.L;
+            dia[k] = cell * diamMul;
+        }
+        var g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        g.setAttribute('aW', new THREE.BufferAttribute(w, 1));
+        g.setAttribute('aCiW', new THREE.BufferAttribute(ci, 1));
+        g.setAttribute('aDiam', new THREE.BufferAttribute(dia, 1));
+        var m = new THREE.ShaderMaterial({
+            vertexShader: GLOW_VERT, fragmentShader: GLOW_FRAG,
+            uniforms: {
+                uScaleH: { value: 1 }, uDpr: { value: 1 },
+                uTime: { value: 0 }, uAlpha: { value: alphaMax }
+            },
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        var pts = new THREE.Points(g, m);
+        pts.frustumCulled = false;
+        return pts;
+    }
+
+    /* ---------------- the solar system ----------------
+       The catalog's frame reaches down to the Sun, but the planets
+       were never in it — Earth was not a place you could go. These
+       nine bodies are placed at their true heliocentric positions
+       for 2026-11-18 12:00 UTC, computed from JPL's approximate
+       Keplerian elements (Standish, Table 1) into this game's
+       equatorial J2000 frame. Distances and directions are true;
+       sizes are not — at true size the planets would be invisible
+       points, so each planet is drawn 1,000x its real radius and
+       the Sun 40x (at 1,000x the Sun would swallow the inner
+       orbits). Planet-to-planet size ratios stay true. Surface
+       textures: NASA (Earth) and Solar System Scope (CC BY 4.0).
+       North poles point in their true IAU J2000 directions. */
+    var SOLAR_BODIES = [
+        /* n, position [pc], drawn radius [pc], texture, pole RA h / Dec deg (IAU J2000) */
+        { n: 'Sun',     p: [0, 0, 0],                                  r: 9.019e-7, tex: 'sun.jpg',     pole: [19.074, 63.87], sun: true },
+        { n: 'Mercury', p: [-9.467426e-7, 1.078693e-6, 6.743610e-7],   r: 7.906e-8, tex: 'mercury.jpg', pole: [18.734, 61.45] },
+        { n: 'Venus',   p: [1.136007e-6, 3.040495e-6, 1.296272e-6],    r: 1.961e-7, tex: 'venus.jpg',   pole: [18.184, 67.16] },
+        { n: 'Earth',   p: [2.695043e-6, 3.635981e-6, 1.576126e-6],    r: 2.065e-7, tex: 'earth.jpg',   pole: [0, 90], atmo: true },
+        { n: 'Mars',    p: [-2.500337e-6, 6.705219e-6, 3.142969e-6],   r: 1.098e-7, tex: 'mars.jpg',    pole: [21.179, 52.89] },
+        { n: 'Jupiter', p: [-1.824027e-5, 1.659686e-5, 7.557852e-6],   r: 2.266e-6, tex: 'jupiter.jpg', pole: [17.871, 64.49] },
+        { n: 'Saturn',  p: [4.454207e-5, 9.860811e-6, 2.155511e-6],    r: 1.887e-6, tex: 'saturn.jpg',  pole: [2.706, 83.54], ring: true },
+        { n: 'Uranus',  p: [4.245438e-5, 7.723189e-5, 3.322443e-5],    r: 8.219e-7, tex: 'uranus.jpg',  pole: [5.154, 15.18] },
+        { n: 'Neptune', p: [1.446138e-4, 8.184898e-6, -2.500514e-7],   r: 7.979e-7, tex: 'neptune.jpg', pole: [19.957, 43.46] }
+    ];
+    var ATMO_VERT = [
+        'varying vec3 vN;',
+        'void main() {',
+        '    vN = normalize(normalMatrix * normal);',
+        '    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+        '}'
+    ].join('\n');
+    var ATMO_FRAG = [
+        'precision mediump float;',
+        'varying vec3 vN;',
+        'void main() {',
+        /* BackSide shell: brightness peaks at the limb and falls off
+           outward — a thin rim of scattered light, nothing more. */
+        '    float i = pow(max(0.0, 0.72 - dot(vN, vec3(0.0, 0.0, 1.0))), 3.5);',
+        '    gl_FragColor = vec4(0.35, 0.58, 1.0, 1.0) * i * 0.9;',
+        '}'
+    ].join('\n');
+    function buildSolarSystem() {
+        solarGroup = new THREE.Group();
+        var loader = new THREE.TextureLoader();
+        var maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        /* sunlight from the Sun's own position; decay 0 — the light
+           does not fade across 30 AU, so every planet's day side
+           reads by its texture, and a whisper of ambient keeps night
+           sides from going pitch black. */
+        var light = new THREE.PointLight(0xffffff, 5.2, 0, 0);   /* exposure: physical light units divide by pi, and ocean albedo is near-black in linear space — 1.6 left the day side unreadable */
+        solarGroup.add(light);
+        solarGroup.add(new THREE.AmbientLight(0xffffff, 0.22));
+        solarBodies = [];
+        SOLAR_BODIES.forEach(function (b) {
+            var pos = new THREE.Vector3(b.p[0], b.p[1], b.p[2]);
+            var grp = new THREE.Group();
+            grp.position.copy(pos);
+            /* the sphere's texture pole (+Y) onto the body's true
+               IAU J2000 north-pole direction */
+            grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), equatorial(b.pole[0], b.pole[1]));
+            var mat = b.sun
+                ? new THREE.MeshBasicMaterial({ color: 0xffdd88 })
+                : new THREE.MeshLambertMaterial({ color: 0x888888 });
+            var tex = loader.load(new URL('./planets/' + b.tex, import.meta.url).href,
+                function () { mat.map = tex; mat.color.set(0xffffff); mat.needsUpdate = true; });
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.anisotropy = maxAniso;
+            grp.add(new THREE.Mesh(new THREE.SphereGeometry(b.r, 48, 32), mat));
+            if (b.ring) {
+                var rIn = b.r * 1.24, rOut = b.r * 2.27;   /* the real ring span, in Saturn radii */
+                var rg = new THREE.RingGeometry(rIn, rOut, 128, 1);
+                /* RingGeometry UVs are planar; remap them radially so
+                   the strip texture reads inner edge to outer edge. */
+                var rp = rg.attributes.position, ruv = rg.attributes.uv;
+                for (var i = 0; i < rp.count; i++) {
+                    var rad = Math.hypot(rp.getX(i), rp.getY(i));
+                    ruv.setXY(i, (rad - rIn) / (rOut - rIn), 0.5);
+                }
+                var rmat = new THREE.MeshBasicMaterial({
+                    color: 0xcfc4ae, transparent: true, side: THREE.DoubleSide, depthWrite: false
+                });
+                var rtex = loader.load(new URL('./planets/saturn-ring.png', import.meta.url).href,
+                    function () { rmat.map = rtex; rmat.color.set(0xffffff); rmat.needsUpdate = true; });
+                rtex.colorSpace = THREE.SRGBColorSpace;
+                var ring = new THREE.Mesh(rg, rmat);
+                ring.rotation.x = Math.PI / 2;   /* into the group's equatorial plane */
+                grp.add(ring);
+            }
+            if (b.atmo) {
+                grp.add(new THREE.Mesh(
+                    new THREE.SphereGeometry(b.r * 1.22, 48, 32),
+                    new THREE.ShaderMaterial({
+                        vertexShader: ATMO_VERT, fragmentShader: ATMO_FRAG,
+                        blending: THREE.AdditiveBlending, side: THREE.BackSide,
+                        transparent: true, depthWrite: false
+                    })));
+            }
+            solarGroup.add(grp);
+            solarBodies.push({ n: b.n, pos: pos, r: b.r, grp: grp });
+        });
+        scene.add(solarGroup);
+    }
+
     /* ---------------- scene build ---------------- */
     function buildScene() {
         renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, powerPreference: 'high-performance' });
@@ -382,9 +644,21 @@ export function initUniverse(stage) {
         sg.setAttribute('position', new THREE.BufferAttribute(data.starPos, 3));
         sg.setAttribute('aAbsMag', new THREE.BufferAttribute(data.starAbsMag, 1));
         sg.setAttribute('aCi', new THREE.BufferAttribute(data.starCi, 1));
+        /* Shimmer phase per star, baked on the CPU: the same stable
+           hash of the star's real position the shader used to compute
+           per-vertex per-frame — identical values, a fraction of the
+           vertex cost (software renderers feel every transcendental). */
+        var phaseArr = new Float32Array(data.starCount);
+        for (var pi = 0; pi < data.starCount; pi++) {
+            var ps = Math.sin(data.starPos[pi * 3] * 12.9898
+                + data.starPos[pi * 3 + 1] * 78.233
+                + data.starPos[pi * 3 + 2] * 37.719) * 43758.5453;
+            phaseArr[pi] = ps - Math.floor(ps);
+        }
+        sg.setAttribute('aPhase', new THREE.BufferAttribute(phaseArr, 1));
         var sm = new THREE.ShaderMaterial({
             vertexShader: STAR_VERT, fragmentShader: STAR_FRAG,
-            uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 } },
+            uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uTime: { value: 0 } },
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
         });
         starPoints = new THREE.Points(sg, sm);
@@ -394,7 +668,7 @@ export function initUniverse(stage) {
         /* galaxies — named set and redshift cloud as separate clouds so the
            cloud can be toggled without touching the named set. The named
            set was baked first (indices 0..namedGalCount-1). */
-        function galPoints(from, to) {
+        function galPoints(from, to, halo) {
             var n = to - from;
             var g = new THREE.BufferGeometry();
             g.setAttribute('position', new THREE.BufferAttribute(data.galPos.slice(from * 3, to * 3), 3));
@@ -418,15 +692,15 @@ export function initUniverse(stage) {
             g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
             var m = new THREE.ShaderMaterial({
                 vertexShader: GAL_VERT, fragmentShader: GAL_FRAG,
-                uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 } },
+                uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uHalo: { value: halo } },
                 transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
             });
             var pts = new THREE.Points(g, m);
             pts.frustumCulled = false;
             return pts;
         }
-        galNamedPoints = galPoints(0, data.namedGalCount);
-        galCloudPoints = galPoints(data.namedGalCount, data.galCount);
+        galNamedPoints = galPoints(0, data.namedGalCount, 1.0);
+        galCloudPoints = galPoints(data.namedGalCount, data.galCount, 0.0);
         scene.add(galNamedPoints); scene.add(galCloudPoints);
 
         /* the Sun — one extra point at the origin, run through the star
@@ -437,9 +711,20 @@ export function initUniverse(stage) {
         sunG.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3));
         sunG.setAttribute('aAbsMag', new THREE.BufferAttribute(new Float32Array([4.83]), 1));
         sunG.setAttribute('aCi', new THREE.BufferAttribute(new Float32Array([0.35]), 1));
+        sunG.setAttribute('aPhase', new THREE.BufferAttribute(new Float32Array([0.3]), 1));
         sunPoints = new THREE.Points(sunG, sm);
         sunPoints.frustumCulled = false;
         scene.add(sunPoints);
+
+        /* starlight glow — the broad wash first, then the fine grain
+           (additive blending makes the order immaterial; the layering
+           reads broad-to-fine). */
+        glowBroad = buildGlowLayer(380, 1.8, 0.050);
+        glowFine = buildGlowLayer(110, 3.0, 0.060);
+        scene.add(glowBroad); scene.add(glowFine);
+
+        /* the solar system — textured worlds at true positions */
+        buildSolarSystem();
 
         /* label pool */
         for (var i = 0; i < 14; i++) {
@@ -454,6 +739,11 @@ export function initUniverse(stage) {
         data.named.forEach(function (e) {
             var o = document.createElement('option');
             o.value = e.n;
+            frag.appendChild(o);
+        });
+        SOLAR_BODIES.forEach(function (b) {
+            var o = document.createElement('option');
+            o.value = b.n;
             frag.appendChild(o);
         });
         dataList.appendChild(frag);
@@ -554,7 +844,7 @@ export function initUniverse(stage) {
     }
     function setViewFromTarget(tgt) {
         tmpV.copy(tgt).sub(camPos);
-        if (tmpV.lengthSq() < 1e-12) return;
+        if (tmpV.lengthSq() < 1e-18) return;   /* was 1e-12: written for parsec-scale targets, it silently skipped aiming at the small planets (Mars standoff² ≈ 2e-13), leaving the view pointing wherever it had been */
         tmpV.normalize();
         /* keep yaw/pitch in sync so free flight continues seamlessly */
         var f = tmpV;
@@ -598,6 +888,7 @@ export function initUniverse(stage) {
         }
     }
     function interruptTour() {
+        lastInputT = performance.now();
         if (tour.on) {
             stopTour(false);
             setCaption('You have the controls. Drag to look around; hold Fly \u2014 or press W \u2014 to move.');
@@ -606,6 +897,20 @@ export function initUniverse(stage) {
     }
 
     /* ---------------- free flight ---------------- */
+    /* Idle drift: left alone in free flight for a few seconds, the
+       view turns very slowly and breathes a little in pitch — the
+       scene feels alive standing still, the way the reference video
+       never sits flat. Any deliberate input stops it instantly:
+       interruptTour stamps lastInputT, as do drags and the speed
+       control. It never runs during the tour, a jump-to flight, a
+       drag, a pinch, or while any flight key is held. */
+    function idleDrift(now, dt) {
+        if (dragging || thrust || pointers.size > 0) return;
+        for (var k in keys) if (keys[k]) return;
+        if (now - lastInputT < 6000) return;
+        yaw += dt * 0.0055;
+        pitch = Math.max(-1.45, Math.min(1.45, pitch + Math.sin(now * 0.00013) * dt * 0.004));
+    }
     function flyFrame(dt) {
         var move = new THREE.Vector3();
         var f = forwardVec();
@@ -617,7 +922,28 @@ export function initUniverse(stage) {
         if (keys['KeyR'] || keys['KeyE']) move.add(GAL_NORTH);
         if (keys['KeyF'] || keys['KeyQ']) move.sub(GAL_NORTH);
         if (move.lengthSq() > 0) {
-            move.normalize().multiplyScalar(speedPc() * dt);
+            var sp = speedPc();
+            /* Approach governor: for EVERY body the camera is clearly
+               heading at and is close to, the approach slows as that
+               surface nears and never slams (the tightest cap wins).
+               Per-body, not just the nearest: on 2026-11-18 Venus sits
+               0.35 AU from Earth and an Earth arrival is nearer Venus's
+               surface than Earth's — a nearest-only governor left the
+               Earth approach uncapped and W flew straight through the
+               planet. Departures and flybys are never capped (the dot
+               test fails for them), so leaving any planet is instant. */
+            if (solarBodies) {
+                for (var gb = 0; gb < solarBodies.length; gb++) {
+                    var gSurf = camPos.distanceTo(solarBodies[gb].pos) - solarBodies[gb].r;
+                    if (gSurf < 100 * solarBodies[gb].r) {
+                        govTmp.copy(solarBodies[gb].pos).sub(camPos).normalize();
+                        if (govTmp.dot(f) > 0.5) {
+                            sp = Math.min(sp, 0.6 * Math.max(gSurf, 1e-12));
+                        }
+                    }
+                }
+            }
+            move.normalize().multiplyScalar(sp * dt);
             camPos.add(move);
         }
         applyView();
@@ -637,6 +963,25 @@ export function initUniverse(stage) {
         flyAnim = { from: camPos.clone(), to: dest, target: target, t: 0, dur: 3.0 };
         ctrl.mode = 'jump';
         setCaption('Flying to ' + entry.n + '\u2026 grab the view to take over.');
+    }
+    function flyToSolar(b) {
+        var target = new THREE.Vector3(b.p[0], b.p[1], b.p[2]);
+        var standoff = b.r * 4.5;
+        var away = camPos.clone().sub(target);
+        if (away.lengthSq() < 1e-12) away.set(1, 0.3, 0.2);
+        away.normalize();
+        /* Arrive mostly from the Sun's side, so the visitor meets the
+           planet's lit face — its detail — with a slice of terminator
+           for depth, instead of landing on the night side. */
+        if (target.length() > 1e-9) {
+            var sunward = target.clone().multiplyScalar(-1).normalize();
+            away.multiplyScalar(0.35).add(sunward).normalize();
+        }
+        var dest = target.clone().add(away.multiplyScalar(standoff))
+            .add(GAL_NORTH.clone().multiplyScalar(standoff * 0.30));
+        flyAnim = { from: camPos.clone(), to: dest, target: target, t: 0, dur: 3.2 };
+        ctrl.mode = 'jump';
+        setCaption('Flying to ' + b.n + '\u2026 grab the view to take over.');
     }
     function flyAnimFrame(dt) {
         flyAnim.t += dt / flyAnim.dur;
@@ -670,20 +1015,34 @@ export function initUniverse(stage) {
             var d2 = dx * dx + dy * dy + dz * dz;
             if (d2 < best) { best = d2; bi = i; }
         }
+        if (solarBodies && camPos.length() < 0.01) {
+            for (var j = 0; j < solarBodies.length; j++) {
+                var sp2 = solarBodies[j].pos;
+                var sdx = sp2.x - camPos.x, sdy = sp2.y - camPos.y, sdz = sp2.z - camPos.z;
+                var sdq = sdx * sdx + sdy * sdy + sdz * sdz;
+                if (sdq < best) { best = sdq; bi = -2 - j; }
+            }
+        }
         nearestDist = Math.sqrt(best);
-        nearestName = bi >= 0 ? data.named[bi].n : '';
+        nearestName = bi >= 0 ? data.named[bi].n : (bi <= -2 ? solarBodies[-bi - 2].n : '');
         hudNear.textContent = nearestName ? ('Nearest: ' + nearestName + ' \u2014 ' + fmtDist(nearestDist)) : '';
     }
     var labelTick = 0;
     function updateLabels(w, h) {
         if (!labelsOn) { labelPool.forEach(function (d) { d.style.display = 'none'; }); return; }
         var cands = [];
+        /* project() mirrors points behind the camera back into the
+           frame with plausible-looking NDC — cull by the view
+           direction itself, or a body behind you labels the planet
+           in front of you. */
+        camera.getWorldDirection(labelFwd);
         for (var i = 0; i < data.named.length; i++) {
             var e = data.named[i];
             if (!e.l) continue;
             var p = e._pos;
             var dx = p[0] - camPos.x, dy = p[1] - camPos.y, dz = p[2] - camPos.z;
             var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dx * labelFwd.x + dy * labelFwd.y + dz * labelFwd.z <= 0) continue;
             var eff;
             if (e.k === 0) {
                 var mag = data.starMag[e.i];
@@ -701,6 +1060,22 @@ export function initUniverse(stage) {
             var sx = (tmpV.x * 0.5 + 0.5) * w, sy = (-tmpV.y * 0.5 + 0.5) * h;
             if (sx < -40 || sx > w + 40 || sy < -20 || sy > h + 20) continue;
             cands.push({ e: e, sx: sx, sy: sy, eff: eff, dist: dist });
+        }
+        /* solar-system bodies label too, while you are in their
+           neighbourhood — same pool, same placement rules */
+        if (solarBodies && camPos.length() < 0.05) {
+            for (var s2 = 0; s2 < solarBodies.length; s2++) {
+                var sb2 = solarBodies[s2];
+                var sdx2 = sb2.pos.x - camPos.x, sdy2 = sb2.pos.y - camPos.y, sdz2 = sb2.pos.z - camPos.z;
+                var sdist = Math.sqrt(sdx2 * sdx2 + sdy2 * sdy2 + sdz2 * sdz2);
+                if (sdx2 * labelFwd.x + sdy2 * labelFwd.y + sdz2 * labelFwd.z <= 0) continue;
+                if (sdist < sb2.r * 1.5) continue;
+                tmpV.copy(sb2.pos).project(camera);
+                if (tmpV.z > 1 || tmpV.z < -1) continue;
+                var ssx = (tmpV.x * 0.5 + 0.5) * w, ssy = (-tmpV.y * 0.5 + 0.5) * h;
+                if (ssx < -40 || ssx > w + 40 || ssy < -20 || ssy > h + 20) continue;
+                cands.push({ e: { n: sb2.n }, sx: ssx, sy: ssy, eff: sdist * 0.4, dist: sdist });
+            }
         }
         cands.sort(function (a, b) { return a.eff - b.eff; });
         /* Greedy de-collision in rank order: a label that would overlap
@@ -746,6 +1121,15 @@ export function initUniverse(stage) {
         rafId = requestAnimationFrame(frame);
         var dt = Math.min(0.1, (now - lastT) / 1000 || 0.016);
         lastT = now;
+        /* nearest solar-body surface — feeds the near plane and the
+           system-zone speed cap (one frame of lag is fine) */
+        sysSurf = Infinity; sysRad = 0;
+        if (solarBodies) {
+            for (var sb = 0; sb < solarBodies.length; sb++) {
+                var sd2 = camPos.distanceTo(solarBodies[sb].pos) - solarBodies[sb].r;
+                if (sd2 < sysSurf) { sysSurf = sd2; sysRad = solarBodies[sb].r; sysBodyPos = solarBodies[sb].pos; }
+            }
+        }
         /* adaptive resolution: if frames run slow, step the pixel ratio
            down; the catalog is light enough that this rarely engages. */
         frameAcc += dt; frameN++;
@@ -756,12 +1140,31 @@ export function initUniverse(stage) {
         }
         if (tour.on) tourFrame(dt);
         else if (flyAnim) flyAnimFrame(dt);
-        else flyFrame(dt);
+        else { idleDrift(now, dt); flyFrame(dt); }
+
+        /* shader clocks — the star shimmer and the glow's slow
+           undulation share the frame's timestamp */
+        var tSec = now / 1000;
+        if (starPoints) starPoints.material.uniforms.uTime.value = tSec;
+        if (glowFine) {
+            glowFine.material.uniforms.uTime.value = tSec;
+            glowBroad.material.uniforms.uTime.value = tSec;
+        }
 
         /* dynamic clip planes: near/far follow the local scale */
         var alt = camPos.length();
         camera.near = Math.max(1e-6, Math.min(0.05, alt * 1e-4 + 1e-6));
+        /* Inside the solar system the alt-based near plane (never
+           below 1e-6 pc) would clip a planet's surface long before
+           you reach it — a drawn planet radius is ~1e-7 pc. Let the
+           nearest body's surface set the near plane instead. */
+        if (sysSurf < 0.001) {
+            camera.near = Math.min(camera.near, Math.max(1e-9, Math.max(sysSurf, 1e-10) * 0.4));
+        }
         camera.far = Math.max(2e9, alt * 30);
+        /* the Sun's point sprite hands over to its textured sphere
+           once you are close enough for the sphere to be the Sun */
+        if (sunPoints) sunPoints.visible = alt > 3e-6;
         camera.updateProjectionMatrix();
         renderer.render(scene, camera);
         hudDist.textContent = 'From the Sun: ' + fmtDist(alt);
@@ -791,7 +1194,7 @@ export function initUniverse(stage) {
         /* uScaleH is in CSS pixels; the shaders multiply by uDpr to reach
            device pixels for gl_PointSize. */
         var scaleH = h * 0.5 * camera.projectionMatrix.elements[5];
-        [starPoints, galNamedPoints, galCloudPoints].forEach(function (p) {
+        [starPoints, galNamedPoints, galCloudPoints, glowFine, glowBroad].forEach(function (p) {
             if (p) {
                 p.material.uniforms.uScaleH.value = scaleH;
                 p.material.uniforms.uDpr.value = dpr;
@@ -825,9 +1228,11 @@ export function initUniverse(stage) {
                 var nd = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                 if (pinchDist > 0) setSpeedT(speedT + (nd - pinchDist) * 0.0016);
                 pinchDist = nd;
+                lastInputT = performance.now();
                 return;
             }
             if (!dragging) return;
+            lastInputT = performance.now();
             yaw += dx * 0.0032;
             pitch = Math.max(-1.45, Math.min(1.45, pitch + dy * 0.0032));
         });
@@ -858,6 +1263,7 @@ export function initUniverse(stage) {
         document.addEventListener('keyup', function (ev) { keys[ev.code] = false; });
 
         tourBtn.addEventListener('click', function () {
+            lastInputT = performance.now();
             if (tour.on) { stopTour(false); setCaption('Tour stopped. You have the controls.'); }
             else startTour(tour.index > 0);
             tourBtn.blur();
@@ -881,6 +1287,13 @@ export function initUniverse(stage) {
                 if (data.named[i].n.toLowerCase() === name.toLowerCase()) {
                     interruptTour();
                     flyTo(data.named[i]);
+                    return;
+                }
+            }
+            for (var j = 0; j < SOLAR_BODIES.length; j++) {
+                if (SOLAR_BODIES[j].n.toLowerCase() === name.toLowerCase()) {
+                    interruptTour();
+                    flyToSolar(SOLAR_BODIES[j]);
                     return;
                 }
             }
@@ -910,6 +1323,7 @@ export function initUniverse(stage) {
     function setSpeedT(v) {
         speedT = Math.max(0, Math.min(1, v));
         speedInput.value = String(speedT);
+        lastInputT = performance.now();
     }
 
     /* ---------------- boot ---------------- */
@@ -927,7 +1341,8 @@ export function initUniverse(stage) {
         applyDpr();
         loadingEl.hidden = true;
         ctrl.ready = true;
-        setCaption('You are at the Sun \u2014 home. Every light around you is a real star at its true position. Fly the tour, or take the controls yourself.');
+        lastInputT = performance.now();
+        setCaption('You are at the Sun \u2014 home. Every light around you is a real star at its true position. Drag to look \u00B7 hold Fly (or press W) to fly anywhere \u00B7 scroll for speed. The tour is there when you want it.');
         updateNearest();
         if (ctrl.active) { lastT = performance.now(); rafId = requestAnimationFrame(frame); }
         if (window) window.__uv = ctrl;
