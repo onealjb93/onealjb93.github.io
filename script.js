@@ -334,3 +334,90 @@ function initLogoIntro() {
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onResize);
 }
+
+/* Grab-to-scroll (2026-11-18): every plain sideways-scrolling surface
+   marked data-grab-scroll can be dragged sideways with the mouse, the
+   way you drag a map. Mouse only — touch and pen keep their native
+   scrolling. A press that moves less than the threshold is an ordinary
+   click, so badges, buttons and links inside keep working exactly as
+   before; only a real drag eats the click its release would fire. The
+   grab cursor shows only while the surface actually overflows. */
+(function () {
+    'use strict';
+    var THRESHOLD = 5;
+
+    var style = document.createElement('style');
+    style.textContent =
+        '[data-grab-scroll].gs-overflow{cursor:grab}' +
+        '[data-grab-scroll].gs-dragging{cursor:grabbing!important;-webkit-user-select:none;user-select:none}' +
+        '[data-grab-scroll].gs-dragging *{cursor:grabbing!important}';
+    document.head.appendChild(style);
+
+    function refresh(el) {
+        el.classList.toggle('gs-overflow', el.scrollWidth - el.clientWidth > 1);
+    }
+
+    function arm(el) {
+        var down = null;
+        refresh(el);
+        if (window.MutationObserver) {
+            new MutationObserver(function () { refresh(el); }).observe(el, { childList: true, subtree: true });
+        }
+        el.addEventListener('pointerdown', function (e) {
+            if (e.pointerType !== 'mouse' || e.button !== 0 || !e.isPrimary) return;
+            down = { id: e.pointerId, x: e.clientX, y: e.clientY, sl: el.scrollLeft, dragging: false };
+        });
+        el.addEventListener('pointermove', function (e) {
+            if (!down || e.pointerId !== down.id) return;
+            var dx = e.clientX - down.x;
+            var dy = e.clientY - down.y;
+            if (!down.dragging) {
+                if (Math.abs(dx) < THRESHOLD && Math.abs(dy) < THRESHOLD) return;
+                if (Math.abs(dy) > Math.abs(dx)) { down = null; return; }
+                down.dragging = true;
+                el.classList.add('gs-dragging');
+                try { el.setPointerCapture(e.pointerId); } catch (err) { /* capture is a nicety, not a requirement */ }
+            }
+            el.scrollLeft = down.sl - dx;
+            if (e.cancelable) e.preventDefault();
+        });
+        function end(e) {
+            if (!down || e.pointerId !== down.id) return;
+            var wasDragging = down.dragging;
+            down = null;
+            el.classList.remove('gs-dragging');
+            if (!wasDragging) return;
+            // Eat the click this release would otherwise fire (it lands on
+            // the container or its content), and only that click.
+            var eat = function (ev) {
+                if (ev.target === el || el.contains(ev.target)) {
+                    ev.stopPropagation();
+                    ev.preventDefault();
+                }
+                document.removeEventListener('click', eat, true);
+            };
+            document.addEventListener('click', eat, true);
+            setTimeout(function () { document.removeEventListener('click', eat, true); }, 350);
+        }
+        el.addEventListener('pointerup', end);
+        el.addEventListener('pointercancel', end);
+        el.addEventListener('dragstart', function (e) { if (down) e.preventDefault(); });
+    }
+
+    function init() {
+        var els = document.querySelectorAll('[data-grab-scroll]');
+        var i;
+        for (i = 0; i < els.length; i++) arm(els[i]);
+        window.addEventListener('resize', function () {
+            for (var j = 0; j < els.length; j++) refresh(els[j]);
+        });
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(function () {
+                for (var k = 0; k < els.length; k++) refresh(els[k]);
+            });
+        }
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+})();
