@@ -564,18 +564,53 @@
        their widest badge/header. Widths are rem so they scale with
        the reader's root font, and border-box makes each width the
        exact column width. Desktop is untouched. */
+    /* Scoreboard phone columns (2026-11-18): the 2026-11-16 block
+       above declared fixed layout but left the table at width: auto —
+       and a fixed-layout table with an auto width is shrink-wrapped
+       by its content first, which silently voids the declared column
+       widths (proven in Chromium: an inline width on a header cell
+       changed nothing; a definite table width snapped every column
+       to its declared size). So the columns were really sized by
+       their header words — Druckenmiller 132px, O'Shaughnessy 127px —
+       the Score column was crushed to ~59px, and its sentence wrapped
+       word-by-word into a tower that set every row ~168px tall
+       (table 1,464px wide at a 393px viewport). The repair: the
+       table takes width: max-content, a definite width that tracks
+       the declared widths of the columns actually selected, so the
+       fixed layout finally applies. Investor columns are sized to
+       what they hold — the 26px verdict marker — at 3.125rem, and
+       their header names take the desktop band's angled treatment
+       (−55°, anchored bottom-left, never truncated), with the same
+       7.375rem header row. Company slims to 7.5rem (its measured
+       longest word, "Optoelectronics", needs 112px including
+       padding). Score is 7.75rem and its cell stacks: the percent on
+       its own line, the tested count on one line, and the
+       couldn't-be-tested tail — now wrapped in a .sb-untested span
+       by the renderer, words unchanged — on its own line, wrapping
+       as a phrase over at most two lines. The verdict markers grow
+       to a 2.25rem × 2rem tap target in this band. Desktop is
+       untouched. */
     @media (max-width: 768px) {
-        #scoreboard .spreadsheet-container:has(#scoreboardBody) table { table-layout: fixed; width: auto; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) table { table-layout: fixed; width: max-content; }
         #scoreboard .spreadsheet-container:has(#scoreboardBody) th,
         #scoreboard .spreadsheet-container:has(#scoreboardBody) td { box-sizing: border-box; padding: 10px 7px; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) thead th { height: 7.375rem; vertical-align: bottom; }
         #scoreboard .spreadsheet-container:has(#scoreboardBody) th:first-child,
-        #scoreboard .spreadsheet-container:has(#scoreboardBody) td:first-child { width: 8.5rem; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) td:first-child { width: 7.5rem; }
         #scoreboard .spreadsheet-container:has(#scoreboardBody) th:first-child { white-space: normal; }
         #scoreboard .spreadsheet-container:has(#scoreboardBody) td:first-child:not(.empty-state) { white-space: normal; }
         #scoreboard .spreadsheet-container:has(#scoreboardBody) th:nth-child(2),
-        #scoreboard .spreadsheet-container:has(#scoreboardBody) td:nth-child(2) { width: 9.25rem; min-width: 0; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) td:nth-child(2) { width: 7.75rem; min-width: 0; }
         #scoreboard .spreadsheet-container:has(#scoreboardBody) th:nth-child(n+3),
-        #scoreboard .spreadsheet-container:has(#scoreboardBody) td:nth-child(n+3) { width: 9rem; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) td:nth-child(n+3) { width: 3.125rem; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) th.sb-angle { position: relative; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) th.sb-angle > span { position: absolute; left: 10px; bottom: 12px; transform: rotate(-55deg); transform-origin: left bottom; white-space: nowrap; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) .score-cell-btn { display: block; width: 100%; line-height: 1.4; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) .score-cell-btn strong,
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) .score-cell-btn small { display: block; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) .score-cell-btn small { margin-top: 0.15rem; }
+        #scoreboard .spreadsheet-container:has(#scoreboardBody) .score-cell-btn .sb-untested { display: block; }
+        #scoreboardBody button.framework-badge { min-width: 2.25rem; min-height: 2rem; }
     }
 
     /* Scoreboard desktop layout (2026-11-17): angled headers. On
@@ -3117,7 +3152,7 @@
                 let scoreInner = '<strong>' + (r.score === null ? '—' : r.score + '%') + '</strong>';
                 if (r.graded && r.graded < selected.length) {
                     const untested = selected.length - r.graded;
-                    scoreInner += ' <small>&mdash; ' + r.passed + ' of ' + r.graded + ' tested &middot; ' + untested + ' rule' + (untested === 1 ? '' : 's') + ' couldn&rsquo;t be tested</small>';
+                    scoreInner += ' <small>&mdash; ' + r.passed + ' of ' + r.graded + ' tested <span class="sb-untested">&middot; ' + untested + ' rule' + (untested === 1 ? '' : 's') + ' couldn&rsquo;t be tested</span></small>';
                 } else if (r.graded) {
                     scoreInner += ' <small>(' + r.passed + ' of ' + r.graded + ')</small>';
                 }
