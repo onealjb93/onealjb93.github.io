@@ -271,6 +271,25 @@
         #cookBar button { cursor: pointer; border-radius: 999px; border: 1px solid var(--border-color); background: var(--link-color); color: #fff; font-weight: 700; padding: 0.45rem 0.9rem; white-space: nowrap; }
         #cookBar button.cook-clear { background: transparent; color: var(--text-color); font-weight: 600; }
         #cookBar .cook-note { font-size: 0.8rem; color: var(--subtext-color); }
+        /* Cook invitation (2026-11-18): the cook tool's front door -- one
+           slim pill at the top of the page, in the card toggle's own
+           language (the same pan glyph and word), so the eye learns the
+           affordance before it ever reaches a card. It is an invitation,
+           not a second entry point: tapping it glides to the first
+           recipe and pulses that card's own Cook toggle. While any
+           recipe is selected the cook bars own the flow and this steps
+           aside (.away); its gentle pulse retires permanently after
+           the first use (the Random generate button's precedent). */
+        .cook-nudge-row { display: flex; justify-content: center; margin: 0.85rem auto 0; padding: 0 18px; }
+        .cook-nudge-row.away { display: none; }
+        .cook-nudge { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 44px; padding: 0.5rem 1.15rem; border-radius: 999px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font: inherit; font-size: 0.95rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); transition: transform 0.15s ease; }
+        .cook-nudge:active { transform: scale(0.98); }
+        .cook-nudge-arrow { width: 7px; height: 7px; flex: none; border-right: 2px solid var(--subtext-color); border-bottom: 2px solid var(--subtext-color); transform: rotate(45deg); margin-top: -3px; }
+        .cook-nudge.inviting { animation: cookNudgePulse 1.8s ease-in-out infinite; }
+        @keyframes cookNudgePulse { 0%, 100% { transform: scale(1); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); } 50% { transform: scale(1.03); box-shadow: 0 6px 22px rgba(0, 0, 0, 0.26); } }
+        .cook-toggle.nudge-pulse { animation: cookTogglePulse 0.9s ease-in-out 2; }
+        @keyframes cookTogglePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4); } }
+        @media (prefers-reduced-motion: reduce) { .cook-nudge.inviting, .cook-toggle.nudge-pulse { animation: none; } .cook-nudge:active { transform: none; } }
         #cookView { display: none; position: fixed; inset: 0; z-index: 1000; overflow: hidden; }
         #cookView.open { display: flex; flex-direction: column; }
         #cookRecipes { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row; align-items: stretch; gap: 14px; padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
@@ -368,6 +387,24 @@
     .profile-day { font-size: 0.85rem; font-weight: 600; }
     .combiner-profile-row + .nutrition-profile { margin-top: 0.7rem; }
     .nutrition-profile[hidden] { display: none; }
+    /* Pinned targets bar (2026-11-17): whose targets every number on the
+       page uses, pinned in the one slot under the site header so the
+       basis is never a hunt. The recipe-name bar takes the same slot
+       while a recipe is open and covers this one (slot-covered: this
+       bar goes visibility:hidden, it never unpins or moves). */
+    #targetsBar { position: fixed; left: 0; right: 0; top: 55px; z-index: 940; background: var(--bg-color); border-bottom: 1px solid var(--border-color); }
+    #targetsBar.covered { visibility: hidden; }
+    #targetsBar .targets-inner { max-width: 1140px; margin: 0 auto; padding: 0.25rem 40px; display: flex; align-items: center; gap: 0.45rem 0.6rem; flex-wrap: wrap; box-sizing: border-box; }
+    @media (max-width: 768px) { #targetsBar .targets-inner { padding: 0.25rem 18px; } }
+    .targets-label { font-size: 0.85rem; font-weight: 700; flex: none; }
+    #targetsBar .frame-toggle button { padding: 0.26rem 0.75rem; position: relative; }
+    /* The pill stays compact; its hit area does not (same trick as .profile-chip). */
+    #targetsBar .frame-toggle button::after { content: ''; position: absolute; inset: -7px -4px; }
+    .targets-basis { flex: 1 1 auto; min-width: 0; background: none; border: 0; padding: 0; font: inherit; font-size: 0.82rem; font-weight: 600; color: var(--text-color); text-align: left; cursor: pointer; white-space: normal; }
+    /* The profile editor opened from the bar sits at the top of the page,
+       directly under the pinned bar: give it the content column. */
+    body > .nutrition-profile { max-width: 1140px; margin: 0.8rem auto 0; padding: 0 40px; box-sizing: border-box; }
+    @media (max-width: 768px) { body > .nutrition-profile { padding: 0 18px; } }
     .combiner-bar-chevron { color: var(--link-color); font-size: 0.85rem; flex: none; display: inline-block; transform: rotate(180deg); transition: transform var(--dur-2) var(--ease-inout); }
     #combinerBar.expanded .combiner-bar-chevron { transform: rotate(0deg); }
     /* Expandable all-nutrients panel: collapsed bar stays slim; tapping the
@@ -576,32 +613,35 @@
        2026-11-18): one rule at the page's own 700px line -- the width
        where the grid and the cook panes already change shape. An
        opened card splits into an ingredients column and a reading
-       column; the cook view with 2-3 recipes docks the same column
-       as a rail beside the pane row. Below 700px nothing changes:
-       cards stack as they do today, and the cook view keeps its
-       stacked panes and the single-recipe bubble. */
+       column; in the cook view with 2-3 recipes each pane splits
+       the same way internally, by its own measured width. Below
+       700px nothing changes: cards stack as they do today, and the
+       cook view keeps its stacked panes and the single-recipe
+       bubble. */
     .recipe-content.card-split { gap: 1.4rem; }
     .recipe-content.card-split.active { display: flex; }
     .card-col-ing { position: relative; flex: 0 0 clamp(290px, 34%, 430px); min-width: 0; }
     .card-col-rest { flex: 1 1 auto; min-width: 0; }
     .card-col-ing > :first-child, .card-col-rest > :first-child { margin-top: 0; }
     .card-col-ing .recipe-card-photo { margin-bottom: 0.9rem; }
-    /* Cook rail (2-3 recipes, 700px and up): the pane row becomes a
-       snap-scroll row and the recipe in front owns the rail -- its
-       name, its dish-size scaler, its ingredients. Tapping a rail
-       ingredient lights the steps that use it in that recipe's pane;
-       the active pane carries a quiet accent outline. */
-    .cook-rail-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row; align-items: stretch; }
-    .cook-rail-wrap > #cookRecipes { flex: 1 1 auto; min-width: 0; }
-    .cook-rail { flex: 0 0 clamp(270px, 30vw, 330px); display: flex; flex-direction: column; overflow: hidden; margin: 12px 0 calc(14px + env(safe-area-inset-bottom, 0px)) 14px; }
-    .cook-rail-head { flex: none; padding: 0.85rem 1rem 0.45rem; font-weight: 700; font-size: 1.02rem; line-height: 1.3; }
-    .cook-rail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 0.2rem 1rem 1rem; font-size: calc(1.05rem * var(--rts, 1)); line-height: 1.6; }
-    .cook-rail-body .recipe-section-title { font-size: calc(1.15rem * var(--rts, 1)); }
-    .cook-rail-body > :first-child { margin-top: 0; }
-    #cookView.cook-rail-on #cookRecipes { overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
-    #cookView.cook-rail-on #cookRecipes::-webkit-scrollbar { display: none; }
-    #cookView.cook-rail-on .cook-recipe { flex: 0 0 min(760px, calc(100% - 44px)); scroll-snap-align: start; scroll-snap-stop: always; }
-    .cook-recipe.cook-pane-on { outline: 2px solid var(--link-color); outline-offset: -2px; }
+    /* Cook panes (2-3 recipes, 700px and up): the pane row keeps its
+       snap-scroll shape, and each pane splits internally -- its own
+       ingredients column (title, dish-size scaler, list) beside its
+       own reading column (photo, Health Benefits, preparation). The
+       split is switched per pane by measured pane width (580px),
+       never by viewport; below it the pane keeps its stacked layout.
+       No shared rail, no active pane: the list beside the steps
+       always belongs to the recipe whose name heads that pane. */
+    #cookView.cook-panes-wide #cookRecipes { overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+    #cookView.cook-panes-wide #cookRecipes::-webkit-scrollbar { display: none; }
+    #cookView.cook-panes-wide .cook-recipe { flex: 0 0 min(760px, calc(100% - 44px)); scroll-snap-align: start; scroll-snap-stop: always; }
+    #cookView:not(.cook-mobile) .cook-recipe.pane-split-on { display: flex; flex-direction: column; overflow: hidden; }
+    #cookView:not(.cook-mobile) .cook-recipe.pane-split-on .recipe-wrapper { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    #cookView:not(.cook-mobile) .recipe-content.pane-split { flex: 1 1 auto; display: flex; gap: 1.4rem; min-height: 0; }
+    .pane-col-ing, .pane-col-rest { min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    .pane-col-ing { flex: 0 0 clamp(250px, 32%, 320px); padding-right: 0.4rem; }
+    .pane-col-rest { position: relative; flex: 1 1 auto; min-width: 0; }
+    .pane-col-ing > :first-child, .pane-col-rest > :first-child { margin-top: 0; }
     /* Glass fallback for the pane head (the panes and scorecard take the
        shared .glass-bubble fallback in style.css). */
     @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .cook-pane-head { background: var(--glass-bg-solid); } }
@@ -807,6 +847,21 @@
         </div>
     </nav>
 
+    <!-- Pinned targets bar: the primary control for whose targets the
+         nutrition numbers use. Standard = FDA Daily Values; Custom =
+         the visitor's saved profile. The mode is its own stored state;
+         Standard never deletes the saved profile. -->
+    <div id="targetsBar" role="group" aria-label="Nutrition targets">
+        <div class="targets-inner">
+            <span class="targets-label">Targets:</span>
+            <div class="frame-toggle" role="tablist" aria-label="Whose targets the nutrition numbers use">
+                <button type="button" role="tab" data-targets-value="standard" aria-selected="true">Standard</button>
+                <button type="button" role="tab" data-targets-value="custom" aria-selected="false">Custom</button>
+            </div>
+            <button type="button" class="targets-basis" id="targetsBasis">FDA Daily Values · 2,000 kcal/day</button>
+            <button type="button" class="profile-chip" id="targetsEdit" data-targets-edit hidden>Edit</button>
+        </div>
+    </div>
 
     <a href="health.html" class="back-link">&larr; Back to Health & Performance</a>
 
@@ -814,6 +869,15 @@
         <h1>Johnny's Recipes</h1>
         <p class="subtitle">My favorite recipes, and info about their nutrition.</p>
     </header>
+
+    <!-- Cook invitation: one slim pill that teaches the cook tool by
+         pointing at it. Tapping glides to the first recipe and pulses
+         its Cook toggle; while recipes are selected it steps aside
+         for the cook bars. Driven by the cook-nudge script before
+         </body>. -->
+    <div class="cook-nudge-row" id="cookNudgeRow">
+        <button type="button" class="cook-nudge" id="cookNudge" aria-label="Try the cook tool: go to the first recipe's Cook button"><span aria-hidden="true">🍳</span> Cook <span class="cook-nudge-arrow" aria-hidden="true"></span></button>
+    </div>
 
     <!-- Recipe Archive Container -->
     <div class="explainer-wrapper">
@@ -7088,7 +7152,20 @@
     function clearProfile() { try { localStorage.removeItem(PROFILE_KEY); } catch (e) {} }
 
     var savedProfile = loadProfile();
-    var current = savedProfile ? computeTargets(savedProfile) : null;
+    /* The targets mode is its own stored state, apart from the profile:
+       'standard' = FDA Daily Values, 'custom' = the saved profile.
+       Switching to Standard never deletes the profile. A profile saved
+       before the mode existed was in force, so it stays in force;
+       a first visit defaults to Standard. */
+    var MODE_KEY = 'jbo-nutrition-mode-v1';
+    var targetMode = (function () {
+        try {
+            var m = localStorage.getItem(MODE_KEY);
+            if (m === 'standard' || m === 'custom') return m;
+        } catch (e) {}
+        return savedProfile ? 'custom' : 'standard';
+    })();
+    var current = (targetMode === 'custom' && savedProfile) ? computeTargets(savedProfile) : null;
 
     function activeTargets() { return current ? current.targets : FDA_TARGETS; }
     function targetNoun() { return current ? 'your daily target' : 'the FDA Daily Value'; }
@@ -7655,22 +7732,20 @@
             if (!p.weightLb || p.weightLb < 60 || p.weightLb > 600) { updateStatus('Add your weight in pounds (60–600) to personalize.'); return; }
             if (!p.activity || !ACTIVITY[p.activity]) { updateStatus('Choose your activity level to personalize.'); return; }
             saveProfile(p);
-            current = computeTargets(p);
-            renderAllPanels();
-            updateCombiner();
-            updateStatus();
+            targetMode = 'custom';
+            saveMode();
+            refreshTargets();
         });
         resetBtn.addEventListener('click', function () {
             clearProfile();
-            current = null;
+            targetMode = 'standard';
+            saveMode();
             ['profile-age', 'profile-weight', 'profile-height-ft', 'profile-height-in'].forEach(function (id) {
                 document.getElementById(id).value = '';
             });
             document.getElementById('profile-sex').value = '';
             document.getElementById('profile-activity').value = '';
-            renderAllPanels();
-            updateCombiner();
-            updateStatus();
+            refreshTargets();
         });
     }
 
@@ -7738,6 +7813,113 @@
     });
     if (resetBtn) resetBtn.addEventListener('click', function () { renderProfileChip(); syncBarSpace(); });
     renderProfileChip();
+
+    /* --- Pinned targets bar: the primary targets control ---
+       One stored profile + one stored mode are the whole state; every
+       surface (per-recipe panels, combiner, cook scorecard, meal
+       generator) already reads it through activeTargets()/current.
+       refreshTargets() is the single recompute: it re-derives current
+       from mode + profile and re-renders every consumer. */
+    var targetsBar = document.getElementById('targetsBar');
+    var targetsBasis = document.getElementById('targetsBasis');
+    var targetsEdit = document.getElementById('targetsEdit');
+    function saveMode() { try { localStorage.setItem(MODE_KEY, targetMode); } catch (e) {} }
+    function refreshTargets() {
+        var p = loadProfile();
+        current = (targetMode === 'custom' && p) ? computeTargets(p) : null;
+        renderAllPanels();
+        updateCombiner();
+        renderProfileChip();
+        renderTargetsBar();
+        updateStatus();
+    }
+    function renderTargetsBar() {
+        if (!targetsBar || !targetsBasis) return;
+        var btns = targetsBar.querySelectorAll('[data-targets-value]');
+        for (var i = 0; i < btns.length; i++) {
+            var on = btns[i].getAttribute('data-targets-value') === targetMode;
+            btns[i].setAttribute('aria-selected', on ? 'true' : 'false');
+            btns[i].classList.toggle('active', on);
+        }
+        var p = loadProfile();
+        if (targetMode === 'custom' && p) {
+            var act = ACTIVITY[p.activity] ? ACTIVITY[p.activity].label : '';
+            targetsBasis.textContent = p.weightLb + ' lb \u00b7 age ' + p.age +
+                (act ? ' \u00b7 ' + act.charAt(0).toUpperCase() + act.slice(1) : '');
+        } else {
+            targetsBasis.textContent = 'FDA Daily Values \u00b7 2,000 kcal/day';
+        }
+        if (targetsEdit) targetsEdit.hidden = !(targetMode === 'custom' && p);
+    }
+    /* The editor opened from the bar keeps the page's own in-flow
+       pattern, anchored at the top of the page directly under the
+       pinned bar, so the connection is unmissable. profAnchor uses
+       the bar itself as the sentinel: a second tap closes it, and a
+       row's Edit button takes the form over exactly as before. */
+    function openTargetsEditor() {
+        if (!profBlock || !targetsBar) return;
+        if (!profBlock.hidden && profAnchor === targetsBar) { hideProfileEditor(); return; }
+        var head = document.querySelector('.page-header');
+        if (head && head.parentNode) head.parentNode.insertBefore(profBlock, head.nextSibling);
+        profBlock.hidden = false;
+        profAnchor = targetsBar;
+        var cp = document.getElementById('cookScorePanel');
+        if (cp) cp.classList.remove('profile-open');
+        syncBarSpace();
+        try { window.scrollTo(0, 0); } catch (e) {}
+    }
+    function setTargetMode(m) {
+        if (m !== 'standard' && m !== 'custom') return;
+        /* Custom with nothing saved yet: the editor is the first step. */
+        if (m === 'custom' && !loadProfile()) { openTargetsEditor(); return; }
+        if (m === targetMode) { renderTargetsBar(); return; }
+        targetMode = m;
+        saveMode();
+        refreshTargets();
+    }
+    document.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t || !t.closest) return;
+        var seg = t.closest('[data-targets-value]');
+        if (seg && targetsBar && targetsBar.contains(seg)) {
+            var v = seg.getAttribute('data-targets-value');
+            if (v === 'custom' && targetMode === 'custom') openTargetsEditor();
+            else setTargetMode(v);
+            return;
+        }
+        if (t.closest('#targetsBasis') || t.closest('[data-targets-edit]')) openTargetsEditor();
+    });
+    /* Placement mirrors the recipe-name bar: directly under the real
+       site header, measured, not guessed. */
+    function placeTargetsBar() {
+        if (!targetsBar) return;
+        var nav = document.querySelector('.site-nav');
+        targetsBar.style.top = ((nav && nav.offsetHeight) || 55) + 'px';
+    }
+    /* Slot-covered: the recipe-name bar owns the slot while it is
+       shown (it is the open recipe's own toggle), so this bar is
+       covered then -- visibility:hidden, never unpinned. The name
+       bar is created by a later script, so watch for it. */
+    function coverTargetsBar(nb) {
+        if (targetsBar && nb) targetsBar.classList.toggle('covered', nb.classList.contains('show'));
+    }
+    function watchNameBar(nb) {
+        if (!nb) return;
+        coverTargetsBar(nb);
+        if (window.MutationObserver) new MutationObserver(function () { coverTargetsBar(nb); }).observe(nb, { attributes: true, attributeFilter: ['class'] });
+    }
+    var nameBarEl = document.getElementById('recipeStickyName');
+    if (nameBarEl) watchNameBar(nameBarEl);
+    else if (window.MutationObserver && document.body) {
+        var nbWait = new MutationObserver(function () {
+            var nb = document.getElementById('recipeStickyName');
+            if (nb) { nbWait.disconnect(); watchNameBar(nb); }
+        });
+        nbWait.observe(document.body, { childList: true });
+    }
+    placeTargetsBar();
+    window.addEventListener('resize', placeTargetsBar);
+    renderTargetsBar();
 
     /* --- Verdict frame toggle: the same segmented control on the
        combiner panel and the cook scorecard panel, rendered from the
@@ -9566,20 +9748,20 @@
              the exact original order, and openCook unsplits every card
              before cloning, so panes always start from the card's
              true DOM -- the same discipline as the notes teardown.
-           - The cook view with 2-3 recipes docks the same column as a
-             rail beside the pane row. The rail shows the recipe in
-             front: scroll-settle tracking with the pane navigator's
-             own math swaps it, its dish-size scaler drives that
-             pane's scaler, and tapping a rail ingredient lights the
-             steps in that pane (ckComputePairs, run per pane at open).
-             The single-recipe split above is the same pattern with one
-             pane; the two paths share the block finder, the matcher
-             and the highlight classes rather than stacking.
+           - The cook view with 2-3 recipes splits each pane the same
+             way internally: at a measured pane width of 580px or more
+             the pane's own ingredients block becomes a column inside
+             that pane, beside its own steps, under its own name.
+             Nothing is shared between panes and nothing swaps (the
+             shared rail that did swap was removed the same day, at
+             the owner's request). Each pane's scaler is its own, and
+             tapping an ingredient lights the steps in its own pane
+             only (ckComputePairs, run per pane at open). Below the
+             threshold the pane keeps its stacked layout untouched.
            Below 700px nothing changes: cards stack as they do today,
            the cook view keeps its stacked panes, and the single-recipe
            Ingredients bubble works as shipped. (Multi-recipe cook view
-           has no bubble at any width -- panes carry their own lists;
-           at 700px and up the rail takes that role.) */
+           has no bubble at any width -- panes carry their own lists.) */
         var sideMq = window.matchMedia('(min-width: 700px)');
 
         /* ---------- opened cards ---------- */
@@ -9661,180 +9843,161 @@
             cardSplitObserver.observe(c, { attributes: true, attributeFilter: ['class'] });
         });
 
-        /* ---------- cook-view rail (2-3 recipes) ---------- */
-        var railWrap = null, railEl = null, railHead = null, railBody = null;
-        var railPairs = [], railActive = -1, railActiveIng = -1;
-        var railLitSteps = [], railLitPaneLi = null, railLitRailLi = null;
-        var railSettleTimer = 0, railCandidate = -1;
-        function clearRailHighlight() {
-            railLitSteps.forEach(function (s) { s.classList.remove('cook-step-on'); });
-            if (railLitPaneLi) railLitPaneLi.classList.remove('cook-ing-on');
-            if (railLitRailLi) railLitRailLi.classList.remove('cook-ing-on');
-            railLitSteps = []; railLitPaneLi = null; railLitRailLi = null;
-            railActiveIng = -1;
-        }
-        function fillRailBody(pane) {
-            var content = pane ? pane.querySelector('.recipe-content') : null;
-            var block = content ? findIngredientsBlock(content) : null;
-            railBody.innerHTML = '';
-            if (block) block.forEach(function (n) { railBody.appendChild(n.cloneNode(true)); });
-        }
-        function setRailActive(idx, force) {
-            if (!railEl || !cookRecipes || !cookRecipes.children.length) return;
-            idx = Math.max(0, Math.min(cookRecipes.children.length - 1, idx));
-            if (idx === railActive && !force) return;
-            clearRailHighlight();
-            railActive = idx;
-            Array.prototype.forEach.call(cookRecipes.children, function (pane, i) {
-                pane.classList.toggle('cook-pane-on', i === idx);
+        /* ---------- cook-view pane splits (2-3 recipes) ---------- */
+        /* Each pane splits internally, by its own measured width: at
+           580px or wider its ingredients block moves into a column
+           inside the pane -- beside that same pane's steps, under
+           that pane's own name. Nothing is shared between panes and
+           nothing ever swaps: no rail, no active pane, no settle
+           timer. Below the threshold the pane keeps its stacked
+           layout untouched. The rearrangement follows the card
+           split's discipline (pure DOM move, exact restore), and the
+           pairs are computed from the pane's own lists before the
+           move, so the nodes the matcher stamps are the nodes that
+           land in the column. Each pane keeps its own highlight, and
+           its scaler is simply its own -- no forwarding, no clones. */
+        var PANE_SPLIT_MIN = 580;
+        var paneSplitRO = null;
+        var paneSplitTimer = 0;
+        function splitPane(pane) {
+            var content = pane.querySelector('.recipe-content');
+            if (!content || content.__paneSplit) return;
+            var block = findIngredientsBlock(content);
+            if (!block || !block.length) return;
+            var ingLis = [];
+            block.forEach(function (n) {
+                if (n.tagName === 'UL') Array.prototype.forEach.call(n.children, function (li) { ingLis.push(li); });
             });
-            var pane = cookRecipes.children[idx];
-            railHead.textContent = paneName(pane);
-            fillRailBody(pane);
-            railBody.scrollTop = 0;
+            var stepsOl = content.querySelector('.recipe-steps');
+            var stepLis = stepsOl ? Array.prototype.slice.call(stepsOl.children) : [];
+            var pairs = ckComputePairs(ingLis, stepLis);
+            var wrapper = content.closest('.recipe-wrapper');
+            var chip = null;
+            if (wrapper) Array.prototype.forEach.call(wrapper.children, function (el) {
+                if (el.classList && el.classList.contains('recipe-share')) chip = el;
+            });
+            var state = {
+                order: Array.prototype.slice.call(content.childNodes),
+                chip: chip, chipParent: chip ? chip.parentNode : null, chipNext: chip ? chip.nextSibling : null,
+                ingCol: document.createElement('div'), restCol: document.createElement('div')
+            };
+            state.ingCol.className = 'pane-col-ing';
+            state.restCol.className = 'pane-col-rest';
+            var inBlock = block.slice();
+            state.order.forEach(function (n) {
+                if (n.nodeType !== 1) return;
+                if (inBlock.indexOf(n) !== -1) state.ingCol.appendChild(n);
+                else state.restCol.appendChild(n);
+            });
+            /* The share chip anchors to the wrapper's top-left; with the
+               photo in the reading column it belongs on the photo's
+               corner again, not over the INGREDIENTS title. */
+            if (chip) state.restCol.insertBefore(chip, state.restCol.firstChild);
+            content.appendChild(state.ingCol);
+            content.appendChild(state.restCol);
+            content.classList.add('pane-split');
+            pane.classList.add('pane-split-on');
+            content.__paneSplit = state;
+            pane.__ckPairs = pairs;
         }
-        function railActivate(ingIdx) {
-            var pairs = railPairs[railActive];
-            if (!pairs || !pairs[ingIdx]) return;
-            if (railActiveIng === ingIdx) { clearRailHighlight(); return; }
-            clearRailHighlight();
-            var pair = pairs[ingIdx];
-            if (!pair.steps.length) return;
-            railActiveIng = ingIdx;
-            railLitSteps = pair.steps;
-            pair.steps.forEach(function (s) { s.classList.add('cook-step-on'); });
-            railLitPaneLi = pair.li;
-            pair.li.classList.add('cook-ing-on');
-            var railLis = railBody.querySelectorAll('.recipe-list > li');
-            railLitRailLi = railLis[ingIdx] || null;
-            if (railLitRailLi) railLitRailLi.classList.add('cook-ing-on');
-            pair.steps[0].scrollIntoView({ block: 'nearest', inline: 'nearest' });
-        }
-        function forwardRailScale(btn) {
-            var pane = cookRecipes && railActive >= 0 ? cookRecipes.children[railActive] : null;
-            if (!pane) return;
-            var target = pane.querySelector('.dish-scaler .dish-scale[data-factor="' + btn.getAttribute('data-factor') + '"]');
-            if (!target) return;
-            target.click();
-            var st = railBody.scrollTop;
-            fillRailBody(pane);
-            railBody.scrollTop = st;
-            if (railActiveIng >= 0) {
-                var lis = railBody.querySelectorAll('.recipe-list > li');
-                railLitRailLi = lis[railActiveIng] || null;
-                if (railLitRailLi) railLitRailLi.classList.add('cook-ing-on');
+        function clearPaneHighlight(pane) {
+            var st = pane.__ckActive;
+            if (!st) return;
+            st.steps.forEach(function (s) { s.classList.remove('cook-step-on'); });
+            if (st.li) {
+                st.li.classList.remove('cook-ing-on');
+                if (st.li.hasAttribute('aria-pressed')) st.li.setAttribute('aria-pressed', 'false');
             }
+            pane.__ckActive = null;
         }
-        function onRailBodyEvent(e, isKey) {
-            var t = e.target;
-            if (!t || !t.closest) return;
-            if (!isKey) {
-                var scaleBtn = t.closest('.dish-scale');
-                if (scaleBtn && railBody.contains(scaleBtn)) { forwardRailScale(scaleBtn); return; }
-            }
-            var li = t.closest('li.cook-ing-tap');
-            if (!li || !railBody.contains(li)) return;
-            if (isKey) e.preventDefault();
-            var lis = railBody.querySelectorAll('.recipe-list > li');
-            var idx = Array.prototype.indexOf.call(lis, li);
-            if (idx >= 0) railActivate(idx);
+        function unsplitPane(pane) {
+            clearPaneHighlight(pane);
+            pane.__ckPairs = null;
+            var content = pane.querySelector('.recipe-content');
+            var state = content && content.__paneSplit;
+            if (!state) { pane.classList.remove('pane-split-on'); return; }
+            content.__paneSplit = null;
+            if (state.chip && state.chipParent) state.chipParent.insertBefore(state.chip, state.chipNext);
+            state.order.forEach(function (n) { content.appendChild(n); });
+            [state.ingCol, state.restCol].forEach(function (col) {
+                while (col.firstChild) content.appendChild(col.firstChild);
+                if (col.parentNode) col.parentNode.removeChild(col);
+            });
+            content.classList.remove('pane-split');
+            pane.classList.remove('pane-split-on');
         }
-        function setupCookRail() {
-            teardownCookRail();
-            if (!cookRecipes || !cookView || selected.length < 2 || !sideMq.matches) return;
-            if (!cookRecipes.children.length) return;
-            railPairs = [];
+        function evalPaneSplits() {
+            if (!cookRecipes || !cookView || !cookView.classList.contains('open')) return;
+            if (selected.length < 2) return;
+            var mobile = cookView.classList.contains('cook-mobile');
             Array.prototype.forEach.call(cookRecipes.children, function (pane) {
                 var content = pane.querySelector('.recipe-content');
-                var block = content ? findIngredientsBlock(content) : null;
-                var ingLis = [];
-                if (block) block.forEach(function (n) {
-                    if (n.tagName === 'UL') Array.prototype.forEach.call(n.children, function (li) { ingLis.push(li); });
-                });
-                var stepsOl = content ? content.querySelector('.recipe-steps') : null;
-                var stepLis = stepsOl ? Array.prototype.slice.call(stepsOl.children) : [];
-                railPairs.push(ckComputePairs(ingLis, stepLis));
+                var wide = !mobile && pane.getBoundingClientRect().width >= PANE_SPLIT_MIN;
+                if (wide) splitPane(pane);
+                else if (content && content.__paneSplit) unsplitPane(pane);
             });
-            railWrap = document.createElement('div');
-            railWrap.className = 'cook-rail-wrap';
-            railEl = document.createElement('div');
-            railEl.className = 'cook-rail glass-bubble';
-            railHead = document.createElement('div');
-            railHead.className = 'cook-rail-head';
-            railBody = document.createElement('div');
-            railBody.className = 'cook-rail-body';
-            railEl.appendChild(railHead);
-            railEl.appendChild(railBody);
-            railBody.addEventListener('click', function (e) { onRailBodyEvent(e, false); });
-            railBody.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' || e.key === ' ') onRailBodyEvent(e, true);
-            });
-            cookRecipes.parentNode.insertBefore(railWrap, cookRecipes);
-            railWrap.appendChild(railEl);
-            railWrap.appendChild(cookRecipes);
-            cookView.classList.add('cook-rail-on');
-            railActive = -1;
-            setRailActive(0, true);
         }
-        function teardownCookRail() {
-            if (railSettleTimer) { clearTimeout(railSettleTimer); railSettleTimer = 0; }
-            clearRailHighlight();
-            railPairs = [];
-            railActive = -1;
-            railCandidate = -1;
-            if (railWrap && cookRecipes && railWrap.parentNode) {
-                railWrap.parentNode.insertBefore(cookRecipes, railWrap);
-                if (railWrap.parentNode) railWrap.parentNode.removeChild(railWrap);
-            } else if (railEl && railEl.parentNode) {
-                railEl.parentNode.removeChild(railEl);
+        function schedulePaneEval() {
+            if (paneSplitTimer) clearTimeout(paneSplitTimer);
+            paneSplitTimer = setTimeout(function () { paneSplitTimer = 0; evalPaneSplits(); }, 120);
+        }
+        function setupCookPaneSplits() {
+            teardownCookPaneSplits();
+            if (!cookRecipes || !cookView || selected.length < 2) return;
+            cookView.classList.toggle('cook-panes-wide', sideMq.matches);
+            if (window.ResizeObserver) {
+                paneSplitRO = new ResizeObserver(schedulePaneEval);
+                Array.prototype.forEach.call(cookRecipes.children, function (pane) { paneSplitRO.observe(pane); });
             }
-            railWrap = null; railEl = null; railHead = null; railBody = null;
-            if (cookView) cookView.classList.remove('cook-rail-on');
-            if (cookRecipes) Array.prototype.forEach.call(cookRecipes.children, function (p) { p.classList.remove('cook-pane-on'); });
+            window.addEventListener('resize', schedulePaneEval);
+            /* The view opens after setup returns (openCook adds the
+               class last), so the first measurement waits for layout. */
+            requestAnimationFrame(function () { requestAnimationFrame(evalPaneSplits); });
         }
-        function railPaneIndexFor(node) {
-            var pane = node && node.closest ? node.closest('.cook-recipe') : null;
-            if (!pane || !cookRecipes) return -1;
-            return Array.prototype.indexOf.call(cookRecipes.children, pane);
+        function teardownCookPaneSplits() {
+            if (paneSplitTimer) { clearTimeout(paneSplitTimer); paneSplitTimer = 0; }
+            if (paneSplitRO) { paneSplitRO.disconnect(); paneSplitRO = null; }
+            window.removeEventListener('resize', schedulePaneEval);
+            if (cookView) cookView.classList.remove('cook-panes-wide');
+            if (cookRecipes) Array.prototype.forEach.call(cookRecipes.children, function (pane) { clearPaneHighlight(pane); });
         }
-        if (cookRecipes) {
-            cookRecipes.addEventListener('scroll', function () {
-                if (!railEl || !cookRecipes.children.length) return;
-                var w = cookRecipes.children[0].offsetWidth || 1;
-                var idx = Math.round(cookRecipes.scrollLeft / w);
-                railCandidate = Math.max(0, Math.min(cookRecipes.children.length - 1, idx));
-                if (railSettleTimer) clearTimeout(railSettleTimer);
-                railSettleTimer = setTimeout(function () {
-                    railSettleTimer = 0;
-                    if (railCandidate >= 0 && railCandidate !== railActive) setRailActive(railCandidate);
-                }, 140);
-            }, { passive: true });
-            cookRecipes.addEventListener('pointerdown', function (e) {
-                if (!railEl) return;
-                var idx = railPaneIndexFor(e.target);
-                if (idx >= 0 && idx !== railActive) setRailActive(idx);
-            });
-            cookRecipes.addEventListener('click', function (e) {
-                if (!railEl) return;
-                var li = e.target && e.target.closest ? e.target.closest('li.cook-ing-tap') : null;
-                if (!li) return;
-                var paneIdx = railPaneIndexFor(li);
-                if (paneIdx < 0) return;
-                if (paneIdx !== railActive) setRailActive(paneIdx);
-                var ingIdx = -1;
-                (railPairs[paneIdx] || []).forEach(function (p, i) { if (p.li === li) ingIdx = i; });
-                if (ingIdx >= 0) railActivate(ingIdx);
-            });
-        }
-        function railResize() {
+        function paneWideResize() {
             if (!cookView || !cookView.classList.contains('open')) return;
             if (selected.length < 2) return;
-            if (sideMq.matches && !railWrap) setupCookRail();
-            else if (!sideMq.matches && railWrap) teardownCookRail();
+            cookView.classList.toggle('cook-panes-wide', sideMq.matches);
+            schedulePaneEval();
+        }
+        function paneActivate(pane, li) {
+            var pairs = pane.__ckPairs;
+            if (!pairs) return;
+            var pair = null;
+            pairs.forEach(function (p) { if (p.li === li) pair = p; });
+            if (!pair || !pair.steps.length) return;
+            if (pane.__ckActive && pane.__ckActive.li === li) { clearPaneHighlight(pane); return; }
+            clearPaneHighlight(pane);
+            pane.__ckActive = { li: li, steps: pair.steps };
+            pair.steps.forEach(function (s) { s.classList.add('cook-step-on'); });
+            li.classList.add('cook-ing-on');
+            li.setAttribute('aria-pressed', 'true');
+            pair.steps[0].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+        function onPaneIngEvent(e, isKey) {
+            var li = e.target && e.target.closest ? e.target.closest('li.cook-ing-tap') : null;
+            if (!li) return;
+            var pane = li.closest('.cook-recipe');
+            if (!pane || !pane.__ckPairs) return;
+            if (isKey) e.preventDefault();
+            paneActivate(pane, li);
+        }
+        if (cookRecipes) {
+            cookRecipes.addEventListener('click', function (e) { onPaneIngEvent(e, false); });
+            cookRecipes.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') onPaneIngEvent(e, true);
+            });
         }
         if (sideMq.addEventListener) sideMq.addEventListener('change', function () {
             refreshCardSplits();
-            railResize();
+            paneWideResize();
         });
         refreshCardSplits();
 
@@ -9911,7 +10074,7 @@
                 cookRecipes.appendChild(section);
             });
             setupCookSingle();
-            setupCookRail();
+            setupCookPaneSplits();
             cookViewTitle.textContent = 'Cooking ' + selected.length + ' recipe' + (selected.length === 1 ? '' : 's');
             if (window.__jboRenderCookScore) window.__jboRenderCookScore(selected);
             cookView.classList.add('open');
@@ -9927,7 +10090,7 @@
         function closeCook() {
             if (!cookView) return;
             teardownCookSingle();
-            teardownCookRail();
+            teardownCookPaneSplits();
             refreshCardSplits();
             cookView.classList.remove('open');
             cookView.classList.remove('cook-mobile');
@@ -10710,6 +10873,88 @@
                 }
             }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
         }
+    })();
+</script>
+<script>
+    /* Cook invitation: the pill under the page header teaches the cook
+       tool by pointing at it -- a tap glides to the first recipe and
+       pulses that card's own Cook toggle, so the visitor learns the
+       real affordance instead of reading instructions. It never
+       selects anything itself. While any recipe is selected, the cook
+       bars own the flow and the pill steps aside; when the selection
+       clears it returns, quiet. The pulse retires permanently after
+       the first use (a toggle tap or a tap on the pill itself). */
+    (function () {
+        var row = document.getElementById('cookNudgeRow');
+        var btn = document.getElementById('cookNudge');
+        if (!row || !btn) return;
+        var KEY = 'jbo-cook-nudge-v1';
+        var used = false;
+        try { used = localStorage.getItem(KEY) === '1'; } catch (e) {}
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        function markUsed() {
+            if (used) return;
+            used = true;
+            btn.classList.remove('inviting');
+            try { localStorage.setItem(KEY, '1'); } catch (e) {}
+        }
+        if (!used) btn.classList.add('inviting');
+        function anySelected() { return !!document.querySelector('.cook-toggle.selected'); }
+        function sync() { row.classList.toggle('away', anySelected()); }
+        document.addEventListener('click', function (e) {
+            var t = e.target;
+            if (t && t.closest && t.closest('.cook-toggle')) { markUsed(); setTimeout(sync, 0); }
+        });
+        if (window.MutationObserver) {
+            new MutationObserver(sync).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+        }
+        sync();
+        function isShown(el) {
+            for (var n = el; n && n.nodeType === 1; n = n.parentElement) {
+                if (n.hidden) return false;
+                var cs = window.getComputedStyle ? getComputedStyle(n) : null;
+                if (cs && cs.display === 'none') return false;
+                if (n === document.body) break;
+            }
+            return true;
+        }
+        function firstCard() {
+            var cards = document.querySelectorAll('.recipe-wrapper');
+            for (var i = 0; i < cards.length; i++) {
+                if (isShown(cards[i]) && cards[i].querySelector('.cook-toggle')) return cards[i];
+            }
+            return null;
+        }
+        function glide(wrapper) {
+            if (!wrapper) return;
+            wrapper.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+            var toggle = wrapper.querySelector('.cook-toggle');
+            if (!toggle) return;
+            setTimeout(function () {
+                toggle.classList.remove('nudge-pulse');
+                void toggle.offsetWidth;
+                toggle.classList.add('nudge-pulse');
+                setTimeout(function () { toggle.classList.remove('nudge-pulse'); }, 2000);
+                try { toggle.focus({ preventScroll: true }); } catch (e) {}
+            }, reduce ? 60 : 650);
+        }
+        btn.addEventListener('click', function () {
+            markUsed();
+            var target = firstCard();
+            if (target) { glide(target); return; }
+            /* Nothing to point at: the archive is collapsed or a filter
+               matches no cookable card. Open the archive, reset the
+               filter to All, then point. */
+            var card = document.getElementById('recipeCard');
+            if (card && !card.classList.contains('active')) {
+                var wrap = card.closest('.explainer-wrapper');
+                var tg = wrap ? wrap.querySelector('.info-toggle') : null;
+                if (tg) tg.click();
+            }
+            var all = document.querySelector('.filter-pill[data-filter="all"]');
+            if (all && !all.classList.contains('active')) all.click();
+            setTimeout(function () { glide(firstCard()); }, 400);
+        });
     })();
 </script>
 </body>
