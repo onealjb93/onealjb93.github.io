@@ -6360,15 +6360,25 @@
        numerator and denominator alike, so the grade cannot move with
        quantity; how much of a day or a meal the selection is lives in
        the separate completeness line, never in this score.
-       Adequacy (60 of 100): protein density 15, fiber density 15,
-       micronutrient density 30 (the mean of the six below, each one
+       Adequacy (50 of 100): protein density 15, fiber density 15,
+       micronutrient density 20 (the mean of the six below, each one
        capped at full credit so no single nutrient can dominate).
-       Moderation (40 of 100): sugar 15 (share of calories: full
+       Moderation (50 of 100): sugar 15 (share of calories: full
        credit at 6.5% or less, none at 26% -- the HEI-2020 ramp, run
        on total sugars, the only sugar figure the data carries),
        sodium 15 (grams per 1,000 kcal: full at 1.1 or less, none at
-       2.0 -- HEI-2020), saturated fat 10 (share of calories: full at
-       8% or less, none at 16% -- HEI-2020). Cholesterol is not in the
+       2.0 -- HEI-2020), saturated fat 20 (share of calories: full at
+       8% or less, none at 16% -- the HEI-2020 ramp -- and the ramp
+       keeps counting past that line, to a floor of -0.5 credit at
+       20%: a whole diet rarely sits past the worst diet line for
+       long, but a single selection can sit at two or three times
+       it, and a ramp that stops at zero cannot tell 16% from 36%).
+       Rebalanced 2026-11-17 (saturated fat 10 -> 20, funded by
+       micronutrient density 30 -> 20, ramp extended): four servings
+       each of pimento cheese and cookies -- 35% saturated-fat
+       calories -- graded Middle of the road, because protein and
+       calcium bought back what the old 10-point component could
+       not take away. Cholesterol is not in the
        score at all: the Dietary Guidelines dropped its limit in 2015
        and no current system counts it. Variety is not in the score
        either: the field scores food-group diversity, which needs
@@ -6405,6 +6415,10 @@
     }
         function densityRamp(value, fullAt) { return value <= 0 ? 0 : Math.min(1, value / fullAt); }
     function moderationRamp(value, fullAt, zeroAt) { return value <= fullAt ? 1 : value >= zeroAt ? 0 : (zeroAt - value) / (zeroAt - fullAt); }
+    /* Saturated fat keeps counting past the HEI zero line (16% of
+       calories) on the same slope, floored at -0.5 credit (reached at
+       20%): the component can cost up to half its weight again. */
+    function satfatRamp(value) { return value <= 8 ? 1 : Math.max(-0.5, (16 - value) / 8); }
     function qualityFromTotals(totals) {
         var kcal = totals['208'] || 0;
         if (!(kcal > 0)) return null; /* no calories: no density to grade */
@@ -6429,7 +6443,7 @@
             if (c >= 1) microFull++;
             microBits.push(NUTRI.dailyValues[num].label + ' ' + Math.round(d / r * 100) + '%');
         });
-        comps.push({ key: 'micros', name: 'Micronutrient density', weight: 30, credit: microSum / VERDICT_MICROS.length,
+        comps.push({ key: 'micros', name: 'Micronutrient density', weight: 20, credit: microSum / VERDICT_MICROS.length,
             detail: microBits.join(' \u00b7 ') + ' of full density',
             short: 'micronutrient density \u2014 ' + microFull + ' of 6 at full density' });
         comps.push({ key: 'sugar', name: 'Sugar', weight: 15, credit: moderationRamp(sugarShare, 6.5, 26),
@@ -6438,14 +6452,14 @@
         comps.push({ key: 'sodium', name: 'Sodium density', weight: 15, credit: moderationRamp(sodiumDensity, 1.1, 2.0),
             detail: (Math.round(sodiumDensity * 100) / 100) + ' g per 1,000 kcal \u00b7 full credit at 1.1 g or less, none at 2.0 g',
             short: 'sodium density \u2014 ' + (Math.round(sodiumDensity * 100) / 100) + ' g per 1,000 kcal (full credit at 1.1 g or less)' });
-        comps.push({ key: 'satfat', name: 'Saturated fat', weight: 10, credit: moderationRamp(satfatShare, 8, 16),
-            detail: Math.round(satfatShare) + '% of calories \u00b7 full credit at 8% or less, none at 16%',
+        comps.push({ key: 'satfat', name: 'Saturated fat', weight: 20, credit: satfatRamp(satfatShare),
+            detail: Math.round(satfatShare) + '% of calories \u00b7 full credit at 8% or less, none at 16% \u00b7 past 20% it costs 10 more',
             short: 'saturated fat \u2014 ' + Math.round(satfatShare) + '% of calories (full credit at 8% or less)' });
         var points = 0;
         comps.forEach(function (c) {
             c.earned = Math.round(c.credit * c.weight * 10) / 10;
             points += c.credit * c.weight;
-            c.detail += ' \u00b7 earns ' + c.earned + ' of ' + c.weight;
+            c.detail += c.earned < 0 ? ' \u00b7 costs ' + (-c.earned) + ' beyond its ' + c.weight : ' \u00b7 earns ' + c.earned + ' of ' + c.weight;
             c.met = c.credit >= 1;
         });
         /* Points are kept to 1 decimal: rescaling every serving moves
@@ -6887,7 +6901,7 @@
        150% of target; calories are scored on closeness to 100% of target;
        the three daily-limit nutrients (saturated fat, cholesterol, sodium)
        lose points steeply once they pass 85% of the limit. Plus a bonus
-       for the page's own verdict quality score (0-100 density points,
+       for the page's own verdict quality score (density points,
        scaled to the same 0-10 range), so plans the verdict grades
        highly win ties. */
     function genObjective(totArr, ids, servTotal) {
@@ -7254,7 +7268,7 @@
        denominator and the sodium cause cap; the grade itself is
        frame-invariant, because density does not know what a frame is. --- */
     var VERDICT_LABELS = ['', 'Very low', 'Low', 'Middle of the road', 'Genuinely healthy', 'Hard to beat'];
-    var VERDICT_RULE = 'The verdict grades quality, not quantity: protein, fiber and micronutrient density earn up to 60, and sugar, sodium and saturated fat \u2014 each measured against the selection\u2019s own calories \u2014 cost up to 40. The same food earns the same grade at any serving count; how much of a day or meal it makes is shown separately. Sugar is total sugars \u2014 the only sugar figure the data carries.';
+    var VERDICT_RULE = 'The verdict grades quality, not quantity: protein, fiber and micronutrient density earn up to 50, and sugar, sodium and saturated fat \u2014 each measured against the selection\u2019s own calories \u2014 cost up to 50; saturated fat past 16% of the calories keeps costing, up to 10 more at 20%. The same food earns the same grade at any serving count; how much of a day or meal it makes is shown separately. Sugar is total sugars \u2014 the only sugar figure the data carries.';
     function nameOf(rid) {
         var rec = RECIPES.find(function (x) { return x.id === rid; });
         if (rec) return rec.name;
@@ -7270,7 +7284,10 @@
         /* Dot bands on the 0-100 points, calibrated on the archive
            itself: a full dessert day lands at 39 (1), the canonical
            healthy day at 74 (4), and only a handful of single dishes
-           in the whole archive reach 80 (5). */
+           in the whole archive reach 80 (5). Bands unchanged in the
+           2026-11-17 rebalance; re-verified against it: the pimento
+           cheese and cookies load lands at 45.6 (2) and the miso and
+           cabbage day at 74.6 (4). */
         var score = points >= 80 ? 5 : points >= 65 ? 4 : points >= 48 ? 3 : points >= 40 ? 2 : 1;
         var label = VERDICT_LABELS[score];
         /* Cause sub-lines: one transparent threshold per nutrient,
@@ -7835,7 +7852,7 @@
             <div class="combiner-profile-row"><span class="profile-day" data-profile-day></span><button type="button" class="profile-chip" data-profile-edit>Edit</button></div>
             <div class="frame-toggle-row"><div class="frame-toggle" role="tablist" aria-label="Judge the verdict as a meal or as a full day" data-frame-toggle="combiner"><button type="button" role="tab" data-frame-value="meal" aria-selected="false">Meal</button><button type="button" role="tab" data-frame-value="day" aria-selected="false">Full day</button></div></div>
             <div class="verdict-row" id="verdictRow" hidden><span id="verdictMain"></span></div>
-            <p class="verdict-rule" id="verdictRule" hidden>The verdict grades quality, not quantity: protein, fiber and micronutrient density earn up to 60, and sugar, sodium and saturated fat — each measured against the selection’s own calories — cost up to 40. The same food earns the same grade at any serving count; how much of a day or meal it makes is shown separately. Sugar is total sugars — the only sugar figure the data carries.</p>
+            <p class="verdict-rule" id="verdictRule" hidden>The verdict grades quality, not quantity: protein, fiber and micronutrient density earn up to 50, and sugar, sodium and saturated fat — each measured against the selection’s own calories — cost up to 50; saturated fat past 16% of the calories keeps costing, up to 10 more at 20%. The same food earns the same grade at any serving count; how much of a day or meal it makes is shown separately. Sugar is total sugars — the only sugar figure the data carries.</p>
             <div id="verdictFrame" hidden></div>
             <div class="verdict-checks" id="verdictChecks" hidden></div>
             <div class="combiner-dishes" id="combinerBarDishes"></div>
