@@ -37,6 +37,19 @@ has never been reached on a weekly sample. It drives nothing in
 the header (the stars stay buy-only); it is published so the nightly
 state carries the sell-side reading too, in the same checkable form.
 
+The state also carries a "record" object — the rarity facts the
+alert emails state: {"weeks", "golden_weeks", "top_weeks",
+"last_golden_end", "last_top_end"}, counted over the page's baked
+weekly series (the Mayer block's BAKED sample days are the grid,
+Feb 2016 on; power law and production cost are carried from their
+4-day grid, MVRV is last-value-carried-forward from its baked rows —
+the rarity measurement's own grid and rules, so the published
+counts are the measured ones: 564 weeks, golden in 5, top in 2).
+A "last_*_end" is the last sample day of the most recent COMPLETED
+episode of that kind: a run that reaches the final sample while the
+same state is live today may still be running, so that run is not
+counted as completed and the previous episode's end stands instead.
+
 The formulas below are line-for-line ports of the page's own readout
 code in bitcoin.html (the four text/plain model blocks), and the cost
 model's baked inputs (the DIFF / FEES grids and the EFF / SUB era
@@ -137,16 +150,23 @@ def load_page_inputs():
         fail("cannot read bitcoin.html: %s" % exc)
     cost = _block(src, "btc-cost-code")
     pl = _block(src, "btc-pl-code")
+    mayer = _block(src, "btc-mayer-code")
+    mvrv = _block(src, "btc-mvrv-code")
     inputs = {
         "prices": _array(pl, "PRICES"),
         "diff": _array(cost, "DIFF"),
         "fees": _array(cost, "FEES"),
         "eff": _array(cost, "EFF"),
         "sub": _array(cost, "SUB"),
+        "mayer_baked": _array(mayer, "BAKED"),
+        "mvrv_baked": _array(mvrv, "BAKED"),
     }
     n = len(inputs["prices"])
     if not (len(inputs["diff"]) == len(inputs["fees"]) == n and n > 1000):
         fail("baked grids disagree or are implausibly short")
+    if not (len(inputs["mayer_baked"]) > 400
+            and len(inputs["mvrv_baked"]) > 400):
+        fail("baked Mayer / MVRV series implausibly short")
     return inputs
 
 
@@ -377,6 +397,90 @@ def reading_mvrv(rows):
     # over realized cap — which is the CoinMetrics ratio itself, minus 1
     return {"z": round(z, 4), "band": band,
             "pct": round((ratio - 1) * 100, 4)}, day
+
+
+# -------------------------------------------------------------------- record
+
+def record_facts(inputs, peak, golden_now, top_now):
+    """The rarity record over the page's baked weekly series: the
+    Mayer block's BAKED sample days are the grid; power law and
+    production cost are carried from their 4-day grid (the sample's
+    own grid cell), MVRV is last-value-carried-forward from its
+    baked rows — the rarity measurement's grid and each model's own
+    lines, so the counts are the measured ones. Returns {"weeks",
+    "golden_weeks", "top_weeks", "last_golden_end", "last_top_end"}
+    with the ends as ISO dates (None when no completed episode of
+    that kind exists)."""
+    mayer = inputs["mayer_baked"]
+    mvrv = inputs["mvrv_baked"]
+    prices, diff, fees = inputs["prices"], inputs["diff"], inputs["fees"]
+    eff, sub = inputs["eff"], inputs["sub"]
+
+    def mvrv_z(day):
+        z = None
+        for row in mvrv:
+            if row[0] <= day:
+                z = row[1]
+            else:
+                break
+        return z
+
+    def episodes(flags):
+        eps, cur = [], None
+        for day, on in flags:
+            if on:
+                if cur is None:
+                    cur = [day, day]
+                cur[1] = day
+            elif cur is not None:
+                eps.append(cur)
+                cur = None
+        if cur is not None:
+            eps.append(cur)
+        return eps
+
+    golden_flags, top_flags = [], []
+    for row in mayer:
+        day, mult = row[0], row[1]
+        gi = min(len(prices) - 1,
+                 max(0, (day - GRID_START) // GRID_STEP))
+        gd = GRID_START + gi * GRID_STEP
+        price = prices[gi]
+        ratio = price / cost_for(gd, diff[gi], fees[gi], eff, sub)
+        fair = 10 ** (PL_A + PL_N * math.log10(gd))
+        pos_pl = (math.log10(price) - math.log10(fair * PL_LO)) \
+            / math.log10(PL_HI / PL_LO) * 100
+        pos_cost = (ratio - 1) / (peak - 1) * 100
+        z = mvrv_z(day)
+        golden_flags.append((day, pos_pl <= 5 and pos_cost <= 5
+                             and mult <= 1.0
+                             and z is not None and z <= 0))
+        top_flags.append((day, pos_pl >= 95
+                          and ratio >= COST_TOP_RATIO
+                          and mult >= 2.4
+                          and z is not None and z >= 7))
+
+    def last_completed_end(eps, live_now):
+        if not eps:
+            return None
+        # A run that reaches the final sample while the same state
+        # is live today may still be running — not completed; the
+        # previous episode's end stands.
+        if eps[-1][1] == mayer[-1][0] and live_now:
+            if len(eps) < 2:
+                return None
+            return str(GENESIS + timedelta(days=eps[-2][1]))
+        return str(GENESIS + timedelta(days=eps[-1][1]))
+
+    return {
+        "weeks": len(mayer),
+        "golden_weeks": sum(1 for _, on in golden_flags if on),
+        "top_weeks": sum(1 for _, on in top_flags if on),
+        "last_golden_end": last_completed_end(episodes(golden_flags),
+                                              golden_now),
+        "last_top_end": last_completed_end(episodes(top_flags),
+                                           top_now),
+    }
 
 
 # ------------------------------------------------------------- share snapshot
@@ -688,6 +792,7 @@ def main():
     top = (pl_top and cost_top
            and readings["mayer"]["band"] == "red"
            and readings["mvrv"]["band"] == "red")
+    record = record_facts(inputs, peak, golden, top)
     state = {
         "golden": golden,
         "top": top,
@@ -695,14 +800,16 @@ def main():
         "price": price,
         "data": {"mvrv_day": str(GENESIS + timedelta(days=mvrv_day))},
         "readings": readings,
+        "record": record,
     }
     tmp = OUT_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(state, fh, indent=1, sort_keys=True)
         fh.write("\n")
     os.replace(tmp, OUT_PATH)
-    print("update_btc_state: golden=%s top=%s readings=%s"
-          % (golden, top, json.dumps(readings, sort_keys=True)))
+    print("update_btc_state: golden=%s top=%s readings=%s record=%s"
+          % (golden, top, json.dumps(readings, sort_keys=True),
+             json.dumps(record, sort_keys=True)))
 
     # The share snapshot rides the same run, from the same state —
     # best-effort: a drawing failure never blocks the state above.
