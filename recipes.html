@@ -316,6 +316,14 @@
         .cook-nav-chip { flex: none; min-height: 36px; background: var(--badge-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 999px; padding: 0.3rem 0.8rem; font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
         .cook-nav-chip.active { background: var(--link-color); border-color: var(--link-color); color: #fff; }
         .cook-nav-pos { flex: none; font-size: 0.82rem; font-weight: 600; color: var(--subtext-color); white-space: nowrap; }
+        /* The counter is a button (added 2026-11-18): tapping it opens
+           the jump-to-recipe list, so recipe 9 of 10 is two taps instead
+           of a long hunt along the chip row. The nav itself only shows
+           at 2+ recipes open (updateCookNav), so the button exists
+           exactly when there is somewhere to jump; at 1 open the nav
+           stays hidden, as before. */
+        button.cook-nav-pos { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 44px; padding: 0.3rem 0.7rem; background: var(--badge-bg); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-color); cursor: pointer; font-family: inherit; }
+        .cook-nav-pos-caret { font-size: 0.68rem; color: var(--subtext-color); }
         /* Cook scorecard: the cooking set's combined nutrition, anchored at
            the bottom of the cook view; toggled from the header meta row. */
         #cookScorePanel { flex: none; z-index: 5; margin: 0 12px calc(12px + env(safe-area-inset-bottom, 0px)); overflow: hidden; }
@@ -603,6 +611,18 @@
        safe-area-aware insets. */
     #cookIngPop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
     #cookIngPop[hidden] { display: none; }
+    /* Jump-to-recipe bubble: the same glass-bubble pattern as the
+       Ingredients bubble directly above — one popup system site-wide. */
+    #cookPickPop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
+    #cookPickPop[hidden] { display: none; }
+    .cook-pick-bubble { width: min(560px, 100%); max-height: min(78dvh, 720px); display: flex; flex-direction: column; overflow: hidden; }
+    .cook-pick-bubble-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem 0.35rem; font-weight: 700; font-size: 0.95rem; }
+    .cook-pick-bubble-head button { cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 999px; width: 30px; height: 30px; font-size: 1rem; line-height: 1; padding: 0; }
+    .cook-pick-list { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 0.4rem 0.6rem 0.9rem; display: flex; flex-direction: column; gap: 0.3rem; }
+    .cook-pick-item { flex: none; display: flex; align-items: baseline; gap: 0.55rem; width: 100%; min-height: 44px; padding: 0.55rem 0.7rem; text-align: left; background: var(--badge-bg); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-color); font: inherit; font-size: 0.95rem; font-weight: 600; cursor: pointer; white-space: normal; }
+    .cook-pick-num { flex: none; color: var(--subtext-color); }
+    .cook-pick-item.active { background: var(--link-color); border-color: var(--link-color); color: #fff; }
+    .cook-pick-item.active .cook-pick-num { color: rgba(255, 255, 255, 0.78); }
     .cook-ing-bubble { width: min(560px, 100%); max-height: min(78dvh, 720px); display: flex; flex-direction: column; overflow: hidden; }
     .cook-ing-bubble-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem 0.35rem; font-weight: 700; font-size: 0.95rem; }
     .cook-ing-bubble-head button { cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 999px; width: 30px; height: 30px; font-size: 1rem; line-height: 1; padding: 0; }
@@ -9083,7 +9103,7 @@
         <div id="cookNav" hidden>
             <div class="cook-nav-row">
                 <div class="cook-nav-chips" id="cookNavChips" data-grab-scroll></div>
-                <span class="cook-nav-pos" id="cookNavPos" aria-live="polite"></span>
+                <button type="button" class="cook-nav-pos" id="cookNavPosBtn" aria-haspopup="true" aria-expanded="false" aria-controls="cookPickPop"><span id="cookNavPos" aria-live="polite"></span><span class="cook-nav-pos-caret" aria-hidden="true">▾</span></button>
             </div>
         </div>
         <div id="cookRecipes" data-grab-scroll></div>
@@ -9097,6 +9117,12 @@
             <div class="cook-ing-bubble glass-bubble" role="dialog" aria-label="Ingredients">
                 <div class="cook-ing-bubble-head"><span>Ingredients</span><button type="button" id="cookIngClose" aria-label="Close ingredients">&times;</button></div>
                 <div class="cook-ing-bubble-body" id="cookIngBody"></div>
+            </div>
+        </div>
+        <div id="cookPickPop" class="glass-scrim" hidden>
+            <div class="cook-pick-bubble glass-bubble" role="dialog" aria-label="Go to recipe">
+                <div class="cook-pick-bubble-head"><span>Go to recipe</span><button type="button" id="cookPickClose" aria-label="Close recipe list">&times;</button></div>
+                <div class="cook-pick-list" id="cookPickList"></div>
             </div>
         </div>
     </div>
@@ -9297,7 +9323,7 @@
 
         /* ================= Cook mode (desktop only) ================= */
         var isDesktop = window.matchMedia('(min-width: 769px)');
-        var MAX_COOK = 3;
+        var MAX_COOK = 10;
         var selected = []; // recipe-content ids, in selection order
         var cookToggles = Array.prototype.slice.call(document.querySelectorAll('.cook-toggle'));
         var cookBar = document.getElementById('cookBar');
@@ -9312,6 +9338,7 @@
         var cookNav = document.getElementById('cookNav');
         var cookNavChips = document.getElementById('cookNavChips');
         var cookNavPos = document.getElementById('cookNavPos');
+        var cookNavPosBtn = document.getElementById('cookNavPosBtn');
         var cookScoreToggle = document.getElementById('cookScoreToggle');
         var cookScorePanel = document.getElementById('cookScorePanel');
         var cookScoreBody = document.getElementById('cookScoreBody');
@@ -9320,6 +9347,9 @@
         var cookIngPop = document.getElementById('cookIngPop');
         var cookIngBody = document.getElementById('cookIngBody');
         var cookIngClose = document.getElementById('cookIngClose');
+        var cookPickPop = document.getElementById('cookPickPop');
+        var cookPickList = document.getElementById('cookPickList');
+        var cookPickClose = document.getElementById('cookPickClose');
         var scoreOpen = false;
 
         function refreshToggle(btn) {
@@ -9353,7 +9383,7 @@
                     selected.splice(at, 1);
                     if (cookNote) cookNote.textContent = '';
                 } else if (selected.length >= MAX_COOK) {
-                    if (cookNote) cookNote.textContent = 'Cook mode holds up to 3 recipes \u2014 clear one to add another.';
+                    if (cookNote) cookNote.textContent = 'Cook mode holds up to 10 recipes \u2014 clear one to add another.';
                     return;
                 } else {
                     selected.push(id);
@@ -9453,15 +9483,63 @@
             if (navScrollRaf) return;
             navScrollRaf = requestAnimationFrame(function () { navScrollRaf = 0; syncCookNavActive(); });
         }, { passive: true });
-        if (cookNavChips) cookNavChips.addEventListener('click', function (e) {
-            var chip = e.target && e.target.closest ? e.target.closest('[data-cook-nav]') : null;
-            if (!chip || !cookRecipes) return;
-            var idx = parseInt(chip.getAttribute('data-cook-nav'), 10);
+        /* The one go-to path: chips and the jump-to-recipe list both
+           land here. The scroll listener above turns the scroll into
+           the active chip + counter update (syncCookNavActive), so a
+           pick behaves exactly like a chip tap. */
+        function cookNavGoTo(idx) {
+            if (!cookRecipes) return;
             var pane = cookRecipes.children[idx];
             if (!pane) return;
             var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             cookRecipes.scrollTo({ left: idx * (pane.offsetWidth || 0), behavior: reduce ? 'auto' : 'smooth' });
+        }
+        if (cookNavChips) cookNavChips.addEventListener('click', function (e) {
+            var chip = e.target && e.target.closest ? e.target.closest('[data-cook-nav]') : null;
+            if (!chip) return;
+            cookNavGoTo(parseInt(chip.getAttribute('data-cook-nav'), 10));
         });
+        /* Jump-to-recipe list (added 2026-11-18): the counter button
+           opens a glass bubble naming every open recipe in open order;
+           a tap goes through cookNavGoTo, the chip tap's own path. */
+        function cookNavCurrentIdx() {
+            if (!cookRecipes || !cookRecipes.children.length) return 0;
+            var w = cookRecipes.children[0].offsetWidth || 1;
+            var idx = Math.round(cookRecipes.scrollLeft / w);
+            return Math.max(0, Math.min(cookRecipes.children.length - 1, idx));
+        }
+        function openCookPick() {
+            if (!cookPickPop || !cookPickList || !cookRecipes) return;
+            var cur = cookNavCurrentIdx();
+            cookPickList.innerHTML = '';
+            Array.prototype.forEach.call(cookRecipes.children, function (pane, i) {
+                var item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'cook-pick-item' + (i === cur ? ' active' : '');
+                item.setAttribute('data-cook-pick', String(i));
+                if (i === cur) item.setAttribute('aria-current', 'true');
+                var num = document.createElement('span');
+                num.className = 'cook-pick-num';
+                num.textContent = (i + 1) + '.';
+                item.appendChild(num);
+                item.appendChild(document.createTextNode(paneName(pane)));
+                cookPickList.appendChild(item);
+            });
+            cookPickPop.hidden = false;
+            cookPickList.scrollTop = 0;
+            var active = cookPickList.children[cur];
+            if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+            if (cookNavPosBtn) cookNavPosBtn.setAttribute('aria-expanded', 'true');
+            if (cookPickClose) cookPickClose.focus();
+        }
+        function closeCookPick(refocus) {
+            if (!cookPickPop || cookPickPop.hidden) return;
+            cookPickPop.hidden = true;
+            if (cookNavPosBtn) {
+                cookNavPosBtn.setAttribute('aria-expanded', 'false');
+                if (refocus) cookNavPosBtn.focus();
+            }
+        }
         window.addEventListener('resize', function () {
             if (cookView && cookView.classList.contains('open')) updateCookNav();
         });
@@ -10139,6 +10217,7 @@
             cookView.classList.remove('cook-two');
             if (cookRecipes) cookRecipes.style.scrollSnapType = '';
             setCookScore(false);
+            closeCookPick(false);
             document.body.style.overflow = '';
             if (isDesktop.matches) { if (cookOpen) cookOpen.focus(); }
             else if (window.__jboMobileCookReturn) window.__jboMobileCookReturn();
@@ -10151,6 +10230,22 @@
         if (cookIngPop) cookIngPop.addEventListener('click', function (e) { if (e.target === cookIngPop) closeCookIng(true); });
         document.addEventListener('keydown', function (ev) {
             if (ev.key === 'Escape' && cookIngPop && !cookIngPop.hidden) { ev.stopPropagation(); closeCookIng(true); }
+        }, true);
+        if (cookNavPosBtn) cookNavPosBtn.addEventListener('click', function () {
+            if (cookPickPop && !cookPickPop.hidden) closeCookPick(false);
+            else openCookPick();
+        });
+        if (cookPickClose) cookPickClose.addEventListener('click', function () { closeCookPick(true); });
+        if (cookPickPop) cookPickPop.addEventListener('click', function (e) { if (e.target === cookPickPop) closeCookPick(true); });
+        if (cookPickList) cookPickList.addEventListener('click', function (e) {
+            var item = e.target && e.target.closest ? e.target.closest('[data-cook-pick]') : null;
+            if (!item) return;
+            var idx = parseInt(item.getAttribute('data-cook-pick'), 10);
+            closeCookPick(false);
+            cookNavGoTo(idx);
+        });
+        document.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Escape' && cookPickPop && !cookPickPop.hidden) { ev.stopPropagation(); closeCookPick(true); }
         }, true);
         function onCkIngTap(e) {
             var li = e.target && e.target.closest ? e.target.closest('li.cook-ing-tap') : null;
@@ -10546,8 +10641,8 @@
                 setTimeout(function () {
                     var now = pins();
                     if (noteEl && mq.matches) {
-                        if (before.indexOf(id) === -1 && now.indexOf(id) === -1 && now.length >= 3) {
-                            noteEl.textContent = 'Cook mode holds up to 3 recipes \u2014 clear one to add another.';
+                        if (before.indexOf(id) === -1 && now.indexOf(id) === -1 && now.length >= 10) {
+                            noteEl.textContent = 'Cook mode holds up to 10 recipes \u2014 clear one to add another.';
                         } else if (now.length) {
                             noteEl.textContent = '';
                         }
