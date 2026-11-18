@@ -92,9 +92,34 @@ async function loadFinancialData() {
     }
 }
 
+/* Golden star: the header's link to the Bitcoin indicator section,
+   revealed only while the nightly btc-state.json says all four
+   buy-time models are in their buy zones at once (the golden state)
+   and the file is fresh. The writer runs on weekdays, so freshness
+   allows 96 hours — a long weekend plus one missed run; anything
+   older, missing, malformed or future-dated leaves the star hidden.
+   Fail-safe in every direction: a wrong star can never appear. */
+function initGoldenStar() {
+    var star = document.querySelector('.golden-star');
+    if (!star || !window.fetch) return;
+    var MAX_AGE_MS = 96 * 60 * 60 * 1000;
+    fetch('btc-state.json').then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    }).then(function (s) {
+        if (!s || s.golden !== true) return;
+        var t = Date.parse(s.as_of || '');
+        if (!isFinite(t)) return;
+        var age = Date.now() - t;
+        if (age < -60 * 60 * 1000 || age > MAX_AGE_MS) return;
+        star.hidden = false;
+    }).catch(function () { /* no state file, no star */ });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     initThemeToggle();
     initNavDropdown();
+    initGoldenStar();
     initLogoIntro();
     loadFinancialData();
 });
