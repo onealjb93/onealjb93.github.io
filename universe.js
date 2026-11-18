@@ -8,9 +8,12 @@
                 Hubble-flow distances from redshift (H0 = 70) — approximate,
                 and labelled as such in the game's About note.
    Positions and distances are real. The symbols are enlarged so the eye can
-   see them (a real star at these distances is a dimensionless point), and
-   flight is faster than light — the HUD says by how much. Those are the
-   only liberties, and the game states them.
+   see them (a real star at these distances is a dimensionless point):
+   symbol sizes follow a logarithm of each object's real brightness or
+   width, squeezed until everything catalogued registers, and a star's
+   brightness is worked out from the camera's true distance to it, not
+   from the Sun. Flight is faster than light — the HUD says by how much.
+   Those are the only liberties, and the game states them.
 
    Data file: universe-data.bin (baked by build_data.py; layout documented
    there). Three.js is vendored beside this file. Nothing here loads until
@@ -46,9 +49,18 @@ export function parseUniverseData(buffer) {
     named.forEach(function (e) { if (e.k === 1) namedGalCount++; });
     var starMag = new Float32Array(starCount);
     var starCi = new Float32Array(starCount);
+    var starAbsMag = new Float32Array(starCount);
     for (var i = 0; i < starCount; i++) {
         starMag[i] = magQ[i] / 10 - 5;
         starCi[i] = ciQ[i] / 1000;
+        /* Absolute magnitude from the distance modulus — exact, from the
+           packed apparent magnitude and the packed position's length:
+           M = m - 5*log10(d_pc) + 5. The renderer needs it so a star's
+           brightness can be judged from wherever the camera is. */
+        var sx = starPos[i * 3], sy = starPos[i * 3 + 1], sz = starPos[i * 3 + 2];
+        var sd = Math.sqrt(sx * sx + sy * sy + sz * sz);
+        if (sd < 0.01) sd = 0.01;
+        starAbsMag[i] = starMag[i] - 5 * Math.log10(sd) + 5;
     }
     /* Resolve a position (parsecs, [x,y,z]) for every named entry. */
     var namedPos = new Float64Array(named.length * 3);
@@ -62,7 +74,7 @@ export function parseUniverseData(buffer) {
     });
     return {
         starCount: starCount, galCount: galCount,
-        starPos: starPos, starMag: starMag, starCi: starCi,
+        starPos: starPos, starMag: starMag, starCi: starCi, starAbsMag: starAbsMag,
         galPos: galPos, galMajor: galMajor, galDiam: galDiam,
         galAxis: galAxis, galBright: galBright, galTint: galTint,
         named: named, namedPos: namedPos, namedGalCount: namedGalCount
@@ -101,12 +113,13 @@ function fmtSpeed(pcPerSec) {
  *  Shaders                                                            *
  * ------------------------------------------------------------------ */
 var STAR_VERT = [
-    'attribute float aMag;',
+    'attribute float aAbsMag;',
     'attribute float aCi;',
     'uniform float uScaleH;',   /* (height px * 0.5 * proj[1][1]) * dpr */
     'uniform float uDpr;',
     'varying vec3 vCol;',
     'varying float vAlpha;',
+    'varying float vGlow;',
     'vec3 ciColor(float ci) {',
     '    vec3 c1 = vec3(0.61, 0.69, 1.00);',  /* -0.33 blue-white      */
     '    vec3 c2 = vec3(0.82, 0.87, 1.00);',  /*  0.00 white-blue      */
@@ -114,24 +127,37 @@ var STAR_VERT = [
     '    vec3 c4 = vec3(1.00, 0.88, 0.68);',  /*  0.65 yellow-white    */
     '    vec3 c5 = vec3(1.00, 0.72, 0.44);',  /*  1.15 orange          */
     '    vec3 c6 = vec3(1.00, 0.55, 0.30);',  /*  1.65 red-orange      */
+    '    vec3 c7 = vec3(1.00, 0.40, 0.20);',  /*  2.40 deepest red     */
     '    vec3 col = c1;',
     '    col = mix(col, c2, smoothstep(-0.33, 0.00, ci));',
     '    col = mix(col, c3, smoothstep( 0.00, 0.32, ci));',
     '    col = mix(col, c4, smoothstep( 0.32, 0.65, ci));',
     '    col = mix(col, c5, smoothstep( 0.65, 1.15, ci));',
     '    col = mix(col, c6, smoothstep( 1.15, 1.65, ci));',
+    '    col = mix(col, c7, smoothstep( 1.65, 2.40, ci));',
     '    return col;',
     '}',
     'void main() {',
     '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
-    '    float dist = max(0.0005, -mv.z);',
-    '    float bright = pow(10.0, -0.20 * (aMag - 1.0));',
-    '    float sz = 3.1 * bright * pow(16.0 / dist, 0.30);',
-    '    gl_PointSize = clamp(sz, 1.0, 30.0) * uDpr;',
+    '    float dist = max(0.0005, -mv.z);',   /* parsecs — scene units */
+    /* Apparent magnitude from the camera, by the distance modulus on
+       the star's real absolute magnitude: m = M + 5*log10(d) - 5.
+       Fly close and a dwarf blazes; fall back and only the giants hold
+       up — that is the real behaviour of light, then squeezed below. */
+    '    float mCam = aAbsMag + 5.0 * (log(dist) * 0.4342945) - 5.0;',
+    /* Size: a logarithm of real brightness. Each magnitude step shrinks
+       the symbol by a fixed gentle ratio (10^-0.11) instead of the true
+       2.512x flux step, and a 2px floor keeps every catalogued star
+       registered; the cap keeps a near giant from filling the screen. */
+    '    float sz = 9.0 * pow(10.0, -0.11 * mCam);',
+    '    gl_PointSize = clamp(sz, 2.0, 36.0) * uDpr;',
     '    vCol = ciColor(aCi);',
-    '    float a = 0.30 + 0.70 * clamp(bright, 0.0, 1.0);',
-    '    a *= clamp(pow(16.0 / dist, 0.10), 0.45, 1.0);',
-    '    vAlpha = a;',
+    /* Brightness follows the same squeezed scale, floored so the
+       faintest catalogued stars stay faint but never vanish. */
+    '    vAlpha = clamp(pow(10.0, -0.16 * (mCam - 2.0)), 0.28, 1.0);',
+    /* Glow is earned by brightness alone — only genuinely bright stars
+       (from wherever you stand) carry a wide halo. */
+    '    vGlow = clamp(pow(10.0, -0.22 * (mCam - 0.5)), 0.0, 1.0);',
     '    gl_Position = projectionMatrix * mv;',
     '}'
 ].join('\n');
@@ -139,11 +165,12 @@ var STAR_FRAG = [
     'precision mediump float;',
     'varying vec3 vCol;',
     'varying float vAlpha;',
+    'varying float vGlow;',
     'void main() {',
     '    vec2 q = gl_PointCoord - 0.5;',
     '    float d = length(q) * 2.0;',
-    '    float core = exp(-d * d * 9.0);',
-    '    float halo = exp(-d * d * 3.0) * 0.35;',
+    '    float core = exp(-d * d * 10.0);',
+    '    float halo = exp(-d * d * 2.6) * (0.16 + 0.55 * vGlow);',
     '    float a = clamp(core + halo, 0.0, 1.0) * vAlpha;',
     '    if (a < 0.004) discard;',
     '    gl_FragColor = vec4(vCol, a);',
@@ -155,17 +182,21 @@ var GAL_VERT = [
     'attribute float aAxis;',
     'attribute float aBright;',
     'attribute float aTint;',
+    'attribute float aSeed;',
     'uniform float uScaleH;',
     'uniform float uDpr;',
     'varying vec3 vCol;',
     'varying float vAlpha;',
     'varying float vAng;',
     'varying float vAxis;',
+    'varying float vTint;',
+    'varying float vSeed;',
+    'varying float vDetail;',
     'void main() {',
     '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
     '    float dist = max(1.0, -mv.z);',
-    '    float px = aDiam * uScaleH / dist;',
-    '    gl_PointSize = clamp(px, 1.5, 460.0) * uDpr;',
+    '    float px = aDiam * uScaleH / dist;',   /* true angular size */
+    '    gl_PointSize = clamp(px, 2.0, 460.0) * uDpr;',
     '    vec3 majView = (modelViewMatrix * vec4(aMajor, 0.0)).xyz;',
     '    vAng = atan(majView.y, majView.x);',
     '    vAxis = aAxis;',
@@ -173,9 +204,14 @@ var GAL_VERT = [
     '    vec3 spiral = vec3(0.84, 0.89, 1.00);',
     '    vec3 irreg = vec3(0.64, 0.76, 1.00);',
     '    vCol = aTint < 0.5 ? warm : (aTint < 1.5 ? spiral : irreg);',
+    '    vTint = aTint;',
+    '    vSeed = aSeed;',
+    /* Procedural form (arms, clumps) only resolves once the sprite is
+       big enough to carry it; far specks keep the smooth profile. */
+    '    vDetail = clamp(px / 42.0, 0.0, 1.0);',
     '    float a = aBright;',
     '    a *= smoothstep(0.10, 0.55, dist / aDiam);',  /* fade when flying through */
-    '    a *= clamp(px / 3.0, 0.25, 1.0);',           /* far specks stay faint   */
+    '    a *= clamp(px / 2.5, 0.35, 1.0);',           /* far specks stay faint   */
     '    vAlpha = a;',
     '    gl_Position = projectionMatrix * mv;',
     '}'
@@ -186,17 +222,50 @@ var GAL_FRAG = [
     'varying float vAlpha;',
     'varying float vAng;',
     'varying float vAxis;',
+    'varying float vTint;',
+    'varying float vSeed;',
+    'varying float vDetail;',
     'void main() {',
     '    vec2 q = gl_PointCoord - 0.5;',
     '    float ca = cos(vAng), sa = sin(vAng);',
-    '    vec2 r = mat2(ca, -sa, sa, ca) * q;',
-    '    r.y /= max(0.10, vAxis);',
-    '    float d = length(r) * 2.0;',
-    '    float disk = exp(-d * d * 4.5);',
-    '    float core = exp(-d * d * 22.0) * 0.9;',
-    '    float a = clamp(disk * 0.55 + core, 0.0, 1.0) * vAlpha;',
+    '    vec2 r = mat2(ca, -sa, sa, ca) * q;',   /* into the galaxy frame */
+    '    r.y /= max(0.10, vAxis);',              /* undo the tilt squeeze */
+    '    float d = length(r) * 2.0;',            /* 1.0 = catalogued edge */
+    '    float ang = atan(r.y, r.x);',
+    '    vec3 col = vCol;',
+    '    float lum;',
+    '    if (vTint < 0.5) {',
+    /* Elliptical: smooth and centrally concentrated (a de Vaucouleurs-
+       like fall), warm throughout, whiter at the heart. */
+    '        lum = exp(-pow(d, 0.65) * 3.4) * 0.75 + exp(-d * d * 20.0) * 0.85;',
+    '        col = mix(vCol, vec3(1.0, 0.96, 0.90), exp(-d * d * 14.0) * 0.55);',
+    '    } else if (vTint < 1.5) {',
+    /* Spiral: a warm core, then two logarithmic arms winding out;
+       the rim runs bluer than the heart — a rendering convention for
+       young disk stars vs old core stars, not catalogued colour. */
+    '        float armPh = 2.0 * (ang - 2.6 * log(d + 0.06) + vSeed * 6.2831);',
+    '        float arms = pow(0.5 + 0.5 * cos(armPh), 3.0);',
+    '        float diskL = exp(-d * d * 3.2) * (0.35 + 0.85 * arms * smoothstep(0.03, 0.30, d));',
+    '        float coreL = exp(-d * d * 18.0) * 1.1;',
+    '        lum = mix(exp(-d * d * 4.5) * 0.6 + coreL, diskL + coreL, vDetail);',
+    '        col = mix(vec3(1.05, 0.92, 0.74), vec3(0.72, 0.82, 1.05), smoothstep(0.05, 0.75, d));',
+    '    } else {',
+    /* Irregular: no disk, no core — a handful of bright clumps
+       scattered by the per-galaxy seed. */
+    '        float clumps = 0.0;',
+    '        for (int k = 0; k < 4; k++) {',
+    '            float fk = float(k);',
+    '            vec2 off = vec2(fract(vSeed * (7.13 + fk * 3.71)) - 0.5,',
+    '                            fract(vSeed * (3.97 + fk * 5.29)) - 0.5) * 0.45;',
+    '            float dd = length((r - off) * 2.0);',
+    '            clumps += exp(-dd * dd * (5.0 + fk * 1.7)) * (0.75 - fk * 0.13);',
+    '        }',
+    '        lum = mix(exp(-d * d * 4.5) * 0.6, clumps, vDetail);',
+    '        col = mix(vCol, vec3(0.80, 0.88, 1.05), 0.35);',
+    '    }',
+    '    float a = clamp(lum, 0.0, 1.0) * vAlpha;',
     '    if (a < 0.004) discard;',
-    '    gl_FragColor = vec4(vCol, a);',
+    '    gl_FragColor = vec4(col, a);',
     '}'
 ].join('\n');
 
@@ -311,12 +380,12 @@ export function initUniverse(stage) {
         /* stars */
         var sg = new THREE.BufferGeometry();
         sg.setAttribute('position', new THREE.BufferAttribute(data.starPos, 3));
-        sg.setAttribute('aMag', new THREE.BufferAttribute(data.starMag, 1));
+        sg.setAttribute('aAbsMag', new THREE.BufferAttribute(data.starAbsMag, 1));
         sg.setAttribute('aCi', new THREE.BufferAttribute(data.starCi, 1));
         var sm = new THREE.ShaderMaterial({
             vertexShader: STAR_VERT, fragmentShader: STAR_FRAG,
             uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 } },
-            transparent: true, depthWrite: false, blending: THREE.NormalBlending
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
         });
         starPoints = new THREE.Points(sg, sm);
         starPoints.frustumCulled = false;
@@ -332,18 +401,25 @@ export function initUniverse(stage) {
             g.setAttribute('aMajor', new THREE.BufferAttribute(data.galMajor.slice(from * 3, to * 3), 3));
             g.setAttribute('aDiam', new THREE.BufferAttribute(data.galDiam.slice(from, to), 1));
             var axis = new Float32Array(n), bright = new Float32Array(n), tint = new Float32Array(n);
+            var seed = new Float32Array(n);
             for (var i = 0; i < n; i++) {
                 axis[i] = data.galAxis[from + i] / 255;
                 bright[i] = data.galBright[from + i] / 255;
                 tint[i] = data.galTint[from + i];
+                /* Deterministic per-galaxy seed (golden-ratio hash of the
+                   catalog index) — varies spiral arm phase and irregular
+                   clump placement without inventing catalog data. */
+                var sh = (from + i + 1) * 0.61803398875;
+                seed[i] = sh - Math.floor(sh);
             }
             g.setAttribute('aAxis', new THREE.BufferAttribute(axis, 1));
             g.setAttribute('aBright', new THREE.BufferAttribute(bright, 1));
             g.setAttribute('aTint', new THREE.BufferAttribute(tint, 1));
+            g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
             var m = new THREE.ShaderMaterial({
                 vertexShader: GAL_VERT, fragmentShader: GAL_FRAG,
                 uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 } },
-                transparent: true, depthWrite: false, blending: THREE.NormalBlending
+                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
             });
             var pts = new THREE.Points(g, m);
             pts.frustumCulled = false;
@@ -354,11 +430,12 @@ export function initUniverse(stage) {
         scene.add(galNamedPoints); scene.add(galCloudPoints);
 
         /* the Sun — one extra point at the origin, run through the star
-           shader with a brilliant magnitude so it reads as a bright star
-           with a halo at any range and never engulfs the camera. */
+           shader with the Sun's real absolute magnitude (4.83), so it
+           blazes at home ranges, fades like any star as you leave, and
+           never engulfs the camera. */
         var sunG = new THREE.BufferGeometry();
         sunG.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3));
-        sunG.setAttribute('aMag', new THREE.BufferAttribute(new Float32Array([-14]), 1));
+        sunG.setAttribute('aAbsMag', new THREE.BufferAttribute(new Float32Array([4.83]), 1));
         sunG.setAttribute('aCi', new THREE.BufferAttribute(new Float32Array([0.35]), 1));
         sunPoints = new THREE.Points(sunG, sm);
         sunPoints.frustumCulled = false;
