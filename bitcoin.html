@@ -270,6 +270,11 @@
         .btc-zone-dist { font-size: 0.76rem; color: var(--text-muted, #94a3b8); white-space: nowrap; }
         .btc-zones-line { font-size: 0.92rem; margin: 8px 2px 0; }
         .btc-zones-note { font-size: 0.78rem; color: var(--text-muted, #94a3b8); margin: 3px 2px 0; }
+        .btc-zones-legend { display: flex; flex-direction: column; gap: 4px; margin: 8px 2px 0; }
+        .btc-zl-row { border-radius: 6px; padding: 5px 10px; font-size: 0.78rem; font-weight: 600; color: #111827; }
+        .btc-zl-green { background: #22c55e; }
+        .btc-zl-amber { background: #f59e0b; }
+        .btc-zl-red { background: #ef4444; }
         .btc-zones.buy { border-color: var(--accent-color); box-shadow: 0 0 0 1px var(--accent-color); }
         .btc-zones.buy .btc-zones-line { font-weight: 700; }
         @media (max-width: 480px) {
@@ -575,14 +580,19 @@
                 <button type="button" class="btc-pick-opt" data-view="mvrv" role="option" aria-selected="false">MVRV Z-Score</button>
             </div>
         </div>
-        <!-- Buy-time indicator: one dot per model, colored by one
-             uniform scale on each model's calibrated position — where
-             its reading sits in its own historical range (0-100):
-             green at the bottom (position 5 or under, below the range
+        <!-- Buy-time indicator: one dot per model. Power law and
+             cost are colored by calibrated position — where the
+             reading sits in its own historical range (0-100): green
+             at the bottom (position 5 or under, below the range
              included — the buy zone), yellow partway up (over 5 to
-             50), red high in the range (over 50). Each chart's own
-             readout code publishes its reading (window.BTC_ZONE), so
-             this row can never disagree with the charts. -->
+             50), red high in the range (over 50). Mayer and MVRV are
+             colored by the reference lines their own charts draw
+             (Mayer: at or under 1.0 green, at or over 2.4 red; MVRV:
+             at or under 0 green, at or over 7 red; between, yellow)
+             — their early spikes stretch a position range until
+             real bottoms read as partway up. Each chart's own readout
+             code publishes its reading (window.BTC_ZONE), so this row
+             can never disagree with the charts. -->
         <div class="btc-zones" id="btcZones">
             <div class="btc-zones-row" role="group" aria-label="Buy zones — tap a model to open its chart">
                 <button type="button" class="btc-zone" data-zone="powerlaw"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Power law</span><span class="btc-zone-dist" data-dist>…</span></button>
@@ -591,7 +601,12 @@
                 <button type="button" class="btc-zone" data-zone="mvrv"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">MVRV</span><span class="btc-zone-dist" data-dist>…</span></button>
             </div>
             <p class="btc-zones-line" id="btcZonesLine">Reading the four models…</p>
-            <p class="btc-zones-note">Green: at or near a model's bottom — the buy zone. Yellow: partway up — hold. Red: high above the bottom — consider trimming. A reading of the models, not a promise.</p>
+            <div class="btc-zones-legend" aria-label="What the dot colors mean">
+                <div class="btc-zl-row btc-zl-green">Buy zone — at or near a model's bottom</div>
+                <div class="btc-zl-row btc-zl-amber">Hold — partway up</div>
+                <div class="btc-zl-row btc-zl-red">Consider trimming — high above the bottom</div>
+            </div>
+            <p class="btc-zones-note">A reading of the models, not a promise.</p>
         </div>
         <div id="btc-view-anim">
             <div id="btc-view-powerlaw" class="powerlaw-card">
@@ -1890,18 +1905,14 @@
         var FIRST_CLOSE_DAY = 2389; /* Jul 20, 2015: the feed's first daily close */
         var SRC = 'Coinbase';
         var PTS = BAKED.slice();
-        /* Zone-scale anchors: the lowest and highest readings in the
-           BAKED series, fixed once here. The live daily series replaces
-           PTS when it lands; it can move the reading but never this
-           range, so a dot cannot change color just because the live
-           data arrived. A live reading past either end runs the
-           position outside 0-100, where the scale's bands already take
-           it — green below, red above. */
-        var P_MIN = Infinity, P_MAX = -Infinity;
-        for (var ai = 0; ai < BAKED.length; ai++) {
-            if (BAKED[ai][1] < P_MIN) P_MIN = BAKED[ai][1];
-            if (BAKED[ai][1] > P_MAX) P_MAX = BAKED[ai][1];
-        }
+        /* No position anchors for Mayer: its dot is judged by the
+           gauge's own reference lines — the 1.0 and 2.4 its chart
+           draws — not by where the reading sits in its historical
+           range. The December 2017 spike to 3.82 stretches that range
+           until genuine bottoms (0.89 in Nov 2026, 0.75 at the Nov 2022
+           low) read as merely partway up. Thresholds only, in the baked
+           state and the live one alike: at or under 1.0 green, at or
+           over 2.4 red, between them yellow. */
 
 
         function money(v) {
@@ -1930,7 +1941,7 @@
             set('mm-state', stateLine(last[1]));
             set('mm-hist-start', dateStr(FIRST_CLOSE_DAY));
             set('mm-line-start', dateStr(PTS[0][0]));
-            (window.BTC_ZONE = window.BTC_ZONE || {}).mayer = { dist: (last[1] - 1) * 100, pos: (last[1] - P_MIN) / (P_MAX - P_MIN) * 100, inZone: last[1] <= 1 };
+            (window.BTC_ZONE = window.BTC_ZONE || {}).mayer = { dist: (last[1] - 1) * 100, band: last[1] <= 1 ? 'green' : (last[1] >= 2.4 ? 'red' : 'yellow'), inZone: last[1] <= 1 };
             if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
         }
         renderReadout();
@@ -2417,18 +2428,12 @@
         var FIRST_DAY = 561; /* Jul 18, 2010: the feed's first daily figures */
         var SRC = 'CoinMetrics';
         var PTS = BAKED.slice();
-        /* Zone-scale anchors: the lowest and highest readings in the
-           BAKED series, fixed once here. The live daily series replaces
-           PTS when it lands; it can move the reading but never this
-           range, so a dot cannot change color just because the live
-           data arrived. A live reading past either end runs the
-           position outside 0-100, where the scale's bands already take
-           it — green below, red above. */
-        var P_MIN = Infinity, P_MAX = -Infinity;
-        for (var ai = 0; ai < BAKED.length; ai++) {
-            if (BAKED[ai][1] < P_MIN) P_MIN = BAKED[ai][1];
-            if (BAKED[ai][1] > P_MAX) P_MAX = BAKED[ai][1];
-        }
+        /* No position anchors for MVRV either: its dot is judged by
+           the gauge's own reference lines — the 0 and 7 its chart
+           draws — not by where the reading sits in its historical
+           range, whose top is an early-days spike (8.88 in Nov 2013).
+           Thresholds only, in the baked state and the live one alike:
+           at or under 0 green, at or over 7 red, between them yellow. */
 
 
         function trim2(v) { return v.toFixed(2).replace(/\.?0+$/, ''); }
@@ -2460,7 +2465,7 @@
             set('mv-state', stateLine(last[1]));
             set('mv-hist-start', dateStr(FIRST_DAY));
             set('mv-line-start', dateStr(PTS[0][0]));
-            (window.BTC_ZONE = window.BTC_ZONE || {}).mvrv = { dist: (last[2] / last[3] - 1) * 100, pos: (last[1] - P_MIN) / (P_MAX - P_MIN) * 100, inZone: last[1] <= 0 };
+            (window.BTC_ZONE = window.BTC_ZONE || {}).mvrv = { dist: (last[2] / last[3] - 1) * 100, band: last[1] <= 0 ? 'green' : (last[1] >= 7 ? 'red' : 'yellow'), inZone: last[1] <= 0 };
             if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
         }
         renderReadout();
@@ -3318,11 +3323,17 @@
         ORDER.forEach(function (k) {
             btns[k] = comp.querySelector('[data-zone="' + k + '"]');
         });
-        /* Johnny's uniform scale, applied to each model's calibrated
-           position — where its reading sits in its own historical
-           range (0-100): green at the bottom (position 5 or under,
-           below the range included), yellow partway up (over 5 to
-           50), red above that. */
+        /* Johnny's scale. Power law and cost are classified by
+           calibrated position — where the reading sits in its own
+           historical range (0-100): green at the bottom (position 5
+           or under, below the range included), yellow partway up
+           (over 5 to 50), red above that. Mayer and MVRV publish
+           their own band instead, judged by the reference lines
+           their charts draw (Mayer 1.0 / 2.4, MVRV 0 / 7): early
+           spikes stretch their ranges until real bottoms read as
+           partway up. A model that publishes a band is classified by
+           it; the Overall's range phrase averages the positions of
+           the models that still publish one. */
         function bandOf(p) {
             if (p <= 5) return 'green';
             if (p <= 50) return 'yellow';
@@ -3334,14 +3345,14 @@
         }
         function render() {
             var z = window.BTC_ZONE || {};
-            var sum = 0, posSum = 0, count = 0, ready = 0;
+            var sum = 0, posSum = 0, posCount = 0, count = 0, ready = 0;
             ORDER.forEach(function (k) {
                 var v = z[k], b = btns[k];
                 if (!v || !b) return;
                 ready++;
                 sum += v.dist;
-                posSum += v.pos;
-                var band = bandOf(v.pos);
+                if (typeof v.pos === 'number') { posSum += v.pos; posCount++; }
+                var band = v.band || bandOf(v.pos);
                 if (band === 'green') count++;
                 b.classList.remove('band-green', 'band-yellow', 'band-red');
                 b.classList.add('band-' + band);
@@ -3363,7 +3374,7 @@
                 line.textContent = 'Buy time — on average, price is under the four bottoms. That has only happened around the final bottoms: the winter of 2018–19 · Mar 2020 · Nov 2022 · Jul 2026.';
             } else {
                 comp.classList.remove('buy');
-                var avgPos = posSum / 4, where;
+                var avgPos = posCount ? posSum / posCount : 0, where;
                 if (avgPos <= 5) where = 'at the bottoms';
                 else if (avgPos <= 25) where = 'low in their ranges';
                 else if (avgPos <= 50) where = 'in the lower half of their ranges';
