@@ -621,6 +621,21 @@
     .sb-chart-box { width: 100%; }
     #sbChartCanvas { display: block; width: 100%; height: 320px; }
     @media (max-width: 640px) { #sbChartCanvas { height: 240px; } }
+    /* Scoreboard chart price overlay (2026-11-19): with one stock
+       selected, the stock's weekly price joins the chart on a right
+       axis, drawn thinner and muted under the score line. The legend
+       under the chart names both lines; the note in the same place
+       carries the one-stock rule while more than one stock is
+       selected. The Price toggle sits in the actions row and keeps
+       the pressed treatment the selection chips use, so its state
+       reads at a glance. */
+    #sbChartLegend { display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--subtext-color); }
+    #sbChartLegend[hidden] { display: none; }
+    .sb-legend-item { display: inline-flex; align-items: center; gap: 0.45rem; }
+    .sb-legend-line { display: inline-block; width: 22px; height: 0; border-top: 3px solid var(--subtext-color); border-radius: 2px; }
+    .sb-legend-line.price { border-top-width: 2px; opacity: 0.75; }
+    #sbChartNote { font-size: 0.85rem; color: var(--subtext-color); margin: 0.5rem 0 0; }
+    #sbPriceToggle[aria-pressed="true"] { border-color: var(--accent-color); background: var(--badge-bg); background: color-mix(in srgb, var(--accent-color) 14%, var(--badge-bg)); }
     /* Scoreboard chart selection (2026-11-19): selection used to
        live only in aria-pressed — no rule keyed on it, so a selected
        chip was pixel-identical to an unselected one, and the swatch
@@ -1178,7 +1193,10 @@
         <div id="scoreboardChartWrap" hidden>
             <p id="sbChartStatus" style="font-size: 0.85rem; color: var(--subtext-color);" hidden></p>
             <div class="sb-chart-box"><canvas id="sbChartCanvas" role="img" aria-label="Line chart: each stock's combined score, week by week"></canvas></div>
+            <div id="sbChartLegend" hidden></div>
+            <p id="sbChartNote" hidden></p>
             <div class="chip-row" id="sbChartActions" role="group" aria-label="Select stocks" style="margin-top: 0.6rem;">
+                <button type="button" class="filter-pill" id="sbPriceToggle" aria-pressed="true" hidden>Price</button>
                 <button type="button" class="filter-pill" id="sbChartAll">All</button>
                 <button type="button" class="filter-pill" id="sbChartClear">Clear</button>
             </div>
@@ -6769,6 +6787,53 @@ if (typeof module !== "undefined") {
         var chipsEl = document.getElementById("sbChartChips");
         var actionsEl = document.getElementById("sbChartActions");
         var canvas = document.getElementById("sbChartCanvas");
+        // Price overlay (2026-11-19): with exactly one stock
+        // selected, that stock's weekly closes — from
+        // finance-chart-data.json, the price chart's own weekly
+        // file, fetched lazily the first time the overlay is wanted
+        // — are drawn on a right axis under the score line. The
+        // Price toggle in the actions row turns the overlay off and
+        // on; the choice is remembered like the page's other view
+        // states. A failed fetch simply leaves the score line alone.
+        var legendEl = document.getElementById("sbChartLegend");
+        var noteEl = document.getElementById("sbChartNote");
+        var priceToggleEl = document.getElementById("sbPriceToggle");
+        var PRICE_KEY = "jbo-scoreboard-price-v1";
+        var priceOn = true;
+        try { if (window.localStorage.getItem(PRICE_KEY) === "0") priceOn = false; } catch (e) { /* storage unavailable */ }
+        var sbPriceData = null, sbPriceStarted = false;
+        function ensurePriceData() {
+            if (sbPriceData || sbPriceStarted) return;
+            sbPriceStarted = true;
+            fetch("finance-chart-data.json")
+                .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+                .then(function (d) {
+                    var out = {};
+                    var ser = (d && d.series) || {};
+                    Object.keys(ser).forEach(function (k) {
+                        var bars = ser[k] && ser[k].bars;
+                        if (Array.isArray(bars)) out[k] = bars.map(function (b) { return [b[0], b[4]]; });
+                    });
+                    sbPriceData = out;
+                    requestDraw();
+                })
+                .catch(function () { /* no overlay; the score line stands */ });
+        }
+        function priceBarsFor(t) {
+            var bars = sbPriceData ? sbPriceData[t] : null;
+            return Array.isArray(bars) ? bars : null;
+        }
+        function fmtPrice(v) {
+            if (v >= 1000) return "$" + Math.round(v).toLocaleString("en-US");
+            if (v >= 100) return "$" + Math.round(v);
+            if (v >= 10) return "$" + (Math.round(v * 10) / 10);
+            return "$" + v.toFixed(2);
+        }
+        if (priceToggleEl) priceToggleEl.addEventListener("click", function () {
+            priceOn = !priceOn;
+            try { window.localStorage.setItem(PRICE_KEY, priceOn ? "1" : "0"); } catch (e) { /* storage unavailable */ }
+            draw();
+        });
         if (!toggleEl || !tableWrap || !chartWrap || !canvas) return;
         chartWrap.removeAttribute("hidden");
         chartWrap.style.display = "none";
@@ -6938,6 +7003,11 @@ if (typeof module !== "undefined") {
             canvas.parentElement.style.display = msg ? "none" : "";
             if (chipsEl) chipsEl.style.display = msg ? "none" : "";
             if (actionsEl) actionsEl.style.display = msg ? "none" : "";
+            if (msg) {
+                if (legendEl) legendEl.hidden = true;
+                if (noteEl) noteEl.hidden = true;
+                if (priceToggleEl) priceToggleEl.hidden = true;
+            }
         }
         function draw() {
             if (view !== "chart") return;
@@ -6954,6 +7024,9 @@ if (typeof module !== "undefined") {
                 canvas.parentElement.style.display = "none";
                 if (chipsEl) chipsEl.style.display = "";
                 if (actionsEl) actionsEl.style.display = "";
+                if (legendEl) legendEl.hidden = true;
+                if (noteEl) noteEl.hidden = true;
+                if (priceToggleEl) priceToggleEl.hidden = true;
                 refreshChipLabels();
                 return;
             }
@@ -6970,8 +7043,31 @@ if (typeof module !== "undefined") {
             var cs = window.getComputedStyle(document.documentElement);
             var gridC = (cs.getPropertyValue("--border-color") || "").trim() || "#888";
             var subC = (cs.getPropertyValue("--subtext-color") || "").trim() || "#888";
-            var plotW = wCss - 44, plotH = hCss - 30;
-            var Y = function (v) { return 8 + (1 - v / 100) * plotH; };
+            // The overlay's layout: with the price line on, the score
+            // percentages move to a left axis and the price takes the
+            // right, with a title row above the plot for the axis's
+            // name. Without it the geometry is the chart's own.
+            var singleTicker = selectedCount() === 1 ? Object.keys(selected)[0] : null;
+            var priceBars = (singleTicker && priceOn) ? priceBarsFor(singleTicker) : null;
+            if (singleTicker && priceOn && !priceBars) ensurePriceData();
+            var overlayOn = !!(priceBars && priceBars.length);
+            var leftPad = overlayOn ? 34 : 6, topPad = overlayOn ? 22 : 8;
+            var plotW = wCss - leftPad - (overlayOn ? 58 : 38), plotH = hCss - topPad - 22;
+            var Y = function (v) { return topPad + (1 - v / 100) * plotH; };
+            if (priceToggleEl) {
+                priceToggleEl.hidden = !singleTicker;
+                var wantPressed = priceOn ? "true" : "false";
+                if (priceToggleEl.getAttribute("aria-pressed") !== wantPressed) priceToggleEl.setAttribute("aria-pressed", wantPressed);
+            }
+            if (noteEl) {
+                var showNote = !singleTicker && selectedCount() > 1;
+                noteEl.hidden = !showNote;
+                if (showNote) noteEl.textContent = "The price line shows when one stock is selected.";
+            }
+            var wantAria = overlayOn
+                ? "Line chart: " + singleTicker + "’s combined score, week by week, with " + singleTicker + "’s price on the right axis"
+                : "Line chart: each stock's combined score, week by week";
+            if (canvas.getAttribute("aria-label") !== wantAria) canvas.setAttribute("aria-label", wantAria);
             // the shared date range: every stock's own points placed
             // by date, so a young stock's line starts where it should
             var allSeries = {};
@@ -6985,14 +7081,44 @@ if (typeof module !== "undefined") {
                 }
             });
             if (!isFinite(minMs) || maxMs <= minMs) return;
-            var X = function (ms) { return 6 + ((ms - minMs) / (maxMs - minMs)) * plotW; };
+            var X = function (ms) { return leftPad + ((ms - minMs) / (maxMs - minMs)) * plotW; };
             ctx.font = "11px system-ui, sans-serif";
             for (var g = 0; g <= 4; g++) {
                 var gv = g * 25, gy = Y(gv);
                 ctx.strokeStyle = gridC;
-                ctx.beginPath(); ctx.moveTo(6, gy); ctx.lineTo(6 + plotW, gy); ctx.stroke();
-                ctx.fillStyle = subC; ctx.textAlign = "left";
-                ctx.fillText(gv + "%", 10 + plotW, gy + 3);
+                ctx.beginPath(); ctx.moveTo(leftPad, gy); ctx.lineTo(leftPad + plotW, gy); ctx.stroke();
+                ctx.fillStyle = subC;
+                if (overlayOn) { ctx.textAlign = "right"; ctx.fillText(gv + "%", leftPad - 5, gy + 3); }
+                else { ctx.textAlign = "left"; ctx.fillText(gv + "%", leftPad + plotW + 4, gy + 3); }
+            }
+            // The price axis: the stock's actual closes over the
+            // drawn window, padded a little so the line never touches
+            // the plot's edge, with a tick at each gridline and the
+            // axis's name — the ticker and "price" — above it.
+            var pY = null, pLo = 0, pHi = 0;
+            if (overlayOn) {
+                var lo = Infinity, hi = -Infinity;
+                priceBars.forEach(function (b) {
+                    var bms = Date.parse(b[0]);
+                    if (bms < minMs || bms > maxMs) return;
+                    if (b[1] < lo) lo = b[1];
+                    if (b[1] > hi) hi = b[1];
+                });
+                if (isFinite(lo) && isFinite(hi)) {
+                    if (hi <= lo) hi = lo + 1;
+                    var rangePad = (hi - lo) * 0.05;
+                    pLo = Math.max(0, lo - rangePad); pHi = hi + rangePad;
+                    pY = function (v) { return topPad + (1 - (v - pLo) / (pHi - pLo)) * plotH; };
+                    ctx.font = "11px system-ui, sans-serif";
+                    ctx.fillStyle = subC; ctx.textAlign = "left";
+                    for (var g2 = 0; g2 <= 4; g2++) {
+                        var pv = pHi - (g2 / 4) * (pHi - pLo);
+                        ctx.fillText(fmtPrice(pv), leftPad + plotW + 5, Y(g2 * 25) + 3);
+                    }
+                    ctx.font = "10px system-ui, sans-serif";
+                    ctx.textAlign = "right";
+                    ctx.fillText(singleTicker + " price", wCss - 2, 13);
+                }
             }
             ctx.textAlign = "center";
             var y0 = new Date(minMs).getUTCFullYear(), y1 = new Date(maxMs).getUTCFullYear();
@@ -7025,6 +7151,57 @@ if (typeof module !== "undefined") {
                     ctx.beginPath(); ctx.arc(lastPt[0], lastPt[1], 2.6, 0, Math.PI * 2); ctx.fill();
                 }
             });
+            // The price line itself: thinner and muted, drawn after
+            // the score line so the score stays the chart's subject.
+            if (pY) {
+                ctx.save();
+                ctx.strokeStyle = subC;
+                ctx.globalAlpha = 0.8;
+                ctx.lineWidth = 1.3;
+                ctx.beginPath();
+                var pStarted = false, pLast = null;
+                priceBars.forEach(function (b) {
+                    var bms2 = Date.parse(b[0]);
+                    if (bms2 < minMs || bms2 > maxMs) return;
+                    var px = X(bms2), py = pY(b[1]);
+                    if (!pStarted) { ctx.moveTo(px, py); pStarted = true; }
+                    else ctx.lineTo(px, py);
+                    pLast = [px, py];
+                });
+                ctx.stroke();
+                if (pLast) {
+                    ctx.fillStyle = subC;
+                    ctx.beginPath(); ctx.arc(pLast[0], pLast[1], 2.2, 0, Math.PI * 2); ctx.fill();
+                }
+                ctx.restore();
+            }
+            // The legend names both lines while the overlay is drawn.
+            if (legendEl) {
+                var wantLegend = !!(overlayOn && pY);
+                legendEl.hidden = !wantLegend;
+                if (wantLegend) {
+                    var legendKey = singleTicker + "|" + (lineColors[singleTicker] || "");
+                    if (legendEl.getAttribute("data-key") !== legendKey) {
+                        legendEl.setAttribute("data-key", legendKey);
+                        legendEl.innerHTML = "";
+                        var mkItem = function (cls, color, label) {
+                            var item = document.createElement("span");
+                            item.className = "sb-legend-item";
+                            var sw = document.createElement("span");
+                            sw.className = "sb-legend-line" + cls;
+                            sw.style.borderTopColor = color;
+                            sw.setAttribute("aria-hidden", "true");
+                            var tx = document.createElement("span");
+                            tx.textContent = label;
+                            item.appendChild(sw);
+                            item.appendChild(tx);
+                            return item;
+                        };
+                        legendEl.appendChild(mkItem("", lineColors[singleTicker] || "#888", singleTicker + " combined score"));
+                        legendEl.appendChild(mkItem(" price", subC, singleTicker + " price (right axis)"));
+                    }
+                }
+            }
             ctx.lineWidth = 1;
         }
         var sbTicking = false;
