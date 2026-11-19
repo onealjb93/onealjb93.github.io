@@ -133,6 +133,21 @@
            (.powerlaw-card h3 below); it scrolls with the card — only
            the picker pins. */
         .btc-chart-title { margin-top: 0; }
+        #btcPick { display: flex; align-items: center; gap: 0.5rem; }
+        #btcPick .btc-pick-face { flex: 1 1 auto; width: auto; }
+        /* The overlay toggle joins the picker row (2026-11-19):
+           at phone widths the toggle and the dropdown cannot
+           share one line with both labels whole — the row
+           measures 508px and a 393px phone gives the card a
+           307px interior — so the row wraps: the toggle on
+           its own line directly above the dropdown, and the
+           dropdown at the full width the dropdown has today.
+           From 768px up the two share one line, the toggle at
+           the dropdown's left. */
+        @media (max-width: 767px) {
+            #btcPick { flex-wrap: wrap; }
+            #btcPick .btc-pick-face { flex-basis: 100%; }
+        }
         .btc-pick-face { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; min-height: 44px; padding: 0.3rem 0.8rem; background: color-mix(in srgb, var(--link-color) 7%, var(--bg-color)); border: 1px solid var(--link-color); border-radius: 12px; color: var(--text-color); font: inherit; font-size: 0.92rem; font-weight: 600; text-align: left; cursor: pointer; }
         .btc-pick-face:hover { background: color-mix(in srgb, var(--link-color) 13%, var(--bg-color)); }
         .btc-pick-face:focus-visible { outline: 2px solid var(--link-color); outline-offset: 1px; }
@@ -1112,58 +1127,9 @@
     <div class="btc-chart-card btc-cursor">
         <h3 class="btc-chart-title">How to understand Bitcoin's current value</h3>
         <div class="btc-card-actions">
-            <button type="button" class="btc-action-pill btc-ovl-btn" id="btcOvlBtn" aria-pressed="true" title="Turn Johnny's overlay on or off"><span class="btc-ovl-btn-text">Johnny's overlay: On</span></button>
             <button type="button" class="btc-action-pill" id="btcShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg><span>Share</span></button>
             <button type="button" class="btc-action-pill btc-fs-btn" id="btcFsBtn" aria-label="Full screen" aria-pressed="false" title="Full screen"><svg class="btc-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="btc-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="btc-fs-label">Full screen</span></button>
         </div>
-        <script>
-        /* Johnny's overlay (2026-11-19): the four charts are the four
-           models, each as its model was meant to be read; the overlay
-           is Johnny's layer on top of the four charts — the zone
-           bands, dots and markers on the charts, the buy-time
-           indicator with its state sentences and legends, and the
-           combined score. This script runs before the chart blocks
-           load: it reads the saved choice (the overlay starts on),
-           publishes the choice as window.BTC_OVERLAY for the charts'
-           draw code, and marks the page so the overlay's HTML stays
-           hidden while the overlay is off. The button above switches
-           the overlay; the choice is remembered between visits. */
-        (function () {
-            var on = true;
-            try { on = localStorage.getItem('jbo-btc-overlay') !== 'off'; } catch (e) {}
-            window.BTC_OVERLAY = on;
-            if (!on) document.documentElement.classList.add('btc-ovl-off');
-            var btn = document.getElementById('btcOvlBtn');
-            if (!btn) return;
-            function paint() {
-                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-                btn.querySelector('.btc-ovl-btn-text').textContent = "Johnny's overlay: " + (on ? 'On' : 'Off');
-            }
-            btn.addEventListener('click', function () {
-                on = !on;
-                window.BTC_OVERLAY = on;
-                document.documentElement.classList.toggle('btc-ovl-off', !on);
-                try { localStorage.setItem('jbo-btc-overlay', on ? 'on' : 'off'); } catch (e) {}
-                paint();
-                window.dispatchEvent(new Event('resize'));
-            });
-            /* The combined-score view is the overlay's own view: if
-               the overlay goes off while the score view is the
-               showing view, the chart falls back to the power law
-               view through the picker's own option — one switching
-               path. Registered after the toggle's own listener, so
-               window.BTC_OVERLAY already holds the new choice. */
-            btn.addEventListener('click', function () {
-                if (window.BTC_OVERLAY !== false) return;
-                var active = document.querySelector('.btc-pick-opt.active');
-                if (active && active.getAttribute('data-view') === 'score') {
-                    var pl = document.querySelector('#btcPickPanel [data-view="powerlaw"]');
-                    if (pl) pl.click();
-                }
-            });
-            paint();
-        })();
-        </script>
         <!-- Buy-time indicator: one traffic-light symbol per
              model above its name, driven by the model's part in
              Johnny's combined score — the overlay's average of
@@ -1214,6 +1180,7 @@
             </details>
         </div>
         <div class="btc-pick" id="btcPick">
+            <button type="button" class="btc-action-pill btc-ovl-btn" id="btcOvlBtn" aria-pressed="true" title="Turn Johnny's overlay on or off"><span class="btc-ovl-btn-text">Johnny's overlay: On</span></button>
             <button type="button" class="btc-pick-face" id="btcPickFace" aria-haspopup="listbox" aria-expanded="false" aria-controls="btcPickPanel">
                 <span class="btc-pick-main"><span class="btc-pick-label" aria-hidden="true">Select chart</span><span class="btc-pick-face-text" id="btcPickFaceText">Bitcoin power law</span></span>
                 <span class="btc-pick-chev" aria-hidden="true">&#9662;</span>
@@ -1226,6 +1193,54 @@
                 <button type="button" class="btc-pick-opt" data-view="score" role="option" aria-selected="false">Johnny's combined score</button>
             </div>
         </div>
+        <script>
+        /* Johnny's overlay (2026-11-19): the four charts are the four
+           models, each as its model was meant to be read; the overlay
+           is Johnny's layer on top of the four charts — the zone
+           bands, dots and markers on the charts, the buy-time
+           indicator with its state sentences and legends, and the
+           combined score. This script runs before the chart blocks
+           load: it reads the saved choice (the overlay starts on),
+           publishes the choice as window.BTC_OVERLAY for the charts'
+           draw code, and marks the page so the overlay's HTML stays
+           hidden while the overlay is off. The button above switches
+           the overlay; the choice is remembered between visits. */
+        (function () {
+            var on = true;
+            try { on = localStorage.getItem('jbo-btc-overlay') !== 'off'; } catch (e) {}
+            window.BTC_OVERLAY = on;
+            if (!on) document.documentElement.classList.add('btc-ovl-off');
+            var btn = document.getElementById('btcOvlBtn');
+            if (!btn) return;
+            function paint() {
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                btn.querySelector('.btc-ovl-btn-text').textContent = "Johnny's overlay: " + (on ? 'On' : 'Off');
+            }
+            btn.addEventListener('click', function () {
+                on = !on;
+                window.BTC_OVERLAY = on;
+                document.documentElement.classList.toggle('btc-ovl-off', !on);
+                try { localStorage.setItem('jbo-btc-overlay', on ? 'on' : 'off'); } catch (e) {}
+                paint();
+                window.dispatchEvent(new Event('resize'));
+            });
+            /* The combined-score view is the overlay's own view: if
+               the overlay goes off while the score view is the
+               showing view, the chart falls back to the power law
+               view through the picker's own option — one switching
+               path. Registered after the toggle's own listener, so
+               window.BTC_OVERLAY already holds the new choice. */
+            btn.addEventListener('click', function () {
+                if (window.BTC_OVERLAY !== false) return;
+                var active = document.querySelector('.btc-pick-opt.active');
+                if (active && active.getAttribute('data-view') === 'score') {
+                    var pl = document.querySelector('#btcPickPanel [data-view="powerlaw"]');
+                    if (pl) pl.click();
+                }
+            });
+            paint();
+        })();
+        </script>
         <div id="btc-view-anim">
             <div id="btc-view-powerlaw" class="powerlaw-card">
         <div class="pl-readout" id="pl-readout" aria-live="polite">
