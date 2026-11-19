@@ -562,9 +562,9 @@ def snapshot_stats(state):
                                     "below" if dev < 0 else "above"),
         "dev_note": "undervalued vs. the model" if dev < 0
                     else "stretched vs. the model",
-        "callout": ("Golden buy zone — all four models in their "
+        "callout": ("Rare buy — all four models in their "
                     "buy zones at once." if state.get("golden")
-                    else "Top zone — all four models stretched at "
+                    else "Rare sell — all four models stretched at "
                          "once." if state.get("top") else None),
     }
 
