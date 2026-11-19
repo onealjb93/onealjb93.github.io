@@ -93,8 +93,8 @@ async function loadFinancialData() {
 }
 
 /* Golden star: the header's link to the Bitcoin indicator section,
-   revealed only while the nightly btc-state.json says all four
-   buy-time models are in their buy zones at once (the golden state)
+   revealed only while the nightly btc-state.json reports the rare
+   buy — Johnny's combined score in its buy band (the golden state)
    and the file is fresh. The writer runs on weekdays, so freshness
    allows 96 hours — a long weekend plus one missed run; anything
    older, missing, malformed or future-dated leaves the star hidden.

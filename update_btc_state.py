@@ -52,16 +52,19 @@ the Mayer Multiple linearly (0.5 scores 0, 2.4 scores 100), the
 MVRV Z-Score linearly (0 scores 0, 7 scores 100) — and the score
 is the simple average of the four scalings. The buy band is a
 score of 7.79 or lower; the sell band is a score of 92.91 or
-higher; each band fired on 115 of the 5,764 days in the measured
-daily record (2.0% of days). The score's own weekly record rides
+higher; in the measured daily record the buy band fired on 115
+of the 5,764 days and the sell band on 114 (2.0% of days each,
+at one decimal). The score's own weekly record rides
 alongside under "score_record": {"weeks", "buy_weeks",
 "sell_weeks", "last_buy_end", "last_sell_end"}, counted over the
 same baked weekly series and with the same completed-episode rule
 as "record".
 
-The state also carries a "record" object — the rarity facts the
-alert emails state: {"weeks", "golden_weeks", "top_weeks",
-"last_golden_end", "last_top_end"}, counted over the page's baked
+The state also carries a "record" object — the all-four record,
+still published unchanged (the alert emails state the score's
+record, under "score_record"): {"weeks", "golden_weeks",
+"top_weeks", "last_golden_end", "last_top_end"}, counted over the
+page's baked
 weekly series (the Mayer block's BAKED sample days are the grid,
 Feb 2016 on; power law and production cost are carried from their
 4-day grid, MVRV is last-value-carried-forward from its baked rows —
