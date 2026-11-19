@@ -380,6 +380,7 @@ export function initUniverse(stage) {
     var tourBtn = $('.uv-tour-btn'), flyBtn = $('.uv-fly-btn');
     var speedInput = $('.uv-speed');
     var moreBtn = $('.uv-more-btn'), panel = $('.uv-panel');
+    var panelClose = $('.uv-panel-close');
     var searchInput = $('.uv-search'), searchGo = $('.uv-search-go'), dataList = $('.uv-datalist');
     var labelsToggle = $('.uv-labels-toggle'), cloudToggle = $('.uv-cloud-toggle');
     var mouseBtn = $('.uv-mouse-btn'), resetBtn = $('.uv-reset-btn');
@@ -405,6 +406,7 @@ export function initUniverse(stage) {
     var data = null, renderer = null, scene = null, camera = null;
     var starPoints = null, galNamedPoints = null, galCloudPoints = null, sunPoints = null;
     var glowFine = null, glowBroad = null;
+    var backdrop = null;
     var solarGroup = null, solarBodies = null;
     var sysSurf = Infinity, sysRad = 0;   /* nearest solar-body surface distance + that body's radius */
     var sysBodyPos = null;                /* nearest solar body's centre (approach governor) */
@@ -525,6 +527,119 @@ export function initUniverse(stage) {
         var pts = new THREE.Points(g, m);
         pts.frustumCulled = false;
         return pts;
+    }
+
+    /* ---------------- the all-sky backdrop ----------------
+       The glow above is positional: it lives inside the mapped
+       star ball — every catalogued star sits within 990 pc of the
+       Sun — so any flight past a few hundred parsecs leaves the
+       lit sky behind, and the frame falls back to the bare clear
+       colour. (Measured: at 3.3 kpc the frame is 80% near-black.)
+       This backdrop is the same bake in DIRECTION space: every
+       star's real light, and every galaxy's, summed into the
+       direction it is seen in from home and painted onto a sky
+       sphere that is re-centred on the camera every frame. It
+       cannot be left behind; it carries light only where the
+       catalog has light (the band across it is the Milky Way's
+       own shape, the bright knot the Virgo Cluster's direction);
+       and the true 3D field always draws in front of it. A floor,
+       not a replacement sky — kept dim so that near home the real
+       positional glow still leads. */
+    function buildBackdrop() {
+        var W = 4096, H = 2048;
+        /* sphere UV for a world direction, matched to the mesh
+           rotation below (pole onto +Z, the equatorial frame's
+           own north): u = RA/2pi + 1/2, v = 1/2 + Dec/pi. */
+        function skyXY(x, y, z, w2, h2) {
+            var r = Math.sqrt(x * x + y * y + z * z);
+            var ra = Math.atan2(y, x);
+            var dec = Math.asin(z / r);
+            return [(ra / (2 * Math.PI) + 0.5) * w2,
+                    (0.5 - dec / Math.PI) * h2];
+        }
+        /* soft round stamps on the star shader's own B-V ramp —
+           drawn with 'lighter', so overlapping light adds exactly
+           as the additive scene adds it. */
+        function stamp(r, g, b) {
+            var c = document.createElement('canvas'); c.width = c.height = 64;
+            var g2 = c.getContext('2d');
+            var grad = g2.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',1)');
+            grad.addColorStop(0.4, 'rgba(' + r + ',' + g + ',' + b + ',0.45)');
+            grad.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)');
+            g2.fillStyle = grad; g2.fillRect(0, 0, 64, 64);
+            return c;
+        }
+        var STOPS = [
+            [-0.33, stamp(128, 158, 255)], [0.00, stamp(184, 209, 255)],
+            [0.32, stamp(255, 242, 214)], [0.65, stamp(255, 214, 140)],
+            [1.15, stamp(255, 163, 77)], [1.65, stamp(255, 117, 48)],
+            [2.40, stamp(255, 84, 31)]
+        ];
+        var GAL_STAMPS = [stamp(255, 214, 163), stamp(214, 227, 255), stamp(163, 194, 255)];
+        function stampFor(ci) {
+            for (var s = 0; s < STOPS.length; s++) if (ci <= STOPS[s][0]) return STOPS[s][1];
+            return STOPS[STOPS.length - 1][1];
+        }
+        /* starlight weights: the glow bake's own log squeeze */
+        var wArr = new Float32Array(data.starCount), maxLog = 0;
+        for (var i = 0; i < data.starCount; i++) {
+            var L = Math.pow(10, -0.4 * data.starAbsMag[i]);
+            wArr[i] = Math.log10(1 + L);
+            if (wArr[i] > maxLog) maxLog = wArr[i];
+        }
+        function splatAll(ctx, w2, h2, starSize, starAlpha, galSize, galAlpha) {
+            function splat(x, y, img, size, alpha) {
+                ctx.globalAlpha = alpha;
+                ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+                if (x < size) ctx.drawImage(img, x + w2 - size / 2, y - size / 2, size, size);
+                if (x > w2 - size) ctx.drawImage(img, x - w2 - size / 2, y - size / 2, size, size);
+            }
+            for (var i = 0; i < data.starCount; i++) {
+                var w = maxLog > 0 ? wArr[i] / maxLog : 0;
+                var p = skyXY(data.starPos[i * 3], data.starPos[i * 3 + 1], data.starPos[i * 3 + 2], w2, h2);
+                splat(p[0], p[1], stampFor(data.starCi[i]),
+                      starSize * (0.3 + 0.7 * w), starAlpha * (0.15 + 0.85 * w));
+            }
+            for (var j = 0; j < data.galCount; j++) {
+                var bright = data.galBright[j] / 255;
+                var dw = Math.min(1, Math.max(0, (Math.log10(Math.max(1, data.galDiam[j])) - 3.5) / 2));
+                var q = skyXY(data.galPos[j * 3], data.galPos[j * 3 + 1], data.galPos[j * 3 + 2], w2, h2);
+                splat(q[0], q[1], GAL_STAMPS[Math.min(2, data.galTint[j])],
+                      galSize * (0.3 + 0.7 * dw), galAlpha * (0.25 + 0.75 * bright));
+            }
+        }
+        var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+        var ctx = cv.getContext('2d');
+        ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'lighter';
+        splatAll(ctx, W, H, 64, 0.30, 48, 0.22);
+        /* the broad wash is the fine bake itself, drawn back
+           scaled down and up, twice — a blur of the same light,
+           never a second, hotter source (a per-star broad pass
+           saturates: 100k stamps on a small canvas sum to white).
+           Constants calibrated offline against the catalog: the
+           finished sky reads mean ~45/255, the band ~70, the
+           poles ~17 — a floor the real field always outshines. */
+        ctx.globalAlpha = 0.30;
+        ctx.drawImage(cv, 0, 0, 256, 128, 0, 0, W, H);
+        ctx.globalAlpha = 0.22;
+        ctx.drawImage(cv, 0, 0, 512, 256, 0, 0, W, H);
+        ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+        var tex = new THREE.CanvasTexture(cv);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        var mat = new THREE.MeshBasicMaterial({
+            map: tex, side: THREE.BackSide, depthWrite: false, fog: false
+        });
+        /* a floor, not a flood: the bake is summed real light, and
+           the material dims it to ambient level so the true 3D
+           field — stars, glow, planets — always leads */
+        mat.color.setScalar(0.55);
+        var mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), mat);
+        mesh.rotation.x = Math.PI / 2;   /* the sphere's pole onto +Z */
+        mesh.renderOrder = -1;           /* first: everything else draws over it */
+        mesh.frustumCulled = false;
+        return mesh;
     }
 
     /* ---------------- the solar system ----------------
@@ -722,6 +837,12 @@ export function initUniverse(stage) {
         glowBroad = buildGlowLayer(380, 1.8, 0.050);
         glowFine = buildGlowLayer(110, 3.0, 0.060);
         scene.add(glowBroad); scene.add(glowFine);
+
+        /* the all-sky backdrop — summed catalog light in direction
+           space, on a sphere that follows the camera, so the lit
+           sky is a floor under every position and speed */
+        backdrop = buildBackdrop();
+        scene.add(backdrop);
 
         /* the solar system — textured worlds at true positions */
         buildSolarSystem();
@@ -1162,6 +1283,14 @@ export function initUniverse(stage) {
             camera.near = Math.min(camera.near, Math.max(1e-9, Math.max(sysSurf, 1e-10) * 0.4));
         }
         camera.far = Math.max(2e9, alt * 30);
+        /* the backdrop sphere rides on the camera — centred here,
+           sized just inside the far plane — so it is a floor under
+           the view, never a place flight can leave behind */
+        if (backdrop) {
+            backdrop.position.copy(camPos);
+            var bs = camera.far * 0.45;
+            backdrop.scale.set(bs, bs, bs);
+        }
         /* the Sun's point sprite hands over to its textured sphere
            once you are close enough for the sphere to be the Sun */
         if (sunPoints) sunPoints.visible = alt > 3e-6;
@@ -1273,13 +1402,21 @@ export function initUniverse(stage) {
             flyBtn.addEventListener(t, function () { thrust = false; });
         });
         speedInput.addEventListener('input', function () { setSpeedT(parseFloat(speedInput.value)); });
+        function openPanel() {
+            panel.hidden = false;
+            moreBtn.setAttribute('aria-expanded', 'true');
+            moreBtn.textContent = 'Fewer controls \u25B4';
+        }
+        function closePanel() {
+            panel.hidden = true;
+            moreBtn.setAttribute('aria-expanded', 'false');
+            moreBtn.textContent = 'More controls \u25BE';
+        }
         moreBtn.addEventListener('click', function () {
-            var open = panel.hidden;
-            panel.hidden = !open;
-            moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-            moreBtn.textContent = open ? 'Fewer controls \u25B4' : 'More controls \u25BE';
+            if (panel.hidden) openPanel(); else closePanel();
             moreBtn.blur();
         });
+        panelClose.addEventListener('click', function () { closePanel(); panelClose.blur(); });
         var searchFlown = '';
         function doSearch() {
             var name = searchInput.value.trim();
@@ -1291,6 +1428,7 @@ export function initUniverse(stage) {
                     flyTo(data.named[i]);
                     searchFlown = name.toLowerCase();
                     searchInput.blur();
+                    closePanel();
                     return;
                 }
             }
@@ -1300,6 +1438,7 @@ export function initUniverse(stage) {
                     flyToSolar(SOLAR_BODIES[j]);
                     searchFlown = name.toLowerCase();
                     searchInput.blur();
+                    closePanel();
                     return;
                 }
             }
