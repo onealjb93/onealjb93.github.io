@@ -26,6 +26,15 @@
    stars, nebulae and galaxy cores — the way bright things bloom
    to an eye; the bloom is extracted from the rendered frame
    itself, so nothing blooms that is not bright in the data.
+   Earth, alone among the planets, upgrades her own surface when
+   you fly in to meet her: NASA's Blue Marble day map, the VIIRS
+   night-lights map (city lights on the dark side, lit by the
+   same sun that lights the day side), and the Visible Earth
+   cloud composite on its own slowly-drifting sphere — all
+   public-domain NASA imagery, fetched only on a first approach
+   to the solar system and crossfaded over the plainer map, so
+   nothing about the game's start changes for anyone who never
+   flies in.
    Flight is faster than light — the HUD says by how much.
    Those are the only liberties, and the game states them.
 
@@ -618,6 +627,8 @@ export function initUniverse(stage) {
     var glowFine = null, glowBroad = null;
     var backdrop = null;
     var solarGroup = null, solarBodies = null;
+    var earthSys = null;   /* Earth texture-stack refs (set in buildSolarSystem) */
+    var earthStackState = { started: false, ready: false, blend: 0 };
     var sysSurf = Infinity, sysRad = 0;   /* nearest solar-body surface distance + that body's radius */
     var sysBodyPos = null;                /* nearest solar body's centre (approach governor) */
     var govTmp = new THREE.Vector3();
@@ -1051,6 +1062,141 @@ export function initUniverse(stage) {
         '    gl_FragColor = vec4(col, 1.0) * i * 0.9;',
         '}'
     ].join('\n');
+    /* ---------------- Earth's texture stack ----------------
+       Earth is drawn by a custom shader, not the Lambert the other
+       planets use, because she has three maps to reconcile: the
+       plain map every planet gets (planets/earth.jpg, 3840x1920),
+       and — loaded lazily on a first approach to the solar system
+       (startEarthStack, below) — NASA's Blue Marble day map, the
+       VIIRS night-lights map, and the Visible Earth cloud
+       composite (planets/earth-day.jpg / earth-night.jpg /
+       earth-clouds.jpg, 4096x2048 renditions; fetch_earth_stack.py
+       records the sources). The shader reproduces the game's
+       Lambert terms exactly — the PointLight's 5.2/pi on the day
+       side, the ambient's 0.22/pi whisper — so Earth sits in the
+       same light as her neighbours in both render paths; the
+       night lights are an emissive the sun's own direction
+       switches on across the terminator. When the stack lands,
+       uBlend crossfades the day map over ~1.6 s and fades the
+       lights and clouds in with it: the plain map is the base
+       until then, so there is no grey-ball window and no pop. */
+    var EARTH_VERT = [
+        'varying vec2 vUv;',
+        'varying vec3 vNV;',
+        'varying vec3 vVP;',
+        'void main() {',
+        '    vUv = uv;',
+        '    vNV = normalize(normalMatrix * normal);',
+        '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+        '    vVP = mv.xyz;',
+        '    gl_Position = projectionMatrix * mv;',
+        '}'
+    ].join('\n');
+    var SRGB_ENC_GLSL = [
+        'vec3 srgbEnc(vec3 c) {',
+        '    vec3 hi = 1.055 * pow(max(c, vec3(0.0)), vec3(0.41666667)) - 0.055;',
+        '    vec3 lo = c * 12.92;',
+        '    return mix(lo, hi, step(vec3(0.0031308), c));',
+        '}'
+    ].join('\n');
+    var EARTH_FRAG = [
+        'precision mediump float;',
+        'varying vec2 vUv;',
+        'varying vec3 vNV;',
+        'varying vec3 vVP;',
+        'uniform sampler2D tLow;',
+        'uniform sampler2D tDay;',
+        'uniform sampler2D tNight;',
+        'uniform float uBlend;',
+        'uniform float uHasLow;',
+        'uniform float uHasStack;',
+        'uniform vec3 uSunVP;',
+        SRGB_ENC_GLSL,
+        'void main() {',
+        '    vec3 N = normalize(vNV);',
+        '    vec3 L = normalize(uSunVP - vVP);',
+        '    float ndl = dot(N, L);',
+        /* before any map lands, the same 0x888888 grey the Lambert
+           planets show (0.2462 in linear working space) */
+        '    vec3 day = vec3(0.2462);',
+        '    if (uHasLow > 0.5) day = texture2D(tLow, vUv).rgb;',
+        '    if (uHasStack > 0.5) day = mix(day, texture2D(tDay, vUv).rgb, uBlend);',
+        '    vec3 col = day * (0.07003 + 1.6552 * clamp(ndl, 0.0, 1.0));',
+        '    if (uHasStack > 0.5) {',
+        /* city lights: an emissive the terminator switches — full
+           deep in the night, gone by mid-morning, fading in with
+           the stack's own blend so they never pop */
+        '        float nightF = (1.0 - smoothstep(-0.18, 0.10, ndl)) * uBlend;',
+        '        col += texture2D(tNight, vUv).rgb * nightF * 1.2;',
+        '    }',
+        '#if !HDR_LINEAR',
+        '    col = srgbEnc(col);',
+        '#endif',
+        '    gl_FragColor = vec4(col, 1.0);',
+        '}'
+    ].join('\n');
+    var CLOUD_FRAG = [
+        'precision mediump float;',
+        'varying vec2 vUv;',
+        'varying vec3 vNV;',
+        'varying vec3 vVP;',
+        'uniform sampler2D tCov;',
+        'uniform float uBlend;',
+        'uniform vec3 uSunVP;',
+        SRGB_ENC_GLSL,
+        'void main() {',
+        /* earth-clouds.jpg is a coverage map (alpha x gray of the
+           Visible Earth composite, baked at fetch time): coverage
+           in the red channel, data not colour — sampled raw */
+        '    float cov = texture2D(tCov, vUv).r;',
+        '    vec3 N = normalize(vNV);',
+        '    vec3 L = normalize(uSunVP - vVP);',
+        '    float ndl = dot(N, L);',
+        /* clouds take the same sunlight as the ground, a touch
+           dimmer; they thin to a whisper across the terminator
+           instead of glowing on the night side */
+        '    float light = (0.07003 + 1.6552 * clamp(ndl, 0.0, 1.0)) * 0.8;',
+        '    float dayness = clamp(ndl * 1.6 + 0.35, 0.05, 1.0);',
+        '    vec3 col = vec3(light);',
+        '#if !HDR_LINEAR',
+        '    col = srgbEnc(col);',
+        '#endif',
+        '    gl_FragColor = vec4(col, cov * uBlend * dayness * 0.96);',
+        '}'
+    ].join('\n');
+    function startEarthStack() {
+        if (!earthSys || earthStackState.started) return;
+        earthStackState.started = true;
+        var loader = new THREE.TextureLoader();
+        var maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        var settled = 0, dayOK = false;
+        function settle(ok, isDay) {
+            if (isDay) dayOK = ok;
+            settled++;
+            /* blend only on a complete, day-bearing stack: if the
+               day map failed, Earth keeps her plain map and the
+               lights and clouds stay off — a partial stack would
+               be worse than none */
+            if (settled === 3 && dayOK) {
+                earthStackState.ready = true;
+                earthSys.uniforms.uHasStack.value = 1;
+                earthSys.cloudMesh.visible = true;
+            }
+        }
+        function grab(file, srgb, isDay) {
+            var t = loader.load(new URL('./planets/' + file, import.meta.url).href,
+                function () { settle(true, isDay); },
+                undefined,
+                function () { settle(false, isDay); });
+            if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+            t.anisotropy = maxAniso;
+            return t;
+        }
+        earthSys.uniforms.tDay.value = grab('earth-day.jpg', true, true);
+        earthSys.uniforms.tNight.value = grab('earth-night.jpg', true, false);
+        earthSys.cloudUniforms.tCov.value = grab('earth-clouds.jpg', false, false);
+    }
+
     function buildSolarSystem() {
         solarGroup = new THREE.Group();
         var loader = new THREE.TextureLoader();
@@ -1070,17 +1216,56 @@ export function initUniverse(stage) {
             /* the sphere's texture pole (+Y) onto the body's true
                IAU J2000 north-pole direction */
             grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), equatorial(b.pole[0], b.pole[1]));
-            var mat = b.sun
-                ? new THREE.MeshBasicMaterial({ color: 0xffdd88 })
-                : new THREE.MeshLambertMaterial({ color: 0x888888 });
-            var tex = loader.load(new URL('./planets/' + b.tex, import.meta.url).href,
-                function () { mat.map = tex; mat.color.set(0xffffff); mat.needsUpdate = true; });
-            tex.colorSpace = THREE.SRGBColorSpace;
-            tex.anisotropy = maxAniso;
             /* QUALITY PASS: 64x48 segments (was 48x32) — the
                silhouette and the terminator stay smooth at the
                closest approaches the approach governor allows */
-            grp.add(new THREE.Mesh(new THREE.SphereGeometry(b.r, 64, 48), mat));
+            var geo = new THREE.SphereGeometry(b.r, 64, 48);
+            if (b.atmo) {
+                /* Earth: the custom shader (see EARTH_FRAG above).
+                   The sun's view-space position is one shared
+                   uniform object across both Earth materials, kept
+                   current once per frame. */
+                var sunVP = { value: new THREE.Vector3(1, 0, 0) };
+                var emat = new THREE.ShaderMaterial({
+                    vertexShader: EARTH_VERT, fragmentShader: EARTH_FRAG,
+                    uniforms: {
+                        tLow: { value: null }, tDay: { value: null }, tNight: { value: null },
+                        uBlend: { value: 0 }, uHasLow: { value: 0 }, uHasStack: { value: 0 },
+                        uSunVP: sunVP
+                    },
+                    defines: { HDR_LINEAR: fxOK ? 1 : 0 }
+                });
+                var etex = loader.load(new URL('./planets/' + b.tex, import.meta.url).href,
+                    function () { emat.uniforms.tLow.value = etex; emat.uniforms.uHasLow.value = 1; });
+                etex.colorSpace = THREE.SRGBColorSpace;
+                etex.anisotropy = maxAniso;
+                grp.add(new THREE.Mesh(geo, emat));
+                /* the cloud sphere: 1% proud of the surface, its
+                   own material, hidden until the stack lands */
+                var cmat = new THREE.ShaderMaterial({
+                    vertexShader: EARTH_VERT, fragmentShader: CLOUD_FRAG,
+                    uniforms: { tCov: { value: null }, uBlend: { value: 0 }, uSunVP: sunVP },
+                    defines: { HDR_LINEAR: fxOK ? 1 : 0 },
+                    transparent: true, depthWrite: false
+                });
+                var cloudMesh = new THREE.Mesh(new THREE.SphereGeometry(b.r * 1.01, 64, 48), cmat);
+                cloudMesh.renderOrder = 1;
+                cloudMesh.visible = false;
+                grp.add(cloudMesh);
+                earthSys = {
+                    pos: pos, uniforms: emat.uniforms, cloudUniforms: cmat.uniforms,
+                    cloudMesh: cloudMesh, sunVP: sunVP
+                };
+            } else {
+                var mat = b.sun
+                    ? new THREE.MeshBasicMaterial({ color: 0xffdd88 })
+                    : new THREE.MeshLambertMaterial({ color: 0x888888 });
+                var tex = loader.load(new URL('./planets/' + b.tex, import.meta.url).href,
+                    function () { mat.map = tex; mat.color.set(0xffffff); mat.needsUpdate = true; });
+                tex.colorSpace = THREE.SRGBColorSpace;
+                tex.anisotropy = maxAniso;
+                grp.add(new THREE.Mesh(geo, mat));
+            }
             if (b.ring) {
                 var rIn = b.r * 1.24, rOut = b.r * 2.27;   /* the real ring span, in Saturn radii */
                 var rg = new THREE.RingGeometry(rIn, rOut, 128, 1);
@@ -1102,14 +1287,18 @@ export function initUniverse(stage) {
                 grp.add(ring);
             }
             if (b.atmo) {
-                grp.add(new THREE.Mesh(
+                var atmoMesh = new THREE.Mesh(
                     new THREE.SphereGeometry(b.r * 1.22, 64, 48),
                     new THREE.ShaderMaterial({
                         vertexShader: ATMO_VERT, fragmentShader: ATMO_FRAG,
                         defines: { HDR_LINEAR: fxOK ? 1 : 0 },
                         blending: THREE.AdditiveBlending, side: THREE.BackSide,
                         transparent: true, depthWrite: false
-                    })));
+                    }));
+                /* transparent order around Earth is fixed by hand:
+                   surface (opaque) -> clouds (1) -> atmosphere (2) */
+                atmoMesh.renderOrder = 2;
+                grp.add(atmoMesh);
             }
             solarGroup.add(grp);
             solarBodies.push({ n: b.n, pos: pos, r: b.r, grp: grp });
@@ -1451,6 +1640,7 @@ export function initUniverse(stage) {
         applyView();
     }
     function flyTo(entry) {
+        if (entry.k === 2 && entry.n === 'The Sun') startEarthStack();
         var target = entryPos(entry).clone();
         var standoff;
         if (entry.k === 1) standoff = Math.max(data.galDiam[entry.i] * 1.5, 2500);
@@ -1467,6 +1657,7 @@ export function initUniverse(stage) {
         setCaption('Flying to ' + entry.n + '\u2026 grab the view to take over.');
     }
     function flyToSolar(b) {
+        startEarthStack();   /* any jump into the system starts Earth's maps loading — the 3.2 s flight is the head start */
         var target = new THREE.Vector3(b.p[0], b.p[1], b.p[2]);
         var standoff = b.r * 4.5;
         var away = camPos.clone().sub(target);
@@ -1675,6 +1866,27 @@ export function initUniverse(stage) {
         /* the Sun's point sprite hands over to its textured sphere
            once you are close enough for the sphere to be the Sun */
         if (sunPoints) sunPoints.visible = alt > 3e-6;
+        /* Earth's texture stack: the lazy trigger is a genuine
+           approach — inside the planetary region (alt < 2e-4 pc,
+           just outside Neptune's orbit; the home view starts at
+           1.7e-3 pc, so a player who never flies in never pays
+           for the maps) or closing on Earth herself — then the
+           crossfade, the clouds' slow drift (a full turn in ~10
+           minutes; one float add a frame), and the shared sun
+           position for Earth's two shaders */
+        if (earthSys) {
+            if (!earthStackState.started && (alt < 2e-4 || camPos.distanceTo(earthSys.pos) < 2e-6)) startEarthStack();
+            if (earthStackState.ready && earthStackState.blend < 1) {
+                earthStackState.blend = Math.min(1, earthStackState.blend + dt / 1.6);
+                var eb = earthStackState.blend;
+                eb = eb * eb * (3 - 2 * eb);
+                earthSys.uniforms.uBlend.value = eb;
+                earthSys.cloudUniforms.uBlend.value = eb;
+            }
+            if (earthSys.cloudMesh.visible) earthSys.cloudMesh.rotation.y += dt * 0.01;
+            camera.updateMatrixWorld();
+            earthSys.sunVP.value.set(0, 0, 0).applyMatrix4(camera.matrixWorldInverse);
+        }
         camera.updateProjectionMatrix();
         if (fxOK && fxTarget) renderWithBloom();
         else renderer.render(scene, camera);
