@@ -23,7 +23,7 @@ MVRV, market cap vs realized cap (the CoinMetrics ratio minus one).
 
 "golden" is true exactly when all four models read green at once —
 the page's own rule (power-law position <= 5, cost position <= 5,
-Mayer <= 1.0, MVRV Z <= 0). Every page's header fetches this file and
+Mayer <= 1.0, MVRV ratio <= 1.15). Every page's header fetches this file and
 shows a gold star only while it says golden and is fresh.
 
 "top" is the mirror state: true exactly when all four models read
@@ -44,7 +44,7 @@ weekly series (the Mayer block's BAKED sample days are the grid,
 Feb 2016 on; power law and production cost are carried from their
 4-day grid, MVRV is last-value-carried-forward from its baked rows —
 the rarity measurement's own grid and rules, so the published
-counts are the measured ones: 564 weeks, golden in 5, top in 2).
+counts are the measured ones: 564 weeks, golden in 6, top in 2).
 A "last_*_end" is the last sample day of the most recent COMPLETED
 episode of that kind: a run that reaches the final sample while the
 same state is live today may still be running, so that run is not
@@ -392,7 +392,7 @@ def reading_mvrv(rows):
     if last is None:
         fail("MVRV series too short")
     day, z, ratio = last
-    band = "green" if z <= 0 else ("red" if z >= 7 else "yellow")
+    band = "green" if ratio <= 1.15 else ("red" if z >= 7 else "yellow")
     # the page's zone dist: (last[2] / last[3] - 1) * 100, market cap
     # over realized cap — which is the CoinMetrics ratio itself, minus 1
     return {"z": round(z, 4), "band": band,
@@ -416,14 +416,15 @@ def record_facts(inputs, peak, golden_now, top_now):
     prices, diff, fees = inputs["prices"], inputs["diff"], inputs["fees"]
     eff, sub = inputs["eff"], inputs["sub"]
 
-    def mvrv_z(day):
-        z = None
+    def mvrv_zr(day):
+        z = ratio = None
         for row in mvrv:
             if row[0] <= day:
                 z = row[1]
+                ratio = row[2] / row[3]
             else:
                 break
-        return z
+        return z, ratio
 
     def episodes(flags):
         eps, cur = [], None
@@ -451,10 +452,11 @@ def record_facts(inputs, peak, golden_now, top_now):
         pos_pl = (math.log10(price) - math.log10(fair * PL_LO)) \
             / math.log10(PL_HI / PL_LO) * 100
         pos_cost = (ratio - 1) / (peak - 1) * 100
-        z = mvrv_z(day)
+        z, mvrv_ratio = mvrv_zr(day)
         golden_flags.append((day, pos_pl <= 5 and pos_cost <= 5
                              and mult <= 1.0
-                             and z is not None and z <= 0))
+                             and mvrv_ratio is not None
+                             and mvrv_ratio <= 1.15))
         top_flags.append((day, pos_pl >= 95
                           and ratio >= COST_TOP_RATIO
                           and mult >= 2.4
