@@ -214,9 +214,6 @@
     #chartTools[hidden] { display: none; }
     #chartToolsBtn .chart-tools-chev { display: inline-block; font-size: 0.72em; margin-left: 0.35rem; transition: transform var(--dur-1) var(--ease-out); }
     #chartToolsBtn[aria-expanded="true"] .chart-tools-chev { transform: rotate(90deg); }
-    .grades-key-chip[aria-pressed="false"] { opacity: 0.45; }
-    .grades-key-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
-    .grades-explainer { font-size: 0.85rem; color: var(--subtext-color); margin: 0.5rem 0 0; }
     /* Verdict chip (2026-11-16): the picked stock's scoreboard
        tally beside the picker — a door to its score popover. It
        wears the pill grammar but toggles nothing. */
@@ -332,9 +329,18 @@
        screen with no scrolling; the intro paragraph below the
        stage stays behind — it explains the chart, it is not part
        of using it. Safe-area padding keeps the controls off the
-       notch and the home bar. The data note returns to the flow
-       here (the short-screen rule tucks it under the stage, where
-       this mode's hidden overflow would clip it away entirely). */
+       notch and the home bar.
+       Chart refinement (Johnny, 2026-11-18): in this mode the
+       GRAPH fills the screen — the supporting context steps
+       aside. The front-door line, the chart key, the history
+       note, the data note and the verdict chip are hidden; what
+       stays is the chart's own operating surface — the title row
+       with Share and the labelled Exit, the quick picks, the
+       stock picker and the Chart tools fold (the ranges, the
+       style, Weekly/Daily, the pane toggles). The canvas redraws
+       at the stage's true size on entry (the mode change fires
+       the resize the chart listens to), so the graph is sharp at
+       the size it is shown. */
     .chart-section .section-title { display: flex; align-items: center; gap: 0.5rem; }
     .chart-section .section-toggle { flex: 1 1 auto; width: auto; min-width: 0; }
     .chart-section .filter-pill.chart-fs-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; padding-left: 10px; padding-right: 10px; flex: none; }
@@ -354,7 +360,11 @@
     #chart:fullscreen > .chart-intro, #chart:-webkit-full-screen > .chart-intro, #chart.chart-fs > .chart-intro { display: none; }
     #chart:fullscreen > #chart-body, #chart:-webkit-full-screen > #chart-body, #chart.chart-fs > #chart-body { flex: 1 1 auto; height: auto; min-height: 0; }
     #chart:fullscreen .jbo-chart-frame canvas, #chart:-webkit-full-screen .jbo-chart-frame canvas, #chart.chart-fs .jbo-chart-frame canvas { touch-action: pan-y; }
-    #chart:fullscreen .jbo-chart-datanote, #chart:-webkit-full-screen .jbo-chart-datanote, #chart.chart-fs .jbo-chart-datanote { position: static; }
+    #chart:fullscreen > .chart-front-door, #chart:-webkit-full-screen > .chart-front-door, #chart.chart-fs > .chart-front-door { display: none; }
+    #chart:fullscreen #chartKey, #chart:-webkit-full-screen #chartKey, #chart.chart-fs #chartKey,
+    #chart:fullscreen #jboChartNote, #chart:-webkit-full-screen #jboChartNote, #chart.chart-fs #jboChartNote,
+    #chart:fullscreen .jbo-chart-datanote, #chart:-webkit-full-screen .jbo-chart-datanote, #chart.chart-fs .jbo-chart-datanote,
+    #chart:fullscreen #chartVerdictChip, #chart:-webkit-full-screen #chartVerdictChip, #chart.chart-fs #chartVerdictChip { display: none; }
     /* Stack runner (2026-11-16): the screener's working layer — pick a
        stock, see each checkable line of the Stack graded on its numbers. */
     .stack-runner { margin: 1.25rem 0 0.5rem; }
@@ -407,6 +417,14 @@
     #runnerResults tr.runner-row-fail td:first-child { box-shadow: inset 5px 0 0 var(--fail-text), 1px 0 0 var(--border-color); }
     #runnerResults tr.runner-group-fails td { color: var(--fail-text); font-weight: 700; }
     #runnerResults tr.runner-group-passes td { color: var(--pass-text); font-weight: 700; }
+    /* Multi-part cells (2026-11-18): a cell that carries more than
+       one part — a value and its ranking, the decade tests and
+       their notes — sets each part on its own line with real
+       spacing between the parts, one treatment across every row
+       of the table, instead of packing the parts into one breath
+       with a dash or a middot. Single-part cells stay plain. */
+    #runnerResults td .cell-part { display: block; }
+    #runnerResults td .cell-part + .cell-part { margin-top: 0.45rem; }
     .runner-verdict .rv-pass { color: var(--pass-text); }
     .runner-verdict .rv-fail { color: var(--fail-text); }
     .runner-verdict .rv-na { color: var(--subtext-color); }
@@ -423,14 +441,14 @@
        layout and wraps the cells, the stronger form of the phone
        band's wrap above: the table is exactly its container's width
        and rows grow taller instead of scrolling sideways. Shares —
-       Check 30%, the stock's values 33%, the bar 19%, Result 18%:
+       Check 30%, the bar 19%, the stock's values 33%, Result 18%:
        Result keeps ~190px so the verdict chips, which never wrap,
        always fit on one line. */
     @media (min-width: 769px) {
         #runnerResults .spreadsheet-container table { table-layout: fixed; width: 100%; }
         #runnerResults .spreadsheet-container thead th:nth-child(1) { width: 30%; }
-        #runnerResults .spreadsheet-container thead th:nth-child(2) { width: 33%; }
-        #runnerResults .spreadsheet-container thead th:nth-child(3) { width: 19%; }
+        #runnerResults .spreadsheet-container thead th:nth-child(2) { width: 19%; }
+        #runnerResults .spreadsheet-container thead th:nth-child(3) { width: 33%; }
         #runnerResults .spreadsheet-container thead th:nth-child(4) { width: 18%; }
         #runnerResults .spreadsheet-container th, #runnerResults .spreadsheet-container td { white-space: normal; }
     }
@@ -526,10 +544,33 @@
     .sb-chart-box { width: 100%; }
     #sbChartCanvas { display: block; width: 100%; height: 320px; }
     @media (max-width: 640px) { #sbChartCanvas { height: 240px; } }
-    /* Add a stock (2026-11-18): the scoreboard's add block, the
-       added-stocks list under it, and the pending chips in the
-       chart view (a stock added before its first grades). */
-    .sb-add { margin: 0.9rem 0 0.1rem; }
+    /* Add a stock (2026-11-18): the picker lives in the
+       scoreboard's one control row, between Sort and the Table |
+       Chart toggle, so both views are served by the same row and
+       the stock is picked straight at the top of the chart.
+       (It began as a tall standalone block above the row —
+       heading, stacked dropdown and button, a standing
+       explanation paragraph and an empty gap; Johnny cut it:
+       the explanation's facts moved into the confirm line that
+       appears at the moment of adding.) The confirm line, the
+       added-stocks list and the pending chips render directly
+       under the row, only when they have something to say. */
+    #scoreboardView { margin: 0 0 0 auto; }
+    .sb-add { display: flex; align-items: flex-end; gap: 0.5rem; flex: 1 1 auto; min-width: 0; }
+    .sb-add[hidden] { display: none; }
+    .sb-add .selector-group { flex: 1 1 220px; max-width: 340px; min-width: 0; }
+    #sbAddConfirm { margin: 0.6rem 0 0; }
+    #sbAddedChips { margin: 0.6rem 0 0; }
+    #sbAddedChips:empty { display: none; }
+    @media (max-width: 640px) {
+        /* Phone: the toggle leads the row (it names the views the
+           row serves), Sort shares its line, and the picker takes
+           a line of its own — two lines, never three. */
+        #scoreboardView { order: -1; margin: 0; }
+        #scoreboardSortGroup { min-width: 0; }
+        #sbAddBlock { flex: 1 1 100%; }
+        .sb-add .selector-group { max-width: none; }
+    }
     .sb-added-item { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; margin-top: 0.4rem; font-size: 0.9rem; }
     .sb-added-item .sb-added-state { color: var(--subtext-color); font-size: 0.85rem; }
     .sb-remove-btn { font-size: 0.8rem; padding: 0.28rem 0.7rem; }
@@ -815,7 +856,7 @@
 
     <!-- Start here: what this page does -->
     <div class="hub-grid" aria-label="Start here">
-        <a class="hub-card" href="#scoreboard"><strong>Score a stock</strong><span>How 19 stocks score across 10 investor frameworks</span></a>
+        <a class="hub-card" href="#scoreboard"><strong>Score a stock</strong><span>How 19 stocks score across 18 investor frameworks</span></a>
         <a class="hub-card" href="#screener"><strong>Drill down on a stock</strong><span>Run the Stack, step by step</span></a>
         <a class="hub-card" href="#committee"><strong>Meet the committee</strong><span>The 18 investors behind the frameworks</span></a>
         <a class="hub-card" href="#backtest"><strong>Backtest a portfolio</strong><span>Test a mix over 5 years</span></a>
@@ -863,10 +904,6 @@
             </div>
             <button type="button" class="filter-pill chart-verdict-chip" id="chartVerdictChip" hidden></button>
             <button type="button" class="filter-pill" id="chartToolsBtn" aria-expanded="false" aria-controls="chartTools">Chart tools<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
-            <div class="chip-row" id="chartKind" role="group" aria-label="Chart kind">
-                <button type="button" class="filter-pill active" data-kind="price">Price</button>
-                <button type="button" class="filter-pill" data-kind="grades">Grades</button>
-            </div>
             <div id="chartTools" hidden>
             <div class="chip-row" id="chartRanges" role="group" aria-label="Chart range">
                 <button type="button" class="filter-pill" data-range="1Y">1Y</button>
@@ -904,11 +941,6 @@
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span id="keyVolma"><strong>Grey &mdash; the 20-week volume average</strong>. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
         </div>
         </details>
-        <details class="chart-key" id="chartKeyGrades" open hidden>
-            <summary><span class="chart-key-chev" aria-hidden="true">&#9654;</span> Grades key</summary>
-            <div class="chip-row" id="gradesKeyList"></div>
-            <p class="grades-explainer">Each line is one investor&rsquo;s grade for this stock that week &mdash; the share of their checkable rules it passed, from only what was knowable then: filings count from the day they were filed, prices are that week&rsquo;s close. The readout always shows how many rules were tested; a dashed stretch means fewer than half of that investor&rsquo;s rules could be. The ten judgment investors can&rsquo;t be re-graded into the past &mdash; their lines start at their November 2026 grading and grow from there. Past grades are not a prediction.</p>
-        </details>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         </div>
         <p class="chart-intro">Tap a pick above, or choose from my 19 stocks and the Nasdaq-100 in the box above. The chart is drawn from this page&rsquo;s own weekly and daily data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-week moving average, the 50-week moving average for the trend, and the weekly RSI &mdash; in the Daily view, the same three by the day: the 200-day average, the 50-day average, and the daily RSI. A stock with under four years of trading history has no 200-week line yet; the note under the chart says so when that is the case.</p>
@@ -925,36 +957,21 @@
     (function () {
         "use strict";
         var details = document.getElementById("chartKey");
-        var gradesDetails = document.getElementById("chartKeyGrades");
         var frame = document.getElementById("jboChartFrame");
         var body = document.getElementById("chart-body");
         if (!details || !frame || !body) return;
-        // The Grades view carries its own key (the chart's other
-        // key, hidden then): the same floor rule guards whichever
-        // key is showing, so the taller grades key can never
-        // squeeze the canvas away on a short screen either. The
-        // fit bookkeeping is per key — each key's toggle is judged
-        // against its own last fit state, never the other key's.
-        var userToggled = { price: false, grades: false };
-        var fitStates = { price: true, grades: true };
-        function watchKey(el, slot) {
-            if (!el) return;
-            el.addEventListener("toggle", function () {
-                if (el.open !== fitStates[slot]) userToggled[slot] = true;
-            });
-        }
-        watchKey(details, "price");
-        watchKey(gradesDetails, "grades");
+        var userToggled = false;
+        var fitState = true;
+        details.addEventListener("toggle", function () {
+            if (details.open !== fitState) userToggled = true;
+        });
         function fit() {
             if (body.hidden) return;
             if (!body.clientHeight || body.clientHeight < 100) return; // not laid out (or a test DOM)
-            var useGrades = !!(gradesDetails && !gradesDetails.hidden);
-            var active = useGrades ? gradesDetails : details;
-            var slot = useGrades ? "grades" : "price";
-            if (userToggled[slot]) return;
-            if (!active.open) active.open = true; // measure the open cost; no paint happens mid-task
-            fitStates[slot] = frame.clientHeight >= 300;
-            active.open = fitStates[slot];
+            if (userToggled) return;
+            if (!details.open) details.open = true; // measure the open cost; no paint happens mid-task
+            fitState = frame.clientHeight >= 300;
+            details.open = fitState;
         }
         var timer = null;
         function fitSoon() { clearTimeout(timer); timer = setTimeout(fit, 150); }
@@ -1016,19 +1033,7 @@
         <p style="font-size: 0.85rem; color: var(--subtext-color);">Tap an investor&rsquo;s name above to add or drop their rules. Tap any result to see why.</p>
         <p style="font-size: 0.85rem; color: var(--subtext-color);"><span style="color: var(--pass-text);">&#10003;</span> Pass &middot; <span style="color: var(--fail-text);">&#10007;</span> Fail &middot; &mdash; Couldn&rsquo;t be tested &middot; dashed outline = a judgment grade, not measured by a formula</p>
         <p id="scoreboardNotScoredNote" style="font-size: 0.85rem; color: var(--subtext-color);">All eighteen investors are graded &mdash; eight by formula, and ten by judgment against five questions from each investor&rsquo;s own published work (their markers carry a dashed outline).</p>
-        <div class="sb-add" id="sbAddBlock" hidden>
-            <div class="chip-row" style="align-items: flex-end;">
-                <div class="selector-group" style="max-width: 340px; flex: 1 1 240px;">
-                    <label for="sbAddSelect">Add a stock</label>
-                    <select id="sbAddSelect"><option value="">Choose a Nasdaq-100 stock&hellip;</option></select>
-                </div>
-                <button type="button" class="filter-pill" id="sbAddBtn">Add to the scoreboard</button>
-            </div>
-            <p style="font-size: 0.85rem; color: var(--subtext-color);">Adding opens a prefilled request on GitHub &mdash; tap Submit on the page that opens, and grading starts with tonight&rsquo;s run. Until the first grades are in, the stock shows as added, with no score invented for it.</p>
-            <p id="sbAddConfirm" style="font-size: 0.85rem;" hidden></p>
-            <div id="sbAddedList"></div>
-        </div>
-        <div class="chip-row">
+        <div class="chip-row" style="align-items: flex-end;">
             <div class="selector-group" id="scoreboardSortGroup" style="max-width: 280px;">
                 <label for="scoreboardSort">Sort</label>
                 <select id="scoreboardSort">
@@ -1037,11 +1042,21 @@
                     <option value="name">Name A&ndash;Z</option>
                 </select>
             </div>
-            <div class="chip-row" id="scoreboardView" role="group" aria-label="Scoreboard view" style="margin: 0 0 0 auto;">
+            <div class="sb-add" id="sbAddBlock" hidden>
+                <div class="selector-group">
+                    <label for="sbAddSelect">Add a stock</label>
+                    <select id="sbAddSelect"><option value="">Choose a Nasdaq-100 stock&hellip;</option></select>
+                </div>
+                <button type="button" class="filter-pill" id="sbAddBtn">Add to the scoreboard</button>
+            </div>
+            <div class="chip-row" id="scoreboardView" role="group" aria-label="Scoreboard view">
                 <button type="button" class="filter-pill active" data-sbview="table">Table</button>
                 <button type="button" class="filter-pill" data-sbview="chart">Chart</button>
             </div>
         </div>
+        <p id="sbAddConfirm" style="font-size: 0.85rem;" hidden></p>
+        <div id="sbAddedList"></div>
+        <div class="chip-row" id="sbAddedChips" role="group" aria-label="Added stocks waiting for their first grades"></div>
         <div class="spreadsheet-container" id="scoreboardTableWrap">
             <table>
                 <thead>
@@ -1060,7 +1075,6 @@
                 <button type="button" class="filter-pill" id="sbChartClear">Clear</button>
             </div>
             <div class="chip-row" id="sbChartChips" role="group" aria-label="Stocks on the chart" style="margin-top: 0.4rem;"></div>
-            <div class="chip-row" id="sbAddedChips" role="group" aria-label="Added stocks waiting for their first grades" style="margin-top: 0.4rem;"></div>
             <p style="font-size: 0.85rem; color: var(--subtext-color);">Each line is one stock&rsquo;s combined score: the investors who pass the stock, out of the investors whose tests could grade the stock that week, as a percentage. Before the week of November 18, 2026, each combined score rests on the 8 investors whose methods are formulas; the 10 judgment investors join the count from that week.</p>
         </div>
         <details class="disclaimer-note">
@@ -3850,7 +3864,7 @@
         }
         function runnerRow(name, value, bar, state) {
             const cls = state === true ? 'runner-row-pass' : (state === false ? 'runner-row-fail' : 'runner-row-na');
-            return '<tr class="' + cls + '"><td>' + name + '</td><td>' + value + '</td><td>' + bar + '</td><td>' + runnerBadge(state) + '</td></tr>';
+            return '<tr class="' + cls + '"><td>' + name + '</td><td>' + bar + '</td><td>' + value + '</td><td>' + runnerBadge(state) + '</td></tr>';
         }
         function runnerStepRow(label, state) {
             const cls = state === false ? ' runner-group-fails' : (state === true ? ' runner-group-passes' : '');
@@ -3881,10 +3895,15 @@
                 if (d.t3.pass === null || d.t3.pass === undefined) seg.push('revenue grew ' + d.t3.inc + ' of ' + d.t3.pairs + ' years &mdash; too few years of revenue history to grade');
                 else seg.push('revenue grew ' + d.t3.inc + ' of ' + d.t3.pairs + ' years');
             }
-            let v = seg.join(' &middot; ');
-            if (d.note === 'predecessor') v += ' &mdash; most of this history is its predecessor, Yandex';
-            if (d.note === 'treasury') v += ' &mdash; grades the operating business; the test can&rsquo;t see its bitcoin treasury';
-            return v;
+            // Each part on its own line (the .cell-part treatment):
+            // the decade tests are separate measurements, and a
+            // note about the history is a separate thought again —
+            // none of them packed into one breath with a middot.
+            const parts = seg.slice();
+            if (d.note === 'predecessor') parts.push('most of this history is its predecessor, Yandex');
+            if (d.note === 'treasury') parts.push('grades the operating business; the test can&rsquo;t see its bitcoin treasury');
+            if (parts.length < 2) return parts.join('');
+            return parts.map(s => '<span class="cell-part">' + s + '</span>').join(' ');
         }
         function runnerChartButton(symbol, name) {
             return '<p><button type="button" class="filter-pill" data-chart-symbol="' + symbol + '">See ' + name + ' on the Chart &mdash; its 200-week line &uarr;</button></p>';
@@ -3915,7 +3934,7 @@
             add('Earnings yield (EBIT &divide; company value)', '&mdash; (needs EBIT and enterprise value &mdash; not in the data)', '8% or more', null);
             add('P/E ratio', '&mdash; (the data carries PEG and growth, not the P/E itself)', '20 or less', null);
             add('Price-to-book (P/B)', '&mdash; (book value is not in the data)', '3 or less', null);
-            add('PEG ratio', t.peg === null || t.peg === undefined ? '&mdash;' : fmtNum(t.peg, 2) + (t.peg < 0.5 ? ' &mdash; standout territory (under 0.5)' : ''), '1 or less', t.peg === null || t.peg === undefined ? null : t.peg <= 1);
+            add('PEG ratio', t.peg === null || t.peg === undefined ? '&mdash;' : (t.peg < 0.5 ? '<span class="cell-part">' + fmtNum(t.peg, 2) + '</span> <span class="cell-part">standout territory (under 0.5)</span>' : fmtNum(t.peg, 2)), '1 or less', t.peg === null || t.peg === undefined ? null : t.peg <= 1);
             // Step 1A — Quality
             add('Return on equity (ROE)', hasRoe ? fmtPct(t.roe) : missFund, '15% or more', hasRoe ? t.roe >= 15 : null);
             add('Debt vs equity', fmtNum(t.debt, 2), '0.5 or less', t.debt === null || t.debt === undefined ? null : t.debt <= 0.5);
@@ -3930,7 +3949,7 @@
             // year. A test that can't run yet makes the whole check
             // "can't check" — never a guessed grade.
             const dur = durabilityData[sym];
-            add('Proven over time', durabilityValue(dur), 'ROE 15%+ in 7 of 10 years &middot; margins never collapsed &middot; revenue up 7 of 10 years', durabilityState(dur));
+            add('Proven over time', durabilityValue(dur), '<span class="cell-part">ROE 15%+ in 7 of 10 years</span> <span class="cell-part">margins never collapsed</span> <span class="cell-part">revenue up 7 of 10 years</span>', durabilityState(dur));
             // Step 1B — Strength
             const rs = relativeStrengths();
             if (rs[sym] === undefined) {
@@ -3938,7 +3957,7 @@
             } else {
                 const ranked = Object.keys(rs).sort((a, b) => rs[b] - rs[a]);
                 const rank = ranked.indexOf(sym);
-                add('Relative strength (12 months, skipping the last month)', fmtPct(rs[sym], 1, true) + ' &mdash; ranked #' + (rank + 1) + ' of ' + ranked.length + ' on this page', 'Top fifth of this page&rsquo;s stocks', rank < ranked.length * 0.2);
+                add('Relative strength (12 months, skipping the last month)', '<span class="cell-part">' + fmtPct(rs[sym], 1, true) + '</span> <span class="cell-part">ranked #' + (rank + 1) + ' of ' + ranked.length + ' on this page</span>', 'Top fifth of this page&rsquo;s stocks', rank < ranked.length * 0.2);
             }
             return checks;
         }
@@ -3985,7 +4004,7 @@
                 group.forEach(c => { rows += runnerRow(c.name, c.value, c.bar, c.state); });
             });
             out.innerHTML = runnerVerdict(sym, checks)
-                + '<div class="spreadsheet-container"><table class="spreadsheet-table"><thead><tr><th>Check</th><th>' + t.name + ' (' + sym + ')</th><th>The bar (the Stack)</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+                + '<div class="spreadsheet-container"><table class="spreadsheet-table"><thead><tr><th>Check</th><th>The bar (the Stack)</th><th>' + t.name + ' (' + sym + ')</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
                 + '<p class="runner-notes"><strong>Step 2 &mdash; Rank what&rsquo;s left:</strong> the Scoreboard above already ranks these stocks by every rule that can be tested. The Stack&rsquo;s own ranking also uses earnings yield, return on capital and cash-flow yield &mdash; not in the data yet, so that ranking can&rsquo;t run here yet.</p>'
                 + '<p class="runner-notes"><strong>Steps 3 and 4 &mdash; research and risk rules</strong> stay a checklist (in Full details below): reading the filings and sizing positions are homework and portfolio rules, not numbers a page can grade. <strong>Step 5</strong> is the Backtest below: your picks against the index.</p>'
                 + runnerChartButton(sym, t.name);
@@ -5036,7 +5055,6 @@ if (typeof module !== "undefined") {
         // The P/E pane's median line: the P/E's own teal, same treatment.
         var PE_GUIDE_COLOR = "rgba(45, 212, 191, 0.5)";
         var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1", MODE_KEY = "jbo-chart-mode-v1";
-        var KIND_KEY = "jbo-chart-kind-v1", HIDDEN_GRADES_KEY = "jbo-chart-grades-hidden-v1", LAST_GRADED_KEY = "jbo-chart-last-graded-v1";
         var PICK_KEYS = ["SPX", "IXIC", "GOLD", "BTC"];
         var RANGE_WEEKS = { "1Y": 52, "5Y": 260, "10Y": 520, "ALL": Infinity };
         // Daily ranges: 1Y is a trading year of days; 5Y is the
@@ -5054,32 +5072,6 @@ if (typeof module !== "undefined") {
         // and the daily file only supplies the bars the chart draws.
         var dailyData = null, dailyStarted = false, dailyFailed = false;
         var mode = "weekly";
-        // ---- the Grades view (Price | Grades toggle) ----
-        // "price" is the chart as shipped. "grades" swaps the price
-        // lines for the scored investors' grade lines, from
-        // grades-history.json — a second file, fetched lazily the
-        // first time a visitor switches to Grades (or on load when
-        // Grades was the last-used kind), so the Price view never
-        // pays for it. The kind persists like the mode does.
-        var kind = "price";
-        var gradesData = null, gradesStarted = false, gradesFailed = false;
-        var gradesNote = "";
-        var gView = null; // the grades window: {entry, start, end} over the entry's weeks
-        var hiddenGrades = {};
-        // The most recently viewed of the graded 19 — where the
-        // Grades toggle lands when the chart is showing something
-        // that carries no grades (a benchmark, a Nasdaq-100 name).
-        var lastGraded = "";
-        try {
-            if (window.localStorage.getItem(KIND_KEY) === "grades") kind = "grades";
-            lastGraded = window.localStorage.getItem(LAST_GRADED_KEY) || "";
-            var hgRaw = window.localStorage.getItem(HIDDEN_GRADES_KEY);
-            if (hgRaw) JSON.parse(hgRaw).forEach(function (id) { hiddenGrades[id] = true; });
-        } catch (e) { /* storage unavailable: the defaults stand */ }
-        // One colour per scored investor, in scoreboard order —
-        // the same colour in the lines, the key chips and the
-        // readout, in both themes.
-        var GRADE_COLORS = { druckenmiller: "#f58231", buffett: "#2ca02c", tepper: "#4363d8", alden: "#911eb4", oshaughnessy: "#e6194b", baker: "#0891b2", lynch: "#b58900", graham: "#d6336c", marks: "#0e7c86", klarman: "#8c564b", dalio: "#1f77b4", thiel: "#9467bd", andreessen: "#c51b8a", simons: "#666666", ives: "#17a398", lavish: "#6a994e", sacks: "#bc4749", visser: "#5e60ce" };
         // Why the chart is showing Weekly when Daily was asked for
         // (a range Daily cannot cover, or a daily file that failed
         // to arrive) — shown at the head of the data note until the
@@ -5277,7 +5269,6 @@ if (typeof module !== "undefined") {
             }
             if (!chartData) { showTipStatus("Loading chart data…"); return; }
             if (mode === "daily" && !dailyData) { showTipStatus("Loading daily data…"); return; }
-            if (kind === "grades") { renderGrades(); return; }
             view = computeView();
             if (!view) { showTipStatus("No chart data for this instrument yet."); return; }
             rangeStart = view.start; rangeEnd = view.end;
@@ -5796,20 +5787,10 @@ if (typeof module !== "undefined") {
                 b.classList.toggle("active", on);
                 b.setAttribute("aria-pressed", on ? "true" : "false");
             });
-            syncKindUI();
         }
         function setKey(key) {
             if (!chartData || !chartData.series[key]) return;
             cur.key = key; hover = -1; zoom = null; modeNote = "";
-            noteGradedKey(key);
-            // Grades cover only the 19 scored stocks: picking
-            // anything else while in Grades returns to the price
-            // chart for it, with the reason in the data note.
-            if (kind === "grades" && gradesData && !gradesData.series[key]) {
-                kind = "price"; storeKind();
-                modeNote = "Grades cover the 19 stocks on the scoreboard — showing the price chart.";
-                syncKindUI();
-            }
             syncControls();
             if (mode === "daily") ensureDaily(); else render();
         }
@@ -5843,11 +5824,6 @@ if (typeof module !== "undefined") {
         // ---- Weekly / Daily mode ----
         function setMode(m) {
             if (m === mode) return;
-            // Grades are weekly by construction: asking for Daily
-            // from the Grades view returns to the price chart in
-            // Daily, with the reason carried into the data note.
-            var kindNote = "";
-            if (kind === "grades") { kind = "price"; storeKind(); syncKindUI(); kindNote = "Grades are weekly — showing the daily price chart."; }
             // Asking for Daily on a range it cannot cover keeps
             // Weekly and says why, in place — the same rule the
             // range buttons apply in reverse.
@@ -5856,7 +5832,7 @@ if (typeof module !== "undefined") {
                 render();
                 return;
             }
-            mode = m; hover = -1; zoom = null; modeNote = kindNote;
+            mode = m; hover = -1; zoom = null; modeNote = "";
             try { window.localStorage.setItem(MODE_KEY, mode); } catch (err) { /* storage unavailable */ }
             syncControls();
             if (mode === "daily") ensureDaily(); else render();
@@ -5889,8 +5865,9 @@ if (typeof module !== "undefined") {
         });
         // ---- full-screen view ----
         // The button at the right end of the section's title row
-        // takes the WHOLE chart block — #chart: title row, front
-        // door and stage together — full screen; the ⤢ pill in
+        // takes the WHOLE chart block — #chart — full screen (the
+        // front door, the keys and the notes step aside inside
+        // the mode, so the graph itself fills the screen); the ⤢ pill in
         // Chart tools is a second door to the same mode. Two
         // mechanisms, one mode: the Fullscreen API where the
         // browser offers element fullscreen, and where it does not
@@ -6020,7 +5997,6 @@ if (typeof module !== "undefined") {
             var ptrs = {}, gest = null, gestBlock = false, lastTap = { t: 0, x: 0, y: 0 };
             function ptrId(e) { return (e.pointerId === undefined || e.pointerId === null) ? "p" : e.pointerId; }
             function setZoomWindow(sF, eF) {
-                if (kind === "grades") return; // ranges still apply; pinch zoom is a price-view gesture
                 if (rangeEnd < rangeStart) return;
                 var rc = rangeEnd - rangeStart + 1;
                 var minC = Math.min(26, rc);
@@ -6038,7 +6014,6 @@ if (typeof module !== "undefined") {
             }
             function gestureBegin() {
                 var ids = Object.keys(ptrs);
-                if (kind === "grades") return false;
                 if (ids.length !== 2 || !view || !layout) return false;
                 var a = ptrs[ids[0]], b = ptrs[ids[1]];
                 var rect = canvas.getBoundingClientRect();
@@ -6167,394 +6142,6 @@ if (typeof module !== "undefined") {
         });
 
 
-        // ---- the Grades view ----
-        function storeKind() {
-            try { window.localStorage.setItem(KIND_KEY, kind); } catch (err) { /* storage unavailable */ }
-        }
-        // Remember a graded stock when it is viewed, so the
-        // Grades toggle can land on it later (see setKind).
-        function noteGradedKey(key) {
-            if (!key || PICK_KEYS.indexOf(key) >= 0) return;
-            if (chartData && (!chartData.series[key] || chartData.series[key].ndx)) return;
-            lastGraded = key;
-            try { window.localStorage.setItem(LAST_GRADED_KEY, key); } catch (err) { /* storage unavailable */ }
-        }
-        // Whose grades the toggle shows when the current
-        // instrument has none: the most recently viewed of the
-        // 19, else NVDA — the scoreboard's marquee name.
-        function gradesFallbackKey() {
-            if (chartData) {
-                var ks = stockKeys();
-                if (lastGraded && ks.indexOf(lastGraded) >= 0) return lastGraded;
-                return ks.indexOf("NVDA") >= 0 ? "NVDA" : (ks[0] || "NVDA");
-            }
-            return lastGraded || "NVDA";
-        }
-        function syncKindUI() {
-            var kindEl = document.getElementById("chartKind");
-            if (kindEl) kindEl.querySelectorAll("button[data-kind]").forEach(function (b) {
-                b.classList.toggle("active", b.getAttribute("data-kind") === kind);
-            });
-            // The price-only rows (line/candles, the sub-panes)
-            // step aside in Grades; ranges and Weekly/Daily stay —
-            // Daily is the documented way back to a daily price
-            // chart, ranges window the grade lines like the price.
-            var styles = document.getElementById("chartStyles");
-            if (styles) styles.style.display = kind === "grades" ? "none" : "";
-            var panes = document.getElementById("chartPanes");
-            if (panes) panes.style.display = kind === "grades" ? "none" : "";
-            var key = document.getElementById("chartKey");
-            if (key) key.hidden = kind === "grades";
-            var gkey = document.getElementById("chartKeyGrades");
-            if (gkey) gkey.hidden = kind !== "grades";
-            if (kind === "grades") {
-                var cv = document.getElementById("jboChartCanvas");
-                if (cv) cv.setAttribute("aria-label", "Weekly grades chart: one line per scored investor — the share of their tested rules this stock passed each week");
-                if (gradesData) buildGradesKey();
-            }
-        }
-        function setKind(k) {
-            if (k === kind) return;
-            if (k === "grades") {
-                // Benchmarks and Nasdaq-100 names carry no grades:
-                // the toggle still switches — to the grades of the
-                // most recently viewed of the 19 (NVDA if none) —
-                // with the picker set to that stock and the data
-                // note saying whose grades are on screen. A toggle
-                // that silently stays on Price reads as a dead
-                // button, so the switch always happens.
-                var s = chartData && chartData.series[cur.key];
-                if (!s || PICK_KEYS.indexOf(cur.key) >= 0 || s.ndx) {
-                    cur.key = gradesFallbackKey();
-                    hover = -1; zoom = null;
-                    modeNote = "Grades cover the 19 stocks on the scoreboard — showing " + cur.key + ".";
-                    kind = "grades"; storeKind();
-                    syncControls();
-                    if (window.jboRefreshVerdictChip) window.jboRefreshVerdictChip();
-                    if (!gradesData) ensureGrades(); else render();
-                    return;
-                }
-                kind = "grades"; storeKind(); hover = -1; zoom = null; modeNote = "";
-                syncControls();
-                if (!gradesData) ensureGrades(); else render();
-                return;
-            }
-            kind = "price"; storeKind(); hover = -1; zoom = null; modeNote = "";
-            syncControls(); render();
-        }
-        var kindEl2 = document.getElementById("chartKind");
-        if (kindEl2) kindEl2.addEventListener("click", function (e) {
-            var btn = e.target && e.target.closest ? e.target.closest("button[data-kind]") : null;
-            if (btn) setKind(btn.getAttribute("data-kind"));
-        });
-        // ---- loading the grades file (lazy: first Grades switch) ----
-        function ensureGrades() {
-            if (gradesData) { render(); return; }
-            if (gradesStarted && !gradesFailed) { render(); return; }
-            gradesStarted = true; gradesFailed = false;
-            fetch("grades-history.json")
-                .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-                .then(function (d) {
-                    gradesData = d;
-                    buildGradesKey();
-                    if (kind === "grades") render();
-                })
-                .catch(function () {
-                    gradesFailed = true;
-                    if (kind === "grades") {
-                        // The grades file didn't arrive: fall back
-                        // to Price and say so in the data note —
-                        // never a blank or half-switched chart.
-                        kind = "price"; storeKind();
-                        modeNote = "Grades couldn’t be loaded — showing the price chart.";
-                        syncControls(); render();
-                    }
-                });
-            render(); // the loading status, while the file is on its way
-        }
-        // One investor's grade at one week of the entry: formula
-        // investors carry a dense [passed, tested] per week (null =
-        // nothing testable that week); judgment investors carry
-        // dated points the standing grade forward-fills from.
-        function gradesPointAt(entry, inv, i) {
-            var meta = gradesData.investors[inv];
-            if (!meta) return null;
-            if (meta.kind === "judgment") {
-                var pts = entry.judgment[inv];
-                if (!pts || !pts.length) return null;
-                var d = entry.weeks[i], cur2 = null;
-                for (var j = 0; j < pts.length; j++) {
-                    if (pts[j][0] <= d) cur2 = pts[j]; else break;
-                }
-                if (!cur2) return null;
-                return { share: cur2[1] / cur2[2] * 100, passed: cur2[1], tested: cur2[2] };
-            }
-            var cell = entry.formula[inv][i];
-            if (!cell) return null;
-            return { share: cell[0] / cell[1] * 100, passed: cell[0], tested: cell[1] };
-        }
-        function gradesLatest(entry, inv) {
-            var meta = gradesData.investors[inv];
-            if (meta.kind === "judgment") {
-                var pts = entry.judgment[inv];
-                if (!pts || !pts.length) return null;
-                var last = pts[pts.length - 1];
-                return { share: last[1] / last[2] * 100, passed: last[1], tested: last[2] };
-            }
-            var arr = entry.formula[inv];
-            for (var i = arr.length - 1; i >= 0; i--) {
-                if (arr[i]) return { share: arr[i][0] / arr[i][1] * 100, passed: arr[i][0], tested: arr[i][1] };
-            }
-            return null;
-        }
-        var gradesKeySig = "";
-        function buildGradesKey() {
-            var list = document.getElementById("gradesKeyList");
-            if (!list || !gradesData || !chartData) return;
-            var entry = gradesData.series[cur.key];
-            if (!entry) return;
-            var sig = cur.key + "|" + gradesData.generated + "|" + Object.keys(hiddenGrades).sort().join(",");
-            if (sig === gradesKeySig && list.childElementCount) return;
-            gradesKeySig = sig;
-            list.textContent = "";
-            Object.keys(gradesData.investors).forEach(function (inv) {
-                var meta = gradesData.investors[inv];
-                var latest = gradesLatest(entry, inv);
-                var btn = document.createElement("button");
-                btn.type = "button";
-                btn.className = "filter-pill grades-key-chip";
-                btn.setAttribute("data-inv", inv);
-                btn.setAttribute("aria-pressed", hiddenGrades[inv] ? "false" : "true");
-                var sw = document.createElement("span");
-                sw.className = "grades-key-swatch";
-                sw.style.background = GRADE_COLORS[inv] || "#888";
-                sw.setAttribute("aria-hidden", "true");
-                btn.appendChild(sw);
-                var txt = document.createElement("span");
-                txt.textContent = meta.name + (latest
-                    ? " · " + Math.round(latest.share) + "% · " + latest.passed + " of " + latest.tested
-                    : "");
-                btn.appendChild(txt);
-                list.appendChild(btn);
-            });
-        }
-        var gradesKeyListEl = document.getElementById("gradesKeyList");
-        if (gradesKeyListEl) gradesKeyListEl.addEventListener("click", function (e) {
-            var btn = e.target && e.target.closest ? e.target.closest("button[data-inv]") : null;
-            if (!btn) return;
-            var inv = btn.getAttribute("data-inv");
-            if (hiddenGrades[inv]) delete hiddenGrades[inv]; else hiddenGrades[inv] = true;
-            try { window.localStorage.setItem(HIDDEN_GRADES_KEY, JSON.stringify(Object.keys(hiddenGrades))); } catch (err) { /* storage unavailable */ }
-            gradesKeySig = "";
-            buildGradesKey();
-            render();
-        });
-        function renderGrades() {
-            var note = document.getElementById("jboChartNote");
-            var dataNote = document.getElementById("jboChartDataNote");
-            if (!gradesData) {
-                showTipStatus(gradesFailed ? "Grades couldn’t be loaded — the grades file didn’t arrive." : "Loading grades…");
-                if (!gradesStarted) ensureGrades();
-                return;
-            }
-            var entry = gradesData.series[cur.key];
-            if (!entry) {
-                // A persisted Grades kind on a benchmark open:
-                // heal back to Price with the reason shown.
-                kind = "price"; storeKind();
-                modeNote = "Grades cover the 19 stocks on the scoreboard — showing the price chart.";
-                syncKindUI(); render();
-                return;
-            }
-            var n = entry.weeks.length;
-            var count = Math.min(n, RANGE_WEEKS[cur.range]);
-            gView = { entry: entry, start: n - count, end: n - 1 };
-            rangeStart = gView.start; rangeEnd = gView.end;
-            if (hover < gView.start || hover > gView.end) hover = -1;
-            if (note) { note.textContent = gradesNote; note.hidden = !gradesNote; }
-            if (dataNote) dataNote.textContent = (modeNote ? modeNote + " " : "") + "Weekly grades through " + fmtDate(entry.weeks[gView.end]) + " — from SEC filings counted from their filed dates and weekly closes, refreshed weekday evenings.";
-            buildGradesKey();
-            drawGrades();
-            updateTipGrades();
-        }
-        function drawGrades() {
-            var frame = document.getElementById("jboChartFrame");
-            var cv = document.getElementById("jboChartCanvas");
-            if (!frame || !cv || !gView) return;
-            var W = frame.clientWidth, H = frame.clientHeight;
-            if (!W || !H || W < 60) return;
-            var dpr = window.devicePixelRatio || 1;
-            var pw = Math.round(W * dpr), ph = Math.round(H * dpr);
-            if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
-            var ctx = null;
-            try { ctx = cv.getContext && cv.getContext("2d"); } catch (e) { ctx = null; }
-            if (!ctx) return;
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            ctx.clearRect(0, 0, W, H);
-            var cs = window.getComputedStyle ? window.getComputedStyle(document.body) : null;
-            function varc(name, fb) { var v = cs ? cs.getPropertyValue(name) : ""; v = (v || "").trim(); return v || fb; }
-            var subC = varc("--subtext-color", "#9198a1"),
-                gridC = varc("--border-color", "rgba(128,128,128,0.25)");
-            var entry = gView.entry, start = gView.start, end = gView.end, n = end - start + 1;
-            var axisW = 58, axisH = 20, plotW = W - axisW - 12;
-            var priceY = 6, priceH = H - axisH - priceY;
-            layout = { plotW: plotW, start: start, end: end, W: W, H: H, priceY: priceY, priceH: priceH, hi: 100, lo: 0 };
-            function X(idx) { return 6 + (n <= 1 ? plotW / 2 : (idx - start) / (n - 1) * plotW); }
-            function Y(vv) { return priceY + (100 - vv) / 100 * priceH; }
-            ctx.font = "11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-            // gridlines + right-hand labels at 0/25/50/75/100%
-            ctx.lineWidth = 1;
-            for (var g = 0; g <= 4; g++) {
-                var gv = g * 25, gy = Y(gv);
-                ctx.strokeStyle = gridC;
-                ctx.beginPath(); ctx.moveTo(6, gy); ctx.lineTo(6 + plotW, gy); ctx.stroke();
-                ctx.fillStyle = subC; ctx.textAlign = "left";
-                ctx.fillText(gv + "%", 10 + plotW, gy + 3);
-            }
-            // the lines: consecutive segments batch by coverage —
-            // a stretch where either end had fewer than half of
-            // that investor's own rules tested draws dashed and
-            // faded, so thin coverage never reads like a full
-            // grade. (Relative to the investor's own rule count:
-            // a one-rule investor tested on its one rule is fully
-            // covered, and draws solid.)
-            Object.keys(gradesData.investors).forEach(function (inv) {
-                if (hiddenGrades[inv]) return;
-                var color = GRADE_COLORS[inv] || "#888";
-                var maxT = (gradesData.investors[inv] || {}).max_tested || 1;
-                var runThin = null, started = false;
-                function flush() { if (started) ctx.stroke(); started = false; }
-                for (var i = start; i < end; i++) {
-                    var p0 = gradesPointAt(entry, inv, i), p1 = gradesPointAt(entry, inv, i + 1);
-                    if (!p0 || !p1) { flush(); runThin = null; continue; }
-                    var thin = p0.tested * 2 < maxT || p1.tested * 2 < maxT;
-                    if (runThin === null || thin !== runThin) {
-                        flush();
-                        ctx.strokeStyle = color; ctx.lineWidth = 1.8;
-                        ctx.globalAlpha = thin ? 0.55 : 1;
-                        ctx.setLineDash(thin ? [4, 4] : []);
-                        ctx.beginPath(); ctx.moveTo(X(i), Y(p0.share));
-                        started = true; runThin = thin;
-                    }
-                    ctx.lineTo(X(i + 1), Y(p1.share));
-                }
-                flush();
-                ctx.setLineDash([]); ctx.globalAlpha = 1;
-                // a judgment line can live entirely inside the last
-                // week or two — too short for segments; its point
-                // still draws.
-                if (n >= 1) {
-                    var lp = gradesPointAt(entry, inv, end);
-                    if (lp && end > start && !gradesPointAt(entry, inv, end - 1)) {
-                        ctx.fillStyle = color;
-                        ctx.beginPath(); ctx.arc(X(end), Y(lp.share), 3, 0, Math.PI * 2); ctx.fill();
-                    }
-                }
-            });
-            // x labels: five evenly spaced weeks, same rule as Price
-            ctx.fillStyle = subC;
-            for (var k = 0; k <= 4; k++) {
-                var xi = start + Math.round((n - 1) * k / 4);
-                var iso = entry.weeks[xi], pp = iso.split("-");
-                var lab = (end - start) >= 520 ? pp[0] : MONTHS[Number(pp[1]) - 1] + " ’" + pp[0].slice(2);
-                var lx = Math.max(24, Math.min(W - 24, X(xi)));
-                ctx.textAlign = "center";
-                ctx.fillText(lab, lx, H - 6);
-            }
-            // crosshair + dots
-            if (hover >= start && hover <= end) {
-                var hx = X(hover);
-                ctx.strokeStyle = subC; ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
-                ctx.beginPath(); ctx.moveTo(hx, priceY); ctx.lineTo(hx, priceY + priceH); ctx.stroke();
-                ctx.globalAlpha = 1;
-                Object.keys(gradesData.investors).forEach(function (inv) {
-                    if (hiddenGrades[inv]) return;
-                    var pt = gradesPointAt(entry, inv, hover);
-                    if (!pt) return;
-                    ctx.fillStyle = GRADE_COLORS[inv] || "#888";
-                    ctx.beginPath(); ctx.arc(hx, Y(pt.share), 3, 0, Math.PI * 2); ctx.fill();
-                });
-            }
-        }
-        function fillTipGrades(idx) {
-            var tip = document.getElementById("jboChartTip");
-            if (!tip || !gView) return;
-            var entry = gView.entry;
-            tip.textContent = "";
-            var head = document.createElement("div");
-            head.className = "jbo-tip-head";
-            var nm = document.createElement("strong");
-            var s = chartData && chartData.series[cur.key];
-            nm.textContent = s ? s.name : cur.key;
-            var dt = document.createElement("span");
-            dt.textContent = "Week ending " + fmtDate(entry.weeks[idx]);
-            head.appendChild(nm); head.appendChild(dt);
-            tip.appendChild(head);
-            var rows = [];
-            Object.keys(gradesData.investors).forEach(function (inv) {
-                if (hiddenGrades[inv]) return;
-                var pt = gradesPointAt(entry, inv, idx);
-                if (!pt) return;
-                var meta = gradesData.investors[inv];
-                rows.push({
-                    color: GRADE_COLORS[inv] || "#888",
-                    label: meta.name,
-                    value: Math.round(pt.share) + "% — " + pt.passed + " of " + pt.tested + (meta.kind === "judgment" ? " questions" : " rules"),
-                    share: pt.share
-                });
-            });
-            rows.sort(function (a, b) { return b.share - a.share; });
-            if (!rows.length) {
-                var none = document.createElement("div");
-                none.className = "jbo-tip-row";
-                none.textContent = "No grades this far back.";
-                tip.appendChild(none);
-                return;
-            }
-            rows.forEach(function (r) {
-                var row = document.createElement("div");
-                row.className = "jbo-tip-row";
-                var chip = document.createElement("span");
-                chip.className = "jbo-tip-chip";
-                chip.setAttribute("aria-hidden", "true");
-                chip.style.background = r.color;
-                var lab = document.createElement("span");
-                lab.textContent = r.label;
-                var val = document.createElement("span");
-                val.className = "jbo-tip-val";
-                val.textContent = r.value;
-                row.appendChild(chip); row.appendChild(lab); row.appendChild(val);
-                tip.appendChild(row);
-            });
-        }
-        function updateTipGrades() {
-            var tip = document.getElementById("jboChartTip");
-            if (!tip) return;
-            if (!gView || !layout || hover < gView.start || hover > gView.end) {
-                tip.classList.remove("open");
-                return;
-            }
-            fillTipGrades(hover);
-            tip.classList.add("open");
-            var frame = document.getElementById("jboChartFrame");
-            var W = frame ? frame.clientWidth : 0, H = frame ? frame.clientHeight : 0;
-            if (!W || !H) return;
-            var n = layout.end - layout.start + 1;
-            var x = 6 + (n <= 1 ? layout.plotW / 2 : (hover - layout.start) / (n - 1) * layout.plotW);
-            var topShare = null;
-            var entry = gView.entry;
-            Object.keys(gradesData.investors).forEach(function (inv) {
-                if (hiddenGrades[inv]) return;
-                var pt = gradesPointAt(entry, inv, hover);
-                if (pt && (topShare === null || pt.share > topShare)) topShare = pt.share;
-            });
-            var pointY = topShare === null ? layout.priceY + layout.priceH / 2
-                : layout.priceY + (100 - topShare) / 100 * layout.priceH;
-            var pos = tipPos(W, H, tip.offsetWidth, tip.offsetHeight, x, pointY, lastPtr);
-            tip.style.left = pos.left + "px";
-            tip.style.top = pos.top + "px";
-        }
-
         // ---- loading the daily file (lazy: first Daily switch) ----
         function ensureDaily() {
             if (dailyData) { render(); return; }
@@ -6622,10 +6209,9 @@ if (typeof module !== "undefined") {
             var section = document.getElementById("chart");
             if (section && section.scrollIntoView) section.scrollIntoView({ behavior: "smooth", block: "start" });
             if (chartData) {
-                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; modeNote = ""; noteGradedKey(symbol); syncControls(); if (mode === "daily") ensureDaily(); else render(); }
+                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; modeNote = ""; syncControls(); if (mode === "daily") ensureDaily(); else render(); }
             } else {
                 pendingKey = symbol;
-                noteGradedKey(symbol);
                 ensure();
             }
         };
@@ -6644,7 +6230,6 @@ if (typeof module !== "undefined") {
                 return {
                     key: cur.key, range: cur.range, style: cur.style, pe: peOn, vol: volOn, rsi: rsiOn,
                     mode: mode, dailyLoaded: !!dailyData, modeNote: modeNote,
-                    kind: kind, gradesLoaded: !!gradesData, gradesFailed: gradesFailed,
                     loaded: !!chartData, failed: loadFailed, hover: hover,
                     tipOpen: !!(tip && tip.classList.contains("open")),
                     fs: fsOn,
@@ -6847,7 +6432,7 @@ if (typeof module !== "undefined") {
         function jboShareUrl(hash) { return location.origin + location.pathname + hash; }
 
         // A shared link encodes the chart as it stands: ticker +
-        // Weekly/Daily — or Grades, when the Grades view is showing.
+        // Weekly/Daily.
         function currentChart() {
             var root = document.getElementById('chartStock');
             var key = (root && root.value) ? String(root.value) : '';
@@ -6860,8 +6445,7 @@ if (typeof module !== "undefined") {
                 if (pick) { key = pick.getAttribute('data-key') || ''; label = pick.textContent.trim(); }
             }
             var modeBtn = document.querySelector('#chartModes button.active');
-            var jst = (window.jboChart && typeof window.jboChart.state === 'function') ? window.jboChart.state() : null;
-            return { key: key, label: label, mode: (jst && jst.kind === 'grades') ? 'grades' : ((modeBtn && modeBtn.getAttribute('data-mode')) || 'weekly') };
+            return { key: key, label: label, mode: (modeBtn && modeBtn.getAttribute('data-mode')) || 'weekly' };
         }
         var finBtn = document.getElementById('chartShare');
         if (finBtn) {
@@ -6888,6 +6472,9 @@ if (typeof module !== "undefined") {
         }
         // A shared link applies the ticker and timeframe once the chart's
         // data has built its controls; anything unknown degrades silently.
+        // Links shared from the retired Grades view (:grades) still match,
+        // so their ticker applies — the chart itself is Price only now,
+        // so they land on that stock's price chart.
         var fm = (location.hash || '').match(/^#chart=([^:]+):(weekly|daily|grades)$/);
         if (fm) {
             var fKey = decodeURIComponent(fm[1]), fMode = fm[2], fTries = 0;
@@ -6904,10 +6491,6 @@ if (typeof module !== "undefined") {
                     if (fMode === 'daily') {
                         var db = document.querySelector('#chartModes button[data-mode="daily"]');
                         if (db && !db.classList.contains('active')) { db.click(); }
-                    }
-                    if (fMode === 'grades') {
-                        var gb = document.querySelector('#chartKind button[data-kind="grades"]');
-                        if (gb) { gb.click(); }
                     }
                     var sec = document.getElementById('chart');
                     if (sec) { sec.scrollIntoView(); }
@@ -7525,7 +7108,7 @@ if (typeof module !== "undefined") {
             buildPicker();
             renderAll();
             openRequest("add", t);
-            showConfirm(nameOf(t) + " (" + t + ") is on your scoreboard here. The request opened in a new tab \u2014 tap Submit there so tonight\u2019s run starts grading it.");
+            showConfirm(nameOf(t) + " (" + t + ") is on your scoreboard here. The request opened in a new tab \u2014 tap Submit there so tonight\u2019s run starts grading it. Until the first grades are in, it shows as added, with no score invented for it.");
         });
         if (section) section.addEventListener("click", function (e) {
             var btn = e.target && e.target.closest ? e.target.closest("[data-remove]") : null;
