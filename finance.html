@@ -526,6 +526,14 @@
     .sb-chart-box { width: 100%; }
     #sbChartCanvas { display: block; width: 100%; height: 320px; }
     @media (max-width: 640px) { #sbChartCanvas { height: 240px; } }
+    /* Add a stock (2026-11-18): the scoreboard's add block, the
+       added-stocks list under it, and the pending chips in the
+       chart view (a stock added before its first grades). */
+    .sb-add { margin: 0.9rem 0 0.1rem; }
+    .sb-added-item { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; margin-top: 0.4rem; font-size: 0.9rem; }
+    .sb-added-item .sb-added-state { color: var(--subtext-color); font-size: 0.85rem; }
+    .sb-remove-btn { font-size: 0.8rem; padding: 0.28rem 0.7rem; }
+    .sb-pending-chip { cursor: default; opacity: 0.72; }
     .legend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.6rem 1.5rem; margin-top: 1rem; }
     .legend-item { font-size: 0.86rem; color: var(--subtext-color); line-height: 1.5; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
     .legend-item strong { color: var(--text-color); }
@@ -1008,6 +1016,18 @@
         <p style="font-size: 0.85rem; color: var(--subtext-color);">Tap an investor&rsquo;s name above to add or drop their rules. Tap any result to see why.</p>
         <p style="font-size: 0.85rem; color: var(--subtext-color);"><span style="color: var(--pass-text);">&#10003;</span> Pass &middot; <span style="color: var(--fail-text);">&#10007;</span> Fail &middot; &mdash; Couldn&rsquo;t be tested &middot; dashed outline = a judgment grade, not measured by a formula</p>
         <p id="scoreboardNotScoredNote" style="font-size: 0.85rem; color: var(--subtext-color);">All eighteen investors are graded &mdash; eight by formula, and ten by judgment against five questions from each investor&rsquo;s own published work (their markers carry a dashed outline).</p>
+        <div class="sb-add" id="sbAddBlock" hidden>
+            <div class="chip-row" style="align-items: flex-end;">
+                <div class="selector-group" style="max-width: 340px; flex: 1 1 240px;">
+                    <label for="sbAddSelect">Add a stock</label>
+                    <select id="sbAddSelect"><option value="">Choose a Nasdaq-100 stock&hellip;</option></select>
+                </div>
+                <button type="button" class="filter-pill" id="sbAddBtn">Add to the scoreboard</button>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--subtext-color);">Adding opens a prefilled request on GitHub &mdash; tap Submit on the page that opens, and grading starts with tonight&rsquo;s run. Until the first grades are in, the stock shows as added, with no score invented for it.</p>
+            <p id="sbAddConfirm" style="font-size: 0.85rem;" hidden></p>
+            <div id="sbAddedList"></div>
+        </div>
         <div class="chip-row">
             <div class="selector-group" id="scoreboardSortGroup" style="max-width: 280px;">
                 <label for="scoreboardSort">Sort</label>
@@ -1035,7 +1055,12 @@
         <div id="scoreboardChartWrap" hidden>
             <p id="sbChartStatus" style="font-size: 0.85rem; color: var(--subtext-color);" hidden></p>
             <div class="sb-chart-box"><canvas id="sbChartCanvas" role="img" aria-label="Line chart: each stock's combined score, week by week"></canvas></div>
-            <div class="chip-row" id="sbChartChips" role="group" aria-label="Stocks on the chart" style="margin-top: 0.6rem;"></div>
+            <div class="chip-row" id="sbChartActions" role="group" aria-label="Select stocks" style="margin-top: 0.6rem;">
+                <button type="button" class="filter-pill" id="sbChartAll">All</button>
+                <button type="button" class="filter-pill" id="sbChartClear">Clear</button>
+            </div>
+            <div class="chip-row" id="sbChartChips" role="group" aria-label="Stocks on the chart" style="margin-top: 0.4rem;"></div>
+            <div class="chip-row" id="sbAddedChips" role="group" aria-label="Added stocks waiting for their first grades" style="margin-top: 0.4rem;"></div>
             <p style="font-size: 0.85rem; color: var(--subtext-color);">Each line is one stock&rsquo;s combined score: the investors who pass the stock, out of the investors whose tests could grade the stock that week, as a percentage. Before the week of November 18, 2026, each combined score rests on the 8 investors whose methods are formulas; the 10 judgment investors join the count from that week.</p>
         </div>
         <details class="disclaimer-note">
@@ -6902,10 +6927,13 @@ if (typeof module !== "undefined") {
        the table's current tally itself. A fetched file without a
        "combined" series (an older cached copy) shows a plain note
        instead of invented numbers. The view choice is remembered
-       like the page's other view states. Line selection mirrors the
-       Grades key's chips: every line shows by default; tapping a
-       stock's chip isolates that stock; tapping it again restores
-       all. */
+       like the page's other view states. Line selection is a true
+       multi-select (2026-11-18): every stock starts selected;
+       tapping a stock's chip toggles that stock on or off, and the
+       chart draws exactly the selected lines — All and Clear
+       buttons sit by the chips, and an empty selection shows one
+       plain line of text instead of a blank chart. The selection
+       is remembered like the page's other view states. */
     (function () {
         "use strict";
         var VIEW_KEY = "jbo-scoreboard-view-v1";
@@ -6916,13 +6944,15 @@ if (typeof module !== "undefined") {
         var chartWrap = document.getElementById("scoreboardChartWrap");
         var statusEl = document.getElementById("sbChartStatus");
         var chipsEl = document.getElementById("sbChartChips");
+        var actionsEl = document.getElementById("sbChartActions");
         var canvas = document.getElementById("sbChartCanvas");
         if (!toggleEl || !tableWrap || !chartWrap || !canvas) return;
         chartWrap.removeAttribute("hidden");
         chartWrap.style.display = "none";
         var view = "table";
         try { if (window.localStorage.getItem(VIEW_KEY) === "chart") view = "chart"; } catch (e) { /* storage unavailable */ }
-        var sbData = null, sbStarted = false, sbFailed = false, isolated = null;
+        var STOCKS_KEY = "jbo-scoreboard-stocks-v1";
+        var sbData = null, sbStarted = false, sbFailed = false, selected = null;
 
         function setView(v) {
             view = v;
@@ -6958,6 +6988,38 @@ if (typeof module !== "undefined") {
             if (!sbData || !sbData.series) return [];
             return Object.keys(sbData.series).filter(function (t) { return !!combinedOf(t); }).sort();
         }
+        // The selection: a ticker -> true map, built once the data
+        // lands. A stored selection (even an empty one) wins; with
+        // nothing stored, every stock starts selected.
+        function ensureSelection() {
+            if (selected) return;
+            var tickers = chartTickers();
+            if (!tickers.length) return; // no data yet; retry later
+            selected = {};
+            var stored = null;
+            try {
+                var raw = window.localStorage.getItem(STOCKS_KEY);
+                if (raw !== null) stored = JSON.parse(raw);
+            } catch (e) { /* storage unavailable */ }
+            if (Array.isArray(stored)) {
+                stored.forEach(function (t) { if (tickers.indexOf(t) >= 0) selected[t] = true; });
+            } else {
+                tickers.forEach(function (t) { selected[t] = true; });
+            }
+        }
+        function saveSelection() {
+            if (!selected) return;
+            try { window.localStorage.setItem(STOCKS_KEY, JSON.stringify(Object.keys(selected).sort())); } catch (e) { /* storage unavailable */ }
+        }
+        function selectedCount() {
+            return selected ? Object.keys(selected).length : 0;
+        }
+        function syncChips() {
+            if (!chipsEl || !selected) return;
+            chipsEl.querySelectorAll("button[data-ticker]").forEach(function (b) {
+                b.setAttribute("aria-pressed", selected[b.getAttribute("data-ticker")] ? "true" : "false");
+            });
+        }
         function todayISO() {
             var d = new Date();
             var m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
@@ -6987,12 +7049,13 @@ if (typeof module !== "undefined") {
         }
         function buildChips() {
             if (!chipsEl || chipsEl.childElementCount) return;
+            ensureSelection();
             chartTickers().forEach(function (t) {
                 var btn = document.createElement("button");
                 btn.type = "button";
                 btn.className = "filter-pill grades-key-chip";
                 btn.setAttribute("data-ticker", t);
-                btn.setAttribute("aria-pressed", "true");
+                btn.setAttribute("aria-pressed", (selected && selected[t]) ? "true" : "false");
                 var sw = document.createElement("span");
                 sw.className = "grades-key-swatch";
                 sw.style.background = STOCK_COLORS[t] || "#888";
@@ -7019,11 +7082,26 @@ if (typeof module !== "undefined") {
         if (chipsEl) chipsEl.addEventListener("click", function (e) {
             var btn = e.target && e.target.closest ? e.target.closest("button[data-ticker]") : null;
             if (!btn) return;
+            ensureSelection();
+            if (!selected) return;
             var t = btn.getAttribute("data-ticker");
-            isolated = (isolated === t) ? null : t;
-            chipsEl.querySelectorAll("button[data-ticker]").forEach(function (b) {
-                b.setAttribute("aria-pressed", (!isolated || b.getAttribute("data-ticker") === isolated) ? "true" : "false");
-            });
+            if (selected[t]) { delete selected[t]; } else { selected[t] = true; }
+            saveSelection();
+            syncChips();
+            draw();
+        });
+        if (actionsEl) actionsEl.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest("button") : null;
+            if (!btn) return;
+            ensureSelection();
+            if (!selected) return;
+            if (btn.id === "sbChartAll") {
+                chartTickers().forEach(function (t) { selected[t] = true; });
+            } else if (btn.id === "sbChartClear") {
+                selected = {};
+            } else { return; }
+            saveSelection();
+            syncChips();
             draw();
         });
 
@@ -7031,6 +7109,7 @@ if (typeof module !== "undefined") {
             if (statusEl) { statusEl.textContent = msg; statusEl.hidden = !msg; }
             canvas.parentElement.style.display = msg ? "none" : "";
             if (chipsEl) chipsEl.style.display = msg ? "none" : "";
+            if (actionsEl) actionsEl.style.display = msg ? "none" : "";
         }
         function draw() {
             if (view !== "chart") return;
@@ -7038,6 +7117,18 @@ if (typeof module !== "undefined") {
             if (!sbData) { showStatus("Loading combined scores…"); return; }
             var tickers = chartTickers();
             if (!tickers.length) { showStatus("The grades file doesn’t carry combined scores yet — the table has every stock’s current score."); return; }
+            ensureSelection();
+            if (!selectedCount()) {
+                // An empty selection is a state, not an error: the
+                // chips stay on screen so a stock can be tapped back
+                // on, and one plain line stands where the chart was.
+                if (statusEl) { statusEl.textContent = "Select a stock below to see its line."; statusEl.hidden = false; }
+                canvas.parentElement.style.display = "none";
+                if (chipsEl) chipsEl.style.display = "";
+                if (actionsEl) actionsEl.style.display = "";
+                refreshChipLabels();
+                return;
+            }
             showStatus("");
             refreshChipLabels();
             var wCss = canvas.clientWidth, hCss = canvas.clientHeight;
@@ -7084,12 +7175,12 @@ if (typeof module !== "undefined") {
                 ctx.fillText(String(yr), X(yms), hCss - 6);
             }
             tickers.forEach(function (t) {
-                if (isolated && t !== isolated) return;
+                if (!selected[t]) return;
                 var s = allSeries[t];
                 var comb = s.values, wks = s.dates;
                 var color = STOCK_COLORS[t] || "#888";
                 ctx.strokeStyle = color;
-                ctx.lineWidth = isolated ? 2.4 : 1.6;
+                ctx.lineWidth = selectedCount() === 1 ? 2.4 : 1.6;
                 ctx.beginPath();
                 var started = false, lastPt = null;
                 for (var i = 0; i < comb.length && i < wks.length; i++) {
@@ -7127,6 +7218,335 @@ if (typeof module !== "undefined") {
             new MutationObserver(requestDraw).observe(sbBody, { childList: true });
         }
         if (view === "chart") setView("chart");
+    })();
+    </script>
+    <script>
+    /* Add a stock (2026-11-18): the scoreboard's add/remove layer.
+       The graded set itself lives in the nightly data (the
+       workflow's scoreboard-stocks.json, graded into
+       finance-data.json and grades-history.json); this layer is
+       the visitor's own delta on top of it, kept in localStorage:
+       stocks added here show at once — as a pending row and chip
+       with no score invented — and a prefilled GitHub issue (the
+       request the nightly sync grades from) opens for the owner
+       to submit. A stock is pending on a surface until that
+       surface's own data carries it: the table scores from
+       finance-data.json, the chart's lines from
+       grades-history.json, so each surface tells the truth with
+       its own file. Removing hides the stock here and files the
+       matching remove request; the original 19 can never be
+       removed — they are never in the added list, and no remove
+       control is ever drawn for them. Everything degrades
+       silently: if a data file can't be read, nothing is offered
+       and nothing is hidden. */
+    (function () {
+        "use strict";
+        var ADD_KEY = "jbo-scoreboard-added-v1";
+        var SEL_KEY = "jbo-scoreboard-stocks-v1"; // the chart view's own selection store: scrubbed on remove, never written otherwise
+        var ISSUES_URL = "https://github.com/onealjb93/onealjb93.github.io/issues/new";
+        var PENDING_TEXT = "Added \u2014 first grades after tonight\u2019s run";
+        var block = document.getElementById("sbAddBlock");
+        var select = document.getElementById("sbAddSelect");
+        var addBtn = document.getElementById("sbAddBtn");
+        var confirmEl = document.getElementById("sbAddConfirm");
+        var listEl = document.getElementById("sbAddedList");
+        var section = document.getElementById("scoreboard");
+        var body = document.getElementById("scoreboardBody");
+        var head = document.getElementById("scoreboardHead");
+        var addedChipsEl = document.getElementById("sbAddedChips");
+        var chipsEl = document.getElementById("sbChartChips");
+        if (!block || !select || !addBtn || !body) return;
+
+        function isTicker(t) { return typeof t === "string" && /^[A-Z][A-Z0-9.\-]{0,9}$/.test(t); }
+        var state = { added: [], removed: [], welcomed: [] };
+        try {
+            var rawStored = window.localStorage.getItem(ADD_KEY);
+            if (rawStored) {
+                var parsed = JSON.parse(rawStored);
+                if (parsed && Array.isArray(parsed.added)) state.added = parsed.added.filter(isTicker);
+                if (parsed && Array.isArray(parsed.removed)) state.removed = parsed.removed.filter(isTicker);
+                if (parsed && Array.isArray(parsed.welcomed)) state.welcomed = parsed.welcomed.filter(isTicker);
+            }
+        } catch (e) { /* storage unavailable: the layer runs unpersisted */ }
+        function save() {
+            try { window.localStorage.setItem(ADD_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+        }
+
+        var dataReady = false;
+        var published = {};    // tickers the nightly data already carries
+        var publishedKnown = false;
+        var dataNames = {};    // ticker -> company name, best source first
+        var inData = {};       // tickers finance-data.json scores (the table's truth)
+        var inHistory = {};    // tickers with a combined series (the chart's truth)
+        var ndxList = [];      // [{t, name}] from the chart data file
+
+        function fetchJson(url) {
+            return fetch(url).then(function (r) {
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                return r.json();
+            }).catch(function () { return null; });
+        }
+        function nameOf(t) { return dataNames[t] || t; }
+
+        Promise.all([
+            fetchJson("scoreboard-stocks.json"),
+            fetchJson("finance-data.json"),
+            fetchJson("grades-history.json"),
+            fetchJson("finance-chart-data.json")
+        ]).then(function (docs) {
+            var setDoc = docs[0], finDoc = docs[1], histDoc = docs[2], chartDoc = docs[3];
+            if (setDoc && Array.isArray(setDoc.tickers)) {
+                setDoc.tickers.forEach(function (t) { if (isTicker(t)) { published[t] = true; publishedKnown = true; } });
+            }
+            if (finDoc && Array.isArray(finDoc.stocks)) {
+                finDoc.stocks.forEach(function (s) {
+                    if (s && isTicker(s.ticker)) {
+                        published[s.ticker] = true; publishedKnown = true; inData[s.ticker] = true;
+                        if (s.name) dataNames[s.ticker] = s.name;
+                    }
+                });
+            }
+            if (histDoc && histDoc.series) {
+                Object.keys(histDoc.series).forEach(function (t) {
+                    published[t] = true; publishedKnown = true;
+                    var e = histDoc.series[t];
+                    if (e && Array.isArray(e.combined)) inHistory[t] = true;
+                });
+            }
+            if (chartDoc && Array.isArray(chartDoc.nasdaq100) && chartDoc.series) {
+                chartDoc.nasdaq100.forEach(function (t) {
+                    var s = chartDoc.series[t];
+                    if (s && isTicker(t)) {
+                        if (s.name && !dataNames[t]) dataNames[t] = s.name;
+                        ndxList.push({ t: t, name: s.name || t });
+                    }
+                });
+                ndxList.sort(function (a, b) { return a.name.localeCompare(b.name); });
+            }
+            dataReady = true;
+            buildPicker();
+            if (ndxList.length) block.hidden = false;
+            renderAll();
+        });
+
+        function buildPicker() {
+            var keep = select.value;
+            select.innerHTML = "";
+            var first = document.createElement("option");
+            first.value = "";
+            first.textContent = "Choose a Nasdaq-100 stock\u2026";
+            select.appendChild(first);
+            ndxList.forEach(function (item) {
+                var t = item.t;
+                if (state.added.indexOf(t) >= 0) return;
+                if (published[t] && state.removed.indexOf(t) < 0) return;
+                var opt = document.createElement("option");
+                opt.value = t;
+                opt.textContent = item.name + " (" + t + ")";
+                select.appendChild(opt);
+            });
+            select.value = keep;
+        }
+
+        function showConfirm(msg) {
+            if (!confirmEl) return;
+            confirmEl.textContent = msg;
+            confirmEl.hidden = !msg;
+        }
+        function openRequest(action, t) {
+            var title = "Scoreboard " + action + ": " + t;
+            var bodyText = action === "add"
+                ? "Please add " + t + " to the scoreboard's grading set. Sent from the Add a stock control on the Investment Scoreboard \u2014 nothing to edit, just submit."
+                : "Please remove " + t + " from the scoreboard's grading set. Sent from the Investment Scoreboard \u2014 nothing to edit, just submit.";
+            var url = ISSUES_URL + "?title=" + encodeURIComponent(title)
+                + "&body=" + encodeURIComponent(bodyText);
+            try { window.open(url, "_blank"); } catch (e) { /* a blocked popup never undoes the local change */ }
+        }
+
+        function removeButton(t) {
+            var b = document.createElement("button");
+            b.type = "button";
+            b.className = "filter-pill sb-remove-btn";
+            b.setAttribute("data-remove", t);
+            b.textContent = "Remove";
+            return b;
+        }
+        function renderList() {
+            if (!listEl) return;
+            listEl.innerHTML = "";
+            state.added.forEach(function (t) {
+                if (state.removed.indexOf(t) >= 0) return;
+                var item = document.createElement("div");
+                item.className = "sb-added-item";
+                var label = document.createElement("span");
+                label.innerHTML = "";
+                var strong = document.createElement("strong");
+                strong.textContent = nameOf(t);
+                label.appendChild(strong);
+                label.appendChild(document.createTextNode(" (" + t + ")"));
+                item.appendChild(label);
+                var st = document.createElement("span");
+                st.className = "sb-added-state";
+                st.textContent = inData[t] ? "on the scoreboard" : PENDING_TEXT.charAt(0).toLowerCase() + PENDING_TEXT.slice(1);
+                item.appendChild(st);
+                item.appendChild(removeButton(t));
+                listEl.appendChild(item);
+            });
+        }
+        function renderPendingChips() {
+            if (!addedChipsEl) return;
+            addedChipsEl.innerHTML = "";
+            state.added.forEach(function (t) {
+                if (state.removed.indexOf(t) >= 0 || inHistory[t]) return;
+                var chip = document.createElement("span");
+                chip.className = "filter-pill grades-key-chip sb-pending-chip";
+                chip.textContent = t + " \u00b7 " + PENDING_TEXT;
+                addedChipsEl.appendChild(chip);
+            });
+        }
+        function rowTicker(row) {
+            if (row.getAttribute("data-sb-added")) return row.getAttribute("data-sb-added");
+            var btn = row.querySelector(".score-why-btn");
+            return btn ? btn.getAttribute("data-ticker") : null;
+        }
+        var patching = false;
+        function patchTable() {
+            if (patching || !body) return;
+            patching = true;
+            try {
+                var rows = Array.prototype.slice.call(body.querySelectorAll("tr"));
+                rows.forEach(function (row) {
+                    var t = rowTicker(row);
+                    if (t && state.removed.indexOf(t) >= 0) row.parentNode.removeChild(row);
+                });
+                if (!dataReady) return;
+                if (body.querySelector("td.empty-state")) return;
+                state.added.forEach(function (t) {
+                    if (state.removed.indexOf(t) >= 0) return;
+                    var found = null;
+                    Array.prototype.slice.call(body.querySelectorAll("tr")).forEach(function (row) {
+                        if (rowTicker(row) === t) found = row;
+                    });
+                    if (inData[t]) {
+                        if (found && !found.querySelector("[data-remove]")) {
+                            var cell = found.querySelector("td");
+                            if (cell) cell.appendChild(removeButton(t));
+                        }
+                        return;
+                    }
+                    if (found) return;
+                    var cols = head ? head.children.length : 2;
+                    var tr = document.createElement("tr");
+                    tr.setAttribute("data-sb-added", t);
+                    var c1 = document.createElement("td");
+                    var nm = document.createElement("span");
+                    nm.className = "sb-co-name";
+                    var strong = document.createElement("strong");
+                    strong.textContent = nameOf(t);
+                    nm.appendChild(strong);
+                    var sub = document.createElement("span");
+                    sub.className = "sb-co-sub";
+                    sub.textContent = "(" + t + ")";
+                    c1.appendChild(nm);
+                    c1.appendChild(sub);
+                    tr.appendChild(c1);
+                    var c2 = document.createElement("td");
+                    c2.colSpan = Math.max(1, cols - 1);
+                    c2.appendChild(document.createTextNode(PENDING_TEXT + " "));
+                    c2.appendChild(removeButton(t));
+                    tr.appendChild(c2);
+                    body.appendChild(tr);
+                });
+            } finally { patching = false; }
+        }
+        function scrubSelection(t) {
+            try {
+                var rawSel = window.localStorage.getItem(SEL_KEY);
+                if (rawSel === null) return;
+                var arr = JSON.parse(rawSel);
+                if (Array.isArray(arr) && arr.indexOf(t) >= 0) {
+                    window.localStorage.setItem(SEL_KEY, JSON.stringify(arr.filter(function (x) { return x !== t; })));
+                }
+            } catch (e) { /* storage unavailable */ }
+        }
+        function hideRemovedChips() {
+            if (!chipsEl) return;
+            state.removed.forEach(function (t) {
+                scrubSelection(t);
+                var chip = chipsEl.querySelector('button[data-ticker="' + t + '"]');
+                if (!chip) return;
+                if (chip.getAttribute("aria-pressed") === "true") chip.click(); // the chart's own toggle: off, and redrawn by its handler
+                chip.style.display = "none";
+            });
+        }
+        function welcomeGradedChips() {
+            // A stock Johnny added that the nightly run has now graded
+            // gets the chart's first-visit treatment — every stock
+            // starts selected — exactly once, through the chart's own
+            // chip toggle (its handler selects, saves and redraws).
+            // Later taps are his: a stock he switches off stays off.
+            if (!chipsEl) return;
+            state.added.forEach(function (t) {
+                if (state.removed.indexOf(t) >= 0 || !inHistory[t]) return;
+                if (state.welcomed.indexOf(t) >= 0) return;
+                var chip = chipsEl.querySelector('button[data-ticker="' + t + '"]');
+                if (!chip) return; // the chart hasn't drawn its chips yet; its mutation calls back here
+                state.welcomed.push(t);
+                save();
+                if (chip.getAttribute("aria-pressed") !== "true") chip.click();
+            });
+        }
+        function updateHub() {
+            if (!publishedKnown) return;
+            var span = document.querySelector('a.hub-card[href="#scoreboard"] span');
+            if (!span) return;
+            var set = {};
+            Object.keys(published).forEach(function (t) { set[t] = true; });
+            state.added.forEach(function (t) { set[t] = true; });
+            state.removed.forEach(function (t) { delete set[t]; });
+            var n = Object.keys(set).length;
+            span.textContent = span.textContent.replace(/^How \d+ stocks/, "How " + n + " stocks");
+        }
+        function renderAll() {
+            renderList();
+            patchTable();
+            renderPendingChips();
+            hideRemovedChips();
+            welcomeGradedChips();
+            updateHub();
+        }
+
+        addBtn.addEventListener("click", function () {
+            var t = select.value;
+            if (!t) { showConfirm("Choose a stock first \u2014 the list holds every Nasdaq-100 stock that isn\u2019t on the scoreboard yet."); return; }
+            if (state.added.indexOf(t) < 0) state.added.push(t);
+            state.removed = state.removed.filter(function (x) { return x !== t; });
+            save();
+            buildPicker();
+            renderAll();
+            openRequest("add", t);
+            showConfirm(nameOf(t) + " (" + t + ") is on your scoreboard here. The request opened in a new tab \u2014 tap Submit there so tonight\u2019s run starts grading it.");
+        });
+        if (section) section.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest("[data-remove]") : null;
+            if (!btn) return;
+            var t = btn.getAttribute("data-remove");
+            if (!isTicker(t)) return;
+            state.added = state.added.filter(function (x) { return x !== t; });
+            state.welcomed = state.welcomed.filter(function (x) { return x !== t; });
+            if (state.removed.indexOf(t) < 0) state.removed.push(t);
+            save();
+            buildPicker();
+            renderAll();
+            openRequest("remove", t);
+            showConfirm(nameOf(t) + " (" + t + ") is off your scoreboard here. The request to stop grading it opened in a new tab \u2014 tap Submit there.");
+        });
+        if (window.MutationObserver && body) {
+            new MutationObserver(function () { patchTable(); }).observe(body, { childList: true });
+        }
+        if (window.MutationObserver && chipsEl) {
+            new MutationObserver(function () { hideRemovedChips(); welcomeGradedChips(); }).observe(chipsEl, { childList: true });
+        }
     })();
     </script>
     <script>

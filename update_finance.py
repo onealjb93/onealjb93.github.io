@@ -132,11 +132,46 @@ from datetime import date
 
 import requests
 
-TICKERS = [
+CORE_TICKERS = [
     "GOOGL", "ASST", "CIFR", "SPCX", "NBIS", "IREN", "AAOI",
     "NVDA", "AMD", "PLTR", "MU", "TSLA", "MSTR", "TSM",
     "LLY", "WM", "COST", "JPM", "WMT",
 ]
+
+# The scoreboard's grading set lives in scoreboard-stocks.json:
+# the workflow's sync step merges the owner's filed add/remove
+# requests into it, and everything graded — the scoreboard data,
+# the fundamentals rotation, grades-history — follows the file.
+# A missing or malformed file falls back to the core set above,
+# so a bad edit can never empty the scoreboard.
+SCOREBOARD_FILE = "scoreboard-stocks.json"
+
+
+def load_scoreboard_tickers():
+    import re
+    paths = [os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          SCOREBOARD_FILE), SCOREBOARD_FILE]
+    for path in paths:
+        try:
+            with open(path) as fh:
+                doc = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        raw = doc.get("tickers") if isinstance(doc, dict) else doc
+        if not isinstance(raw, list):
+            continue
+        out = []
+        for t in raw:
+            if (isinstance(t, str)
+                    and re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,9}", t)
+                    and t not in out):
+                out.append(t)
+        if out:
+            return out
+    return list(CORE_TICKERS)
+
+
+TICKERS = load_scoreboard_tickers()
 
 DATA_FILE = "finance-data.json"
 CIK_MAP_FILE = "cik_map.json"
@@ -1871,9 +1906,14 @@ def gh_extract_judgments(html):
             verdict = (all(answers.get(g) for g in gates)
                        and passed >= min_pass)
             per_ticker[tk] = (passed, 5, verdict)
-        if len(per_ticker) != len(TICKERS):
+        # The page constant carries the core set. A stock added to
+        # the grading set has no judgments until the next re-judging
+        # records them, so the count is checked against the core
+        # set, not the (possibly larger) grading set.
+        if len(per_ticker) != len(CORE_TICKERS):
             raise ValueError("%s: %d tickers, expected %d"
-                             % (inv, len(per_ticker), len(TICKERS)))
+                             % (inv, len(per_ticker),
+                                len(CORE_TICKERS)))
         out[inv] = {"name": name_m.group(1) if name_m else inv,
                     "tickers": per_ticker}
     if not out:
@@ -2099,6 +2139,20 @@ def grades_only_main():
     except Exception as exc:
         log("grade history: could not load cik_map.json: %s" % exc)
         return 1
+    # Same gap-fill discipline as main(): a ticker added to the
+    # grading set is not in the committed map yet, so the live SEC
+    # file fills its CIK; a failed fill leaves it ungraded this
+    # run rather than guessed.
+    missing = [t for t in TICKERS if t not in cik_map]
+    if missing:
+        try:
+            live_map = fetch_cik_map()
+            for t in missing:
+                if t in live_map:
+                    cik_map[t] = live_map[t]
+        except Exception as exc:
+            log("  grade history: live CIK fill failed (%s); "
+                "tickers without a CIK are skipped" % exc)
     extracted_by_ticker = {}
     for symbol in TICKERS:
         cik = cik_map.get(symbol)
