@@ -519,10 +519,19 @@
         .btc-record summary::-webkit-details-marker { display: none; }
         .btc-record summary:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         .btc-record-chev { flex: none; font-size: 0.68rem; transition: transform var(--dur-2) var(--ease-inout); }
-        .btc-record[open] .btc-record-chev { transform: rotate(90deg); }
+        .btc-record[open] > summary .btc-record-chev { transform: rotate(90deg); }
         .btc-record-headtext { min-width: 0; }
         .btc-record-gist { display: block; margin-top: 2px; font-weight: 400; font-size: 0.86rem; line-height: 1.45; color: var(--text-muted, #94a3b8); }
-        .btc-record[open] .btc-record-gist { display: none; }
+        .btc-record[open] > summary .btc-record-gist { display: none; }
+        /* Why Bitcoin box (2026-11-19): the five writing expanders sit
+           inside one outer expander in the section heading's place.
+           Its summary takes the heading's own treatment (the h2 scale,
+           capitals, and hairline from style.css), and the boxes inside
+           indent one chevron width so the nesting reads at a glance. */
+        .btc-whybox { margin-top: 48px; }
+        .btc-whybox > summary { width: auto; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; opacity: 0.9; }
+        .btc-whybox > .btc-topwrap { margin: 10px 0 0 1.1rem; }
+        .btc-whybox > .btc-satoshi { margin-left: 1.1rem; }
         .btc-record-ep { font-weight: 600; margin: 20px 0 4px; }
         .btc-record-ep:first-of-type { margin-top: 8px; }
         .btc-record-twrap { overflow-x: auto; }
@@ -820,11 +829,10 @@
             </div>
         </details>
 
-<h2>Why Bitcoin</h2>
+<details class="btc-record btc-whybox" id="why-bitcoin">
+<summary><span class="btc-record-chev" aria-hidden="true">&#9654;</span><span class="btc-record-headtext"><span>Why Bitcoin?</span></span></summary>
 
 <div class="btc-topwrap">
-
-    <p class="btc-jump"><a class="btc-jump-pill" href="#btc-value">Jump to the charts <span aria-hidden="true">↓</span></a></p>
 
     <details class="btc-record btc-point">
 <summary><span class="btc-record-chev" aria-hidden="true">&#9654;</span><span class="btc-record-headtext"><span>The flaw — money is designed to lose value</span></span></summary>
@@ -1531,6 +1539,7 @@
         <p class="btc-cpi-src">Payments per day on the Bitcoin network, 30-day average — CoinMetrics, through November 2026</p>
         <p class="btc-cpi-src">A transaction is not a person: one payment can bundle many people's money (exchanges batch withdrawals), and one person can make many payments. The count understates real use in the batching years — the direction is the signal, not the exact number.</p>
     </div>
+</details>
 </details>
 
 <h2>Foundational Resources & Ecosystem</h2>
@@ -4668,20 +4677,62 @@
     })();
     </script>
     <script>
-    /* Writing expanders (2026-11-19 restructure): the page's two
-       evidence canvases — the scissors chart inside the United
-       States record and Satoshi's usage chart — draw once on load
-       and again on window resize. A canvas inside a closed expander
-       has no size on load, so when an expander in the writing at the
-       bottom of the page opens, this re-fires the resize the charts
-       already listen for, and they draw at their true size. */
+    /* Writing expanders (2026-11-19 restructure; grouped into the
+       Why Bitcoin box the same day): the five writing expanders sit
+       inside one outer expander. The page's two evidence canvases —
+       the scissors chart inside the United States record and
+       Satoshi's usage chart — draw once on load and again on window
+       resize. A canvas inside a closed expander has no size on load,
+       so when an expander in the writing at the bottom of the page
+       opens, this re-fires the resize the charts already listen for,
+       and they draw at their true size. Inside the box the five
+       expanders open one at a time: opening one closes the other
+       four. A link whose address names something inside the box
+       opens the box and every expander on the way down to it, so
+       the link lands on visible content. */
     (function () {
-        var ds = document.querySelectorAll('.btc-topwrap details, details.btc-satoshi');
+        var box = document.querySelector('.btc-whybox');
+        var ds = document.querySelectorAll('.btc-whybox, .btc-topwrap details, details.btc-satoshi');
         for (var i = 0; i < ds.length; i++) {
             ds[i].addEventListener('toggle', function () {
                 if (this.open) window.dispatchEvent(new Event('resize'));
             });
         }
+        if (!box) { return; }
+        var five = [];
+        var all = box.querySelectorAll('details');
+        for (var j = 0; j < all.length; j++) {
+            var p = all[j].parentElement;
+            while (p && p !== box && p.tagName !== 'DETAILS') { p = p.parentElement; }
+            if (p === box) { five.push(all[j]); }
+        }
+        for (var k = 0; k < five.length; k++) {
+            five[k].addEventListener('toggle', function () {
+                if (!this.open) { return; }
+                for (var m = 0; m < five.length; m++) {
+                    if (five[m] !== this && five[m].open) { five[m].open = false; }
+                }
+            });
+        }
+        function openFromHash() {
+            var id = (location.hash || '').replace(/^#/, '');
+            if (!id) { return; }
+            var target = document.getElementById(id);
+            if (!target) { return; }
+            if (target === box) { box.open = true; return; }
+            if (!box.contains(target)) { return; }
+            var chain = [];
+            var el = target;
+            while (el && el !== box) {
+                if (el.tagName === 'DETAILS') { chain.push(el); }
+                el = el.parentElement;
+            }
+            chain.push(box);
+            for (var n = chain.length - 1; n >= 0; n--) { chain[n].open = true; }
+            if (target.scrollIntoView) { target.scrollIntoView(); }
+        }
+        openFromHash();
+        window.addEventListener('hashchange', openFromHash);
     })();
     </script>
 </body>
