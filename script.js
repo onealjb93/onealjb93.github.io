@@ -101,22 +101,24 @@ async function loadFinancialData() {
    older, missing, malformed or future-dated leaves the stars hidden.
    Fail-safe in every direction: a wrong star can never appear. */
 function initGoldenStar() {
-    var star = document.querySelector('.golden-star:not(.top-star)');
+    var star = document.querySelector('.golden-star:not(.top-star):not(.hold-star)');
     var topStar = document.querySelector('.top-star');
-    if ((!star && !topStar) || !window.fetch) return;
+    var holdStar = document.querySelector('.hold-star');
+    if ((!star && !topStar && !holdStar) || !window.fetch) return;
     var MAX_AGE_MS = 96 * 60 * 60 * 1000;
     fetch('btc-state.json').then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
     }).then(function (s) {
-        if (!s || (s.golden !== true && s.top !== true)) return;
+        if (!s) return;
         var t = Date.parse(s.as_of || '');
         if (!isFinite(t)) return;
         var age = Date.now() - t;
         if (age < -60 * 60 * 1000 || age > MAX_AGE_MS) return;
         if (s.golden === true) { if (star) star.hidden = false; }
-        else if (topStar) topStar.hidden = false;
-    }).catch(function () { /* no state file, no star */ });
+        else if (s.top === true) { if (topStar) topStar.hidden = false; }
+        else if (holdStar) holdStar.hidden = false;
+    }).catch(function () { /* no state file, no indicator */ });
 }
 
 document.addEventListener('DOMContentLoaded', function () {
