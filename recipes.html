@@ -25,10 +25,24 @@
     <link rel="apple-touch-icon" href="JBO%20Logo.%20green%20background.png">
     <link rel="stylesheet" href="style.css">
     <script>
-        // Recipe text size: apply the saved step before first paint, so a
-        // returning reader never sees the reading text jump size.
+        // Recipe text size: apply the saved size before first paint, so a
+        // returning reader never sees the reading text jump size. The
+        // exact factor (v2, written by a cook-view pinch) wins over the
+        // step index (v1); a factor resting on a step applies as that
+        // step, any other factor applies as the live "pinch" state.
         (function () {
             try {
+                var steps = [0.85, 1, 1.15, 1.30, 1.50];
+                var f = parseFloat(localStorage.getItem('jbo-recipe-text-v2'));
+                if (isFinite(f) && f >= 0.5 && f <= 2.5) {
+                    var si = steps.indexOf(f);
+                    if (si > 0) document.documentElement.setAttribute('data-textscale', String(si));
+                    else if (si < 0) {
+                        document.documentElement.setAttribute('data-textscale', 'pinch');
+                        document.documentElement.style.setProperty('--rts', String(f));
+                    }
+                    return;
+                }
                 var i = parseInt(localStorage.getItem('jbo-recipe-text-v1'), 10);
                 if (i > 0 && i <= 4) document.documentElement.setAttribute('data-textscale', String(i));
             } catch (e) {}
@@ -799,18 +813,22 @@
     .tips-outer:has(.explainer-card.active) > summary { position: static; }
     #combiner-list { scroll-margin-top: 70px; }
 
-    /* Recipe text size (2026-11-15): ONE setting, persisted as a step index
-       in localStorage (jbo-recipe-text-v1) and applied before paint by the
-       head script. Only the reading text scales: the
-       opened card body and the cook panes' content, via --rts on
-       <html data-textscale>. Headings, nav, filter labels and the nutrition
-       tool keep their own sizes. The default step (1 = 100%) defines no
-       --rts and matches no override rule, so the page renders exactly as
-       before until the reader picks another size. A two-finger pinch on
-       the reading text drives the setting: it writes --rts inline
-       under data-textscale="pinch" (matched by the scale rules, claimed
-       by no step) and snaps to the nearest step on release. (The A−/A+
-       stepper buttons were removed 2026-11-16 — pinch is the control.) */
+    /* Recipe text size (2026-11-15): ONE setting — a factor — persisted
+       as the exact value in localStorage (jbo-recipe-text-v2; the step
+       index in jbo-recipe-text-v1 is kept alongside whenever the factor
+       rests on a step) and applied before paint by the head script.
+       Only the reading text scales: the opened card body and the cook
+       panes' content, via --rts on <html data-textscale>. Headings,
+       nav, filter labels and the nutrition tool keep their own sizes.
+       The default factor (1 = 100%) defines no --rts and matches no
+       override rule, so the page renders exactly as before until the
+       reader changes the size. A two-finger pinch drives the setting:
+       on an opened card it snaps to the nearest step on release; in
+       the cook view it is continuous between 0.70 and 2.00 and the
+       released size stands. During either gesture the live factor
+       writes --rts inline under data-textscale="pinch" (matched by the
+       scale rules, claimed by no step). (The A−/A+ stepper buttons
+       were removed 2026-11-16 — pinch is the control.) */
     html[data-textscale="0"] { --rts: 0.85; }
     html[data-textscale="2"] { --rts: 1.15; }
     html[data-textscale="3"] { --rts: 1.30; }
@@ -823,6 +841,24 @@
     html[data-textscale]:not([data-textscale="1"]) .recipe-content .recipe-tip { font-size: calc(0.85rem * var(--rts)); }
     html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content { font-size: calc(1.05rem * var(--rts)); }
     html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-section-title { font-size: calc(1.15rem * var(--rts)); }
+    /* The cook view hands its two-finger gesture to the page: one-finger
+       pans stay native on both axes and pinch-zoom is the one behaviour
+       the browser must not take for itself, so a pinch inside the fixed
+       overlay reaches the text-size handlers instead of zooming the
+       overlay out from under its layers. */
+    #cookView, #cookView #cookRecipes, #cookView .cook-recipe, #cookView .cook-ing-bubble-body, #cookView .cook-score-panel-body { touch-action: pan-x pan-y; }
+    /* List indent grows with the factor: the shared sheet gives the
+       steps and ingredients lists a fixed 1.2rem indent, but a list
+       marker is as wide as the text it numbers — at 2.00 the step
+       numbers outgrow the fixed indent and the pane's overflow clip
+       cuts them at its edge. Scaling the indent with --rts keeps the
+       marker's room proportional at every size. (Cook panes only: on
+       the card list the stepped range tops out at 1.50, where the
+       fixed indent still holds the markers.) */
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-list,
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-steps,
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-steps ol,
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-notes ol { padding-left: calc(1.2rem * var(--rts)); }
 </style>
 <style>
 .discuss-link { display: inline-block; margin-top: 0.75rem; font-size: 0.85rem; font-weight: 600; color: var(--link-color); text-decoration: none; }
@@ -9357,74 +9393,129 @@
     <script>
     (function () {
         // Recipe text size: pinch-to-zoom drives the one setting.
-        var KEY = 'jbo-recipe-text-v1';
-        var STEPS = [85, 100, 115, 130, 150];
-        var idx = 1;
+        // The setting is a factor, stored two ways: v2 holds the exact
+        // factor (a cook-view pinch is continuous and lands between
+        // steps); v1 holds the step index, kept in step whenever the
+        // factor rests on a step (the original store — a card-list
+        // pinch still snaps to a step). v2 wins when both exist.
+        var KEY1 = 'jbo-recipe-text-v1';
+        var KEY2 = 'jbo-recipe-text-v2';
+        var STEPS = [0.85, 1, 1.15, 1.30, 1.50];
+        var MIN = 0.70, MAX = 2.00;
+        var factor = 1;
         try {
-            var saved = parseInt(localStorage.getItem(KEY), 10);
-            if (saved >= 0 && saved < STEPS.length) idx = saved;
+            var savedF = parseFloat(localStorage.getItem(KEY2));
+            if (isFinite(savedF) && savedF >= 0.5 && savedF <= 2.5) {
+                factor = savedF;
+            } else {
+                var savedI = parseInt(localStorage.getItem(KEY1), 10);
+                if (savedI >= 0 && savedI < STEPS.length) factor = STEPS[savedI];
+            }
         } catch (e) {}
-        function apply(save) {
-            document.documentElement.setAttribute('data-textscale', String(idx));
-            if (save) { try { localStorage.setItem(KEY, String(idx)); } catch (e) {} }
+        if (!(factor >= MIN)) factor = MIN;
+        if (factor > MAX) factor = MAX;
+        function stepIdxOf(f) {
+            for (var i = 0; i < STEPS.length; i++) if (STEPS[i] === f) return i;
+            return -1;
         }
-        /* Pinch-to-zoom is the control for this setting. Scope is the reading text
-           only: an opened card's .recipe-content, or a cook pane's. One
-           finger is never intercepted — page scroll, cook pane swipe and
-           scroll-snap behave exactly as before; the pinch engages only
-           when a second touch lands, and the start distance is taken at
-           that moment, so any one-finger travel before it is ignored.
-           During the gesture the live scale writes --rts inline under
-           data-textscale="pinch" (the scale rules match it, no step value
-           claims it). On release it snaps to the
-           nearest step and apply(true) persists it. No touch-action is set on the
-           scoped containers: one-finger scrolling must stay native, and
-           the non-passive preventDefault on two-touch moves is what stops
-           the page scrolling or zooming mid-pinch. */
+        function nearestStepIdx(f) {
+            var best = 0, bd = Infinity;
+            for (var i = 0; i < STEPS.length; i++) {
+                var dd = Math.abs(STEPS[i] - f);
+                if (dd < bd) { bd = dd; best = i; }
+            }
+            return best;
+        }
+        function round3(f) { return Math.round(f * 1000) / 1000; }
+        function render(save) {
+            var el = document.documentElement;
+            var si = stepIdxOf(factor);
+            if (si >= 0) {
+                if (el.getAttribute('data-textscale') !== String(si)) el.setAttribute('data-textscale', String(si));
+                el.style.removeProperty('--rts');
+            } else {
+                if (el.getAttribute('data-textscale') !== 'pinch') el.setAttribute('data-textscale', 'pinch');
+                el.style.setProperty('--rts', String(round3(factor)));
+            }
+            if (save) {
+                try {
+                    localStorage.setItem(KEY2, String(round3(factor)));
+                    if (si >= 0) localStorage.setItem(KEY1, String(si));
+                    else localStorage.removeItem(KEY1);
+                } catch (e) {}
+            }
+        }
+        /* Pinch-to-zoom is the control for this setting, with two scopes.
+           In the cook view — anywhere inside #cookView, the pane head
+           and buttons included, because a cooking reader's fingers land
+           where they land — the pinch is a continuous text-size
+           adjustment: the live factor writes --rts inline under
+           data-textscale="pinch", clamped to MIN–MAX, and releasing the
+           fingers keeps the exact size, no snap. On the card list (an
+           opened card's .recipe-content) the original behaviour stands:
+           the same live write, clamped to the step range, snapping to
+           the nearest step on release.
+           One finger is never intercepted — page scroll, cook pane
+           scroll and scroll-snap behave exactly as before; the pinch
+           engages only when a second touch lands, and the start
+           distance is taken at that moment, so any one-finger travel
+           before it is ignored. Inside the cook view the browser's own
+           pinch-zoom must never fire alongside: #cookView sets
+           touch-action: pan-x pan-y, so the browser hands the
+           two-finger gesture to the page, and the gesturestart guard
+           below covers the same ground on iOS. The non-passive
+           preventDefault on two-touch moves stops the page scrolling
+           mid-pinch. Attribute writes are value-guarded and the only
+           per-move write is the inline --rts, so the gesture path never
+           churns the page-wide MutationObserver. */
         var pinch = null;
         function pinchDist(t) {
             var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
             return Math.sqrt(dx * dx + dy * dy);
         }
-        function pinchInScope(node) {
+        function pinchInCook(node) {
+            return !!(node && node.closest && node.closest('#cookView'));
+        }
+        function pinchInRead(node) {
             return !!(node && node.closest && node.closest('.recipe-content'));
         }
-        function pinchNearestIdx(scale) {
-            var best = 0, bd = Infinity;
-            for (var i = 0; i < STEPS.length; i++) {
-                var dd = Math.abs(STEPS[i] / 100 - scale);
-                if (dd < bd) { bd = dd; best = i; }
-            }
-            return best;
+        function pinchLive(s) {
+            var v = String(round3(s));
+            if (pinch.written === v) return;
+            pinch.written = v;
+            document.documentElement.style.setProperty('--rts', v);
         }
-        function pinchLive(scale) {
-            document.documentElement.style.setProperty('--rts', String(Math.round(scale * 1000) / 1000));
+        function pinchStart(e, mode) {
+            var d0 = pinchDist(e.touches);
+            if (!d0) return false;
+            pinch = { mode: mode, d0: d0, s0: factor, scale: factor, written: null };
+            var el = document.documentElement;
+            if (el.getAttribute('data-textscale') !== 'pinch') el.setAttribute('data-textscale', 'pinch');
+            pinchLive(factor);
+            return true;
         }
         function pinchFinish() {
             if (!pinch) return;
-            var scale = pinch.scale;
+            var mode = pinch.mode, s = pinch.scale;
             pinch = null;
-            document.documentElement.style.removeProperty('--rts');
-            idx = pinchNearestIdx(scale);
-            apply(true);
+            factor = (mode === 'cook') ? s : STEPS[nearestStepIdx(s)];
+            render(true);
         }
         document.addEventListener('touchstart', function (e) {
             if (pinch || e.touches.length !== 2) return;
-            if (!pinchInScope(e.touches[0].target) || !pinchInScope(e.touches[1].target)) return;
-            var d0 = pinchDist(e.touches);
-            if (!d0) return;
-            pinch = { d0: d0, s0: STEPS[idx] / 100, scale: STEPS[idx] / 100 };
-            document.documentElement.setAttribute('data-textscale', 'pinch');
-            pinchLive(pinch.scale);
-            e.preventDefault();
+            var t0 = e.touches[0].target, t1 = e.touches[1].target;
+            if (pinchInCook(t0) && pinchInCook(t1)) { if (pinchStart(e, 'cook')) e.preventDefault(); }
+            else if (pinchInRead(t0) && pinchInRead(t1)) { if (pinchStart(e, 'step')) e.preventDefault(); }
         }, { passive: false });
         document.addEventListener('touchmove', function (e) {
             if (!pinch || e.touches.length < 2) return;
             e.preventDefault();
             var d = pinchDist(e.touches);
             if (!d) return;
+            var lo = pinch.mode === 'cook' ? MIN : STEPS[0];
+            var hi = pinch.mode === 'cook' ? MAX : STEPS[STEPS.length - 1];
             var s = pinch.s0 * d / pinch.d0;
-            s = Math.max(STEPS[0] / 100, Math.min(STEPS[STEPS.length - 1] / 100, s));
+            s = Math.max(lo, Math.min(hi, s));
             pinch.scale = s;
             pinchLive(s);
         }, { passive: false });
@@ -9435,9 +9526,9 @@
             if (pinch && e.touches.length < 2) pinchFinish();
         }, { passive: false });
         document.addEventListener('gesturestart', function (e) {
-            if (pinchInScope(e.target)) e.preventDefault();
+            if (pinchInCook(e.target) || pinchInRead(e.target)) e.preventDefault();
         }, { passive: false });
-        apply(false);
+        render(false);
     })();
     </script>
 
