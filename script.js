@@ -144,9 +144,6 @@ function initGoldenStar() {
         if (num === null) return;
         var target = s.golden === true ? star : (s.top === true ? topStar : holdStar);
         if (!target) return;
-        var slot = target.querySelector('.golden-star-score');
-        if (!slot) return;
-        slot.textContent = num;
         target.hidden = false;
     }).catch(function () { /* no state file, no indicator */ });
 }
