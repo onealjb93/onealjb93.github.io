@@ -145,6 +145,72 @@
         .btc-pick-opt.active { background: var(--badge-bg); font-weight: 700; }
     #btc-view-anim { overflow: hidden; }
 
+    /* Chart action corner + fullscreen (2026-11-18, ported from
+       bitcoin.html): under the card's title sit Share, then Full
+       screen, as labeled pills at the row's right end. Fullscreen
+       takes the whole card on the theme background, and inside the
+       fullscreen the graph is the content (Johnny, 2026-11-18): one
+       compact top row — the picker, Share, Exit — and the chart
+       stage filling every remaining pixel, while the supporting
+       layer (the card title, the four-model strip, the readout, the
+       state sentence) leaves the layout; everything returns on exit.
+       The Fullscreen API where the browser offers it, the
+       fixed-layer fallback where it does not (iPhone Safari has no
+       element fullscreen) — the games pattern. In fullscreen the
+       picker un-pins (relative keeps the picker the panel's anchor);
+       the fullscreen script replays a window resize so each chart's
+       own resize listener redraws at the new size. */
+    .btc-card-actions { display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; margin-bottom: 0.55rem; }
+    .btc-action-pill { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 40px; padding: 0.35rem 0.8rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-color); font: inherit; font-size: 0.88rem; font-weight: 600; line-height: 1.2; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .btc-action-pill:hover { background: var(--hover-bg); }
+    .btc-action-pill:active { background: var(--border-color); }
+    .btc-action-pill:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+    .btc-action-pill svg { flex: none; width: 17px; height: 17px; }
+    .btc-fs-btn .btc-fs-icon-exit { display: none; }
+    .btc-fs-btn.btc-fs-on .btc-fs-icon-enter { display: none; }
+    .btc-fs-btn.btc-fs-on .btc-fs-icon-exit { display: block; }
+    .share-toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(6px); background: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 999px; padding: 7px 15px; font-size: 0.82rem; line-height: 1.25; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease; z-index: 3000; }
+    .share-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .btc-chart-card:fullscreen, .btc-chart-card.btc-fs-fallback { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "pick actions" "stage stage"; column-gap: 10px; row-gap: 8px; box-sizing: border-box; background: var(--bg-color); border: none; border-radius: 0; padding: 14px 16px calc(12px + env(safe-area-inset-bottom, 0px)); overflow: hidden; }
+    .btc-chart-card.btc-fs-fallback { position: fixed; inset: 0; z-index: 1100; width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; }
+    html.btc-fs-lock { overflow: hidden; }
+    .btc-chart-card:fullscreen .btc-card-actions, .btc-chart-card.btc-fs-fallback .btc-card-actions { grid-area: actions; margin: 0; align-self: center; }
+    .btc-chart-card:fullscreen .btc-pick, .btc-chart-card.btc-fs-fallback .btc-pick { grid-area: pick; align-self: center; min-width: 0; }
+    .btc-chart-card:fullscreen .btc-pick, .btc-chart-card.btc-fs-fallback .btc-pick { position: relative; top: auto; }
+    .btc-chart-card:fullscreen #btc-view-anim, .btc-chart-card.btc-fs-fallback #btc-view-anim { grid-area: stage; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+    .btc-chart-card:fullscreen .powerlaw-card:not([hidden]), .btc-chart-card.btc-fs-fallback .powerlaw-card:not([hidden]) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    .btc-chart-card:fullscreen .pl-chart-wrap, .btc-chart-card.btc-fs-fallback .pl-chart-wrap { flex: 1 1 auto; min-height: 0; }
+    .btc-chart-card:fullscreen .pl-chart-wrap canvas, .btc-chart-card.btc-fs-fallback .pl-chart-wrap canvas { height: 100%; }
+    /* Fullscreen is for the graph (Johnny, 2026-11-18): the whole
+       supporting layer leaves the layout — the card title, the
+       four-model strip, the stat readout, the state sentence, the
+       view's title (the picker already names the view), its caption,
+       its legend, its reading line and its fine print. What stays is
+       the operating layer: the picker and the two pills on the top
+       row, the chart, and the chart's own zoom controls riding on
+       the chart. Everything hidden returns on exit, and the in-page
+       layout is otherwise untouched. */
+    .btc-chart-card:fullscreen, .btc-chart-card.btc-fs-fallback { padding-top: 10px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+    .btc-chart-card:fullscreen .btc-pick, .btc-chart-card.btc-fs-fallback .btc-pick { padding-top: 2px; padding-bottom: 2px; margin-bottom: 0; }
+    .btc-chart-card:fullscreen .btc-chart-title, .btc-chart-card.btc-fs-fallback .btc-chart-title,
+    .btc-chart-card:fullscreen .btc-zones, .btc-chart-card.btc-fs-fallback .btc-zones,
+    .btc-chart-card:fullscreen .pl-readout, .btc-chart-card.btc-fs-fallback .pl-readout,
+    .btc-chart-card:fullscreen .mm-state, .btc-chart-card.btc-fs-fallback .mm-state,
+    .btc-chart-card:fullscreen .powerlaw-card > h3, .btc-chart-card.btc-fs-fallback .powerlaw-card > h3,
+    .btc-chart-card:fullscreen .powerlaw-card > p:not([class]), .btc-chart-card.btc-fs-fallback .powerlaw-card > p:not([class]),
+    .btc-chart-card:fullscreen .pl-sub, .btc-chart-card.btc-fs-fallback .pl-sub,
+    .btc-chart-card:fullscreen .pl-legend, .btc-chart-card.btc-fs-fallback .pl-legend,
+    .btc-chart-card:fullscreen .pl-reading-line, .btc-chart-card.btc-fs-fallback .pl-reading-line,
+    .btc-chart-card:fullscreen .pl-fine, .btc-chart-card.btc-fs-fallback .pl-fine { display: none; }
+    @media (max-width: 600px) {
+        /* Narrow screens: the CHART label leaves the picker face so
+           the view name, Share and Exit share the one top row with
+           nothing cut off; the row's side padding tightens. */
+        .btc-chart-card:fullscreen, .btc-chart-card.btc-fs-fallback { padding-left: 10px; padding-right: 10px; column-gap: 6px; }
+        .btc-chart-card:fullscreen .btc-pick-label, .btc-chart-card.btc-fs-fallback .btc-pick-label { display: none; }
+        .btc-chart-card:fullscreen .btc-action-pill, .btc-chart-card.btc-fs-fallback .btc-action-pill { padding: 0.35rem 0.6rem; }
+    }
+
     /* Bitcoin Power Law chart (lifted from bitcoin.html, incl. zoom) */
     .powerlaw-card h3 { margin-top: 0; }
     .pl-sub { margin-top: 0; color: var(--text-muted, #94a3b8); }
@@ -832,6 +898,10 @@
         <!-- Bitcoin chart picker: one button opens the list of chart views -->
     <div class="btc-chart-card btc-cursor">
         <h3 class="btc-chart-title">How to understand Bitcoin's current value</h3>
+        <div class="btc-card-actions">
+            <button type="button" class="btc-action-pill" id="btcShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg><span>Share</span></button>
+            <button type="button" class="btc-action-pill btc-fs-btn" id="btcFsBtn" aria-label="Full screen" aria-pressed="false" title="Full screen"><svg class="btc-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="btc-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="btc-fs-label">Full screen</span></button>
+        </div>
         <div class="btc-pick" id="btcPick">
             <button type="button" class="btc-pick-face" id="btcPickFace" aria-haspopup="listbox" aria-expanded="false" aria-controls="btcPickPanel">
                 <span class="btc-pick-main"><span class="btc-pick-label" aria-hidden="true">Chart</span><span class="btc-pick-face-text" id="btcPickFaceText">Bitcoin power law</span></span>
@@ -3415,8 +3485,35 @@
         const btcAddress = "bc1qrl6qaq05y84gv8grhuhcyyel3nklvhk8ylemee";
 
         function fetchOnChainDonations() {
-            fetch(`https://mempool.space/api/address/${btcAddress}/txs`)
+            // The /txs endpoint returns confirmed transactions only, so a
+            // donation still waiting in the mempool would be invisible
+            // until it is mined. Also fetch the address's mempool
+            // transactions and merge them ahead of the confirmed list,
+            // deduped by txid (a transaction can sit in both lists during
+            // the confirmation handoff; the confirmed copy wins, so the
+            // row takes its confirmed date). If the mempool fetch fails,
+            // the confirmed list renders exactly as it always has.
+            const confirmedTxsPromise = fetch(`https://mempool.space/api/address/${btcAddress}/txs`)
+                .then(response => response.json());
+            const mempoolTxsPromise = fetch(`https://mempool.space/api/address/${btcAddress}/txs/mempool`)
                 .then(response => response.json())
+                .catch(() => []);
+            Promise.all([confirmedTxsPromise, mempoolTxsPromise])
+                .then(([confirmedTxs, mempoolTxs]) => {
+                    const mergedTxs = [];
+                    const positionByTxid = {};
+                    (mempoolTxs || []).concat(confirmedTxs || []).forEach(tx => {
+                        if (!tx || !tx.txid) { return; }
+                        if (!(tx.txid in positionByTxid)) {
+                            positionByTxid[tx.txid] = mergedTxs.length;
+                            mergedTxs.push(tx);
+                        } else if (tx.status && tx.status.block_time &&
+                                   !(mergedTxs[positionByTxid[tx.txid]].status && mergedTxs[positionByTxid[tx.txid]].status.block_time)) {
+                            mergedTxs[positionByTxid[tx.txid]] = tx;
+                        }
+                    });
+                    return mergedTxs;
+                })
                 .then(txs => {
                     const tbody = document.getElementById('blockchain-donors-body');
                     if (!txs || txs.length === 0) {
@@ -4219,5 +4316,133 @@
         });
     })();
 </script>
+
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true"><defs><symbol id="jboShareIcon" viewBox="0 0 24 24"><path d="M12 14.2V2.8"/><path d="M7.2 5.8 12 1.4l4.8 4.4"/><path d="M9.9 10H5.6a1.1 1.1 0 0 0-1.1 1.1v9.3a1.1 1.1 0 0 0 1.1 1.1h12.8a1.1 1.1 0 0 0 1.1-1.1v-9.3a1.1 1.1 0 0 0-1.1-1.1h-4.3"/></symbol></defs></svg>
+
+    <div class="share-toast" id="shareToast" role="status" aria-live="polite">Link copied</div>
+    <script>
+    // Sharing (2026-11-18, ported from bitcoin.html)
+    (function () {
+        function jboShareNow(title, text, url) {
+            function toast() {
+                var t = document.getElementById('shareToast');
+                if (!t) { return; }
+                t.classList.add('show');
+                clearTimeout(t._h);
+                t._h = setTimeout(function () { t.classList.remove('show'); }, 1600);
+            }
+            function copyIt() {
+                function legacy() {
+                    var ta = document.createElement('textarea');
+                    ta.value = url; ta.setAttribute('readonly', '');
+                    ta.style.position = 'fixed'; ta.style.opacity = '0';
+                    document.body.appendChild(ta); ta.select();
+                    try { document.execCommand('copy'); } catch (e) {}
+                    document.body.removeChild(ta); toast();
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(toast, legacy);
+                } else { legacy(); }
+            }
+            if (navigator.share) {
+                try {
+                    var p = navigator.share({ title: title, text: text, url: url });
+                    if (p && p.catch) {
+                        p.catch(function (err) {
+                            if (!err || err.name !== 'AbortError') { copyIt(); }
+                        });
+                    }
+                } catch (e) { copyIt(); }
+            } else { copyIt(); }
+        }
+        function jboShareUrl(hash) { return location.origin + location.pathname + hash; }
+
+        var BTC_VIEW_NAMES = { powerlaw: 'Power Law', cost: 'Production Cost', mayer: 'Mayer Multiple', mvrv: 'MVRV Z-Score' };
+        var btcBtn = document.getElementById('btcShare');
+        if (btcBtn) {
+            btcBtn.addEventListener('click', function () {
+                var active = document.querySelector('.btc-pick-opt.active');
+                var view = active ? active.getAttribute('data-view') : 'powerlaw';
+                jboShareNow(document.title, 'Bitcoin \u2014 ' + (BTC_VIEW_NAMES[view] || 'Power Law'),
+                    jboShareUrl('#view=' + view));
+            });
+        }
+        // A shared link selects that view and lands on the chart card.
+        var vm = (location.hash || '').match(/^#view=(powerlaw|cost|mayer|mvrv)$/);
+        if (vm) {
+            var opt = document.querySelector('.btc-pick-opt[data-view="' + vm[1] + '"]');
+            if (opt && !opt.classList.contains('active')) { opt.click(); }
+            var head = document.querySelector('.btc-chart-card');
+            if (head) { head.scrollIntoView(); }
+        }
+    })();
+    </script>
+    <script>
+    // Chart fullscreen (2026-11-18, ported from bitcoin.html): the Full
+    // screen pill in the card's action corner takes the chart card
+    // fullscreen — the Fullscreen API where the browser offers it and
+    // the fixed-layer fallback where it does not (iPhone Safari has no
+    // element fullscreen), the games pattern. Inside the fullscreen
+    // the graph is the content: the card's fullscreen CSS keeps one
+    // top row (picker, Share, Exit) and gives the chart stage every
+    // remaining pixel. Entering or leaving either way replays a window
+    // resize once the layout has settled, so every chart's own resize
+    // listener redraws its canvas at the new box, full sharpness; a
+    // rotation while fullscreen replays the same kick.
+    (function () {
+        var card = document.querySelector('.btc-chart-card');
+        var btn = document.getElementById('btcFsBtn');
+        if (!card || !btn) { return; }
+        function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement; }
+        function apiOn() { return fsElement() === card; }
+        function fallbackOn() { return card.classList.contains('btc-fs-fallback'); }
+        function isOn() { return apiOn() || fallbackOn(); }
+        function redraw() {
+            var kick = function () { window.dispatchEvent(new Event('resize')); };
+            if (window.requestAnimationFrame) { requestAnimationFrame(function () { setTimeout(kick, 180); }); }
+            else { setTimeout(kick, 180); }
+        }
+        function sync() {
+            var on = isOn();
+            btn.classList.toggle('btc-fs-on', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            var fsLabel = btn.querySelector('.btc-fs-label');
+            if (fsLabel) { fsLabel.textContent = on ? 'Exit' : 'Full screen'; }
+            btn.setAttribute('aria-label', on ? 'Exit' : 'Full screen');
+            btn.setAttribute('title', on ? 'Exit' : 'Full screen');
+        }
+        function enterFallback() {
+            card.classList.add('btc-fs-fallback');
+            document.documentElement.classList.add('btc-fs-lock');
+            sync(); redraw();
+        }
+        function exitFallback() {
+            card.classList.remove('btc-fs-fallback');
+            document.documentElement.classList.remove('btc-fs-lock');
+            sync(); redraw();
+        }
+        btn.addEventListener('click', function () {
+            if (fallbackOn()) { exitFallback(); return; }
+            if (apiOn()) {
+                var exit = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exit) { exit.call(document); }
+                return;
+            }
+            var req = card.requestFullscreen || card.webkitRequestFullscreen;
+            if (req) {
+                try {
+                    var p = req.call(card);
+                    if (p && p.catch) { p.catch(function () { enterFallback(); }); }
+                } catch (e) { enterFallback(); }
+            } else { enterFallback(); }
+        });
+        document.addEventListener('fullscreenchange', function () { sync(); redraw(); });
+        document.addEventListener('webkitfullscreenchange', function () { sync(); redraw(); });
+        window.addEventListener('orientationchange', function () { if (isOn()) { redraw(); } });
+        document.addEventListener('keydown', function (e) {
+            if ((e.key === 'Escape' || e.key === 'Esc') && fallbackOn()) { exitFallback(); }
+        });
+    })();
+    </script>
 </body>
 </html>
