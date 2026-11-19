@@ -1,0 +1,2510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <meta name="darkreader-lock">
+    <title>Games - Johnny O'Neal</title>
+    <meta name="description" content="Play games — starting with Line Rider: draw a track, send the rider down it, and keep him going.">
+    <link rel="canonical" href="https://johnny-oneal.com/games.html">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Johnny O'Neal">
+    <meta property="og:title" content="Games - Johnny O'Neal">
+    <meta property="og:description" content="Play games — starting with Line Rider: draw a track, send the rider down it, and keep him going.">
+    <meta property="og:url" content="https://johnny-oneal.com/games.html">
+    <meta property="og:image" content="https://johnny-oneal.com/og-games.jpg">
+    <meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A rider on a sled, riding a hand-drawn track line">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Games - Johnny O'Neal">
+    <meta name="twitter:description" content="Play games — starting with Line Rider: draw a track, send the rider down it, and keep him going.">
+    <meta name="twitter:image" content="https://johnny-oneal.com/og-games.jpg">
+    <link rel="icon" type="image/png" href="JBO%20Logo.%20green%20background.png">
+    <link rel="apple-touch-icon" href="JBO%20Logo.%20green%20background.png">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Heading pinning (2026-11-14): the site's standard single-slot
+           pattern, as on sustainability.html — section headings stick
+           under the frozen 55px header with a solid background (the h2's
+           own border-bottom is the hairline); margin-top becomes
+           padding-top so the resting gap is unchanged. Headings live
+           inside <section> elements here, so the rule is section-scoped.
+           Game code untouched. */
+        section > h2 {
+            position: sticky; top: 55px; z-index: 90;
+            background: var(--bg-color); opacity: 1;
+            margin-top: 0; padding-top: 48px;
+        }
+        /* Line Rider one-screen stage (2026-11-16): the pinned heading,
+           HUD, toolbar and canvas together fill exactly one screen under
+           the frozen 55px nav, so playing never needs a page scroll — the
+           fixed-frame pattern of the Random Generator, applied to a game.
+           The Line Rider heading box is held to a fixed 48px here
+           (padding-top 10 + 1.1rem at line-height 1.4 + padding-bottom 12
+           + its hairline) and the stage takes everything else, so the
+           chrome above the canvas is a known 55 + 48 = 103px. The section
+           intro above the stage scrolls away under the pinned heading,
+           as intros do on this site. Layout only — no game code changes. */
+        /* The title row is a flex row, the Universe's arrangement: the
+           game's toggle takes the row and the full-screen button sits
+           at its right end, beside the title (the button's own rules
+           are in the full-screen block further down). */
+        .lr-section > h2 { padding-top: 10px; line-height: 1.4; display: flex; align-items: flex-start; gap: 8px; }
+        .lr-section > h2 .game-toggle { flex: 1 1 auto; width: auto; min-width: 0; }
+        .lr-stage {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 103px);
+            height: calc(100dvh - 103px - env(safe-area-inset-bottom, 0px));
+        }
+        .lr-stage .lr-hud { margin: 8px 0 6px; }
+        .lr-stage .lr-toolbar { gap: 4px; margin-bottom: 8px; }
+        .lr-stage .lr-btn,
+        .lr-stage .lr-save-name,
+        .lr-stage .lr-saves-select {
+            line-height: 1.4;
+            min-height: 36px;
+            box-sizing: border-box;
+        }
+        /* Line Rider — game-specific styles (site variables from style.css). */
+        .lr-hud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 16px 0 12px;
+        }
+        .lr-stat {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 8px 14px;
+            min-width: 110px;
+        }
+        .lr-stat-label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--subtext-color);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .lr-stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+        .lr-status {
+            align-self: center;
+            color: var(--subtext-color);
+            font-size: 0.95rem;
+            margin-left: auto;
+        }
+        .lr-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 6px;
+        }
+        .lr-btn {
+            padding: 5px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
+            font: inherit;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .lr-btn:hover { border-color: var(--accent-color); }
+        .lr-btn.active {
+            background: var(--accent-color);
+            border-color: transparent;
+            color: #fff;
+        }
+        .lr-btn:disabled { opacity: 0.45; cursor: default; }
+        .lr-btn:disabled:hover { border-color: var(--border-color); }
+        /* Coloured dot on the line-type buttons: the line's colour, up front. */
+        .lr-dot {
+            display: inline-block;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: -1px;
+        }
+        /* Thin divider between control groups (playback / tools / track / view / saves). */
+        .lr-sep {
+            width: 1px;
+            align-self: stretch;
+            background: var(--border-color);
+            margin: 2px 3px;
+        }
+        .lr-save-name, .lr-saves-select {
+            padding: 5px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
+            font: inherit;
+            font-size: 0.85rem;
+        }
+        .lr-save-name { width: 110px; }
+        .lr-saves-select { max-width: 170px; }
+        #lr-canvas {
+            display: block;
+            width: 100%;
+            /* Flexes to whatever height the one-screen stage leaves after
+               the HUD and toolbar; the game reads its size from this box. */
+            flex: 1 1 auto;
+            min-height: 300px;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: var(--bg-color);
+            touch-action: none;
+            cursor: none; /* custom canvas cursor is drawn in JS */
+        }
+        .lr-help {
+            color: var(--subtext-color);
+            font-size: 0.95rem;
+            margin-top: 12px;
+        }
+        .lr-zoom-label {
+            align-self: center;
+            color: var(--subtext-color);
+            font-size: 0.875rem;
+            min-width: 52px;
+            text-align: center;
+        }
+        .lr-howto ol { margin: 0; padding-left: 1.25rem; }
+        .lr-howto li { margin-bottom: 6px; }
+        @media (max-width: 700px) {
+            .lr-status { margin-left: 0; width: 100%; }
+            /* Compact but still comfortably tappable on phones (36px min). */
+            .lr-btn { padding: 7px 8px; min-height: 36px; }
+            .lr-save-name, .lr-saves-select { padding: 7px 8px; min-height: 36px; }
+            /* Saves row goes icon-only on phones so it fits one row: the name
+               field beside it ("Setup name") makes 💾 / 🗑 self-explanatory. */
+            .lr-save-name { width: 84px; }
+            .lr-saves-select { max-width: 120px; }
+            .lr-btn .lr-btn-label { display: none; }
+            /* Stage tightening on phones: slimmer HUD type and hidden
+               dividers (they only make ragged breaks in a wrapped toolbar)
+               buy the canvas its room back. The status line reserves a
+               two-line height, so a longer message wrapping never resizes
+               the canvas mid-ride. */
+            .lr-stage .lr-hud { gap: 8px; }
+            /* The three stats share one row equally at any phone width;
+               a long value wraps inside its own box rather than pushing
+               the row — and the stage — taller. */
+            .lr-stage .lr-stat { padding: 5px 9px; flex: 1 1 0; min-width: 0; }
+            .lr-stage .lr-stat-label { font-size: 0.68rem; line-height: 1.3; }
+            .lr-stage .lr-stat-value { font-size: 0.85rem; line-height: 1.3; }
+            .lr-stage .lr-status { font-size: 0.9rem; line-height: 1.35; min-height: 39px; }
+            .lr-stage .lr-sep { display: none; }
+        }
+        /* Small phones: the canvas floor steps down — the pinned heading,
+           HUD and a fully wrapped toolbar cannot share a 740px screen
+           with a 300px canvas, so the canvas takes everything left. */
+        @media (max-width: 480px) {
+            #lr-canvas { min-height: 180px; }
+            .lr-stage .lr-stat { padding: 5px 6px; }
+        }
+        /* Short screens (landscape phones): compress the chrome first —
+           a compact HUD and a toolbar that becomes one swipeable row —
+           and the canvas takes everything that remains. */
+        @media (max-height: 500px) {
+            .lr-stage .lr-hud { margin: 4px 0; gap: 8px; }
+            .lr-stage .lr-stat { padding: 3px 10px; }
+            .lr-stage .lr-stat-label { font-size: 0.68rem; line-height: 1.3; }
+            .lr-stage .lr-stat-value { font-size: 0.9rem; line-height: 1.3; }
+            .lr-stage .lr-status { min-height: 0; }
+            .lr-stage .lr-toolbar {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                margin-bottom: 4px;
+                padding-bottom: 2px;
+            }
+            .lr-stage .lr-btn,
+            .lr-stage .lr-save-name,
+            .lr-stage .lr-saves-select { flex: 0 0 auto; }
+            #lr-canvas { min-height: 120px; }
+        }
+
+        /* Games shell (2026-11-17): both games live in expand/collapse
+           cards — the site's disclosure pattern (a real header button,
+           an arrow, aria-expanded) with a smooth height animation. One
+           game open at a time; the choice is remembered. The toggle
+           button stretches over its heading's padding via negative
+           margins, so the whole heading bar is the tap target while the
+           heading box — which the one-screen stage math depends on —
+           does not change by a pixel. */
+        .game-toggle {
+            display: flex; align-items: baseline; gap: 0.5rem; width: 100%;
+            background: none; border: 0; margin: -10px 0 -12px;
+            padding: 10px 0 12px; font: inherit; color: inherit;
+            text-align: left; cursor: pointer;
+        }
+        .game-toggle:hover { color: var(--link-color); }
+        .game-toggle:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+        .game-arrow { font-size: 0.78em; }
+        .game-body {
+            display: grid; grid-template-rows: 1fr;
+            transition: grid-template-rows 450ms var(--ease-inout);
+        }
+        .game-body.game-collapsed { grid-template-rows: 0fr; }
+        .game-body[hidden] { display: none; }
+        .game-body-inner { overflow: hidden; min-height: 0; }
+        @media (prefers-reduced-motion: reduce) {
+            .game-body { transition: none; }
+        }
+        /* Narrow screens: the Universe's title is the long one — below
+           ~375px the row (title + 8px gap + the stacked full-screen
+           pill) no longer holds the title at full size, and the title
+           wrapped to a second line, growing the Universe's heading
+           past the Line Rider's. The two headings are one system, so
+           one shared step ladder shrinks both together, each step the
+           smallest the measured fit allows: 1.05rem holds the title
+           on one line down to 370px, 1rem to 360px, 0.92rem to 340px
+           and 0.83rem to 320px. At 380px and above no step applies —
+           the headings keep their full 1.1rem and their 47.625px. */
+        @media (max-width: 379px) {
+            .lr-section > h2, .uv-section > h2 { font-size: 1.05rem; }
+        }
+        @media (max-width: 369px) {
+            .lr-section > h2, .uv-section > h2 { font-size: 1rem; }
+        }
+        @media (max-width: 359px) {
+            .lr-section > h2, .uv-section > h2 { font-size: 0.92rem; }
+        }
+        @media (max-width: 339px) {
+            .lr-section > h2, .uv-section > h2 { font-size: 0.83rem; }
+        }
+        /* Line Rider full screen — the Universe's pattern, in Line
+           Rider's prefixes. The button lives in the title row (see the
+           flex rule beside the stage rules above); its base is the
+           game's own .lr-btn, with the same metrics as the Universe's
+           title-row button; its negative margins reach into the
+           heading's padding so the heading box keeps its exact base
+           height and the one-screen stage math is untouched (the
+           margin is -7px here, 1px more than the Universe's -6px:
+           rendered measurement showed -6px growing this heading by
+           ~1.4px, and -7px holds it at the base height). */
+        .lr-fs-btn {
+            min-width: 44px; padding: 8px 10px;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .lr-fs-label { line-height: 1; white-space: nowrap; }
+        .lr-fs-btn:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+        .lr-fs-btn svg { width: 20px; height: 20px; display: block; }
+        .lr-fs-btn .lr-fs-icon-exit { display: none; }
+        .lr-fs-btn.lr-fs-on .lr-fs-icon-enter { display: none; }
+        .lr-fs-btn.lr-fs-on .lr-fs-icon-exit { display: block; }
+        .lr-fs-head { min-width: 42px; min-height: 38px; padding: 7px 9px; margin: -7px 0; flex: 0 0 auto; }
+        .lr-fs-head:active { background: var(--border-color); }
+        /* Narrow screens: the labelled pill stacks — glyph over label —
+           so the title keeps its one line and the heading its height. */
+        @media (max-width: 480px) {
+            .lr-fs-btn { flex-direction: column; gap: 1px; }
+            .lr-fs-btn svg { width: 18px; height: 18px; }
+            .lr-fs-head { padding: 2px 6px; }
+            .lr-fs-label { font-size: 0.75rem; }
+        }
+        /* Full screen, two ways, as with the Universe: the Fullscreen
+           API hands the game's whole block — title row, stage and
+           toolbar together — the whole screen; where a browser has no
+           element fullscreen (iPhone Safari) the block instead pins
+           itself over the page. The button lives in the title row, so
+           it stays on screen in full screen and works as the exit. The
+           intro sentence and the How-to section stay behind; inside
+           the block the stage takes the full height, the canvas flexes
+           to fill it, and the stage-layout relay re-sizes the drawing
+           surface from the canvas box whenever the box changes. */
+        .lr-section:fullscreen, .lr-section:-webkit-full-screen {
+            display: flex; flex-direction: column;
+            height: 100%; width: 100%;
+            background: var(--bg-color); overflow: hidden;
+        }
+        .lr-section.lr-section-fs {
+            position: fixed; inset: 0; z-index: 1500;
+            display: flex; flex-direction: column;
+            height: 100vh; height: 100dvh; width: 100%;
+            background: var(--bg-color); padding: 10px; overflow: hidden;
+        }
+        .lr-section:fullscreen > h2, .lr-section.lr-section-fs > h2 { position: static; flex: 0 0 auto; }
+        .lr-section:fullscreen > p, .lr-section.lr-section-fs > p { display: none; }
+        .lr-section:fullscreen .game-body, .lr-section.lr-section-fs .game-body { flex: 1 1 auto; min-height: 0; }
+        .lr-section:fullscreen .lr-howto, .lr-section.lr-section-fs .lr-howto { display: none; }
+        .lr-section:fullscreen .lr-stage, .lr-section.lr-section-fs .lr-stage { height: 100%; }
+        html.lr-fs-lock { overflow: hidden; }
+        /* Universe stage: the same one-screen frame as Line Rider — the
+           pinned heading (compressed to the same 48px) plus the stage
+           fill the screen under the frozen nav. */
+        .uv-section { margin-top: 48px; }
+        /* The title row is a flex row: the game's toggle takes the row
+           and the full-screen button sits at its right end, beside the
+           title — reachable without scrolling the stage into exactly
+           the right place, and carried by the pinned heading while the
+           page scrolls. */
+        .uv-section > h2 { padding-top: 10px; line-height: 1.4; display: flex; align-items: flex-start; gap: 8px; }
+        .uv-section > h2 .game-toggle { flex: 1 1 auto; width: auto; min-width: 0; }
+        .uv-stage {
+            display: flex; flex-direction: column;
+            height: calc(100vh - 103px);
+            height: calc(100dvh - 103px - env(safe-area-inset-bottom, 0px));
+        }
+        .uv-stage-box {
+            position: relative; flex: 1 1 auto; min-height: 0;
+            border: 1px solid var(--border-color); border-radius: 12px;
+            overflow: hidden; background: #04070e;
+        }
+        .uv-canvas {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            display: block; touch-action: none; cursor: grab;
+        }
+        .uv-canvas:active { cursor: grabbing; }
+        .uv-labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+        .uv-label {
+            position: absolute; left: 0; top: 0; padding: 2px 8px;
+            border-radius: 999px; background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: var(--text-color); font-size: 0.72rem; font-weight: 600;
+            letter-spacing: 0.02em; white-space: nowrap;
+        }
+        /* The stage is a window into space: dark in both themes. The HUD
+           and caption sit on that darkness, so they keep light glass in
+           both themes; the controls below the stage follow the theme. */
+        .uv-hud {
+            position: absolute; top: 10px; left: 12px; right: 12px;
+            display: flex; flex-wrap: wrap; gap: 4px 16px;
+            pointer-events: none; color: #dbe7f5; font-size: 0.82rem;
+            text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+        }
+        .uv-hud-near { margin-left: auto; }
+        .uv-caption {
+            position: absolute; left: 50%; bottom: 12px;
+            transform: translateX(-50%);
+            width: min(620px, calc(100% - 24px)); margin: 0;
+            padding: 10px 14px; border-radius: 12px;
+            background: rgba(10, 14, 22, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            color: #eef4fb; font-size: 0.92rem; line-height: 1.45;
+            text-align: center; pointer-events: none;
+        }
+        .uv-controls {
+            display: flex; flex-wrap: wrap; align-items: center;
+            gap: 8px; margin-top: 10px;
+        }
+        .uv-btn {
+            min-height: 44px; padding: 8px 16px; border-radius: 999px;
+            border: 1px solid var(--border-color); background: var(--card-bg);
+            color: var(--text-color); font: inherit; font-size: 0.92rem;
+            cursor: pointer;
+        }
+        .uv-btn:hover { border-color: var(--accent-color); }
+        .uv-btn:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+        .uv-fly-btn {
+            background: var(--accent-color); border-color: transparent;
+            color: #fff; font-weight: 700; padding: 8px 22px;
+        }
+        .uv-speed-wrap {
+            display: flex; align-items: center; gap: 8px;
+            flex: 1 1 170px; min-height: 44px;
+            color: var(--subtext-color); font-size: 0.85rem;
+        }
+        .uv-speed { flex: 1 1 auto; min-width: 84px; height: 44px; accent-color: var(--accent-color); }
+        .uv-fly-btn { touch-action: none; user-select: none; -webkit-user-select: none; }
+        .uv-labels-bar {
+            display: inline-flex; align-items: center; gap: 7px;
+            min-height: 44px; padding: 8px 16px; border-radius: 999px;
+            border: 1px solid var(--border-color); background: var(--card-bg);
+            color: var(--text-color); font-size: 0.92rem; cursor: pointer;
+        }
+        .uv-labels-bar input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent-color); cursor: pointer; }
+        .uv-fs-btn {
+            min-width: 44px; padding: 8px 10px;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .uv-fs-label { line-height: 1; white-space: nowrap; }
+        .uv-fs-btn svg { width: 20px; height: 20px; display: block; }
+        .uv-fs-btn .uv-fs-icon-exit { display: none; }
+        .uv-fs-btn.uv-fs-on .uv-fs-icon-enter { display: none; }
+        .uv-fs-btn.uv-fs-on .uv-fs-icon-exit { display: block; }
+        /* The title-row button is a little shorter than the control-bar
+           buttons and borrows the toggle's own trick — negative margins
+           that reach into the heading's padding — so the heading box
+           stays exactly 48px and the one-screen stage math is untouched. */
+        .uv-fs-head { min-width: 42px; min-height: 38px; padding: 7px 9px; margin: -7px 0; flex: 0 0 auto; }
+        .uv-fs-head:active { background: var(--border-color); }
+        /* Narrow screens: the labelled pill stacks — glyph over label —
+           so the title keeps its one line and the heading its height. */
+        @media (max-width: 480px) {
+            .uv-fs-btn { flex-direction: column; gap: 1px; }
+            .uv-fs-btn svg { width: 18px; height: 18px; }
+            .uv-fs-head { padding: 2px 6px; }
+            .uv-fs-label { font-size: 0.75rem; }
+        }
+        /* Full screen, two ways: the Fullscreen API hands the game's
+           whole block — title row, stage and control bar together —
+           the whole screen; where a browser has no element fullscreen
+           (iPhone Safari) the block instead pins itself over the page.
+           The button lives in the title row, so it stays on screen in
+           full screen and works as the exit. The intro sentence stays
+           behind; inside the block the stage flexes to fill the space
+           and the engine's resize observer follows. */
+        .uv-section:fullscreen, .uv-section:-webkit-full-screen {
+            display: flex; flex-direction: column;
+            height: 100%; width: 100%; margin-top: 0;
+            background: var(--bg-color); overflow: hidden;
+        }
+        .uv-section.uv-section-fs {
+            position: fixed; inset: 0; z-index: 1500;
+            display: flex; flex-direction: column;
+            height: 100vh; height: 100dvh; width: 100%; margin-top: 0;
+            background: var(--bg-color); padding: 10px; overflow: hidden;
+        }
+        .uv-section:fullscreen > h2, .uv-section.uv-section-fs > h2 { position: static; flex: 0 0 auto; }
+        .uv-section:fullscreen > p, .uv-section.uv-section-fs > p { display: none; }
+        .uv-section:fullscreen .game-body, .uv-section.uv-section-fs .game-body { flex: 1 1 auto; min-height: 0; }
+        .uv-section:fullscreen .uv-stage, .uv-section.uv-section-fs .uv-stage { height: 100%; }
+        html.uv-fs-lock { overflow: hidden; }
+        .uv-panel {
+            position: absolute; top: 54px; left: 10px; right: 10px; z-index: 5;
+            max-height: calc(100% - 150px); overflow-y: auto;
+            padding: 14px; border-radius: 14px;
+            background: var(--card-bg); border: 1px solid var(--border-color);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            color: var(--text-color);
+        }
+        .uv-panel[hidden] { display: none; }
+        .uv-panel-bar {
+            position: sticky; top: -14px; z-index: 2;
+            display: flex; justify-content: flex-end;
+            margin: -14px -14px 10px; padding: 10px 14px 8px;
+            background: var(--card-bg); border-radius: 14px 14px 0 0;
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        }
+        .uv-search-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
+        .uv-search-row label { font-weight: 600; font-size: 0.92rem; }
+        .uv-search {
+            flex: 1 1 190px; min-height: 44px; padding: 8px 14px;
+            border-radius: 999px; border: 1px solid var(--border-color);
+            background: var(--bg-color); color: var(--text-color);
+            font: inherit; font-size: 0.92rem;
+        }
+        .uv-check {
+            display: inline-flex; align-items: center; gap: 8px;
+            min-height: 44px; margin-right: 14px;
+            font-size: 0.92rem; cursor: pointer;
+        }
+        .uv-check input { width: 20px; height: 20px; accent-color: var(--accent-color); }
+        .uv-keys, .uv-about { color: var(--subtext-color); font-size: 0.85rem; line-height: 1.55; margin: 10px 0 0; }
+        .uv-loading, .uv-fallback {
+            position: absolute; inset: 0; z-index: 6;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 12px; padding: 20px;
+            text-align: center; background: #04070e; color: #dbe7f5;
+        }
+        .uv-loading[hidden], .uv-fallback[hidden] { display: none; }
+        .uv-spinner {
+            width: 34px; height: 34px; border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.18);
+            border-top-color: #4da6ff;
+            animation: uv-spin 0.9s linear infinite;
+        }
+        @keyframes uv-spin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            .uv-spinner { animation-duration: 2.4s; }
+        }
+        .uv-load-track {
+            width: min(320px, 80%); height: 6px; border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14); overflow: hidden;
+        }
+        .uv-load-bar { height: 100%; width: 0; background: #4da6ff; border-radius: 999px; transition: width 200ms ease; }
+        .uv-load-msg { margin: 0; font-size: 0.95rem; }
+        @media (max-width: 480px) {
+            .uv-hud-near { margin-left: 0; width: 100%; }
+        }
+        @media (max-height: 500px) {
+            .uv-caption { font-size: 0.82rem; padding: 7px 10px; bottom: 8px; }
+            .uv-hud { font-size: 0.75rem; }
+            .uv-panel { max-height: calc(100% - 110px); }
+        }
+    </style>
+    <!-- Umami Analytics Script -->
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="5062ac5a-8e7c-4aa2-a942-6c7f4ce40108"></script>
+</head>
+<body>
+    <script>
+        // Theme before first paint: stored choice wins, dark is the default.
+        // Never follows the OS setting. Storage failure falls back to dark.
+        (function () {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'light') { document.body.classList.add('light-mode'); }
+                document.documentElement.style.colorScheme = (t === 'light') ? 'light' : 'dark';
+            } catch (e) { /* storage blocked: stay on the dark default */ }
+        })();
+    </script>
+
+    <nav class="site-nav" aria-label="Site pages">
+        <a class="site-brand" href="/" aria-label="Johnny O'Neal — home">
+            <img class="site-brand-logo" src="jbo-logo-128.webp" alt="Johnny O'Neal logo" width="32" height="32">
+        </a>
+        <a class="golden-star" href="bitcoin.html#btc-value" title="Rare buy — all four Bitcoin models in their buy zones" aria-label="Rare buy — all four Bitcoin models in their buy zones" hidden><span class="golden-star-stars" aria-hidden="true">★★★★</span><span class="golden-star-note" aria-hidden="true">Rare buy · Active now</span></a>
+        <div class="site-nav-right">
+            <div class="site-nav-menu">
+                <button class="site-nav-toggle" id="nav-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="nav-menu">Explore pages ▾</button>
+                <div class="site-nav-dropdown" id="nav-menu" role="menu">
+                    <a href="/" role="menuitem">Home</a>
+                    <a href="health.html" role="menuitem">Health</a>
+                    <a href="recipes.html" role="menuitem">Cooking</a>
+                    <a href="finance.html" role="menuitem">Finance</a>
+                    <a href="bitcoin.html" role="menuitem">Bitcoin</a>
+                    <a href="sustainability.html" role="menuitem">Sustainability</a>
+                    <a href="media.html" role="menuitem">Books and Podcasts</a>
+                    <a href="games.html" role="menuitem">Games</a>
+                    <a href="random.html" role="menuitem">Random Generator</a>
+                    <a href="messageboard.html" role="menuitem">Message Board</a>
+                </div>
+            </div>
+            <div class="theme-switch-wrapper">
+                <label class="switch">
+                    <input type="checkbox" id="theme-toggle" aria-label="Toggle light and dark mode" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </nav>
+
+    <header>
+        <h1>Games</h1>
+        <p>A place to play. More games coming.</p>
+    </header>
+
+    <section class="lr-section" aria-labelledby="line-rider-heading">
+        <h2 id="line-rider-heading"><button type="button" class="game-toggle" data-game-btn="linerider" aria-expanded="true" aria-controls="game-body-linerider"><span class="game-arrow" aria-hidden="true">▼</span> Line Rider</button><button type="button" class="lr-btn lr-fs-btn lr-fs-head" aria-label="Full screen" aria-pressed="false"><svg class="lr-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="lr-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="lr-fs-label">Full screen</span></button></h2>
+        <p>Draw a track, then send the rider down it. Downhill he picks up speed, off a ramp he flies — steer him in the air with the arrow keys and land him back on the track. If his head hits a line, he crashes. How far can you keep him going?</p>
+
+        <div class="game-body" id="game-body-linerider" role="region" aria-labelledby="line-rider-heading"><div class="game-body-inner">
+        <div class="lr-stage">
+        <div class="lr-hud" aria-live="polite">
+            <div class="lr-stat"><span class="lr-stat-label">Distance</span><span class="lr-stat-value" id="lr-distance">0.0 m (0.0 ft)</span></div>
+            <div class="lr-stat"><span class="lr-stat-label">Speed</span><span class="lr-stat-value" id="lr-speed">0.0 m/s (0.0 mph)</span></div>
+            <div class="lr-stat"><span class="lr-stat-label">Best</span><span class="lr-stat-value" id="lr-best">0.0 m (0.0 ft)</span></div>
+            <span class="lr-status" id="lr-status">Draw a track, then press Play.</span>
+        </div>
+
+        <div class="lr-toolbar" role="toolbar" data-grab-scroll aria-label="Line Rider tools">
+            <button class="lr-btn" id="lr-restart" type="button">↺ Restart</button>
+            <button class="lr-btn" id="lr-playpause" type="button">▶ Play</button>
+            <button class="lr-btn" id="lr-speed" type="button" title="Slow the ride down to watch a landing — or a crash — up close">Speed 1×</button>
+            <span class="lr-sep" aria-hidden="true"></span>
+            <button class="lr-btn active" id="lr-tool-draw" type="button">✏️ Draw</button>
+            <button class="lr-btn" id="lr-tool-line" type="button">📏 Straight</button>
+            <button class="lr-btn" id="lr-tool-move" type="button">✋ Move</button>
+            <button class="lr-btn" id="lr-tool-erase" type="button">🧽 Erase</button>
+            <button class="lr-btn" id="lr-tool-mushroom" type="button">🍄 Mushroom</button>
+            <button class="lr-btn" id="lr-tool-glider" type="button">🪂 Glider</button>
+            <button class="lr-btn" id="lr-tool-flag" type="button" title="Plant a checkpoint flag on the track — Restart then starts him there">🚩 Flag</button>
+            <span class="lr-sep" aria-hidden="true"></span>
+            <button class="lr-btn active" id="lr-type-normal" type="button" title="Normal line — he rides it"><span class="lr-dot" style="background:#4da6ff"></span>Normal</button>
+            <button class="lr-btn" id="lr-type-boost" type="button" title="Boost line — speeds him up while he rides it"><span class="lr-dot" style="background:#e5484d"></span>Boost</button>
+            <button class="lr-btn" id="lr-type-scenery" type="button" title="Scenery line — just for drawing; he passes right through it"><span class="lr-dot" style="background:#2fbf71"></span>Scenery</button>
+            <span class="lr-sep" aria-hidden="true"></span>
+            <button class="lr-btn" id="lr-undo" type="button">↩ Undo</button>
+            <button class="lr-btn" id="lr-redo" type="button">↪ Redo</button>
+            <span class="lr-sep" aria-hidden="true"></span>
+            <button class="lr-btn" id="lr-clear" type="button">Clear all</button>
+            <button class="lr-btn" id="lr-default" type="button">Default track</button>
+            <span class="lr-sep" aria-hidden="true"></span>
+            <button class="lr-btn" id="lr-zoom-out" type="button">− Zoom out</button>
+            <button class="lr-btn" id="lr-zoom-in" type="button">+ Zoom in</button>
+            <button class="lr-btn" id="lr-zoom-fit" type="button">⤢ Fit track</button>
+            <span class="lr-zoom-label" id="lr-zoom-label" aria-live="polite">100%</span>
+            <span class="lr-sep" aria-hidden="true"></span>
+            <input class="lr-save-name" id="lr-save-name" type="text" placeholder="Setup name" aria-label="Name for this setup" maxlength="40">
+            <button class="lr-btn" id="lr-save" type="button" title="Save this setup under the name above">💾 <span class="lr-btn-label">Save</span></button>
+            <select class="lr-saves-select" id="lr-saves" aria-label="Saved setups">
+                <option value="">Saved setups…</option>
+            </select>
+            <button class="lr-btn" id="lr-save-delete" type="button" title="Delete the selected setup">🗑 <span class="lr-btn-label">Delete</span></button>
+        </div>
+
+        <canvas id="lr-canvas" aria-label="Line Rider game canvas. Draw a track with your mouse or finger, switch to Move to slide the view without drawing, then press Play."></canvas>
+        </div>
+    <section class="lr-howto" aria-labelledby="how-to-play-heading">
+        <h2 id="how-to-play-heading">How to play</h2>
+        <ol>
+            <li><strong>Draw a track</strong> — drag on the canvas with your mouse or finger. Downhill slopes build speed; ramps launch him into the air. The 📏 Straight tool draws one straight line between two points — press, drag, let go.</li>
+            <li><strong>Three kinds of line</strong> — pick before you draw. <strong>Normal</strong> (blue) is the track he rides. <strong>Boost</strong> (red) speeds him up while he rides it — and if he hits a mushroom while he's on a red line, the two boosts stack and he goes extra fast. <strong>Scenery</strong> (green) is just for drawing the world around the track; he passes right through it.</li>
+            <li><strong>Move the view</strong> — tap ✋ Move, then drag to slide the window around without drawing anything. Zoom with the − / + buttons, scroll on the canvas, or pinch on your phone; "Fit track" shows the entire track at once. The view stays exactly where you leave it — it never snaps back.</li>
+            <li><strong>Press Play</strong> (or Space) — the rider sets off from the flag. While he's airborne, ← and → spin him. Land on your wheels, not your head.</li>
+            <li><strong>Don't crash</strong> — if his head hits a line, he's done. Pause (Space) to draw more track, then Play to keep going.</li>
+            <li><strong>Tools</strong> — Erase wipes lines, Clear all starts fresh, Default track brings back the starter track, Restart (R) sends him back to the flag. Drew a bad line? Undo (Ctrl+Z) takes back the last stroke, Redo (Ctrl+Shift+Z) puts it back, and Backspace deletes the last line. The 🚩 Flag tool plants a checkpoint on the track — Restart then starts him there instead. Speed slows the ride to ½× or ¼× so you can watch a landing up close. Your best distance is saved on your device.</li>
+        </ol>
+    </section>
+        </div></div>
+    </section>
+    <script>
+    // Games shell (part 1 of 2): apply the remembered open game to Line
+    // Rider before the rest of the page parses, so a returning visitor
+    // never sees the wrong game flash open. Part 2, after the Universe
+    // section, wires the toggles. First visit: Line Rider open.
+    (function () {
+        var open = 'linerider';
+        try {
+            var s = localStorage.getItem('games-open-v1');
+            if (s === 'universe' || s === 'none') open = s;
+        } catch (e) { /* storage blocked: the default stands */ }
+        window.__gamesOpen = open;
+        if (open !== 'linerider') {
+            window.__gamesLrCollapsed = true;
+            var body = document.getElementById('game-body-linerider');
+            var btn = document.querySelector('[data-game-btn="linerider"]');
+            if (body) { body.hidden = true; body.classList.add('game-collapsed'); }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                var a = btn.querySelector('.game-arrow');
+                if (a) a.textContent = '\u25b6';
+            }
+        }
+    })();
+    </script>
+    <script>
+    // Line Rider full screen: the button lives in the game's title
+    // row, and full screen takes the game's whole block — title row,
+    // stage and toolbar together — so the button stays on screen and
+    // works as the exit. It uses the Fullscreen API where the browser
+    // offers it; where it doesn't (iPhone Safari has no element
+    // fullscreen), the block instead expands to a fixed full-screen
+    // layer over the page, and the same button closes it. The canvas
+    // follows on its own: the stage-layout relay further down watches
+    // the canvas box and fires the game's resize whenever the box
+    // changes. The Universe's handler below is the model; the one
+    // difference is that this handler recognises only its own section
+    // as the fullscreen element, now that the page has two such
+    // buttons.
+    (function () {
+        var section = document.querySelector('.lr-section');
+        if (!section) return;
+        var fsBtn = section.querySelector('.lr-fs-btn');
+        if (!fsBtn) return;
+        var fsLabel = fsBtn.querySelector('.lr-fs-label');
+        var fallbackOn = false;
+        function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement; }
+        function syncBtn() {
+            var on = fsElement() === section || fallbackOn;
+            fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            fsBtn.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
+            fsBtn.classList.toggle('lr-fs-on', on);
+            if (fsLabel) fsLabel.textContent = on ? 'Exit' : 'Full screen';
+        }
+        function enterFallback() {
+            fallbackOn = true;
+            section.classList.add('lr-section-fs');
+            document.documentElement.classList.add('lr-fs-lock');
+            syncBtn();
+        }
+        function exitFallback() {
+            fallbackOn = false;
+            section.classList.remove('lr-section-fs');
+            document.documentElement.classList.remove('lr-fs-lock');
+            syncBtn();
+        }
+        fsBtn.addEventListener('click', function () {
+            if (fallbackOn) { exitFallback(); return; }
+            if (fsElement() === section) {
+                var exit = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exit) exit.call(document);
+                return;
+            }
+            // The button sits on the title row, which is tappable while
+            // the game is closed: open the game first, so full screen
+            // never shows an empty block.
+            var body = document.getElementById('game-body-linerider');
+            if (body && body.hidden) {
+                var toggle = document.querySelector('[data-game-btn="linerider"]');
+                if (toggle) toggle.click();
+            }
+            var req = section.requestFullscreen || section.webkitRequestFullscreen;
+            if (req) {
+                try {
+                    var p = req.call(section);
+                    if (p && p.catch) p.catch(function () { enterFallback(); });
+                } catch (e) { enterFallback(); }
+            } else {
+                enterFallback();
+            }
+        });
+        document.addEventListener('fullscreenchange', syncBtn);
+        document.addEventListener('webkitfullscreenchange', syncBtn);
+        document.addEventListener('keydown', function (ev) {
+            if (fallbackOn && (ev.key === 'Escape' || ev.key === 'Esc')) exitFallback();
+        });
+        syncBtn();
+    })();
+    </script>
+
+    <section class="uv-section" aria-labelledby="universe-heading">
+        <h2 id="universe-heading"><button type="button" class="game-toggle" data-game-btn="universe" aria-expanded="false" aria-controls="game-body-universe"><span class="game-arrow" aria-hidden="true">▶</span> Explore the Known Universe</button><button type="button" class="uv-btn uv-fs-btn uv-fs-head" aria-label="Full screen" aria-pressed="false"><svg class="uv-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="uv-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="uv-fs-label">Full screen</span></button></h2>
+        <p>Fly through the real, mapped universe — every star and galaxy at its true position.</p>
+
+        <div class="game-body game-collapsed" id="game-body-universe" role="region" aria-labelledby="universe-heading" hidden>
+        <div class="game-body-inner">
+        <div class="uv-stage">
+            <div class="uv-stage-box">
+                <canvas class="uv-canvas" aria-label="The known universe. Drag to look around, hold the Fly button to fly anywhere through real stars and galaxies, or take the guided tour."></canvas>
+                <div class="uv-labels" aria-hidden="true"></div>
+                <div class="uv-hud"><span class="uv-hud-dist"></span><span class="uv-hud-speed"></span><span class="uv-hud-near"></span></div>
+                <p class="uv-caption" aria-live="polite"></p>
+                <div class="uv-panel" id="uv-panel" hidden>
+                    <div class="uv-panel-bar"><button type="button" class="uv-btn uv-panel-close">Close</button></div>
+                    <div class="uv-search-row">
+                        <label for="uv-search-input">Jump to</label>
+                        <input id="uv-search-input" class="uv-search" type="text" list="uv-datalist" placeholder="Sirius, Andromeda, Betelgeuse…" autocomplete="off">
+                        <datalist id="uv-datalist" class="uv-datalist"></datalist>
+                        <button type="button" class="uv-btn uv-search-go">Go</button>
+                    </div>
+                    <label class="uv-check"><input type="checkbox" class="uv-labels-toggle" checked> Show names</label>
+                    <label class="uv-check"><input type="checkbox" class="uv-cloud-toggle" checked> Show the deep galaxy cloud</label>
+                    <button type="button" class="uv-btn uv-mouse-btn">Mouse flight</button>
+                    <button type="button" class="uv-btn uv-reset-btn">Back to the Sun</button>
+                    <p class="uv-keys">Keys: W A S D to fly, R and F to rise and sink, scroll to set speed. Drag to look around; on a phone, hold the Fly button and drag.</p>
+                    <p class="uv-about">Every position is real: 99,692 stars from the HYG database (Hipparcos, Yale Bright Star and Gliese catalogs) and 10,124 galaxies from OpenNGC, built on NASA’s Extragalactic Database — both CC BY-SA 4.0. Named galaxies use published distances; the deep cloud’s distances come from redshift, so they are approximate. Stars and galaxies are drawn far larger than life — at true size they would be invisible points — and flight is faster than light. The speed readout says by how much. Sizes follow a logarithm — each symbol grows with the star's real brightness or the galaxy's real width, squeezed until everything in the catalog can be seen — while every position and distance stays exactly as measured. The sky's soft glow is summed from the catalog itself — where mapped stars crowd together, their light is added into a faint haze, so the texture you see is the catalog's own density, and no light appears where no stars are mapped. The brightest stars shimmer slightly, and left alone the view drifts very slowly. The Sun and planets hang at their true directions and relative distances for 18 November 2026, but their sizes are enlarged to be seen — the planets 1,000×, the Sun 40×; their sizes relative to each other stay true. Surfaces are published mission and reference maps (NASA/ESA mission mosaics and Solar System Scope maps, CC BY 4.0 / CC0 via Wikimedia Commons); Saturn's rings are drawn from the published ring profile, not a photograph. Earth's spin phase is not shown. The bright nebulae are real places from the same OpenNGC catalog — their directions and sizes are the catalog's, their distances are published values — drawn as soft coloured glows: pink-red where young stars light the gas, teal for planetary nebulae, violet for supernova remnants, blue for starlight reflected off dust; the wisps inside each glow are a drawing convention, like the galaxies' spiral arms. Bright objects bloom — light spilling around the brightest stars, nebulae and galaxy cores — the way bright things bloom to an eye; nothing blooms that is not bright in the data.</p>
+                </div>
+                <div class="uv-loading">
+                    <div class="uv-spinner" aria-hidden="true"></div>
+                    <p class="uv-load-msg">Loading the real universe…</p>
+                    <div class="uv-load-track"><div class="uv-load-bar"></div></div>
+                </div>
+                <div class="uv-fallback" hidden>
+                    <p>The universe could not be loaded. Check your connection and collapse and reopen this game to try again.</p>
+                </div>
+            </div>
+            <div class="uv-controls">
+                <button type="button" class="uv-btn uv-fly-btn">Hold to fly</button>
+                <label class="uv-speed-wrap"><span>Speed</span><input type="range" class="uv-speed" min="0" max="1" step="0.001" value="0.373" aria-label="Flight speed"></label>
+                <button type="button" class="uv-btn uv-tour-btn">▶ Fly the tour</button>
+                <label class="uv-labels-bar"><input type="checkbox" class="uv-labels-toggle-bar" checked> Labels</label>
+                <button type="button" class="uv-btn uv-more-btn" aria-expanded="false" aria-controls="uv-panel">More controls ▾</button>
+            </div>
+        </div>
+        </div>
+        </div>
+    </section>
+
+    <script>
+    // Games shell (part 2 of 2): the toggles. One game open at a time;
+    // tapping the open game's heading closes it. The choice is remembered
+    // ('games-open-v1'). The Universe engine and its data load only on
+    // that game's first expand. Line Rider's own code is untouched —
+    // if it loaded collapsed, its Fit button is pressed once on its first
+    // expand so its view is framed exactly as if it had loaded open.
+    (function () {
+        var KEY = 'games-open-v1';
+        var open = window.__gamesOpen || 'linerider';
+        if (open === 'none') open = null;
+        var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        var gens = { linerider: 0, universe: 0 };
+        var bodies = {
+            linerider: document.getElementById('game-body-linerider'),
+            universe: document.getElementById('game-body-universe')
+        };
+        var btns = {
+            linerider: document.querySelector('[data-game-btn="linerider"]'),
+            universe: document.querySelector('[data-game-btn="universe"]')
+        };
+        var uvStarted = false, uvCtrl = null, lrFitDone = false;
+        function save() { try { localStorage.setItem(KEY, open || 'none'); } catch (e) {} }
+        function setArrow(btn, isOpen) {
+            var a = btn && btn.querySelector('.game-arrow');
+            if (a) a.textContent = isOpen ? '\u25bc' : '\u25b6';
+        }
+        function startUniverse() {
+            if (uvStarted) { if (uvCtrl) uvCtrl.setActive(true); return; }
+            uvStarted = true;
+            var p;
+            try { p = import('./q-universe.js'); } catch (e) { p = Promise.reject(e); }
+            p.then(function (m) {
+                uvCtrl = m.initUniverse(document.querySelector('.uv-stage'));
+                window.__uv = uvCtrl;
+                if (open === 'universe') uvCtrl.setActive(true);
+            }).catch(function () {
+                var l = document.querySelector('.uv-loading');
+                var f = document.querySelector('.uv-fallback');
+                if (l) l.hidden = true;
+                if (f) f.hidden = false;
+            });
+        }
+        function fixLrFit() {
+            if (lrFitDone || !window.__gamesLrCollapsed) return;
+            lrFitDone = true;
+            setTimeout(function () {
+                var b = document.getElementById('lr-zoom-fit');
+                if (b) b.click();
+            }, 150);
+        }
+        function setOpen(name, isOpen, instant) {
+            var body = bodies[name], btn = btns[name];
+            if (!body || !btn) return;
+            var gen = ++gens[name];
+            btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            setArrow(btn, isOpen);
+            if (isOpen) {
+                body.hidden = false;
+                void body.offsetHeight;
+                body.classList.remove('game-collapsed');
+                if (name === 'universe') startUniverse();
+                if (name === 'linerider') fixLrFit();
+            } else {
+                body.classList.add('game-collapsed');
+                if (name === 'universe' && uvCtrl) uvCtrl.setActive(false);
+                if (instant || reduce) body.hidden = true;
+                else setTimeout(function () { if (gens[name] === gen) body.hidden = true; }, 480);
+            }
+        }
+        function toggle(name) {
+            if (open === name) { setOpen(name, false); open = null; }
+            else {
+                if (open) setOpen(open, false);
+                setOpen(name, true);
+                open = name;
+            }
+            save();
+        }
+        Object.keys(btns).forEach(function (name) {
+            if (btns[name]) btns[name].addEventListener('click', function () { toggle(name); });
+        });
+        if (open === 'universe') setOpen('universe', true, true);
+    })();
+    </script>
+
+    <script>
+    // Universe primary-bar extras (2026-11-18): a Labels switch in the
+    // main control row, kept in agreement with the one in More controls
+    // (the panel switch stays the one the engine listens to — the bar
+    // switch mirrors it and re-fires its change), and the full-screen
+    // button, which lives in the game's title row. Full screen takes
+    // the game's whole block — title row, stage and control bar
+    // together — so the button stays on screen and works as the exit.
+    // It uses the Fullscreen API where the browser offers it; where it
+    // doesn't (iPhone Safari has no element fullscreen), the block
+    // instead expands to a fixed full-screen layer over the page, and
+    // the same button closes it.
+    (function () {
+        var stage = document.querySelector('.uv-stage');
+        var section = document.querySelector('.uv-section');
+        if (!stage || !section) return;
+        var panelToggle = stage.querySelector('.uv-panel .uv-labels-toggle');
+        var barToggle = stage.querySelector('.uv-labels-toggle-bar');
+        if (panelToggle && barToggle) {
+            barToggle.checked = panelToggle.checked;
+            barToggle.addEventListener('change', function () {
+                panelToggle.checked = barToggle.checked;
+                panelToggle.dispatchEvent(new Event('change'));
+            });
+            panelToggle.addEventListener('change', function () {
+                barToggle.checked = panelToggle.checked;
+            });
+        }
+        var fsBtn = section.querySelector('.uv-fs-btn');
+        if (!fsBtn) return;
+        var fsLabel = fsBtn.querySelector('.uv-fs-label');
+        var fallbackOn = false;
+        function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement; }
+        function syncBtn() {
+            var on = !!fsElement() || fallbackOn;
+            fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            fsBtn.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
+            fsBtn.classList.toggle('uv-fs-on', on);
+            if (fsLabel) fsLabel.textContent = on ? 'Exit' : 'Full screen';
+        }
+        function enterFallback() {
+            fallbackOn = true;
+            section.classList.add('uv-section-fs');
+            document.documentElement.classList.add('uv-fs-lock');
+            syncBtn();
+        }
+        function exitFallback() {
+            fallbackOn = false;
+            section.classList.remove('uv-section-fs');
+            document.documentElement.classList.remove('uv-fs-lock');
+            syncBtn();
+        }
+        fsBtn.addEventListener('click', function () {
+            if (fallbackOn) { exitFallback(); return; }
+            if (fsElement()) {
+                var exit = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exit) exit.call(document);
+                return;
+            }
+            // The button sits on the title row, which is tappable while
+            // the game is closed: open the game first, so full screen
+            // never shows an empty block.
+            var body = document.getElementById('game-body-universe');
+            if (body && body.hidden) {
+                var toggle = document.querySelector('[data-game-btn="universe"]');
+                if (toggle) toggle.click();
+            }
+            var req = section.requestFullscreen || section.webkitRequestFullscreen;
+            if (req) {
+                try {
+                    var p = req.call(section);
+                    if (p && p.catch) p.catch(function () { enterFallback(); });
+                } catch (e) { enterFallback(); }
+            } else {
+                enterFallback();
+            }
+        });
+        document.addEventListener('fullscreenchange', syncBtn);
+        document.addEventListener('webkitfullscreenchange', syncBtn);
+        document.addEventListener('keydown', function (ev) {
+            if (fallbackOn && (ev.key === 'Escape' || ev.key === 'Esc')) exitFallback();
+        });
+        syncBtn();
+    })();
+    </script>
+
+    <footer class="site-footer">
+        <div class="footer-links">
+            <span style="font-size: 1rem;">Get in Touch:</span>
+            <a href="https://x.com/JohnnyONeal93" target="_blank">X</a>
+            <span style="opacity: 0.3;">•</span>
+            <a href="https://www.goodreads.com/user/show/55201896-johnny-o-neal" target="_blank">Goodreads</a>
+        </div>
+        <div class="footer-quote">"Humanity needs a vision of an expanding and unending future. This spiritual craving cannot be satisfied by the colonization of space. The true frontier for humanity is life on Earth, its exploration and the transport of knowledge about it into science, art and practical affairs." <span class="footer-quote-attrib">— E. O. Wilson</span></div>
+        <div class="footer-cc" style="width: 100%; text-align: center; font-size: 0.72rem; opacity: 0.75;">© 2026 Johnny O'Neal · Writing <a href="https://creativecommons.org/licenses/by/4.0/" style="color: inherit;">CC BY 4.0</a> · Other works © their creators.</div>
+    </footer>
+
+    <script src="script.js"></script>
+    <script>
+    /* Line Rider — draw a track, ride it, don't crash.
+       No libraries, no external assets. World units are pixels, y points down.
+       1 m = 50 px. Gravity 1500 px/s^2. */
+    (function () {
+        'use strict';
+
+        var canvas = document.getElementById('lr-canvas');
+        var ctx = canvas.getContext('2d');
+        var G = 1500;
+        var PX_PER_M = 50;
+        var SNAP = 16;          // px: how close the sled must be to a line to ride it
+        var BEST_KEY = 'lr-best-m';
+
+        var lines = [];         // array of polylines: [{x, y}, ...], each carrying a .type:
+                                // 'normal' (rides), 'boost' (rides + speeds him up), 'scenery' (never collides)
+        var tool = 'draw';      // 'draw' | 'line' | 'move' | 'erase' | 'mushroom' | 'glider' | 'flag'
+        var drawType = 'normal'; // line type the Draw and Straight tools lay down
+        var speedMul = 1;       // playback speed: 1, 1/2 or 1/4 (slow motion) — ride playback only, never editing
+        var slowQueue = [];     // slow motion: frame times banked and spent in order, one per 2 (or 4) frames
+        var slowTick = 0;       // frames since slow motion last spent a banked frame time
+        var flag = null;        // checkpoint flag {x, y, a, onLine} or null — Restart starts him there when set
+        var lineStart = null;   // first point of a straight line being dragged out
+        var undoStack = [];     // world snapshots (plain data), one per edit gesture
+        var redoStack = [];
+        var gestureSnap = null; // world snapshot taken when an edit gesture begins
+        var mode = 'edit';      // 'edit' | 'playing' | 'paused' | 'crashed'
+        var rider = null;       // {x, y, vx, vy, angle, omega, state, maxX, startX, stuckT, boostT, glideT}
+        var cam = { x: 0, y: 0 };
+        // The camera NEVER moves on its own while editing: zoom and pan persist
+        // until the user changes them. It only follows the rider while playing.
+        var zoom = 1;           // view scale: 1 = actual size, smaller = zoomed out
+        var ZOOM_MIN = 0.1, ZOOM_MAX = 3;
+        function viewW() { return CW / zoom; }   // visible world width
+        function viewH() { return CH / zoom; }   // visible world height
+        var keys = {};
+        var drawing = false;
+        var panning = false;    // one-finger drag in Move mode pans the view
+        var panLast = null;     // last pointer position while panning
+        var curLine = null;
+        var lastPt = null;
+        var ERASE_PX = 20;      // erase radius in SCREEN px (constant at any zoom)
+        var cursorPos = null;   // {x, y} in canvas CSS px, or null when hidden
+        var crashMsg = '';
+        var mushrooms = [];  // [{x, y, a}] placed speed-boost power-ups (a = slope of the line under them)
+        var gliders = [];    // [{x, y}] placed hang gliders, floating in the air
+        var pops = [];       // [{x, y, t}] pickup pop rings, t counts down from 0.35
+        var MUSHROOM_SNAP_SCREEN = 40; // snap radius in screen px when placing a mushroom
+        var MUSHROOM_TRIGGER_WORLD = 20;  // trigger radius in WORLD px, tested against the path swept this step (zoom-independent, tunnel-proof)
+        var BOOST_MULT = 1.8, BOOST_DUR = 1.5; // mushroom burst: 1.8x velocity kick, then a sustained push while boostT lasts (1.5 s, speed lines show)
+        var BOOST_MIN = 420; // minimum speed after a mushroom kick (px/s) — firmly unsticks a slow or stalled rider
+        var BOOST_ACCEL = 1200;      // sustained push along the line while boosted (px/s^2) — beats gravity's along-slope pull on all but near-vertical climbs
+        var BOOST_AIR_ACCEL = 700;   // sustained push along his flight while boosted (px/s^2)
+        var BOOST_LINE_ACCEL = 900;  // red (boost) line push along the line while he rides it (px/s^2)
+        var BOOST_STACK_MULT = 2;    // stacking: while a mushroom burst lasts, a red line's push is
+                                     // multiplied by this — mushroom + red line together (1200 + 2*900)
+                                     // out-push either one alone (1200 mushroom, 900 red line)
+        var GLIDER_TRIGGER_PX = 26; // pickup radius in screen px (airborne rider only)
+        var GLIDE_MAX = 7;          // max glide duration, seconds
+        var GLIDE_STALL = 120;      // px/s: horizontal speed below this stalls the glider
+        var AUTOSAVE_KEY = 'lr-autosave';   // legacy resume key: cleared on load, never written anymore
+        var SAVES_KEY = 'lr-saves';
+        var MAX_SAVES = 12;
+        var best = 0;
+        try { best = parseFloat(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { best = 0; }
+
+        var elDist = document.getElementById('lr-distance');
+        var elSpeed = document.getElementById('lr-speed');
+        var elBest = document.getElementById('lr-best');
+        var elStatus = document.getElementById('lr-status');
+        var btnDraw = document.getElementById('lr-tool-draw');
+        var btnLine = document.getElementById('lr-tool-line');
+        var btnMove = document.getElementById('lr-tool-move');
+        var btnErase = document.getElementById('lr-tool-erase');
+        var btnMushroom = document.getElementById('lr-tool-mushroom');
+        var btnGlider = document.getElementById('lr-tool-glider');
+        var btnFlag = document.getElementById('lr-tool-flag');
+        var btnTypeNormal = document.getElementById('lr-type-normal');
+        var btnTypeBoost = document.getElementById('lr-type-boost');
+        var btnTypeScenery = document.getElementById('lr-type-scenery');
+        var btnUndo = document.getElementById('lr-undo');
+        var btnRedo = document.getElementById('lr-redo');
+        var btnSpeed = document.getElementById('lr-speed');
+        var btnSave = document.getElementById('lr-save');
+        var btnSaveDelete = document.getElementById('lr-save-delete');
+        var inputSaveName = document.getElementById('lr-save-name');
+        var selSaves = document.getElementById('lr-saves');
+        var btnClear = document.getElementById('lr-clear');
+        var btnDefault = document.getElementById('lr-default');
+        var btnPlayPause = document.getElementById('lr-playpause');
+        var btnRestart = document.getElementById('lr-restart');
+
+        /* ---------- colours (read from the site theme, so both themes work) ---------- */
+        var colors = { bg: '#07090e', text: '#f0f3f6', sub: '#9198a1', accent: '#4da6ff', grid: 'rgba(255,255,255,0.07)' };
+        function readColors() {
+            try {
+                var cs = getComputedStyle(document.body);
+                var v = function (name, fb) { var s = cs.getPropertyValue(name); return s ? s.trim() : fb; };
+                colors.bg = v('--bg-color', colors.bg);
+                colors.text = v('--text-color', colors.text);
+                colors.sub = v('--subtext-color', colors.sub);
+                colors.accent = v('--accent-color', colors.accent);
+                colors.grid = document.body.classList.contains('light-mode') ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)';
+            } catch (e) { /* keep defaults */ }
+        }
+        readColors();
+        var themeToggle = document.getElementById('theme-toggle');
+        if (themeToggle) themeToggle.addEventListener('click', function () { setTimeout(readColors, 60); });
+
+        /* ---------- canvas sizing ---------- */
+        var DPR = 1, CW = 0, CH = 0;
+        function resize() {
+            DPR = Math.min(2, window.devicePixelRatio || 1);
+            CW = canvas.clientWidth;
+            CH = canvas.clientHeight;
+            if (CW > 0 && CH > 0) {
+                canvas.width = Math.round(CW * DPR);
+                canvas.height = Math.round(CH * DPR);
+                ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        /* ---------- starter track: one line — big downhill into a smooth launch ramp ----------
+           Tuned on real physics: the valley turn is gradual (a sharp kink would
+           eat the rider's speed — velocity re-projects onto the new line), so the
+           295 px drop carries him up the 145 px ramp with speed to spare and he
+           goes airborne off the end. (A second line — landing, long run, kicker —
+           used to follow the jump; Johnny asked for it gone for good, so the
+           starter track is this one line only. Don't re-add it.) */
+        /* Line types ride along on each polyline as a .type property, so
+           every existing loop still sees a plain array of points; anything
+           without a recognised type is a normal line (that is also how
+           pre-upgrade saved setups load — they carry no type at all). */
+        function lineType(pts) {
+            var t = pts && pts.type;
+            return (t === 'boost' || t === 'scenery') ? t : 'normal';
+        }
+        function mkLine(pts, type) { pts.type = type || 'normal'; return pts; }
+        function typeColor(t) {
+            return t === 'boost' ? '#e5484d' : t === 'scenery' ? '#2fbf71' : colors.accent;
+        }
+
+        function starterTrack() {
+            lines = [
+                mkLine([{ x: 60, y: 120 }, { x: 300, y: 220 }, { x: 520, y: 320 }, { x: 760, y: 400 }, { x: 900, y: 415 }]),
+                mkLine([{ x: 900, y: 415 }, { x: 980, y: 400 }, { x: 1060, y: 370 }, { x: 1130, y: 320 }, { x: 1200, y: 270 }])
+            ];
+        }
+
+        function resetRider() {
+            slowQueue = []; slowTick = 0;  // a fresh ride starts with no banked slow-motion time
+            // Checkpoint flag set? He starts there instead — standing on
+            // the flagged spot with no speed, distance counted from there.
+            if (flag) {
+                rider = { x: flag.x, y: flag.y, vx: 0, vy: 0, angle: flag.a, omega: 0,
+                          state: flag.onLine ? 'riding' : 'air', maxX: flag.x, startX: flag.x,
+                          stuckT: 0, boostT: 0, glideT: 0 };
+                cam.x = flag.x - viewW() * 0.3;
+                cam.y = flag.y - viewH() * 0.55;
+                crashMsg = '';
+                return;
+            }
+            // Start on the first drawable line — a stray tap leaves a
+            // 1-point line with no direction, so skip those (otherwise a
+            // single tap before Play left the rider with nowhere to start).
+            // Scenery never counts: he can't ride it, so he can't start on it.
+            var first = null;
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i].length >= 2 && lineType(lines[i]) !== 'scenery') { first = lines[i]; break; }
+            }
+            if (!first) { rider = null; return; }
+            var p0 = first[0], p1 = first[1];
+            var a = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+            rider = { x: p0.x, y: p0.y, vx: 0, vy: 0, angle: a, omega: 0,
+                      state: 'riding', maxX: p0.x, startX: p0.x, stuckT: 0, boostT: 0, glideT: 0 };
+            cam.x = p0.x - viewW() * 0.3;
+            cam.y = p0.y - viewH() * 0.55;
+            crashMsg = '';
+        }
+
+        /* ---------- geometry helpers ---------- */
+        function segClosest(px, py, a, b) {
+            var dx = b.x - a.x, dy = b.y - a.y;
+            var len2 = dx * dx + dy * dy;
+            var t = len2 ? ((px - a.x) * dx + (py - a.y) * dy) / len2 : 0;
+            t = Math.max(0, Math.min(1, t));
+            var cx = a.x + dx * t, cy = a.y + dy * t;
+            var ddx = px - cx, ddy = py - cy;
+            return { x: cx, y: cy, d: Math.sqrt(ddx * ddx + ddy * ddy), t: t,
+                     dirx: dx, diry: dy, len: Math.sqrt(len2) };
+        }
+        function nearestSegment(px, py, maxD, skip) {
+            var bestH = null;
+            for (var i = 0; i < lines.length; i++) {
+                if (lineType(lines[i]) === 'scenery') continue;  // scenery never collides — invisible to physics and snapping alike
+                var pts = lines[i];
+                for (var j = 0; j < pts.length - 1; j++) {
+                    if (skip && skip.pi === i && (skip.si === j || (skip.uptosi && j < skip.si))) continue;
+                    var h = segClosest(px, py, pts[j], pts[j + 1]);
+                    if (h.d < maxD && (!bestH || h.d < bestH.d)) {
+                        h.pi = i; h.si = j;
+                        h.ax = pts[j].x; h.ay = pts[j].y; h.bx = pts[j + 1].x; h.by = pts[j + 1].y;
+                        bestH = h;
+                    }
+                }
+            }
+            return bestH;
+        }
+        function segIntersect(p1, p2, p3, p4) {
+            var d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+            var d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+            var den = d1x * d2y - d1y * d2x;
+            if (Math.abs(den) < 1e-9) return null;
+            var t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / den;
+            var u = ((p3.x - p1.x) * d1y - (p3.y - p1.y) * d1x) / den;
+            if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { x: p1.x + d1x * t, y: p1.y + d1y * t };
+            return null;
+        }
+        function angDiff(a, b) {
+            var d = a - b;
+            while (d > Math.PI) d -= 2 * Math.PI;
+            while (d < -Math.PI) d += 2 * Math.PI;
+            return d;
+        }
+        function headPos(r) {
+            return { x: r.x + Math.sin(r.angle) * 30, y: r.y - Math.cos(r.angle) * 30 };
+        }
+        function chestPos(r) {
+            return { x: r.x + Math.sin(r.angle) * 17, y: r.y - Math.cos(r.angle) * 17 };
+        }
+        /* Crash check (airborne, and while riding via the call in stepRider):
+           the head or chest hit a line — except a line
+           the body is already within SNAP of, which is one the rider is
+           about to land on. His head swinging near the landing line (or
+           grazing its tip) is part of landing, not a crash; a genuine
+           head-first hit has the body ~30px away from the line, so it
+           still fires. */
+        function airCrashCheck(nx, ny, angle) {
+            var hp = headPos({ x: nx, y: ny, angle: angle });
+            var cp = chestPos({ x: nx, y: ny, angle: angle });
+            for (var i = 0; i < lines.length; i++) {
+                if (lineType(lines[i]) === 'scenery') continue;
+                var pts = lines[i];
+                for (var j = 0; j < pts.length - 1; j++) {
+                    var hd = segClosest(hp.x, hp.y, pts[j], pts[j + 1]).d;
+                    var cd = segClosest(cp.x, cp.y, pts[j], pts[j + 1]).d;
+                    if (hd < 7 || cd < 7) {
+                        // The body is about to land on this stretch of track
+                        // if it is within SNAP of this segment or its
+                        // neighbours: a drawn line is many short segments,
+                        // and the body may sit just past the end of the one
+                        // the head is near while still being right on the
+                        // line (the closest point clamps to the endpoint).
+                        // (A "moving toward" test was tried and reverted:
+                        // a body riding along a line has near-zero
+                        // perpendicular velocity, so the sign is noise and
+                        // it broke the steep landing.)
+                        var near = false;
+                        for (var k = Math.max(0, j - 2);
+                             k <= Math.min(pts.length - 2, j + 2) && !near; k++) {
+                            if (segClosest(nx, ny, pts[k], pts[k + 1]).d < SNAP) near = true;
+                        }
+                        if (!near) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /* ---------- physics ---------- */
+        function crash(kind) {
+            mode = 'crashed';
+            if (rider) rider.state = 'crashed';
+            crashMsg = (kind === 'head') ? "Crashed — his head hit the track!" : 'He fell off the track!';
+            saveBest();
+            updateUI();
+        }
+        function distanceM() {
+            return rider ? Math.max(0, (rider.maxX - rider.startX) / PX_PER_M) : 0;
+        }
+        function saveBest() {
+            var d = distanceM();
+            if (d > best) {
+                best = d;
+                try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) { /* storage blocked */ }
+            }
+        }
+
+        /* ---------- saving: named favorites only ----------
+           There is no resume: every page load starts a brand-new game (the
+           starter track), and the legacy auto-save key is cleared on load so
+           nothing from a previous visit can come back. The only way back to
+           older work is a named favorite under SAVES_KEY (max 12); saving
+           under an existing name updates it in place. Clear-all never
+           touches the favorites. */
+        function snapshot() {
+            return {
+                v: 1,
+                lines: lines.map(function (pts) {
+                    return pts.map(function (p) { return [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]; });
+                }),
+                // Line types ride in a parallel array so the lines format
+                // itself is unchanged: setups saved before line types
+                // existed have no lineTypes field and load as all-Normal.
+                lineTypes: lines.map(function (pts) { return lineType(pts); }),
+                flag: flag ? { x: Math.round(flag.x * 10) / 10, y: Math.round(flag.y * 10) / 10,
+                               a: Math.round(flag.a * 100) / 100, onLine: flag.onLine ? 1 : 0 } : null,
+                mushrooms: mushrooms.map(function (m) {
+                    return { x: Math.round(m.x * 10) / 10, y: Math.round(m.y * 10) / 10, a: Math.round(m.a * 100) / 100 };
+                }),
+                gliders: gliders.map(function (g) {
+                    return { x: Math.round(g.x * 10) / 10, y: Math.round(g.y * 10) / 10 };
+                }),
+                cam: { x: Math.round(cam.x * 10) / 10, y: Math.round(cam.y * 10) / 10 },
+                zoom: Math.round(zoom * 1000) / 1000,
+                savedAt: Date.now()
+            };
+        }
+        function restoreSnap(s) {
+            if (!s || typeof s !== 'object' || !Array.isArray(s.lines)) return false;
+            var savedTypes = Array.isArray(s.lineTypes) ? s.lineTypes : [];
+            var ls = [];
+            for (var i = 0; i < s.lines.length; i++) {
+                var pts = s.lines[i];
+                if (!Array.isArray(pts)) continue;
+                var pl = [];
+                for (var j = 0; j < pts.length; j++) {
+                    var pt = pts[j];
+                    if (Array.isArray(pt) && isFinite(pt[0]) && isFinite(pt[1])) pl.push({ x: pt[0], y: pt[1] });
+                    else if (pt && isFinite(pt.x) && isFinite(pt.y)) pl.push({ x: pt.x, y: pt.y });
+                }
+                // A setup with no type for this line (every pre-upgrade
+                // save) loads it as a normal line, exactly as it rode before.
+                if (pl.length >= 1) { pl.type = (savedTypes[i] === 'boost' || savedTypes[i] === 'scenery') ? savedTypes[i] : 'normal'; ls.push(pl); }
+            }
+            var ms = [];
+            if (Array.isArray(s.mushrooms)) {
+                for (var k = 0; k < s.mushrooms.length; k++) {
+                    var m = s.mushrooms[k];
+                    if (m && isFinite(m.x) && isFinite(m.y)) ms.push({ x: m.x, y: m.y, a: isFinite(m.a) ? m.a : 0 });
+                }
+            }
+            var gs = [];
+            if (Array.isArray(s.gliders)) {
+                for (var q = 0; q < s.gliders.length; q++) {
+                    var g = s.gliders[q];
+                    if (g && isFinite(g.x) && isFinite(g.y)) gs.push({ x: g.x, y: g.y });
+                }
+            }
+            lines = ls; mushrooms = ms; gliders = gs; pops = [];
+            flag = (s.flag && isFinite(s.flag.x) && isFinite(s.flag.y))
+                ? { x: s.flag.x, y: s.flag.y, a: isFinite(s.flag.a) ? s.flag.a : 0, onLine: !!s.flag.onLine } : null;
+            undoStack = []; redoStack = []; gestureSnap = null;  // a loaded setup starts a fresh edit history
+            if (s.cam && isFinite(s.cam.x) && isFinite(s.cam.y)) { cam.x = s.cam.x; cam.y = s.cam.y; }
+            if (isFinite(s.zoom) && s.zoom >= ZOOM_MIN && s.zoom <= ZOOM_MAX) { zoom = s.zoom; updateZoomLabel(); }
+            rider = null; mode = 'edit'; crashMsg = '';
+            return true;
+        }
+        function getSaves() {
+            try {
+                var raw = localStorage.getItem(SAVES_KEY);
+                var arr = raw ? JSON.parse(raw) : [];
+                return Array.isArray(arr) ? arr : [];
+            } catch (e) { return []; }
+        }
+        function putSaves(arr) {
+            try { localStorage.setItem(SAVES_KEY, JSON.stringify(arr)); return true; }
+            catch (e) { return false; }
+        }
+        function refreshSavesList() {
+            var saves = getSaves();
+            selSaves.innerHTML = '';
+            var opt0 = document.createElement('option');
+            opt0.value = ''; opt0.textContent = 'Saved setups…';
+            selSaves.appendChild(opt0);
+            saves.forEach(function (s, i) {
+                var o = document.createElement('option');
+                o.value = String(i); o.textContent = s.name;
+                selSaves.appendChild(o);
+            });
+        }
+        function saveNamed() {
+            var saves = getSaves();
+            var name = inputSaveName.value.trim();
+            if (!name) {
+                var n = 1, taken = {};
+                saves.forEach(function (s) { taken[s.name] = true; });
+                while (taken['Setup ' + n]) n++;
+                name = 'Setup ' + n;
+            }
+            var snap = snapshot();
+            snap.name = name;
+            var note = '';
+            var idx = -1;
+            for (var i = 0; i < saves.length; i++) { if (saves[i].name === name) { idx = i; break; } }
+            if (idx >= 0) { saves[idx] = snap; }
+            else {
+                if (saves.length >= MAX_SAVES) {
+                    var dropped = saves.shift();
+                    note = ' Oldest setup "' + dropped.name + '" was removed (' + MAX_SAVES + ' max).';
+                }
+                saves.push(snap);
+                idx = saves.length - 1;
+            }
+            if (!putSaves(saves)) {
+                flashStatus("Couldn't save — browser storage is full. Delete an old setup and try again.");
+                updateUI();
+                return;
+            }
+            refreshSavesList();
+            selSaves.value = String(idx);
+            inputSaveName.value = '';
+            flashStatus('Saved "' + name + '".' + note);
+            updateUI();
+        }
+        function loadNamed(idx) {
+            var saves = getSaves();
+            var s = saves[idx];
+            if (!s) return;
+            if (restoreSnap(s)) {
+                // resetRider moves the camera to the start; put the saved
+                // view back afterwards, like init does.
+                var v = { x: cam.x, y: cam.y, z: zoom };
+                resetRider();
+                cam.x = v.x; cam.y = v.y; zoom = v.z; updateZoomLabel();
+                flashStatus('Loaded "' + s.name + '".');
+                updateUI();
+            }
+        }
+        function deleteNamed() {
+            var idx = parseInt(selSaves.value, 10);
+            var saves = getSaves();
+            if (isNaN(idx) || !saves[idx]) { flashStatus('Pick a saved setup to delete.'); updateUI(); return; }
+            var name = saves[idx].name;
+            saves.splice(idx, 1);
+            if (!putSaves(saves)) { flashStatus("Couldn't delete — browser storage is unavailable."); updateUI(); return; }
+            refreshSavesList();
+            flashStatus('Deleted "' + name + '".');
+            updateUI();
+        }
+
+        /* ---------- undo / redo ----------
+           History is kept as plain-data snapshots of the whole world
+           (lines with their types, mushrooms, gliders, checkpoint flag),
+           one per edit gesture: a drawn stroke, an erase drag, a placed
+           item, a Clear all. Undo restores the snapshot; the current
+           world goes onto the redo stack. Applying a snapshot stops any
+           ride — editing and riding never mix. */
+        function worldData() {
+            return {
+                lines: lines.map(function (pts) {
+                    return { t: lineType(pts), pts: pts.map(function (p) { return [p.x, p.y]; }) };
+                }),
+                mushrooms: mushrooms.map(function (m) { return [m.x, m.y, m.a]; }),
+                gliders: gliders.map(function (g) { return [g.x, g.y]; }),
+                flag: flag ? [flag.x, flag.y, flag.a, flag.onLine ? 1 : 0] : null
+            };
+        }
+        function applyWorldData(d) {
+            lines = d.lines.map(function (L) {
+                var a = L.pts.map(function (p) { return { x: p[0], y: p[1] }; });
+                a.type = L.t;
+                return a;
+            });
+            mushrooms = d.mushrooms.map(function (m) { return { x: m[0], y: m[1], a: m[2] }; });
+            gliders = d.gliders.map(function (g) { return { x: g[0], y: g[1] }; });
+            flag = d.flag ? { x: d.flag[0], y: d.flag[1], a: d.flag[2], onLine: !!d.flag[3] } : null;
+            pops = [];
+            rider = null; mode = 'edit'; crashMsg = '';
+        }
+        function pushUndo(data) {
+            undoStack.push(data);
+            if (undoStack.length > 60) undoStack.shift();
+            redoStack = [];
+        }
+        function captureGesture() {
+            var w = worldData();
+            gestureSnap = { world: w, json: JSON.stringify(w) };
+        }
+        function commitGesture() {
+            if (!gestureSnap) return;
+            if (JSON.stringify(worldData()) !== gestureSnap.json) pushUndo(gestureSnap.world);
+            gestureSnap = null;
+        }
+        function undo() {
+            if (mode === 'playing' || !undoStack.length) return;
+            redoStack.push(worldData());
+            applyWorldData(undoStack.pop());
+            updateUI();
+        }
+        function redo() {
+            if (mode === 'playing' || !redoStack.length) return;
+            undoStack.push(worldData());
+            applyWorldData(redoStack.pop());
+            updateUI();
+        }
+        // The classic's Backspace: delete the last drawn line (any type).
+        // It is itself undoable — Ctrl+Z brings the line back.
+        function deleteLastStroke() {
+            if (mode === 'playing' || !lines.length) return;
+            pushUndo(worldData());
+            lines.pop();
+            rider = null; mode = 'edit'; crashMsg = '';
+            updateUI();
+        }
+
+        /* Mushroom pickup, tested against the path swept this step —
+           (sx, sy) is where the step started, (r.x, r.y) where it ended —
+           so a fast rider can never tunnel past a mushroom between steps,
+           at any zoom or frame rate. (The old check sampled only his
+           post-step position, inside a screen-px radius that shrank to
+           6 world px at zoom 3.) Not while gliding: the mushroom stays
+           for after he lands. */
+        function eatMushrooms(sx, sy) {
+            var r = rider;
+            if (!r || r.state === 'crashed' || r.state === 'gliding') return;
+            for (var mi = mushrooms.length - 1; mi >= 0; mi--) {
+                var mm = mushrooms[mi];
+                if (segClosest(mm.x, mm.y, { x: sx, y: sy }, { x: r.x, y: r.y }).d >= MUSHROOM_TRIGGER_WORLD) continue;
+                mushrooms.splice(mi, 1);
+                pops.push({ x: mm.x, y: mm.y, t: 0.35 });
+                r.boostT = BOOST_DUR;
+                // The kick. A rider genuinely moving along the track gets
+                // his velocity amplified (never less than BOOST_MIN). A
+                // slow, stalled, or rolled-back rider instead gets a firm
+                // push along the track as drawn (the mushroom's stored
+                // slope) — the old code scaled up whatever velocity he
+                // happened to have, so a rider who had stalled and rolled
+                // back got boosted BACKWARD, and on any hill gravity ate
+                // the one instant kick in well under a second. The kick
+                // alone was never the whole boost: boostT also drives a
+                // sustained push in stepRider (riding + air) for 1.5 s.
+                var tx = Math.cos(mm.a), ty = Math.sin(mm.a);
+                var sp = Math.hypot(r.vx, r.vy);
+                if (sp > 200 || (sp > 40 && (r.vx * tx + r.vy * ty) >= 0)) {
+                    var ns = Math.max(sp * BOOST_MULT, BOOST_MIN);
+                    r.vx = r.vx / sp * ns; r.vy = r.vy / sp * ns;
+                } else {
+                    r.vx = tx * BOOST_MIN; r.vy = ty * BOOST_MIN;
+                }
+                flashStatus('🍄 Boost!');
+            }
+        }
+
+        function stepRider(dt) {
+            var r = rider;
+            if (!r || r.state === 'crashed') return;
+            var sx = r.x, sy = r.y;  // step start, for the swept pickup check
+            if (r.state === 'riding') {
+                var hit = nearestSegment(r.x, r.y, SNAP);
+                if (!hit) { r.state = 'air'; return; }  // ran off the end of a line
+                var dl = hit.len || 1;
+                var dx = hit.dirx / dl, dy = hit.diry / dl;
+                var speed = r.vx * dx + r.vy * dy;
+                if (speed < 0) { dx = -dx; dy = -dy; speed = -speed; }
+                speed += G * dy * dt;  // gravity component along the line
+                // Red (boost) line: while he rides one it pushes him along
+                // it, on top of gravity. Stacking: while a mushroom burst
+                // is also live, the red line's push is multiplied
+                // (BOOST_STACK_MULT) — the two boosts together must out-push
+                // either one alone. Normal lines take neither branch, so
+                // their physics is untouched.
+                if (lineType(lines[hit.pi]) === 'boost') {
+                    var lineAccel = BOOST_LINE_ACCEL;
+                    if (r.boostT > 0) lineAccel *= BOOST_STACK_MULT;
+                    speed += lineAccel * dt;
+                }
+                // Mushroom boost: while the burst lasts he also gets a
+                // sustained push along the line, on top of the pickup kick —
+                // a kick alone is reclaimed by gravity on any climb before
+                // it changes where he ends up.
+                if (r.boostT > 0) { speed += BOOST_ACCEL * dt; r.boostT -= dt; }
+                var nx = hit.x + dx * speed * dt, ny = hit.y + dy * speed * dt;
+                // Did the advance carry the rider past the end of this segment?
+                // (The closest point on a segment is clamped to its ends, so a
+                // plain nearest-segment lookup would stick him to the endpoint
+                // forever instead of letting him fly off.)
+                var endX = (dx * hit.dirx + dy * hit.diry) > 0 ? hit.bx : hit.ax;
+                var endY = (dx * hit.dirx + dy * hit.diry) > 0 ? hit.by : hit.ay;
+                var pastEnd = (nx - endX) * dx + (ny - endY) * dy;
+                var hit2;
+                if (pastEnd > 0) {
+                    // Ran off the end: look for a different segment to continue
+                    // on (the next piece of the same track, or a nearby line).
+                    // Segments of his own line at or behind the one he just
+                    // left don't count — snapping back onto his own track
+                    // behind him is how he used to snag at a line's end.
+                    hit2 = nearestSegment(nx, ny, SNAP + 6, { pi: hit.pi, si: hit.si, uptosi: true });
+                    if (!hit2) {  // nothing there: airborne with tangential velocity
+                        r.x = nx; r.y = ny; r.vx = dx * speed; r.vy = dy * speed; r.state = 'air';
+                        eatMushrooms(sx, sy);
+                        return;
+                    }
+                } else {
+                    hit2 = nearestSegment(nx, ny, SNAP + 6);
+                    if (!hit2) {  // line curved away: airborne
+                        r.x = nx; r.y = ny; r.vx = dx * speed; r.vy = dy * speed; r.state = 'air';
+                        eatMushrooms(sx, sy);
+                        return;
+                    }
+                }
+                // Continue on hit2, re-projecting velocity onto its direction.
+                var dl2 = hit2.len || 1;
+                var ndx = hit2.dirx / dl2, ndy = hit2.diry / dl2;
+                if (ndx * dx + ndy * dy < 0) { ndx = -ndx; ndy = -ndy; }
+                var speed2 = speed * (dx * ndx + dy * ndy);
+                // End-of-line handling: if the segment he'd continue on
+                // turns back too sharply against his travel (a kink where
+                // two strokes meet, a flicked line end), re-projecting
+                // would throw away most of his speed at a stroke — and
+                // the crash check below then killed him against the joint
+                // at full speed. Same if he's already past the far end of
+                // that segment. A sled reaching the end of a line doesn't
+                // stop or snag: it launches, velocity preserved, and the
+                // normal flight/landing rules take it from there. Gentle
+                // joints are untouched — re-projection still applies, so
+                // the tuned glide feel (kinks eat some speed) is unchanged.
+                var end2X = (ndx * hit2.dirx + ndy * hit2.diry) > 0 ? hit2.bx : hit2.ax;
+                var end2Y = (ndx * hit2.dirx + ndy * hit2.diry) > 0 ? hit2.by : hit2.ay;
+                var pastEnd2 = (nx - end2X) * ndx + (ny - end2Y) * ndy;
+                if ((speed > 80 && speed2 < speed * 0.35) || pastEnd2 > 0) {
+                    r.x = nx; r.y = ny; r.vx = dx * speed; r.vy = dy * speed; r.state = 'air';
+                    eatMushrooms(sx, sy);
+                    return;
+                }
+                var targetAngle = Math.atan2(ndy, ndx);
+                var dA = angDiff(targetAngle, r.angle);
+                r.omega = Math.max(-5, Math.min(5, 0.6 * r.omega + 0.4 * (dA / Math.max(dt, 1e-4))));
+                r.angle += dA;
+                r.x = hit2.x; r.y = hit2.y;
+                r.vx = ndx * speed2; r.vy = ndy * speed2;
+                if (r.x > r.maxX) r.maxX = r.x;
+                if (Math.abs(speed2) < 8) { r.stuckT += dt; } else { r.stuckT = 0; }
+                // Head or chest hit a line while riding (e.g. a low ceiling
+                // or a wall ahead) — that is a crash too, not just in the air.
+                // Uses the airborne check's exemption: a line his body is
+                // already within SNAP of (the one he's riding, or the next
+                // stroke starting at this joint) is one he's riding onto,
+                // not a wall — the plain check killed him at full speed
+                // wherever two strokes met at a steep angle, because his
+                // head leans over the joint into the next stroke's space.
+                if (airCrashCheck(r.x, r.y, r.angle)) { crash('head'); return; }
+            } else if (r.state === 'gliding') {
+                // Hang glider: entry momentum is preserved — fast in, fast
+                // and far; slow in, slow and short. Lift eases the fall
+                // toward a gentle sink rate (faster flight = more lift =
+                // slower sink); drag bleeds horizontal speed slowly.
+                // Steering: left/right nudge him gently; he hangs level
+                // under the wing (no spinning while gliding).
+                r.glideT -= dt;
+                if (keys.ArrowLeft || keys.KeyA) r.vx -= 140 * dt;
+                if (keys.ArrowRight || keys.KeyD) r.vx += 140 * dt;
+                r.vx *= Math.exp(-0.10 * dt);  // slow drag decay
+                var sink = Math.max(35, Math.min(90, 90 - Math.abs(r.vx) * 0.06));
+                r.vy += (sink - r.vy) * (1 - Math.exp(-2.5 * dt));
+                var gpx = r.x, gpy = r.y;
+                var gnx = r.x + r.vx * dt, gny = r.y + r.vy * dt;
+                r.angle += angDiff(0, r.angle) * Math.min(1, 3 * dt);
+                r.omega = 0;
+                // Landing while gliding: same intersection test as airborne.
+                // A gentle gliding landing rides on — no crash check.
+                var gLanded = null;
+                for (var i = 0; i < lines.length && !gLanded; i++) {
+                    if (lineType(lines[i]) === 'scenery') continue;
+                    var pts = lines[i];
+                    for (var j = 0; j < pts.length - 1; j++) {
+                        var gip = segIntersect({ x: gpx, y: gpy }, { x: gnx, y: gny }, pts[j], pts[j + 1]);
+                        if (gip) { gLanded = { p: gip, a: pts[j], b: pts[j + 1] }; break; }
+                    }
+                }
+                if (gLanded) {
+                    var gl2 = Math.hypot(gLanded.b.x - gLanded.a.x, gLanded.b.y - gLanded.a.y) || 1;
+                    var glx = (gLanded.b.x - gLanded.a.x) / gl2, gly = (gLanded.b.y - gLanded.a.y) / gl2;
+                    var gsp = r.vx * glx + r.vy * gly;
+                    if (gsp < 0) { glx = -glx; gly = -gly; gsp = -gsp; }
+                    r.x = gLanded.p.x; r.y = gLanded.p.y;
+                    r.vx = glx * gsp; r.vy = gly * gsp;
+                    r.angle = Math.atan2(gly, glx);
+                    r.omega = 0;
+                    r.state = 'riding';
+                    r.glideT = 0;
+                    if (r.x > r.maxX) r.maxX = r.x;
+                } else {
+                    r.x = gnx; r.y = gny;
+                    if (r.x > r.maxX) r.maxX = r.x;
+                    // Stall or time up: detach and fall normally again.
+                    if (Math.abs(r.vx) < GLIDE_STALL || r.glideT <= 0) {
+                        r.state = 'air';
+                        r.glideT = 0;
+                    }
+                }
+            } else {  // airborne
+                if (keys.ArrowLeft || keys.KeyA) r.omega -= 4.0 * dt;
+                if (keys.ArrowRight || keys.KeyD) r.omega += 4.0 * dt;
+                r.omega *= Math.exp(-0.6 * dt);
+                r.vy += G * dt;
+                if (r.boostT > 0) {  // mushroom boost: sustained push along his flight while the burst lasts
+                    var bsp = Math.hypot(r.vx, r.vy);
+                    if (bsp > 1) { r.vx += r.vx / bsp * BOOST_AIR_ACCEL * dt; r.vy += r.vy / bsp * BOOST_AIR_ACCEL * dt; }
+                }
+                var px = r.x, py = r.y;
+                if (r.boostT > 0) r.boostT -= dt;  // boost timer only (see pickup)
+                var nx2 = r.x + r.vx * dt, ny2 = r.y + r.vy * dt;
+                r.angle += r.omega * dt;
+                // Landing first: if the sled's path crosses a line, he lands
+                // on it. The crash check must not run first on that step —
+                // at speed the body overshoots the line by a few px in one
+                // step, which used to put his chest inside the crash radius
+                // before the landing was ever checked, so he "stopped" on
+                // every line he landed on instead of riding it.
+                var landed = null;
+                for (var i = 0; i < lines.length && !landed; i++) {
+                    if (lineType(lines[i]) === 'scenery') continue;
+                    var pts = lines[i];
+                    for (var j = 0; j < pts.length - 1; j++) {
+                        var ip = segIntersect({ x: px, y: py }, { x: nx2, y: ny2 }, pts[j], pts[j + 1]);
+                        if (ip) { landed = { p: ip, a: pts[j], b: pts[j + 1] }; break; }
+                    }
+                }
+                if (landed) {
+                    var l2 = Math.hypot(landed.b.x - landed.a.x, landed.b.y - landed.a.y) || 1;
+                    var lx = (landed.b.x - landed.a.x) / l2, ly = (landed.b.y - landed.a.y) / l2;
+                    var sp = r.vx * lx + r.vy * ly;
+                    if (sp < 0) { lx = -lx; ly = -ly; sp = -sp; }
+                    r.x = landed.p.x; r.y = landed.p.y;
+                    r.vx = lx * sp; r.vy = ly * sp;
+                    r.angle = Math.atan2(ly, lx);
+                    r.omega *= 0.2;
+                    r.state = 'riding';
+                    if (r.x > r.maxX) r.maxX = r.x;
+                } else {
+                    // Hang glider pickup first: an airborne rider within
+                    // range attaches (the glider is consumed) — catching
+                    // the glider is the save, so it beats the crash check.
+                    var picked = -1;
+                    for (var gi = 0; gi < gliders.length; gi++) {
+                        if (Math.hypot(nx2 - gliders[gi].x, ny2 - gliders[gi].y) < GLIDER_TRIGGER_PX / zoom) { picked = gi; break; }
+                    }
+                    if (picked >= 0) {
+                        var gp = gliders.splice(picked, 1)[0];
+                        pops.push({ x: gp.x, y: gp.y, t: 0.35 });
+                        r.x = nx2; r.y = ny2;
+                        r.state = 'gliding';
+                        r.glideT = GLIDE_MAX;
+                        r.omega = 0;
+                        if (r.x > r.maxX) r.maxX = r.x;
+                    } else {
+                        // No landing and no glider: a head-first hit still
+                        // crashes — but not a line the body is already close
+                        // to (one he is about to land on); see airCrashCheck.
+                        if (airCrashCheck(nx2, ny2, r.angle)) { r.x = nx2; r.y = ny2; crash('head'); return; }
+                        r.x = nx2; r.y = ny2;
+                        if (r.x > r.maxX) r.maxX = r.x;
+                    }
+                }
+            }
+            // Mushroom pickup (swept path check — see eatMushrooms).
+            eatMushrooms(sx, sy);
+            if (r.y > 4500 || r.x < -800) crash('fell');
+        }
+
+        /* ---------- drawing the scene ---------- */
+        function draw() {
+            // Screen-space background first, then the world transform (zoom +
+            // camera), so all scene drawing uses world coordinates directly.
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            ctx.fillStyle = colors.bg;
+            ctx.fillRect(0, 0, CW, CH);
+            ctx.setTransform(DPR * zoom, 0, 0, DPR * zoom, -cam.x * DPR * zoom, -cam.y * DPR * zoom);
+            // faint dot grid (helps when drawing); dot size stays ~2px on screen
+            ctx.fillStyle = colors.grid;
+            var step = 100;
+            var vw = viewW(), vh = viewH();
+            var gx0 = Math.floor(cam.x / step) * step, gy0 = Math.floor(cam.y / step) * step;
+            for (var gx = gx0; gx < cam.x + vw; gx += step) {
+                for (var gy = gy0; gy < cam.y + vh; gy += step) {
+                    ctx.fillRect(gx, gy, 2 / zoom, 2 / zoom);
+                }
+            }
+            // track lines (line width stays ~3px on screen at any zoom),
+            // each in its type's colour: blue normal, red boost, green scenery
+            ctx.lineWidth = 3 / zoom;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            for (var i = 0; i < lines.length; i++) {
+                var pts = lines[i];
+                if (pts.length < 2) continue;
+                ctx.strokeStyle = typeColor(lineType(pts));
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (var j = 1; j < pts.length; j++) ctx.lineTo(pts[j].x, pts[j].y);
+                ctx.stroke();
+            }
+            // straight line being dragged out: a live preview in the
+            // current type's colour, so the player sees exactly what
+            // letting go will lay down
+            if (tool === 'line' && lineStart && cursorPos) {
+                ctx.strokeStyle = typeColor(drawType);
+                ctx.lineWidth = 3 / zoom;
+                ctx.globalAlpha = 0.65;
+                ctx.beginPath();
+                ctx.moveTo(lineStart.x, lineStart.y);
+                ctx.lineTo(cursorPos.x / zoom + cam.x, cursorPos.y / zoom + cam.y);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+            }
+            // mushrooms: red cap, white spots, drawn with simple shapes
+            // (screen-constant size, so they stay visible at any zoom),
+            // with a gentle bob so they stand out on the track.
+            for (var mi = 0; mi < mushrooms.length; mi++) {
+                var m = mushrooms[mi];
+                ctx.save();
+                ctx.translate(m.x, m.y);
+                ctx.rotate(m.a);
+                ctx.scale(1 / zoom, 1 / zoom);
+                ctx.translate(0, Math.sin(performance.now() / 220 + mi * 1.3) * 2);
+                drawMushroomShape();
+                ctx.restore();
+            }
+            // hang gliders: delta wings floating in the air, gently bobbing.
+            for (var gi = 0; gi < gliders.length; gi++) {
+                var g = gliders[gi];
+                ctx.save();
+                ctx.translate(g.x, g.y);
+                ctx.scale(1 / zoom, 1 / zoom);
+                ctx.translate(0, Math.sin(performance.now() / 300 + gi * 1.7) * 3);
+                drawGliderShape();
+                ctx.restore();
+            }
+            // pickup pops: a quick expanding ring where a power-up was eaten.
+            for (var pi = 0; pi < pops.length; pi++) {
+                var pp = pops[pi];
+                var pr = (0.35 - pp.t) / 0.35;
+                ctx.strokeStyle = 'rgba(255,207,63,' + (1 - pr).toFixed(2) + ')';
+                ctx.lineWidth = 2 / zoom;
+                ctx.beginPath(); ctx.arc(pp.x, pp.y, 8 + pr * 26, 0, Math.PI * 2); ctx.stroke();
+            }
+            // start flag
+            if (lines.length && lines[0].length) {
+                var s = lines[0][0];
+                ctx.strokeStyle = colors.accent;
+                ctx.lineWidth = 2 / zoom;
+                ctx.beginPath();
+                ctx.moveTo(s.x, s.y);
+                ctx.lineTo(s.x, s.y - 26);
+                ctx.stroke();
+                ctx.fillStyle = colors.accent;
+                ctx.beginPath();
+                ctx.moveTo(s.x, s.y - 26);
+                ctx.lineTo(s.x + 14, s.y - 21);
+                ctx.lineTo(s.x, s.y - 16);
+                ctx.closePath();
+                ctx.fill();
+            }
+            // checkpoint flag (orange, so it never reads as the blue start
+            // flag): when one is planted, Restart starts him here
+            if (flag) {
+                ctx.strokeStyle = '#ff9f1c';
+                ctx.lineWidth = 2 / zoom;
+                ctx.beginPath();
+                ctx.moveTo(flag.x, flag.y);
+                ctx.lineTo(flag.x, flag.y - 26);
+                ctx.stroke();
+                ctx.fillStyle = '#ff9f1c';
+                ctx.beginPath();
+                ctx.moveTo(flag.x, flag.y - 26);
+                ctx.lineTo(flag.x + 14, flag.y - 21);
+                ctx.lineTo(flag.x, flag.y - 16);
+                ctx.closePath();
+                ctx.fill();
+                ctx.lineWidth = 1.5 / zoom;
+                ctx.beginPath(); ctx.arc(flag.x, flag.y, 5 / zoom, 0, Math.PI * 2); ctx.stroke();
+            }
+            if (rider) drawRider();
+            // While gliding, the wing flies level above him, screen-constant size.
+            if (rider && rider.state === 'gliding') {
+                ctx.save();
+                ctx.translate(rider.x, rider.y);
+                ctx.scale(1 / zoom, 1 / zoom);
+                ctx.translate(0, -42);
+                drawGliderShape();
+                ctx.restore();
+            }
+            drawCursor();
+        }
+        /* Power-up shapes: drawn with simple canvas shapes (no assets).
+           Both draw a ~22x24 px item centred at (0,0), cap/wing up, in the
+           current transform — call sites use screen-px units. */
+        function drawMushroomShape() {
+            ctx.fillStyle = '#fff3d6';  // stem
+            ctx.beginPath();
+            ctx.moveTo(-5, 0); ctx.lineTo(-5, -10); ctx.quadraticCurveTo(0, -13, 5, -10); ctx.lineTo(5, 0); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#e5484d';  // red cap
+            ctx.beginPath(); ctx.arc(0, -10, 11, Math.PI, 0); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#ffffff';  // spots
+            ctx.beginPath(); ctx.arc(-5, -15, 2.2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(4, -18, 2.8, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(7, -12, 1.8, 0, Math.PI * 2); ctx.fill();
+        }
+        function drawGliderShape() {
+            // Delta wing (~48 px wide) + hang lines down to the rider.
+            ctx.fillStyle = '#ff9f1c';
+            ctx.beginPath();
+            ctx.moveTo(-24, 2); ctx.lineTo(0, -12); ctx.lineTo(24, 2); ctx.lineTo(0, -4); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(-24, 2); ctx.lineTo(0, -12); ctx.lineTo(24, 2); ctx.stroke();
+            ctx.strokeStyle = '#ff9f1c';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(-8, -2); ctx.lineTo(-4, 12); ctx.moveTo(8, -2); ctx.lineTo(4, 12); ctx.stroke();
+        }
+        /* Custom canvas cursor: one clear indicator, matching the tool.
+           Erase ring radius == erase radius on screen, so the ring shows
+           exactly what will be wiped. Drawn in screen space (CSS px). */
+        function drawCursor() {
+            if (!cursorPos) return;
+            if (mode !== 'edit' && mode !== 'paused') return;
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            var x = cursorPos.x, y = cursorPos.y;
+            if (tool === 'mushroom') {
+                // Ghost preview: the mushroom as it would sit (snapped to
+                // the nearest line) if placed right here.
+                var mw = { x: x / zoom + cam.x, y: y / zoom + cam.y };
+                var mhit = nearestSegment(mw.x, mw.y, MUSHROOM_SNAP_SCREEN / zoom);
+                var mgx = mw.x, mgy = mw.y, mga = 0;
+                if (mhit) {
+                    mgx = mhit.x; mgy = mhit.y;
+                    var mdl = mhit.len || 1;
+                    mga = Math.atan2(mhit.diry / mdl, mhit.dirx / mdl);
+                }
+                ctx.save();
+                ctx.globalAlpha = 0.55;
+                ctx.translate((mgx - cam.x) * zoom, (mgy - cam.y) * zoom);
+                ctx.rotate(mga);
+                drawMushroomShape();
+                ctx.restore();
+                return;
+            }
+            if (tool === 'glider') {
+                // Ghost preview: the wing as it would float if placed here.
+                ctx.save();
+                ctx.globalAlpha = 0.55;
+                ctx.translate(x, y);
+                drawGliderShape();
+                ctx.restore();
+                return;
+            }
+            if (tool === 'erase') {
+                ctx.strokeStyle = '#e5484d';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(x, y, ERASE_PX, 0, Math.PI * 2); ctx.stroke();
+                ctx.fillStyle = '#e5484d';
+                ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+            } else if (tool === 'draw' || tool === 'line') {
+                // crosshair in the colour of the line about to be drawn
+                ctx.strokeStyle = typeColor(drawType);
+                ctx.lineWidth = 1.5;
+                var L = 8;
+                ctx.beginPath();
+                ctx.moveTo(x - L, y); ctx.lineTo(x + L, y);
+                ctx.moveTo(x, y - L); ctx.lineTo(x, y + L);
+                ctx.stroke();
+                ctx.fillStyle = typeColor(drawType);
+                ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill();
+            } else if (tool === 'flag') {
+                // a little flag on a pole, in the checkpoint orange
+                ctx.strokeStyle = '#ff9f1c';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(x, y + 10); ctx.lineTo(x, y - 12); ctx.stroke();
+                ctx.fillStyle = '#ff9f1c';
+                ctx.beginPath();
+                ctx.moveTo(x, y - 12); ctx.lineTo(x + 11, y - 8); ctx.lineTo(x, y - 4);
+                ctx.closePath(); ctx.fill();
+            } else { // move: small ring + dot (grab-style indicator)
+                ctx.strokeStyle = colors.text;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.stroke();
+                ctx.fillStyle = colors.text;
+                ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        function drawRider() {
+            var r = rider;
+            ctx.save();
+            ctx.translate(r.x, r.y);
+            ctx.rotate(r.angle);
+            ctx.lineCap = 'round';
+            // sled
+            ctx.strokeStyle = colors.accent;
+            ctx.lineWidth = 3.5 / zoom;
+            ctx.beginPath();
+            ctx.moveTo(-17, 2);
+            ctx.quadraticCurveTo(0, 8, 17, 2);
+            ctx.stroke();
+            // stick figure: seated on the sled, facing +x
+            ctx.strokeStyle = colors.text;
+            ctx.fillStyle = colors.text;
+            ctx.lineWidth = 3 / zoom;
+            ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(2, -24); ctx.stroke();          // torso
+            ctx.beginPath(); ctx.arc(3, -29, 5, 0, Math.PI * 2); ctx.fill();               // head
+            ctx.beginPath(); ctx.moveTo(1, -21); ctx.lineTo(12, -13); ctx.stroke();         // arm to sled
+            ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(10, -3); ctx.lineTo(14, 1); ctx.stroke(); // leg
+            if (r.boostT > 0) {  // speed lines while the mushroom boost lasts
+                ctx.strokeStyle = '#ffcf3f';
+                ctx.lineWidth = 2.5 / zoom;
+                for (var sl = 0; sl < 4; sl++) {
+                    var sy = -21 + sl * 11;
+                    ctx.beginPath(); ctx.moveTo(-28 - sl * 6, sy); ctx.lineTo(-54 - sl * 6, sy); ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        /* ---------- HUD / status ---------- */
+        var lastHud = 0;
+        var statusNote = '', statusNoteUntil = 0;  // transient save/load messages
+        function flashStatus(msg) {
+            statusNote = msg;
+            statusNoteUntil = performance.now() + 3000;
+            elStatus.textContent = msg;
+        }
+        function updateHUD(now) {
+            if (now - lastHud < 100) return;
+            lastHud = now;
+            var d = distanceM();
+            elDist.textContent = d.toFixed(1) + ' m (' + (d * 3.28084).toFixed(1) + ' ft)';
+            var spd = rider ? Math.hypot(rider.vx, rider.vy) / PX_PER_M : 0;  // stored speed is genuinely boosted now — no extra factor
+            elSpeed.textContent = spd.toFixed(1) + ' m/s (' + (spd * 2.23694).toFixed(1) + ' mph)';
+            if (d > best) { best = d; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
+            elBest.textContent = best.toFixed(1) + ' m (' + (best * 3.28084).toFixed(1) + ' ft)';
+            if (now < statusNoteUntil) {
+                elStatus.textContent = statusNote;
+            } else if (mode === 'crashed') {
+                elStatus.textContent = crashMsg + ' Distance: ' + d.toFixed(1) + ' m (' + (d * 3.28084).toFixed(1) + ' ft). Press Restart to go again.';
+            } else if (mode === 'playing') {
+                elStatus.textContent = (rider && rider.state === 'gliding') ? 'Gliding…' : (rider && rider.stuckT > 2.5) ? "He's stuck! Pause, draw a downhill slope, and press Play." : 'Riding…';
+            } else if (mode === 'paused') {
+                elStatus.textContent = 'Paused — draw more track, then press Play to keep going.';
+            } else if (!lines.length) {
+                elStatus.textContent = 'Draw a track, then press Play.';
+            } else {
+                elStatus.textContent = 'Ready — press Play to ride.';
+            }
+        }
+        function updateUI() {
+            btnDraw.classList.toggle('active', tool === 'draw');
+            btnLine.classList.toggle('active', tool === 'line');
+            btnMove.classList.toggle('active', tool === 'move');
+            btnErase.classList.toggle('active', tool === 'erase');
+            btnMushroom.classList.toggle('active', tool === 'mushroom');
+            btnGlider.classList.toggle('active', tool === 'glider');
+            btnFlag.classList.toggle('active', tool === 'flag');
+            btnTypeNormal.classList.toggle('active', drawType === 'normal');
+            btnTypeBoost.classList.toggle('active', drawType === 'boost');
+            btnTypeScenery.classList.toggle('active', drawType === 'scenery');
+            canvas.style.cursor = 'none'; // the custom cursor is drawn in drawCursor()
+            btnPlayPause.disabled = !lines.length;
+            btnPlayPause.textContent = (mode === 'playing') ? '⏸ Pause' : '▶ Play';
+            btnRestart.disabled = !lines.length;
+            btnUndo.disabled = !undoStack.length || mode === 'playing';
+            btnRedo.disabled = !redoStack.length || mode === 'playing';
+            btnSpeed.textContent = 'Speed ' + (speedMul === 1 ? '1×' : speedMul === 0.5 ? '½×' : '¼×');
+            btnSaveDelete.disabled = !selSaves.value;
+        }
+
+        /* ---------- controls ---------- */
+        function play() {
+            if (!lines.length) { elStatus.textContent = 'Draw a track first!'; return; }
+            if (mode === 'paused' && rider) { mode = 'playing'; }
+            else { resetRider(); if (!rider) return; mode = 'playing'; }
+            updateUI();
+        }
+        function pause() {
+            if (mode === 'playing') { mode = 'paused'; slowQueue = []; slowTick = 0; updateUI(); }
+        }
+        function restart() {
+            if (!lines.length) return;
+            resetRider();
+            mode = 'edit';
+            updateUI();
+        }
+        function clearAll() {
+            var before = worldData();
+            lines = [];
+            mushrooms = [];
+            gliders = [];
+            pops = [];
+            flag = null;
+            rider = null;
+            mode = 'edit';
+            cam.x = -viewW() * 0.3; cam.y = -viewH() * 0.55;
+            if (JSON.stringify(worldData()) !== JSON.stringify(before)) pushUndo(before);  // Clear all is undoable
+            updateUI();
+        }
+        function defaultTrack() {
+            var before = worldData();
+            starterTrack();
+            mushrooms = [];
+            gliders = [];
+            pops = [];
+            flag = null;
+            if (JSON.stringify(worldData()) !== JSON.stringify(before)) pushUndo(before);  // so is Default track
+            resetRider();
+            fitTrack();   // show the whole fresh track
+            mode = 'edit';
+            updateUI();
+        }
+        function setTool(t) {
+            // Switching tools stops any line in progress, so a stray drag
+            // after tapping Move can never draw.
+            drawing = false; panning = false; curLine = null; lineStart = null;
+            tool = t;
+            updateUI();
+        }
+        function setDrawType(t) {
+            drawType = t;
+            updateUI();
+        }
+        function cycleSpeed() {
+            speedMul = speedMul === 1 ? 0.5 : speedMul === 0.5 ? 0.25 : 1;
+            slowQueue = []; slowTick = 0;  // banked frame times belong to the old rate
+            flashStatus(speedMul === 1 ? 'Full speed.' : 'Slow motion — ' + (speedMul === 0.5 ? 'half' : 'quarter') + ' speed.');
+            updateUI();
+        }
+        btnDraw.addEventListener('click', function () { setTool('draw'); this.blur(); });
+        btnLine.addEventListener('click', function () { setTool('line'); this.blur(); });
+        btnMove.addEventListener('click', function () { setTool('move'); this.blur(); });
+        btnErase.addEventListener('click', function () { setTool('erase'); this.blur(); });
+        btnMushroom.addEventListener('click', function () { setTool('mushroom'); this.blur(); });
+        btnGlider.addEventListener('click', function () { setTool('glider'); this.blur(); });
+        btnFlag.addEventListener('click', function () { setTool('flag'); this.blur(); });
+        btnTypeNormal.addEventListener('click', function () { setDrawType('normal'); this.blur(); });
+        btnTypeBoost.addEventListener('click', function () { setDrawType('boost'); this.blur(); });
+        btnTypeScenery.addEventListener('click', function () { setDrawType('scenery'); this.blur(); });
+        btnUndo.addEventListener('click', function () { undo(); this.blur(); });
+        btnRedo.addEventListener('click', function () { redo(); this.blur(); });
+        btnSpeed.addEventListener('click', function () { cycleSpeed(); this.blur(); });
+        btnClear.addEventListener('click', function () { clearAll(); this.blur(); });
+        btnDefault.addEventListener('click', function () { defaultTrack(); this.blur(); });
+        btnPlayPause.addEventListener('click', function () {
+            if (mode === 'playing') pause(); else play();
+            this.blur();
+        });
+        btnRestart.addEventListener('click', function () { restart(); this.blur(); });
+        btnSave.addEventListener('click', function () { saveNamed(); this.blur(); });
+        btnSaveDelete.addEventListener('click', function () { deleteNamed(); this.blur(); });
+        selSaves.addEventListener('change', function () {
+            if (selSaves.value !== '') loadNamed(parseInt(selSaves.value, 10));
+            this.blur();
+        });
+        inputSaveName.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); saveNamed(); }
+        });
+        /* Place a mushroom: snap onto the nearest line within 40 screen px,
+           so it always sits on the track and is actually hittable; in empty
+           space it just lands where tapped (angle 0, flat). */
+        function placeMushroom(w) {
+            var R = MUSHROOM_SNAP_SCREEN / zoom;
+            var hit = nearestSegment(w.x, w.y, R);
+            var x = w.x, y = w.y, a = 0;
+            if (hit) {
+                x = hit.x; y = hit.y;
+                var dl = hit.len || 1;
+                a = Math.atan2(hit.diry / dl, hit.dirx / dl);
+            }
+            mushrooms.push({ x: x, y: y, a: a });
+        }
+        /* Place a glider: it floats at the tapped point, in the air. */
+        function placeGlider(w) {
+            gliders.push({ x: w.x, y: w.y });
+        }
+        /* Place the checkpoint flag: like a mushroom it snaps onto the
+           nearest line within 40 screen px, so it sits ON the track and
+           he restarts standing on that line; in empty space it plants
+           where tapped and he restarts in the air there. Planting a new
+           one moves the flag — there is only ever one. */
+        function placeFlag(w) {
+            var R = MUSHROOM_SNAP_SCREEN / zoom;
+            var hit = nearestSegment(w.x, w.y, R);
+            if (hit) {
+                var dl = hit.len || 1;
+                flag = { x: hit.x, y: hit.y, a: Math.atan2(hit.diry / dl, hit.dirx / dl), onLine: true };
+            } else {
+                flag = { x: w.x, y: w.y, a: 0, onLine: false };
+            }
+            flashStatus('🚩 Checkpoint set — Restart starts him there.');
+        }
+
+        /* ---------- zoom ---------- */
+        var elZoom = document.getElementById('lr-zoom-label');
+        var btnZoomOut = document.getElementById('lr-zoom-out');
+        var btnZoomIn = document.getElementById('lr-zoom-in');
+        var btnZoomFit = document.getElementById('lr-zoom-fit');
+        function updateZoomLabel() { elZoom.textContent = Math.round(zoom * 100) + '%'; }
+        // Zoom around a point on the canvas (cx, cy in canvas CSS px), so the
+        // world point under the cursor (or the canvas centre) stays put.
+        function setZoom(z, cx, cy) {
+            z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+            if (cx === undefined) { cx = CW / 2; cy = CH / 2; }
+            var wx = cx / zoom + cam.x, wy = cy / zoom + cam.y;
+            zoom = z;
+            cam.x = wx - cx / zoom;
+            cam.y = wy - cy / zoom;
+            updateZoomLabel();
+        }
+        // Fit the whole track in the canvas, centred.
+        function fitTrack() {
+            if (!lines.length) {
+                zoom = 1;
+                cam.x = -viewW() * 0.3; cam.y = -viewH() * 0.55;
+                updateZoomLabel();
+                return;
+            }
+            var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            lines.forEach(function (pts) { pts.forEach(function (p) {
+                if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
+                if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
+            }); });
+            var bw = Math.max(50, maxX - minX), bh = Math.max(50, maxY - minY);
+            zoom = Math.max(ZOOM_MIN, Math.min(1.2, Math.min(CW / (bw + 80), CH / (bh + 80))));
+            cam.x = minX - (viewW() - bw) / 2;
+            cam.y = minY - (viewH() - bh) / 2;
+            updateZoomLabel();
+        }
+        btnZoomOut.addEventListener('click', function () { setZoom(zoom / 1.25); this.blur(); });
+        btnZoomIn.addEventListener('click', function () { setZoom(zoom * 1.25); this.blur(); });
+        btnZoomFit.addEventListener('click', function () { fitTrack(); this.blur(); });
+        // Mouse-wheel zoom (desktop), centred on the pointer.
+        canvas.addEventListener('wheel', function (e) {
+            e.preventDefault();
+            var rect = canvas.getBoundingClientRect();
+            setZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX - rect.left, e.clientY - rect.top);
+        }, { passive: false });
+
+        /* ---------- pointer drawing / erasing (mouse + touch) ---------- */
+        function toWorld(e) {
+            var rect = canvas.getBoundingClientRect();
+            return { x: (e.clientX - rect.left) / zoom + cam.x, y: (e.clientY - rect.top) / zoom + cam.y };
+        }
+        function eraseAt(w) {
+            // Screen-constant radius: at fit zoom (0.13 on a phone) a fixed
+            // 20 world-unit radius was ~2.5 screen px — nearly impossible to
+            // erase with. ERASE_PX/zoom keeps the eraser the same size on
+            // screen at any zoom, so the ring always shows what will be wiped.
+            var R = ERASE_PX / zoom, out = [];
+            // A mushroom or glider inside the eraser ring goes too.
+            mushrooms = mushrooms.filter(function (m) { return Math.hypot(m.x - w.x, m.y - w.y) > R; });
+            gliders = gliders.filter(function (g) { return Math.hypot(g.x - w.x, g.y - w.y) > R; });
+            // So does the checkpoint flag — erasing it returns Restart to the start flag.
+            if (flag && Math.hypot(flag.x - w.x, flag.y - w.y) <= R) flag = null;
+            for (var i = 0; i < lines.length; i++) {
+                var pts = lines[i], cur = [];
+                cur.type = lineType(pts);  // split fragments keep the stroke's type
+                for (var j = 0; j < pts.length; j++) {
+                    if (Math.hypot(pts[j].x - w.x, pts[j].y - w.y) > R) { cur.push(pts[j]); }
+                    else { if (cur.length >= 2) out.push(cur); cur = []; cur.type = lineType(pts); }
+                }
+                if (cur.length >= 2) out.push(cur);
+            }
+            lines = out;
+            if (!lines.length) { rider = null; if (mode !== 'edit') { mode = 'edit'; } }
+            updateUI();
+        }
+        var pointers = new Map();   // active pointers on the canvas (for pinch zoom)
+        var pinch = null;           // {d0, z0, mx, my} while two fingers are down
+        function setCursorPos(e) {
+            var rect = canvas.getBoundingClientRect();
+            cursorPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
+        canvas.addEventListener('pointerdown', function (e) {
+            if (mode === 'playing' || mode === 'crashed') return;
+            setCursorPos(e);
+            e.preventDefault();
+            try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+            pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (pointers.size === 2) {
+                cursorPos = null; // hide the ring while pinching
+                // Second finger down: stop drawing and start a pinch zoom.
+                if (curLine && curLine.length < 2) { lines.splice(lines.indexOf(curLine), 1); }
+                drawing = false; panning = false; curLine = null;
+                var pp = Array.from(pointers.values());
+                pinch = { d0: Math.hypot(pp[0].x - pp[1].x, pp[0].y - pp[1].y), z0: zoom,
+                         mx: (pp[0].x + pp[1].x) / 2, my: (pp[0].y + pp[1].y) / 2 };
+                return;
+            }
+            captureGesture();  // whatever this press goes on to change, Undo gets one step for the whole gesture
+            if (tool === 'move') {
+                // Move mode: one finger drags the view itself — draws nothing.
+                panning = true;
+                panLast = { x: e.clientX, y: e.clientY };
+                return;
+            }
+            if (tool === 'mushroom') {
+                placeMushroom(toWorld(e));
+                updateUI();
+                return;
+            }
+            if (tool === 'glider') {
+                placeGlider(toWorld(e));
+                updateUI();
+                return;
+            }
+            if (tool === 'flag') {
+                placeFlag(toWorld(e));
+                updateUI();
+                return;
+            }
+            var w = toWorld(e);
+            drawing = true;
+            lastPt = w;
+            if (tool === 'draw') { curLine = [w]; curLine.type = drawType; lines.push(curLine); }
+            else if (tool === 'line') { lineStart = w; }  // straight line: nothing is laid down until release
+            else { eraseAt(w); }
+            updateUI();
+        });
+        canvas.addEventListener('pointermove', function (e) {
+            if (e.pointerType !== 'touch' || drawing || panning) setCursorPos(e);
+            if (pinch && pointers.has(e.pointerId)) {
+                cursorPos = null;
+                pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                var pp = Array.from(pointers.values());
+                var d = Math.hypot(pp[0].x - pp[1].x, pp[0].y - pp[1].y);
+                if (d > 10 && pinch.d0 > 10) {
+                    var rect = canvas.getBoundingClientRect();
+                    setZoom(pinch.z0 * d / pinch.d0, pinch.mx - rect.left, pinch.my - rect.top);
+                }
+                e.preventDefault();
+                return;
+            }
+            if (panning && pointers.has(e.pointerId)) {
+                // Slide the window under the finger; zoom stays as it is.
+                cam.x -= (e.clientX - panLast.x) / zoom;
+                cam.y -= (e.clientY - panLast.y) / zoom;
+                panLast = { x: e.clientX, y: e.clientY };
+                e.preventDefault();
+                return;
+            }
+            if (!drawing) return;
+            e.preventDefault();
+            var w = toWorld(e);
+            if (tool === 'draw') {
+                if (Math.hypot(w.x - lastPt.x, w.y - lastPt.y) > 5) { curLine.push(w); lastPt = w; }
+            } else if (tool === 'erase') {
+                eraseAt(w);
+            }
+            // tool 'line': the drag only moves the preview (drawn from
+            // lineStart to the cursor in draw()); the segment itself is
+            // committed on release, in endPointer.
+        });
+        function endPointer(e) {
+            cursorPos = null; // ring disappears on release (touch) / pointer up
+            if (e && e.pointerId !== undefined) pointers.delete(e.pointerId);
+            if (pointers.size < 2) pinch = null;
+            // Straight tool: letting go lays down the one straight segment
+            // between the press point and the release point. A bare tap
+            // (under 2 world px) lays nothing — it was a stray touch.
+            if (tool === 'line' && drawing && lineStart && e && isFinite(e.clientX)) {
+                var endW = toWorld(e);
+                if (Math.hypot(endW.x - lineStart.x, endW.y - lineStart.y) >= 2) {
+                    var seg = [lineStart, endW];
+                    seg.type = drawType;
+                    lines.push(seg);
+                }
+            }
+            commitGesture();  // if this gesture changed the world, it becomes one Undo step
+            // Releasing a touch changes nothing about the view: no snap-back.
+            drawing = false; panning = false; curLine = null; lineStart = null;
+        }
+        canvas.addEventListener('pointerup', endPointer);
+        canvas.addEventListener('pointercancel', endPointer);
+        canvas.addEventListener('pointerleave', function () { cursorPos = null; });
+
+        /* ---------- keyboard ---------- */
+        document.addEventListener('keydown', function (e) {
+            var tag = (e.target && e.target.tagName) || '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT') return;
+            if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+            else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') { e.preventDefault(); redo(); }
+            else if (e.code === 'Backspace') { e.preventDefault(); deleteLastStroke(); }
+            else if (e.code === 'Digit1') { setDrawType('normal'); }
+            else if (e.code === 'Digit2') { setDrawType('boost'); }
+            else if (e.code === 'Digit3') { setDrawType('scenery'); }
+            else if (e.code === 'KeyM') { cycleSpeed(); }
+            else if (e.code === 'Space') { e.preventDefault(); if (mode === 'playing') pause(); else play(); }
+            else if (e.code === 'KeyR') { restart(); }
+            else if (e.code === 'Equal' || e.code === 'NumpadAdd') { setZoom(zoom * 1.25); }
+            else if (e.code === 'Minus' || e.code === 'NumpadSubtract') { setZoom(zoom / 1.25); }
+            else if (e.code === 'Digit0') { fitTrack(); }
+            else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'KeyA' || e.code === 'KeyD') {
+                keys[e.code] = true;
+                e.preventDefault();
+            }
+        });
+        document.addEventListener('keyup', function (e) { keys[e.code] = false; });
+
+        /* ---------- main loop ---------- */
+        var last = performance.now();
+        function loop(now) {
+            var dt = Math.min(0.05, (now - last) / 1000);
+            last = now;
+            if (mode === 'playing' && rider) {
+                if (speedMul === 1) {
+                    var steps = Math.max(1, Math.ceil(dt / (1 / 120)));
+                    var h = dt / steps;
+                    for (var s = 0; s < steps && mode === 'playing'; s++) stepRider(h);
+                } else {
+                    // Slow motion: bank each frame's time and spend the
+                    // banked frames IN ORDER, one per 2 frames (1/2x) or
+                    // 4 frames (1/4x), each through the same step chunker
+                    // full speed uses. The ride's step-by-step series is
+                    // therefore exactly the full-speed series — only its
+                    // rate changes. (Scaling the step size down instead
+                    // would integrate a slightly different ride.) Editing,
+                    // the camera and the HUD keep real time.
+                    slowQueue.push(dt);
+                    slowTick++;
+                    var every = speedMul === 0.5 ? 2 : 4;
+                    if (slowTick >= every && slowQueue.length) {
+                        slowTick = 0;
+                        var bdt = slowQueue.shift();
+                        var bSteps = Math.max(1, Math.ceil(bdt / (1 / 120)));
+                        var bh = bdt / bSteps;
+                        for (var s2 = 0; s2 < bSteps && mode === 'playing'; s2++) stepRider(bh);
+                    }
+                }
+            }
+            // camera: follow the rider ONLY while playing (at the user's zoom).
+            // While editing, paused, or crashed, the view stays exactly where
+            // the user put it — releasing a touch never resets it.
+            if (mode === 'playing' && rider) {
+                var tx = rider.x - viewW() * 0.32, ty = rider.y - viewH() * 0.55;
+                var k = Math.min(1, 4 * dt);
+                cam.x += (tx - cam.x) * k;
+                cam.y += (ty - cam.y) * k;
+            }
+            // pickup pops fade out
+            for (var pi = pops.length - 1; pi >= 0; pi--) {
+                pops[pi].t -= dt;
+                if (pops[pi].t <= 0) pops.splice(pi, 1);
+            }
+            draw();
+            updateHUD(now);
+            requestAnimationFrame(loop);
+        }
+
+        /* ---------- init ---------- */
+        // Every load is a brand-new game: clear any legacy auto-save left
+        // by an older version, then start with the starter track. Older
+        // work comes back only through the saved setups list. The rider
+        // always starts from the flag.
+        try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* storage blocked */ }
+        starterTrack();
+        resetRider();
+        fitTrack();   // open showing the whole track, so it is visible at once
+        refreshSavesList();
+        updateUI();
+        // Debug handle for automated checks (not part of the UI).
+        window.__lr = {
+            getState: function () {
+                return {
+                    mode: mode, tool: tool, zoom: zoom,
+                    drawType: drawType, speedMul: speedMul,
+                    flag: flag ? { x: flag.x, y: flag.y, a: flag.a, onLine: flag.onLine } : null,
+                    undo: undoStack.length, redo: redoStack.length,
+                    cam: { x: cam.x, y: cam.y },
+                    lines: lines.length,
+                    types: lines.map(function (l) { return lineType(l); }),
+                    geo: lines.map(function (l) { return l.map(function (p) { return [Math.round(p.x * 100) / 100, Math.round(p.y * 100) / 100]; }); }),
+                    points: lines.reduce(function (n, l) { return n + l.length; }, 0),
+                    mushrooms: mushrooms.length,
+                    gliders: gliders.length,
+                    saves: getSaves().length,
+                    rider: rider ? { x: rider.x, y: rider.y, vx: rider.vx, vy: rider.vy,
+                                     angle: rider.angle, omega: rider.omega, state: rider.state,
+                                     maxX: rider.maxX, startX: rider.startX,
+                                     boostT: rider.boostT, glideT: rider.glideT } : null
+                };
+            }
+        };
+        requestAnimationFrame(loop);
+    })();
+    </script>
+<script>
+    // Line Rider stage layout sync: the one-screen stage flex-sizes the
+    // canvas, so its box can change without a window resize (a HUD line
+    // wrapping, the phone URL bar showing or hiding). The game sizes its
+    // drawing surface from the canvas box whenever a resize fires, so
+    // relay box changes to it. Layout plumbing only — no game code here.
+    (function () {
+        var c = document.getElementById('lr-canvas');
+        if (!c || typeof ResizeObserver !== 'function') return;
+        var lastW = 0, lastH = 0;
+        new ResizeObserver(function () {
+            var w = c.clientWidth, h = c.clientHeight;
+            if (w !== lastW || h !== lastH) {
+                lastW = w; lastH = h;
+                window.dispatchEvent(new Event('resize'));
+            }
+        }).observe(c);
+    })();
+</script>
+<button type="button" class="back-to-top" id="backToTop" aria-label="Back to top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 15l7-7 7 7"/></svg></button>
+<script>
+    // Back to top: the floating button appears once the page is scrolled;
+    // tapping it returns to the top (instant under reduced-motion).
+    (function () {
+        var btn = document.getElementById('backToTop');
+        if (!btn) return;
+        var ticking = false;
+        function update() {
+            ticking = false;
+            btn.classList.toggle('show', window.scrollY > 600);
+        }
+        window.addEventListener('scroll', function () {
+            if (!ticking) { ticking = true; window.requestAnimationFrame(update); }
+        }, { passive: true });
+        update();
+        btn.addEventListener('click', function () {
+            var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+        });
+    })();
+</script>
+</body>
+</html>
