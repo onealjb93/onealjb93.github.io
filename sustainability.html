@@ -213,6 +213,88 @@
 
         .example-share { float: right; margin: 0.1rem 0 0.5rem 0.75rem; position: relative; z-index: 2; }
     </style>
+    <style>
+        /* ===== Case-study grid (2026-11-19) — every case group =====
+           A group's cases become a grid of blocks: photo, name, one
+           lead line. A block opens the full case in a glass bubble on
+           the page's own glass standard (.glass-scrim + .glass-bubble),
+           structured like the photo viewer: fixed scrim, floating
+           bubble, safe-area insets, labeled Close that stays visible
+           while the case scrolls, Esc and scrim tap also close.
+           Columns: 1 on phone (wide blog-feed blocks), 2 on tablet
+           widths, 4 on desktop. */
+        .case-grid {
+            display: grid; grid-template-columns: 1fr;
+            gap: 0.9rem; margin-top: 1rem;
+        }
+        @media (min-width: 641px) {
+            .case-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (min-width: 1200px) {
+            .case-grid { grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+        }
+        .case-block {
+            display: flex; flex-direction: column; width: 100%;
+            padding: 0; overflow: hidden; text-align: left;
+            font: inherit; color: var(--text-color);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color); border-radius: 14px;
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
+        }
+        .case-block:hover { border-color: var(--accent-color); }
+        .case-block:focus-visible {
+            outline: 2px solid var(--link-color); outline-offset: 2px;
+        }
+        .case-block-photo { display: block; }
+        .case-block-photo img {
+            display: block; width: 100%; height: auto; aspect-ratio: 3 / 2;
+            object-fit: cover; background: var(--bg-color);
+        }
+        .case-block-body { display: block; padding: 0.7rem 0.85rem 0.9rem; }
+        .case-block-name {
+            display: block; font-size: 1rem; font-weight: 650;
+            line-height: 1.3; color: var(--text-color);
+        }
+        .case-block-lead {
+            display: block; margin-top: 0.3rem;
+            font-size: 0.85rem; font-weight: 400; line-height: 1.45;
+            color: var(--subtext-color);
+        }
+        .case-viewer {
+            position: fixed; inset: 0; z-index: 1400;
+            display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+            padding-top: max(1rem, env(safe-area-inset-top));
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        }
+        .case-viewer[hidden] { display: none; }
+        .case-bubble {
+            display: flex; flex-direction: column;
+            width: 100%; max-width: 680px; max-height: 100%;
+            overflow: hidden; padding: 0;
+        }
+        .case-bubble-bar {
+            flex: none; display: flex; justify-content: flex-end;
+            padding: 0.65rem 0.9rem 0.35rem;
+        }
+        .case-close {
+            font: inherit; font-size: 0.85rem; font-weight: 600;
+            padding: 0.4rem 0.95rem; border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg); color: var(--text-color);
+            cursor: pointer;
+        }
+        .case-close:hover { background: var(--hover-bg); }
+        .case-close:focus-visible {
+            outline: 2px solid var(--link-color); outline-offset: 2px;
+        }
+        .case-bubble-scroll { overflow-y: auto; padding: 0 1.25rem 1.25rem; }
+        .case-bubble .explainer-card {
+            display: block; background: transparent;
+            border-top: none; padding: 0;
+        }
+        .case-bubble .example-showcase { margin-top: 0.25rem; }
+    </style>
 </head>
 <body>
     <script>
@@ -1594,5 +1676,204 @@
         }
     })();
     </script>
+<script>
+    // Case-study grid (2026-11-19) — every case group on the page.
+    // Each grid is built from the page's own live DOM: a block's name
+    // and lead line are the case's own toggle name and hook, its photo
+    // is the case's own photo (for a pair, the "copy" half; the block
+    // serves the 640px derivative of the same Wikimedia photo, per the
+    // site's right-sized photo rule), and the bubble holds the case's
+    // own card node, moved — every word of the case text is the page's
+    // own text, untouched. The old in-flow example rows are hidden.
+    // Section cards keep their headers, intros and rule chips; the
+    // grid replaces only the stack of example rows inside them, and
+    // each standalone story group between the page's headings gets a
+    // grid of its own. The photo-credits expander is not a case and is
+    // left exactly as it is.
+    (function () {
+        var openViewer = null, lastBlock = null;
+
+        function closeCase() {
+            if (!openViewer) { return; }
+            openViewer.hidden = true;
+            openViewer = null;
+            document.body.style.overflow = '';
+            if (lastBlock) { lastBlock.focus(); }
+        }
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape' || !openViewer) { return; }
+            // The photo viewer (z-index 1500) stacks above a case
+            // bubble (1400): an Escape while it is open belongs to it.
+            var pv = document.getElementById('photoViewer');
+            if (pv && !pv.hidden) { return; }
+            closeCase();
+        });
+
+        // If the photo viewer opens above a case bubble and closes,
+        // it clears the body's scroll lock; restore the lock while a
+        // case is still open underneath it.
+        var photoViewer = document.getElementById('photoViewer');
+        if (photoViewer && 'MutationObserver' in window) {
+            new MutationObserver(function () {
+                if (openViewer && photoViewer.hidden) {
+                    document.body.style.overflow = 'hidden';
+                }
+            }).observe(photoViewer, { attributes: true, attributeFilter: ['hidden'] });
+        }
+
+        function exampleCardOf(wrap) {
+            var card = wrap.querySelector('.explainer-card');
+            if (!card || card.id === 'photoCreditsCard') { return null; }
+            if (card.querySelector('.explainer-wrapper')) { return null; }
+            var toggleText = wrap.querySelector('.example-toggle-text');
+            if (!toggleText || !toggleText.childNodes.length) { return null; }
+            if (!toggleText.querySelector('.example-hook')) { return null; }
+            return card;
+        }
+
+        function buildBlock(wrap, card) {
+            var toggleText = wrap.querySelector('.example-toggle-text');
+            var name = toggleText.childNodes[0].textContent.replace(/\s+/g, ' ').trim();
+            var hookEl = toggleText.querySelector('.example-hook');
+            var hook = hookEl ? hookEl.textContent : '';
+
+            var heroImg = null;
+            var pair = card.querySelector('.example-photo-pair');
+            if (pair) {
+                var halves = pair.querySelectorAll('.example-photo-half img');
+                if (halves.length) { heroImg = halves[halves.length - 1]; }
+            }
+            if (!heroImg) { heroImg = card.querySelector('.example-photo img'); }
+
+            var block = document.createElement('button');
+            block.type = 'button';
+            block.className = 'case-block';
+            block.setAttribute('aria-haspopup', 'dialog');
+            if (heroImg) {
+                var ph = document.createElement('span');
+                ph.className = 'case-block-photo';
+                var im = document.createElement('img');
+                im.src = heroImg.src.replace('/1280px-', '/640px-');
+                im.alt = heroImg.getAttribute('alt') || '';
+                im.width = 640; im.height = 427;
+                im.loading = 'lazy';
+                im.decoding = 'async';
+                ph.appendChild(im);
+                block.appendChild(ph);
+            }
+            var body = document.createElement('span');
+            body.className = 'case-block-body';
+            var nm = document.createElement('span');
+            nm.className = 'case-block-name';
+            nm.textContent = name;
+            var ld = document.createElement('span');
+            ld.className = 'case-block-lead';
+            ld.textContent = hook;
+            body.appendChild(nm);
+            body.appendChild(ld);
+            block.appendChild(body);
+
+            var viewer = document.createElement('div');
+            viewer.className = 'case-viewer glass-scrim';
+            viewer.hidden = true;
+            viewer.setAttribute('role', 'dialog');
+            viewer.setAttribute('aria-modal', 'true');
+            viewer.setAttribute('aria-label', name);
+            var bubble = document.createElement('div');
+            bubble.className = 'case-bubble glass-bubble';
+            var bar = document.createElement('div');
+            bar.className = 'case-bubble-bar';
+            var closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'case-close';
+            closeBtn.textContent = 'Close';
+            closeBtn.setAttribute('aria-label', 'Close ' + name);
+            bar.appendChild(closeBtn);
+            var scroll = document.createElement('div');
+            scroll.className = 'case-bubble-scroll';
+            scroll.appendChild(card);
+            bubble.appendChild(bar);
+            bubble.appendChild(scroll);
+            viewer.appendChild(bubble);
+            document.body.appendChild(viewer);
+
+            block._viewer = viewer;
+            viewer._block = block;
+            block.addEventListener('click', function () {
+                lastBlock = block;
+                scroll.scrollTop = 0;
+                viewer.hidden = false;
+                openViewer = viewer;
+                document.body.style.overflow = 'hidden';
+                closeBtn.focus();
+            });
+            closeBtn.addEventListener('click', closeCase);
+            viewer.addEventListener('click', function (e) {
+                if (e.target === viewer) { closeCase(); }
+            });
+            return block;
+        }
+
+        // Group the example wrappers: each run of consecutive example
+        // wrappers sharing a parent — a section card, or the page
+        // body for the standalone stories — becomes one grid.
+        var parents = [];
+        document.querySelectorAll('.explainer-wrapper').forEach(function (w) {
+            if (parents.indexOf(w.parentElement) === -1) {
+                parents.push(w.parentElement);
+            }
+        });
+        parents.forEach(function (parent) {
+            var kids = Array.prototype.slice.call(parent.children);
+            var run = [];
+            function flush() {
+                if (!run.length) { return; }
+                var grid = document.createElement('div');
+                grid.className = 'case-grid';
+                run.forEach(function (item) {
+                    try {
+                        grid.appendChild(buildBlock(item.wrap, item.card));
+                        item.wrap.style.display = 'none';
+                    } catch (e) { /* leave this case in its live form */ }
+                });
+                if (grid.children.length) {
+                    parent.insertBefore(grid, run[0].wrap);
+                }
+                run = [];
+            }
+            kids.forEach(function (child) {
+                var card = (child.classList && child.classList.contains('explainer-wrapper'))
+                    ? exampleCardOf(child) : null;
+                if (card) { run.push({ wrap: child, card: card }); }
+                else { flush(); }
+            });
+            flush();
+        });
+
+        // A shared link (#ex…Card) opens the case's section, if it sits
+        // inside one, and the case's bubble, as the live page opens
+        // the section and the case.
+        var hashId = (location.hash || '').slice(1);
+        if (hashId) {
+            var target = document.getElementById(hashId);
+            if (target && target.classList.contains('explainer-card')) {
+                var viewerOf = target.closest('.case-viewer');
+                if (viewerOf) {
+                    var grid = viewerOf._block ? viewerOf._block.parentElement : null;
+                    var section = grid ? grid.closest('.explainer-card') : null;
+                    if (section && !section.classList.contains('active') && typeof toggleExplainer === 'function') {
+                        toggleExplainer(section.id, section.id.replace(/Card$/, 'Arrow'));
+                    }
+                    setTimeout(function () {
+                        viewerOf.hidden = false;
+                        openViewer = viewerOf;
+                        document.body.style.overflow = 'hidden';
+                    }, 150);
+                }
+            }
+        }
+    })();
+</script>
 </body>
 </html>
