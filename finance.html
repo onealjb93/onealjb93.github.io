@@ -544,6 +544,36 @@
     .sb-chart-box { width: 100%; }
     #sbChartCanvas { display: block; width: 100%; height: 320px; }
     @media (max-width: 640px) { #sbChartCanvas { height: 240px; } }
+    /* Scoreboard chart selection (2026-11-19): selection used to
+       live only in aria-pressed — no rule keyed on it, so a selected
+       chip was pixel-identical to an unselected one, and the swatch
+       span carried no CSS at all. Now a selected chip carries a
+       perimeter in the same colour as its line — the accent blue
+       when the stock is the only one selected — with a light tint
+       of the same colour inside, and its swatch takes the line's
+       colour too; chip and line match by construction. The colour
+       arrives as the --sb-line custom property, set by the chart
+       script in chip order. Every chip keeps a 2px border in both
+       states, so selecting never shifts the row; unselected chips
+       keep the standard muted pill. */
+    #sbChartChips .filter-pill { border-width: 2px; }
+    /* In this group the shared pill hover (the link blue) would
+       mimic a selection ring on a chip that is off; the hover
+       answer here is the neutral subtext tone instead. A selected
+       chip's ring already outranks the hover rule. */
+    #sbChartChips .filter-pill[aria-pressed="false"]:hover { border-color: var(--subtext-color); }
+    #sbChartChips .filter-pill[aria-pressed="true"] {
+        border-color: var(--sb-line, var(--accent-color));
+        background: var(--badge-bg);
+        background: color-mix(in srgb, var(--sb-line, var(--accent-color)) 14%, var(--badge-bg));
+    }
+    #sbChartChips .grades-key-swatch {
+        display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+        margin-right: 6px; background: var(--subtext-color); opacity: 0.45;
+    }
+    #sbChartChips .filter-pill[aria-pressed="true"] .grades-key-swatch {
+        background: var(--sb-line, var(--accent-color)); opacity: 1;
+    }
     /* Add a stock (2026-11-18): the picker lives in the
        scoreboard's one control row, between Sort and the Table |
        Chart toggle, so both views are served by the same row and
@@ -6516,7 +6546,41 @@ if (typeof module !== "undefined") {
     (function () {
         "use strict";
         var VIEW_KEY = "jbo-scoreboard-view-v1";
-        var STOCK_COLORS = { AAOI: "#f58231", AMD: "#2ca02c", ASST: "#4363d8", CIFR: "#911eb4", COST: "#e6194b", GOOGL: "#0891b2", IREN: "#b58900", JPM: "#d6336c", LLY: "#0e7c86", MSTR: "#8c564b", MU: "#1f77b4", NBIS: "#9467bd", NVDA: "#c51b8a", PLTR: "#666666", SPCX: "#17a398", TSLA: "#6a994e", TSM: "#bc4749", WM: "#5e60ce", WMT: "#4daf4a" };
+        // Line colours (2026-11-19): no longer fixed per stock. The
+        // selected stocks take an ordered palette in chip order —
+        // the order the chips read on screen — so the first selected
+        // chip's line is the accent blue, the second selected takes
+        // the next colour, and so on; a lone selected stock is
+        // therefore always the accent blue. The hues after the
+        // accent are the Okabe–Ito colour-blind-safe set, darkened
+        // in the light theme where the raw hues fall under contrast
+        // on a white ground. syncChips rings each selected chip in
+        // its line's colour (the --sb-line property the stylesheet
+        // reads), so chip and line match by construction. Past the
+        // palette's end the colours repeat — with that many lines
+        // no palette stays fully distinct, and the ring still names
+        // each line's colour.
+        var SB_PALETTE_DARK = ["#e69f00", "#009e73", "#d55e00", "#cc79a7", "#56b4e9", "#f0e442", "#b8bec6"];
+        var SB_PALETTE_LIGHT = ["#b45309", "#007a5e", "#c2410c", "#a34a7e", "#1d6fb8", "#8a6d00", "#666666"];
+        function sbPalette() {
+            // The accent is read off the body: the light theme's
+            // variables live on body.light-mode, not on the root.
+            var cs = window.getComputedStyle(document.body || document.documentElement);
+            var accent = (cs.getPropertyValue("--accent-color") || "").trim() || "#4da6ff";
+            var light = !!(document.body && document.body.classList.contains("light-mode"));
+            return [accent].concat(light ? SB_PALETTE_LIGHT : SB_PALETTE_DARK);
+        }
+        // ticker -> colour for the currently selected stocks, in
+        // chip order; {} until the selection exists.
+        function assignedColors() {
+            var map = {};
+            if (!selected) return map;
+            var pal = sbPalette(), i = 0;
+            chartTickers().forEach(function (t) {
+                if (selected[t]) { map[t] = pal[i % pal.length]; i++; }
+            });
+            return map;
+        }
         var toggleEl = document.getElementById("scoreboardView");
         var tableWrap = document.getElementById("scoreboardTableWrap");
         var sortGroup = document.getElementById("scoreboardSortGroup");
@@ -6595,8 +6659,13 @@ if (typeof module !== "undefined") {
         }
         function syncChips() {
             if (!chipsEl || !selected) return;
+            var colors = assignedColors();
             chipsEl.querySelectorAll("button[data-ticker]").forEach(function (b) {
-                b.setAttribute("aria-pressed", selected[b.getAttribute("data-ticker")] ? "true" : "false");
+                var t = b.getAttribute("data-ticker");
+                var on = !!selected[t];
+                b.setAttribute("aria-pressed", on ? "true" : "false");
+                if (on && colors[t]) b.style.setProperty("--sb-line", colors[t]);
+                else b.style.removeProperty("--sb-line");
             });
         }
         function todayISO() {
@@ -6637,7 +6706,6 @@ if (typeof module !== "undefined") {
                 btn.setAttribute("aria-pressed", (selected && selected[t]) ? "true" : "false");
                 var sw = document.createElement("span");
                 sw.className = "grades-key-swatch";
-                sw.style.background = STOCK_COLORS[t] || "#888";
                 sw.setAttribute("aria-hidden", "true");
                 btn.appendChild(sw);
                 var txt = document.createElement("span");
@@ -6647,6 +6715,7 @@ if (typeof module !== "undefined") {
                 btn._label = txt;
                 chipsEl.appendChild(btn);
             });
+            syncChips();
         }
         function refreshChipLabels() {
             if (!chipsEl) return;
@@ -6753,11 +6822,12 @@ if (typeof module !== "undefined") {
                 ctx.fillStyle = subC;
                 ctx.fillText(String(yr), X(yms), hCss - 6);
             }
+            var lineColors = assignedColors();
             tickers.forEach(function (t) {
                 if (!selected[t]) return;
                 var s = allSeries[t];
                 var comb = s.values, wks = s.dates;
-                var color = STOCK_COLORS[t] || "#888";
+                var color = lineColors[t] || "#888";
                 ctx.strokeStyle = color;
                 ctx.lineWidth = selectedCount() === 1 ? 2.4 : 1.6;
                 ctx.beginPath();
@@ -6786,6 +6856,20 @@ if (typeof module !== "undefined") {
         window.addEventListener("resize", requestDraw);
         if (window.MutationObserver) {
             new MutationObserver(requestDraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+        }
+        // The theme lives on the body's class, and the palette's
+        // second half is theme-specific: when the theme flips,
+        // re-ring the chips and redraw so chip and line stay the
+        // same colour in the new theme.
+        if (window.MutationObserver && document.body) {
+            var sbWasLight = document.body.classList.contains("light-mode");
+            new MutationObserver(function () {
+                var nowLight = document.body.classList.contains("light-mode");
+                if (nowLight === sbWasLight) return;
+                sbWasLight = nowLight;
+                syncChips();
+                requestDraw();
+            }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
         }
         var sbToggle = document.querySelector('.section-toggle[data-section="scoreboard"]');
         if (sbToggle) sbToggle.addEventListener("click", function () { window.setTimeout(requestDraw, 60); });
