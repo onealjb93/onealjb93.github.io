@@ -253,6 +253,15 @@
         .btc-zone-dist { font-size: 0.76rem; color: var(--text-muted, #94a3b8); white-space: nowrap; }
         .btc-zones-line { font-size: 0.92rem; margin: 8px 2px 0; }
         .btc-zones-note { font-size: 0.78rem; color: var(--text-muted, #94a3b8); margin: 3px 2px 0; }
+        .btc-ovl-btn { margin-right: auto; }
+        .btc-score { margin: 10px 2px 0; }
+        .btc-score-line { font-size: 0.95rem; font-weight: 700; margin: 0 0 3px; }
+        .btc-score-state { font-size: 0.9rem; line-height: 1.5; margin: 0; }
+        .btc-score-parts { margin: 6px 0 0; font-size: 0.88rem; }
+        .btc-score-parts summary { cursor: pointer; color: var(--link-color); padding: 2px 0; }
+        .btc-score-parts p { margin: 4px 0 0; line-height: 1.55; }
+        html.btc-ovl-off .btc-zones { display: none; }
+        html.btc-ovl-off .pl-legend, html.btc-ovl-off .pl-reading-line, html.btc-ovl-off .mm-state { display: none; }
         .btc-zones-defs { margin: 12px 2px 10px; }
         .btc-zones-defs p { font-size: 0.94rem; line-height: 1.55; margin: 0 0 7px; color: var(--text-color); }
         .btc-zones-defs p:last-child { margin-bottom: 0; }
@@ -852,7 +861,7 @@
         <a class="site-brand" href="/" aria-label="Johnny O'Neal — home">
             <img class="site-brand-logo" src="jbo-logo.svg" alt="Johnny O'Neal logo" width="32" height="32">
         </a>
-        <a class="golden-star" href="bitcoin.html#btc-value" title="Rare buy — all four Bitcoin models in their buy zones" aria-label="Rare buy — all four Bitcoin models in their buy zones" hidden><span class="golden-star-stars" aria-hidden="true">★★★★</span><span class="golden-star-note" aria-hidden="true">Rare buy · Active now</span></a>
+        <a class="golden-star" href="bitcoin.html#btc-value" title="Rare buy — Johnny's combined score is in its buy band" aria-label="Rare buy — Johnny's combined score is in its buy band" hidden><span class="golden-star-stars" aria-hidden="true">★★★★</span><span class="golden-star-note" aria-hidden="true">Rare buy · Active now</span></a>
         <div class="site-nav-right">
             <div class="site-nav-menu">
                 <button class="site-nav-toggle" id="nav-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="nav-menu">Explore pages ▾</button>
@@ -966,9 +975,44 @@
     <div class="btc-chart-card btc-cursor">
         <h3 class="btc-chart-title">How to understand Bitcoin's current value</h3>
         <div class="btc-card-actions">
+            <button type="button" class="btc-action-pill btc-ovl-btn" id="btcOvlBtn" aria-pressed="true" title="Turn Johnny's overlay on or off"><span class="btc-ovl-btn-text">Johnny's overlay: On</span></button>
             <button type="button" class="btc-action-pill" id="btcShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg><span>Share</span></button>
             <button type="button" class="btc-action-pill btc-fs-btn" id="btcFsBtn" aria-label="Full screen" aria-pressed="false" title="Full screen"><svg class="btc-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="btc-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="btc-fs-label">Full screen</span></button>
         </div>
+        <script>
+        /* Johnny's overlay (2026-11-19): the four charts are the four
+           models, each as its model was meant to be read; the overlay
+           is Johnny's layer on top of the four charts — the zone
+           bands, dots and markers on the charts, the buy-time
+           indicator with its state sentences and legends, and the
+           combined score. This script runs before the chart blocks
+           load: it reads the saved choice (the overlay starts on),
+           publishes the choice as window.BTC_OVERLAY for the charts'
+           draw code, and marks the page so the overlay's HTML stays
+           hidden while the overlay is off. The button above switches
+           the overlay; the choice is remembered between visits. */
+        (function () {
+            var on = true;
+            try { on = localStorage.getItem('jbo-btc-overlay') !== 'off'; } catch (e) {}
+            window.BTC_OVERLAY = on;
+            if (!on) document.documentElement.classList.add('btc-ovl-off');
+            var btn = document.getElementById('btcOvlBtn');
+            if (!btn) return;
+            function paint() {
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                btn.querySelector('.btc-ovl-btn-text').textContent = "Johnny's overlay: " + (on ? 'On' : 'Off');
+            }
+            btn.addEventListener('click', function () {
+                on = !on;
+                window.BTC_OVERLAY = on;
+                document.documentElement.classList.toggle('btc-ovl-off', !on);
+                try { localStorage.setItem('jbo-btc-overlay', on ? 'on' : 'off'); } catch (e) {}
+                paint();
+                window.dispatchEvent(new Event('resize'));
+            });
+            paint();
+        })();
+        </script>
         <div class="btc-pick" id="btcPick">
             <button type="button" class="btc-pick-face" id="btcPickFace" aria-haspopup="listbox" aria-expanded="false" aria-controls="btcPickPanel">
                 <span class="btc-pick-main"><span class="btc-pick-label" aria-hidden="true">Chart</span><span class="btc-pick-face-text" id="btcPickFaceText">Bitcoin power law</span></span>
@@ -994,9 +1038,11 @@
              — their early spikes stretch a position range until
              real bottoms read as partway up. Each chart's own readout
              code publishes its reading (window.BTC_ZONE), so this row
-             can never disagree with the charts. When all four read
-             green at once, the row turns golden: the dots become gold
-             stars and the line becomes a golden callout. -->
+             can never disagree with the charts. When Johnny's
+             combined score — the overlay's average of the four
+             models' scalings — is in its buy band, the row turns
+             golden: the dots become gold stars and the line becomes
+             a golden callout. -->
         <div class="btc-zones" id="btcZones">
             <div class="btc-zones-row" role="group" aria-label="Buy zones — tap a model to open its chart">
                 <button type="button" class="btc-zone" data-zone="powerlaw"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Power law</span><span class="btc-zone-dist" data-dist>…</span></button>
@@ -1005,6 +1051,14 @@
                 <button type="button" class="btc-zone" data-zone="mvrv"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">MVRV</span><span class="btc-zone-dist" data-dist>…</span></button>
             </div>
             <p class="btc-zones-line" id="btcZonesLine">Reading the four models…</p>
+            <div class="btc-score" id="btcScore">
+                <p class="btc-score-line" id="btcScoreLine">Johnny's combined score: …</p>
+                <p class="btc-score-state" id="btcScoreState"></p>
+                <details class="btc-score-parts">
+                    <summary>The score's four parts</summary>
+                    <p id="btcScoreParts">…</p>
+                </details>
+            </div>
             <div class="btc-zones-legend" aria-label="What the dot colors mean">
                 <div class="btc-zl-row btc-zl-green">Buy zone — at the bottom of a model's range</div>
                 <div class="btc-zl-row btc-zl-amber">Hold — neither cheap nor stretched</div>
@@ -1014,6 +1068,9 @@
               <p><b>Power law &amp; cost</b> — green in the bottom 5% of the range, yellow from 5% to 50% of the range, red above 50% of the range.</p>
               <p><b>Mayer</b> — green at or under the 200-day average, yellow between the average and 2.4× the average, red at or over 2.4× the average.</p>
               <p><b>MVRV</b> — green when the market value of all bitcoin is no more than 15% above what holders paid for their bitcoin, yellow above 15% up to a Z-score of 7, red at a Z-score of 7 or higher.</p>
+              <p><b>Johnny's combined score</b> — the overlay's one number. Each model is scaled from 0 to 100: the power law by the price's position in the power law's corridor, production cost by the price-to-cost ratio on a log scale (a ratio of 1 scores 0 and a ratio of 10 scores 100), the Mayer Multiple on a line from 0.5 (a score of 0) to 2.4 (a score of 100), and the MVRV Z-Score on a line from 0 (a score of 0) to 7 (a score of 100). The combined score is the average of the four scalings.</p>
+              <p>A combined score of 7.79 or lower is the buy band — the rare buy. A combined score of 92.91 or higher is the sell band — the rare sell.</p>
+              <p>The score's record, stated plainly: in the daily record behind the four models, each band fired on 2.0% of days. The score was in the buy band on the day of the December 2018 bottom and on the day of the March 2020 bottom, and the score was in the sell band on the day of the December 2013 top and on the day of the December 2017 top. The score was in no band in January 2015, and the score was in no band at either 2021 top.</p>
             </div>
             <p class="btc-zones-note">A reading of the models, not a promise.</p>
         </div>
@@ -1321,7 +1378,7 @@
                markers; at most one per four days, the cadence of the
                power-law / cost grid */
             var lastZone = -Infinity;
-            for (var zi = 0; zi < PTS.length; zi++) {
+            for (var zi = 0; window.BTC_OVERLAY !== false && zi < PTS.length; zi++) {
                 if (PTS[zi][1] <= fair(PTS[zi][0]) * LO && PTS[zi][0] - lastZone >= 4) {
                     lastZone = PTS[zi][0];
                     var zx = g.x(PTS[zi][0]), zy = g.y(PTS[zi][1]);
@@ -1349,7 +1406,7 @@
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             /* today itself at or below the floor: its red zone marker
                is drawn under this dot and hidden — ring the dot red */
-            if (SPOT.price <= fair(SPOT.days) * LO) {
+            if (window.BTC_OVERLAY !== false && SPOT.price <= fair(SPOT.days) * LO) {
                 ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5;
                 ctx.beginPath(); ctx.arc(tx, ty, 8.5, 0, Math.PI * 2); ctx.stroke();
             }
@@ -1870,17 +1927,20 @@
                 }
                 ctx.stroke(); ctx.setLineDash([]);
             }
-            /* zone lines: 10 / 20 / 30 percent below the cost */
-            seriesLine(CTS, 0.9, 'rgba(239,68,68,0.45)', 1, [5, 4]);
-            seriesLine(CTS, 0.8, 'rgba(239,68,68,0.45)', 1, [5, 4]);
-            seriesLine(CTS, 0.7, 'rgba(239,68,68,0.45)', 1, [5, 4]);
+            /* zone lines: 10 / 20 / 30 percent below the cost —
+               the overlay's lines; the cost line itself stays */
+            if (window.BTC_OVERLAY !== false) {
+                seriesLine(CTS, 0.9, 'rgba(239,68,68,0.45)', 1, [5, 4]);
+                seriesLine(CTS, 0.8, 'rgba(239,68,68,0.45)', 1, [5, 4]);
+                seriesLine(CTS, 0.7, 'rgba(239,68,68,0.45)', 1, [5, 4]);
+            }
             /* the production-cost floor */
             seriesLine(CTS, 1, '#22c55e', 2);
             /* actual price */
             seriesLine(PTS, 1, '#f7931a', 2);
 
             /* markers: days the price closed below the cost */
-            for (var mi = 0; mi < PTS.length; mi++) {
+            for (var mi = 0; window.BTC_OVERLAY !== false && mi < PTS.length; mi++) {
                 if (PTS[mi][1] < CTS[mi][1]) {
                     var mx = g.x(PTS[mi][0]), my = g.y(PTS[mi][1]);
                     ctx.fillStyle = '#ef4444';
@@ -1907,7 +1967,7 @@
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             /* today itself below the cost: its red zone marker is
                drawn under this dot and hidden — ring the dot red */
-            if (SPOT.price < todayCost()) {
+            if (window.BTC_OVERLAY !== false && SPOT.price < todayCost()) {
                 ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5;
                 ctx.beginPath(); ctx.arc(tx, ty, 8.5, 0, Math.PI * 2); ctx.stroke();
             }
@@ -2367,12 +2427,14 @@
             ctx.save();
             ctx.beginPath(); ctx.rect(g.padL, g.padT, g.iw, g.ih); ctx.clip();
 
-            /* zones: above 2.4 (froth) and below 1.0 (cheap), subtly shaded */
-            if (VY1 > 2.4) {
+            /* zones: above 2.4 (froth) and below 1.0 (cheap), subtly
+               shaded — the overlay's shading; the dashed reference
+               lines below are the gauge's own and stay */
+            if (window.BTC_OVERLAY !== false && VY1 > 2.4) {
                 ctx.fillStyle = 'rgba(239,68,68,0.08)';
                 ctx.fillRect(g.padL, g.padT, g.iw, g.y(2.4) - g.padT);
             }
-            if (VY0 < 1) {
+            if (window.BTC_OVERLAY !== false && VY0 < 1) {
                 ctx.fillStyle = 'rgba(34,197,94,0.08)';
                 ctx.fillRect(g.padL, g.y(1), g.iw, g.padT + g.ih - g.y(1));
             }
@@ -2403,7 +2465,7 @@
                markers; at most one per four days, the cadence of the
                power-law / cost grid */
             var lastZone = -Infinity;
-            for (var zi = 0; zi < PTS.length; zi++) {
+            for (var zi = 0; window.BTC_OVERLAY !== false && zi < PTS.length; zi++) {
                 if (PTS[zi][1] <= 1 && PTS[zi][0] - lastZone >= 4) {
                     lastZone = PTS[zi][0];
                     var zx = g.x(PTS[zi][0]), zy = g.y(PTS[zi][1]);
@@ -2432,7 +2494,7 @@
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             /* the latest point itself at or below 1.0: its red zone
                marker is drawn under this dot and hidden — ring it red */
-            if (last[1] <= 1) {
+            if (window.BTC_OVERLAY !== false && last[1] <= 1) {
                 ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5;
                 ctx.beginPath(); ctx.arc(tx, ty, 8.5, 0, Math.PI * 2); ctx.stroke();
             }
@@ -2788,7 +2850,7 @@
             set('mv-state', stateLine(last[1], last[2] / last[3]));
             set('mv-hist-start', dateStr(FIRST_DAY));
             set('mv-line-start', dateStr(PTS[0][0]));
-            (window.BTC_ZONE = window.BTC_ZONE || {}).mvrv = { dist: (last[2] / last[3] - 1) * 100, band: (last[2] / last[3] <= 1.15) ? 'green' : (last[1] >= 7 ? 'red' : 'yellow'), inZone: last[2] / last[3] <= 1.15 };
+            (window.BTC_ZONE = window.BTC_ZONE || {}).mvrv = { dist: (last[2] / last[3] - 1) * 100, band: (last[2] / last[3] <= 1.15) ? 'green' : (last[1] >= 7 ? 'red' : 'yellow'), inZone: last[2] / last[3] <= 1.15, z: last[1] };
             if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
         }
         renderReadout();
@@ -2906,7 +2968,7 @@
                ratio rule — market cap no more than 15% above realized
                cap — so no fixed line on this Z axis can shade it; the
                red markers below carry it, point by point. */
-            if (VY1 > 7) {
+            if (window.BTC_OVERLAY !== false && VY1 > 7) {
                 ctx.fillStyle = 'rgba(239,68,68,0.08)';
                 ctx.fillRect(g.padL, g.padT, g.iw, g.y(7) - g.padT);
             }
@@ -2938,7 +3000,7 @@
                markers; at most one per four days, the cadence of the
                power-law / cost grid */
             var lastZone = -Infinity;
-            for (var zi = 0; zi < PTS.length; zi++) {
+            for (var zi = 0; window.BTC_OVERLAY !== false && zi < PTS.length; zi++) {
                 if (PTS[zi][2] / PTS[zi][3] <= 1.15 && PTS[zi][0] - lastZone >= 4) {
                     lastZone = PTS[zi][0];
                     var zx = g.x(PTS[zi][0]), zy = g.y(PTS[zi][1]);
@@ -2967,7 +3029,7 @@
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             /* the latest point itself in the buy zone: its red zone
                marker is drawn under this dot and hidden — ring it red */
-            if (last[2] / last[3] <= 1.15) {
+            if (window.BTC_OVERLAY !== false && last[2] / last[3] <= 1.15) {
                 ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5;
                 ctx.beginPath(); ctx.arc(tx, ty, 8.5, 0, Math.PI * 2); ctx.stroke();
             }
@@ -4146,6 +4208,9 @@
         var comp = document.getElementById('btcZones');
         if (!comp) return;
         var line = document.getElementById('btcZonesLine');
+        var scoreLine = document.getElementById('btcScoreLine');
+        var scoreState = document.getElementById('btcScoreState');
+        var scoreParts = document.getElementById('btcScoreParts');
         /* the golden state's sub-line is created only when it is
            first needed, so every other state's DOM is exactly what
            it was before the golden state existed */
@@ -4187,6 +4252,29 @@
             if (Math.abs(d) <= 0.5) return 'at the floor';
             return Math.round(Math.abs(d)) + '% ' + (d < 0 ? 'under' : 'above');
         }
+        /* Johnny's combined score, from the same published readings:
+           each model scaled 0-100 against its fixed anchors — the
+           power law by its corridor position, production cost by its
+           ratio on a log scale (the reading's dist is the percent
+           above cost, so the ratio is 1 + dist / 100), the Mayer
+           Multiple linearly on 0.5 to 2.4 (its dist is the percent
+           above 1.0), the MVRV Z-Score linearly on 0 to 7 — each
+           clipped to 0-100, the score the simple average. The same
+           computation update_btc_state.py publishes nightly. */
+        function clip100(v) { return Math.max(0, Math.min(100, v)); }
+        function scoreOf(z) {
+            var pl = z.powerlaw, co = z.cost, ma = z.mayer, mv = z.mvrv;
+            if (!pl || typeof pl.pos !== 'number' || !co || typeof co.dist !== 'number' ||
+                !ma || typeof ma.dist !== 'number' || !mv || typeof mv.z !== 'number') return null;
+            var ratio = 1 + co.dist / 100;
+            var parts = {
+                powerlaw: clip100(pl.pos),
+                cost: ratio > 0 ? clip100(100 * Math.log10(ratio)) : 0,
+                mayer: clip100(100 * ((1 + ma.dist / 100) - 0.5) / 1.9),
+                mvrv: clip100(100 * mv.z / 7)
+            };
+            return { parts: parts, value: (parts.powerlaw + parts.cost + parts.mayer + parts.mvrv) / 4 };
+        }
         function render() {
             var z = window.BTC_ZONE || {};
             var sum = 0, posSum = 0, posCount = 0, count = 0, ready = 0;
@@ -4207,20 +4295,28 @@
             });
             if (ready < 4) return;
             var avg = sum / 4;
-            /* the top state test: each model stretched by its own
-               lines — the power law by its position (95 or over,
-               the top 5% of its range), production cost by its
-               ratio (price at least 10x the cost of production —
-               the reading's dist is the % above cost, so 10x is
-               dist 900; the cost position's own range is anchored
-               to the December 2017 peak ratio, whose top 5% has
-               never been reached, so like Mayer and MVRV it is
-               judged by a threshold), the published red band for
-               the two threshold models (Mayer red is exactly 2.4
-               or over, MVRV red exactly Z of 7 or over) */
-            var isTop = typeof z.powerlaw.pos === 'number' && z.powerlaw.pos >= 95 &&
-                typeof z.cost.dist === 'number' && z.cost.dist >= 900 &&
-                bands.mayer === 'red' && bands.mvrv === 'red';
+            /* the Rare Buy / Rare Sell states are the combined
+               score's bands (2026-11-19): a score of 7.79 or lower
+               is the buy band, a score of 92.91 or higher the sell
+               band — each band fired on 2.0% of the days in the
+               daily record. The four dots keep their own bands
+               either way; the score is the overlay's verdict. */
+            var sc = scoreOf(z);
+            var inBuy = !!sc && sc.value <= 7.79;
+            var inSell = !!sc && sc.value >= 92.91;
+            if (sc && scoreLine && scoreState && scoreParts) {
+                scoreLine.textContent = "Johnny's combined score: " + sc.value.toFixed(1) + ' of 100';
+                scoreState.textContent = inBuy
+                    ? 'The score is in the buy band: a score of 7.79 or lower is the rare buy. The sell band is a score of 92.91 or higher.'
+                    : inSell
+                    ? 'The score is in the sell band: a score of 92.91 or higher is the rare sell. The buy band is a score of 7.79 or lower.'
+                    : 'The score is between the bands. The buy band is a score of 7.79 or lower; the sell band is a score of 92.91 or higher.';
+                scoreParts.textContent = 'Power law ' + sc.parts.powerlaw.toFixed(1) +
+                    ' · Production cost ' + sc.parts.cost.toFixed(1) +
+                    ' · Mayer Multiple ' + sc.parts.mayer.toFixed(1) +
+                    ' · MVRV Z-Score ' + sc.parts.mvrv.toFixed(1) +
+                    ' — the average of the four parts is the combined score.';
+            }
             /* the final-bottoms sentence: on average, price sits under
                all four bottom lines at once. On the baked record since
                2016 that has only happened around the final bottoms —
@@ -4229,40 +4325,35 @@
                else: it fires exactly when the composite crosses below
                zero, and the four dots keep their own zones either way. */
             var BOTTOMS = 'Buy time — on average, price is under the four bottoms. That has only happened around the final bottoms: the winter of 2018–19 · Mar 2020 · Nov 2022 · Jul 2026.';
-            if (count === 4) {
-                /* the golden state: all four models in their buy zones
-                   at once — on the baked weekly record since 2016,
-                   5 of 564 weeks, every one of them at the 2022
-                   bear-market bottom. The dots become gold stars and
-                   the line becomes the golden callout; when the
-                   final-bottoms average also holds, its sentence
-                   rides beneath the callout as a sub-line rather than
-                   being replaced by it. */
+            if (inBuy) {
+                /* the golden state: the combined score is in its
+                   buy band — on the baked weekly record since 2016,
+                   the score was in the buy band in 13 of 564 weeks.
+                   The dots become gold stars and the line becomes
+                   the golden callout; when the final-bottoms average
+                   also holds, its sentence rides beneath the callout
+                   as a sub-line rather than being replaced by it. */
                 comp.classList.remove('buy');
                 comp.classList.remove('top');
                 comp.classList.add('golden');
-                line.textContent = 'Rare buy — all four models in their buy zones at once.';
+                line.textContent = 'Rare buy — the combined score is in the buy band.';
                 if (avg < 0) showSub(BOTTOMS); else hideSub();
-            } else if (isTop) {
-                /* the top state: the golden state's mirror — all
-                   four models stretched at once. The line becomes
-                   a red callout in the golden callout's slot and
-                   style; the dots keep their own zones (already
-                   red) and the header stars stay buy-only. On the
-                   baked weekly record since 2016 it has fired in
-                   2 of 564 weeks — a single episode at the
-                   December 2017 top (the weeks of Dec 7 and 14,
-                   2017), the only weeks all four models have ever
-                   been stretched at once. Golden is tested first
-                   and wins:
-                   the two states can never co-fire (each model's
-                   bands are mutually exclusive), but the order
+            } else if (inSell) {
+                /* the top state: the golden state's mirror — the
+                   combined score is in its sell band. The line
+                   becomes a red callout in the golden callout's slot
+                   and style; the dots keep their own bands and the
+                   header stars stay buy-only. On the baked weekly
+                   record since 2016 the score was in the sell band
+                   in 6 of 564 weeks. Golden is tested first and
+                   wins: the two bands can never co-fire (a score
+                   cannot be at both ends at once), but the order
                    keeps the precedence explicit. */
                 comp.classList.remove('golden');
                 comp.classList.remove('buy');
                 comp.classList.add('top');
                 hideSub();
-                line.textContent = 'Rare sell — all four models stretched at once.';
+                line.textContent = 'Rare sell — the combined score is in the sell band.';
             } else if (avg < 0) {
                 comp.classList.remove('golden');
                 comp.classList.remove('top');

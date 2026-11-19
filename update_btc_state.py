@@ -11,7 +11,12 @@ one tiny file, btc-state.json, at the repo root:
      "readings": {"powerlaw": {"pos": ..., "band": ..., "pct": ...},
                   "cost":     {"pos": ..., "band": ..., "pct": ...},
                   "mayer":    {"ratio": ..., "band": ..., "pct": ...},
-                  "mvrv":     {"z": ..., "band": ..., "pct": ...}}}
+                  "mvrv":     {"z": ..., "band": ..., "pct": ...}},
+     "all_four": {"buy": bool, "sell": bool},
+     "score": {"value": ..., "band": "buy" | "sell" | "between",
+               "parts": {"powerlaw": ..., "cost": ...,
+                         "mayer": ..., "mvrv": ...}},
+     "record": {...}, "score_record": {...}}
 
 Each reading's "pct" is the percent note the page's indicator prints
 beside the model's name (its fmtDist input): how far the price sits
@@ -21,21 +26,38 @@ own, per model: power law, price vs the corridor floor (fair x LO);
 production cost, price vs today's cost; Mayer, the ratio minus one;
 MVRV, market cap vs realized cap (the CoinMetrics ratio minus one).
 
-"golden" is true exactly when all four models read green at once —
-the page's own rule (power-law position <= 5, cost position <= 5,
-Mayer <= 1.0, MVRV ratio <= 1.15). Every page's header fetches this file and
-shows a gold star only while it says golden and is fresh.
-
-"top" is the mirror state: true exactly when all four models read
-stretched at once — the page's own rule (power-law position >= 95,
-production cost by its ratio: price at least 10x the cost of
-production, Mayer >= 2.4, MVRV Z >= 7). The cost leg is a threshold
-on the ratio, like Mayer's and MVRV's own thresholds, because the
-cost position's scale is anchored to the single December 2017 peak
+"golden" is true exactly when Johnny's combined score (below) is
+in its buy band, and "top" exactly when the score is in its sell
+band — the Rare Buy / Rare Sell trigger since the overlay v2 build
+(2026-11-19). Every page's header fetches this file and shows a
+gold star only while it says golden and is fresh, so the star now
+follows the score. The previous all-four-at-once states are kept
+verbatim under "all_four": "buy" is true exactly when all four
+models read green at once — the page's own per-model rule
+(power-law position <= 5, cost position <= 5, Mayer <= 1.0, MVRV
+ratio <= 1.15); "sell" is its mirror — all four models stretched
+at once (power-law position >= 95, production cost by its ratio:
+price at least 10x the cost of production, Mayer >= 2.4, MVRV
+Z >= 7). The cost leg of the sell state is a threshold on the
+ratio, like Mayer's and MVRV's own thresholds, because the cost
+position's scale is anchored to the single December 2017 peak
 ratio (22.21): the top 5% of that scale needs a ratio over 21 and
-has never been reached on a weekly sample. It drives nothing in
-the header (the stars stay buy-only); it is published so the nightly
-state carries the sell-side reading too, in the same checkable form.
+has never been reached on a weekly sample.
+
+"score" is Johnny's overlay score: each of the four models is
+scaled to 0-100 against fixed anchors — the power law by its
+corridor position clipped to 0-100, production cost by its ratio
+on a log scale (a ratio of 1 scores 0, a ratio of 10 scores 100),
+the Mayer Multiple linearly (0.5 scores 0, 2.4 scores 100), the
+MVRV Z-Score linearly (0 scores 0, 7 scores 100) — and the score
+is the simple average of the four scalings. The buy band is a
+score of 7.79 or lower; the sell band is a score of 92.91 or
+higher; each band fired on 115 of the 5,764 days in the measured
+daily record (2.0% of days). The score's own weekly record rides
+alongside under "score_record": {"weeks", "buy_weeks",
+"sell_weeks", "last_buy_end", "last_sell_end"}, counted over the
+same baked weekly series and with the same completed-episode rule
+as "record".
 
 The state also carries a "record" object — the rarity facts the
 alert emails state: {"weeks", "golden_weeks", "top_weeks",
@@ -106,6 +128,12 @@ GRID_START, GRID_STEP = 592, 4
 # weeks of Dec 7 and 14, 2017, at ratios of 15.7 and 20.1; a 10x
 # threshold fires in exactly those weeks and nowhere else (2 of 564).
 COST_TOP_RATIO = 10
+# Johnny's overlay score bands (2026-11-19): the score is the simple
+# average of the four models' fixed-anchor scalings (score_parts
+# below); each band fired on 115 of the 5,764 days in the measured
+# daily record — 2.0% of days per side.
+SCORE_BUY = 7.79
+SCORE_SELL = 92.91
 
 TIMEOUT = 30
 
@@ -211,6 +239,45 @@ def band_of_pos(pos):
     if pos <= 50:
         return "yellow"
     return "red"
+
+
+# ------------------------------------------------------------- overlay score
+# Johnny's combined score (overlay v2, 2026-11-19): each model scaled
+# 0-100 against fixed anchors, the score the simple average. These
+# functions are the production form of the measured test pipeline's
+# Variant B scalings (btc-averaged-score) — same anchors, same clip —
+# and the proof in that build's REPORT is that this code reproduces
+# the test's values on shared inputs.
+
+def _clip100(v):
+    return max(0.0, min(100.0, v))
+
+
+def score_parts(pl_pos, cost_ratio, mayer, mvrv_z):
+    """The four scalings, from the four models' raw values: the power
+    law by its corridor position, production cost by its ratio on a
+    log scale (1 -> 0, 10 -> 100), the Mayer Multiple linearly
+    (0.5 -> 0, 2.4 -> 100), the MVRV Z-Score linearly (0 -> 0,
+    7 -> 100); each clipped to 0-100."""
+    return {
+        "powerlaw": _clip100(pl_pos),
+        "cost": _clip100(100.0 * math.log10(cost_ratio)
+                         / math.log10(10.0)) if cost_ratio > 0 else 0.0,
+        "mayer": _clip100(100.0 * (mayer - 0.5) / (2.4 - 0.5)),
+        "mvrv": _clip100(100.0 * mvrv_z / 7.0),
+    }
+
+
+def score_value(parts):
+    return sum(parts.values()) / 4.0
+
+
+def score_band(score):
+    if score <= SCORE_BUY:
+        return "buy"
+    if score >= SCORE_SELL:
+        return "sell"
+    return "between"
 
 
 # ----------------------------------------------------------------------- feeds
@@ -343,7 +410,7 @@ def reading_powerlaw(today, price):
     # popped by main() before the state is written — the published
     # reading carries only pos / band / pct, as before.
     return {"pos": round(pos, 2), "band": band_of_pos(pos),
-            "pct": round(pct, 4), "_top": pos >= 95}
+            "pct": round(pct, 4), "_top": pos >= 95, "_pos": pos}
 
 
 def reading_cost(today, price, inputs, peak, diff_t):
@@ -355,7 +422,8 @@ def reading_cost(today, price, inputs, peak, diff_t):
     # on the UNROUNDED ratio (price / cost of production) — a
     # threshold, not the position (see COST_TOP_RATIO).
     return {"pos": round(pos, 2), "band": band_of_pos(pos),
-            "pct": round(pct, 4), "_top": price / c >= COST_TOP_RATIO}
+            "pct": round(pct, 4), "_top": price / c >= COST_TOP_RATIO,
+            "_ratio": price / c}
 
 
 def reading_mayer(today, price, closes):
@@ -369,7 +437,7 @@ def reading_mayer(today, price, closes):
     band = "green" if ratio <= 1 else ("red" if ratio >= 2.4 else "yellow")
     # the page's zone dist: (last[1] - 1) * 100, from the unrounded ratio
     return {"ratio": round(ratio, 4), "band": band,
-            "pct": round((ratio - 1) * 100, 4)}
+            "pct": round((ratio - 1) * 100, 4), "_ratio": ratio}
 
 
 def reading_mvrv(rows):
@@ -396,7 +464,7 @@ def reading_mvrv(rows):
     # the page's zone dist: (last[2] / last[3] - 1) * 100, market cap
     # over realized cap — which is the CoinMetrics ratio itself, minus 1
     return {"z": round(z, 4), "band": band,
-            "pct": round((ratio - 1) * 100, 4)}, day
+            "pct": round((ratio - 1) * 100, 4), "_z": z}, day
 
 
 # -------------------------------------------------------------------- record
@@ -485,6 +553,85 @@ def record_facts(inputs, peak, golden_now, top_now):
     }
 
 
+def score_record_facts(inputs, peak, buy_now, sell_now):
+    """The score's own rarity record over the same baked weekly
+    series and the same grid rules as record_facts: each sample
+    week's four raw values (power-law position and cost ratio from
+    the sample's own 4-day grid cell, the Mayer Multiple at the
+    sample day, the MVRV Z-Score last-value-carried-forward) are
+    scaled and averaged by score_parts / score_value, and the week
+    counts for a band when its score is inside that band. Returns
+    {"weeks", "buy_weeks", "sell_weeks", "last_buy_end",
+    "last_sell_end"} with the ends under the same completed-episode
+    rule as record_facts."""
+    mayer = inputs["mayer_baked"]
+    mvrv = inputs["mvrv_baked"]
+    prices, diff, fees = inputs["prices"], inputs["diff"], inputs["fees"]
+    eff, sub = inputs["eff"], inputs["sub"]
+
+    def mvrv_z(day):
+        z = None
+        for row in mvrv:
+            if row[0] <= day:
+                z = row[1]
+            else:
+                break
+        return z
+
+    def episodes(flags):
+        eps, cur = [], None
+        for day, on in flags:
+            if on:
+                if cur is None:
+                    cur = [day, day]
+                cur[1] = day
+            elif cur is not None:
+                eps.append(cur)
+                cur = None
+        if cur is not None:
+            eps.append(cur)
+        return eps
+
+    buy_flags, sell_flags = [], []
+    for row in mayer:
+        day, mult = row[0], row[1]
+        gi = min(len(prices) - 1,
+                 max(0, (day - GRID_START) // GRID_STEP))
+        gd = GRID_START + gi * GRID_STEP
+        price = prices[gi]
+        ratio = price / cost_for(gd, diff[gi], fees[gi], eff, sub)
+        fair = 10 ** (PL_A + PL_N * math.log10(gd))
+        pos_pl = (math.log10(price) - math.log10(fair * PL_LO)) \
+            / math.log10(PL_HI / PL_LO) * 100
+        z = mvrv_z(day)
+        if z is None:
+            buy_flags.append((day, False))
+            sell_flags.append((day, False))
+            continue
+        score = score_value(score_parts(pos_pl, ratio, mult, z))
+        buy_flags.append((day, score <= SCORE_BUY))
+        sell_flags.append((day, score >= SCORE_SELL))
+
+    def last_completed_end(eps, live_now):
+        if not eps:
+            return None
+        if eps[-1][1] == mayer[-1][0] and live_now:
+            if len(eps) < 2:
+                return None
+            return str(GENESIS + timedelta(days=eps[-2][1]))
+        return str(GENESIS + timedelta(days=eps[-1][1]))
+
+    return {
+        "weeks": len(mayer),
+        "buy_weeks": sum(1 for _, on in buy_flags if on),
+        "sell_weeks": sum(1 for _, on in sell_flags if on),
+        "last_buy_end": last_completed_end(episodes(buy_flags),
+                                           buy_now),
+        "last_sell_end": last_completed_end(episodes(sell_flags),
+                                            sell_now),
+    }
+
+
 # ------------------------------------------------------------- share snapshot
 # og-bitcoin.jpg: the page's power-law chart card, composed for the
 # 1200x630 share frame from the SAME state dict and baked inputs as
@@ -564,10 +711,10 @@ def snapshot_stats(state):
                                     "below" if dev < 0 else "above"),
         "dev_note": "undervalued vs. the model" if dev < 0
                     else "stretched vs. the model",
-        "callout": ("Rare buy — all four models in their "
-                    "buy zones at once." if state.get("golden")
-                    else "Rare sell — all four models stretched at "
-                         "once." if state.get("top") else None),
+        "callout": ("Rare buy — the combined score is in "
+                    "its buy band." if state.get("golden")
+                    else "Rare sell — the combined score is in "
+                         "its sell band." if state.get("top") else None),
     }
 
 
@@ -781,7 +928,7 @@ def main():
     if not (-5 < mvrv["z"] < 20):
         fail("implausible MVRV Z %r" % mvrv["z"])
 
-    golden = all(r["band"] == "green" for r in readings.values())
+    golden_all_four = all(r["band"] == "green" for r in readings.values())
     # The top state, the page's own test: the power law by its
     # unrounded position and production cost by its unrounded ratio
     # (the private _top flags — popped unconditionally, before the
@@ -791,10 +938,24 @@ def main():
     # IS the page's test for them.
     pl_top = readings["powerlaw"].pop("_top")
     cost_top = readings["cost"].pop("_top")
-    top = (pl_top and cost_top
-           and readings["mayer"]["band"] == "red"
-           and readings["mvrv"]["band"] == "red")
-    record = record_facts(inputs, peak, golden, top)
+    top_all_four = (pl_top and cost_top
+                    and readings["mayer"]["band"] == "red"
+                    and readings["mvrv"]["band"] == "red")
+    # Johnny's combined score, from the readings' unrounded values
+    # (the private raw keys, popped here so nothing private is
+    # published). "golden" / "top" now carry the score's states —
+    # the Rare Buy / Rare Sell trigger — and the all-four states
+    # ride under "all_four", unchanged in meaning.
+    parts = score_parts(readings["powerlaw"].pop("_pos"),
+                        readings["cost"].pop("_ratio"),
+                        readings["mayer"].pop("_ratio"),
+                        readings["mvrv"].pop("_z"))
+    score = score_value(parts)
+    band = score_band(score)
+    golden = band == "buy"
+    top = band == "sell"
+    record = record_facts(inputs, peak, golden_all_four, top_all_four)
+    score_record = score_record_facts(inputs, peak, golden, top)
     state = {
         "golden": golden,
         "top": top,
@@ -802,16 +963,26 @@ def main():
         "price": price,
         "data": {"mvrv_day": str(GENESIS + timedelta(days=mvrv_day))},
         "readings": readings,
+        "all_four": {"buy": golden_all_four, "sell": top_all_four},
+        "score": {
+            "value": round(score, 2),
+            "band": band,
+            "parts": {k: round(v, 2) for k, v in parts.items()},
+        },
         "record": record,
+        "score_record": score_record,
     }
     tmp = OUT_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(state, fh, indent=1, sort_keys=True)
         fh.write("\n")
     os.replace(tmp, OUT_PATH)
-    print("update_btc_state: golden=%s top=%s readings=%s record=%s"
-          % (golden, top, json.dumps(readings, sort_keys=True),
-             json.dumps(record, sort_keys=True)))
+    print("update_btc_state: golden=%s top=%s score=%s band=%s "
+          "readings=%s record=%s score_record=%s"
+          % (golden, top, round(score, 2), band,
+             json.dumps(readings, sort_keys=True),
+             json.dumps(record, sort_keys=True),
+             json.dumps(score_record, sort_keys=True)))
 
     # The share snapshot rides the same run, from the same state —
     # best-effort: a drawing failure never blocks the state above.
