@@ -8,7 +8,7 @@ averages separately (its overrides are keyed per study type, and both
 averages are the same type).
 
 Instruments: the S&P 500 (^GSPC), the Nasdaq Composite (^IXIC),
-gold futures (GC=F), Bitcoin (BTC-USD), and Johnny's 19 scoreboard
+gold futures (GC=F), Bitcoin (BTC-USD), the VIX (^VIX), and Johnny's 19 scoreboard
 stocks — plus, since 2026-11-16, every Nasdaq-100 constituent not
 already in that set (NASDAQ100 below), carried CHART-ONLY for the
 chart's second dropdown: their series are flagged "ndx" in the output
@@ -97,6 +97,7 @@ INSTRUMENTS = [
     ("IXIC", "^IXIC", "Nasdaq Composite"),
     ("GOLD", "GC=F", "Gold"),
     ("BTC", "BTC-USD", "Bitcoin"),
+    ("VIX", "^VIX", "VIX"),
     ("GOOGL", "GOOGL", "Alphabet / Google"),
     ("ASST", "ASST", "Strive (Asset Series)"),
     ("CIFR", "CIFR", "Cipher Mining"),
@@ -253,7 +254,7 @@ EDGAR_HEADERS = {"User-Agent": "Johnny O'Neal johnny-website@muse.ai",
                  "Accept": "application/json"}
 EDGAR_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 EDGAR_FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK%s.json"
-BENCHMARK_KEYS = {"SPX", "IXIC", "GOLD", "BTC"}  # no EPS exists
+BENCHMARK_KEYS = {"SPX", "IXIC", "GOLD", "BTC", "VIX"}  # no EPS exists
 PE_EXCLUDE = {"TSM"}  # reported per-share basis != listed ADR price
 
 
@@ -608,7 +609,7 @@ def compute_pe(bars, facts, splits):
 
 _FIN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-_FIN_BENCH = {"SPX", "IXIC", "GOLD", "BTC"}
+_FIN_BENCH = {"SPX", "IXIC", "GOLD", "BTC", "VIX"}
 
 
 def _fin_sma(values, length):
