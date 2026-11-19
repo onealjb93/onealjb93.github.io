@@ -380,6 +380,36 @@
         .btc-zone.band-red .btc-zone-dot { background: #ef4444; border-color: #ef4444; }
         .btc-zone-name { font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
         .btc-zone-dist { font-size: 0.76rem; color: var(--text-muted, #94a3b8); white-space: nowrap; }
+        /* Per-model mini scales (2026-11-19): under each model
+           column, that model's own 0-to-100 scaling — the same
+           scaling the combined score averages — as a slim track
+           segmented by the model's own zones, the needle at
+           today's part value. Same segment colors and needle as
+           the gauge below; no numbers on the minis, the needle's
+           place in the segments is the whole message. The power
+           law's boundaries (green to 5, yellow to 50 of corridor
+           position) and Mayer's (green to a multiple of 1.0,
+           which is 26.32 in its scaling; red begins at 2.4,
+           which is 100, so Mayer's red segment is zero-width)
+           sit at fixed places in their scalings and live here;
+           the cost and MVRV boundaries are derived from the
+           published readings and set by the indicator script.
+           A mini stays hidden until the first full render sets
+           its needle. */
+        .btc-mini { position: relative; display: block; width: 100%; visibility: hidden; }
+        .btc-mini.on { visibility: visible; }
+        .btc-mini-track { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: rgba(148, 163, 184, 0.25); }
+        .btc-mini-seg { height: 100%; }
+        .btc-mini-green { background: #22c55e; }
+        .btc-mini-yellow { background: #f59e0b; }
+        .btc-mini-red { background: #ef4444; }
+        .btc-mini-needle { position: absolute; top: -2px; bottom: -2px; left: var(--pos, 50%); width: 3px; margin-left: -1.5px; border-radius: 1.5px; background: #111827; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.9); }
+        .btc-zone:nth-child(1) .btc-mini-green { width: 5%; }
+        .btc-zone:nth-child(1) .btc-mini-yellow { width: 45%; }
+        .btc-zone:nth-child(1) .btc-mini-red { width: 50%; }
+        .btc-zone:nth-child(3) .btc-mini-green { width: 26.32%; }
+        .btc-zone:nth-child(3) .btc-mini-yellow { width: 73.68%; }
+        .btc-mini.flat .btc-mini-seg { display: none; }
         .btc-zones-line { font-size: 0.92rem; margin: 8px 2px 0; }
         .btc-zones-note { font-size: 0.78rem; color: var(--text-muted, #94a3b8); margin: 3px 2px 0; }
         .btc-ovl-btn { margin-right: auto; }
@@ -525,6 +555,12 @@
         .btc-returns-cycle { white-space: nowrap; font-size: 0.88rem; }
         .btc-returns-sub { display: block; margin-top: 1px; font-size: 0.78rem; color: var(--text-muted, #94a3b8); white-space: nowrap; }
         .btc-returns-close { margin: 10px 0 2px; font-size: 0.9rem; line-height: 1.5; }
+        /* "Following the score" block inside the exhibit (2026-11-19):
+           the tap's own typography — the closing paragraph's size and
+           leading for the text, the buy lines a touch looser. */
+        .btc-returns-subhead { font-size: 1rem; font-weight: 700; line-height: 1.35; margin: 16px 0 8px; }
+        .btc-returns-text { font-size: 0.9rem; line-height: 1.5; margin: 0 0 10px; }
+        .btc-returns-buys { font-size: 0.9rem; line-height: 1.6; margin: 0 0 10px; }
         @media (max-width: 480px) {
             .btc-returns summary { padding: 10px 8px; }
             .btc-returns-body { padding: 0 8px 10px; }
@@ -790,7 +826,7 @@
                 <button type="button" class="btc-pick-opt" data-view="cost" role="option" aria-selected="false">Production cost</button>
                 <button type="button" class="btc-pick-opt" data-view="mayer" role="option" aria-selected="false">Mayer Multiple</button>
                 <button type="button" class="btc-pick-opt" data-view="mvrv" role="option" aria-selected="false">MVRV Z-Score</button>
-                <button type="button" class="btc-pick-opt" data-view="score" role="option" aria-selected="false">Combined score</button>
+                <button type="button" class="btc-pick-opt" data-view="score" role="option" aria-selected="false">Johnny's combined score</button>
             </div>
         </div>
         <!-- Buy-time indicator: one dot per model. Power law and
@@ -813,10 +849,10 @@
              a golden callout. -->
         <div class="btc-zones" id="btcZones">
             <div class="btc-zones-row" role="group" aria-label="Buy zones — tap a model to open its chart">
-                <button type="button" class="btc-zone" data-zone="powerlaw"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Power law</span><span class="btc-zone-dist" data-dist>…</span></button>
-                <button type="button" class="btc-zone" data-zone="cost"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Cost</span><span class="btc-zone-dist" data-dist>…</span></button>
-                <button type="button" class="btc-zone" data-zone="mayer"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Mayer</span><span class="btc-zone-dist" data-dist>…</span></button>
-                <button type="button" class="btc-zone" data-zone="mvrv"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">MVRV</span><span class="btc-zone-dist" data-dist>…</span></button>
+                <button type="button" class="btc-zone" data-zone="powerlaw"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Power law</span><span class="btc-zone-dist" data-dist>…</span><span class="btc-mini" data-mini aria-hidden="true"><span class="btc-mini-track"><span class="btc-mini-seg btc-mini-green"></span><span class="btc-mini-seg btc-mini-yellow"></span><span class="btc-mini-seg btc-mini-red"></span></span><span class="btc-mini-needle"></span></span></button>
+                <button type="button" class="btc-zone" data-zone="cost"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Cost</span><span class="btc-zone-dist" data-dist>…</span><span class="btc-mini" data-mini aria-hidden="true"><span class="btc-mini-track"><span class="btc-mini-seg btc-mini-green"></span><span class="btc-mini-seg btc-mini-yellow"></span><span class="btc-mini-seg btc-mini-red"></span></span><span class="btc-mini-needle"></span></span></button>
+                <button type="button" class="btc-zone" data-zone="mayer"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">Mayer</span><span class="btc-zone-dist" data-dist>…</span><span class="btc-mini" data-mini aria-hidden="true"><span class="btc-mini-track"><span class="btc-mini-seg btc-mini-green"></span><span class="btc-mini-seg btc-mini-yellow"></span><span class="btc-mini-seg btc-mini-red"></span></span><span class="btc-mini-needle"></span></span></button>
+                <button type="button" class="btc-zone" data-zone="mvrv"><span class="btc-zone-dot" aria-hidden="true"></span><span class="btc-zone-name">MVRV</span><span class="btc-zone-dist" data-dist>…</span><span class="btc-mini" data-mini aria-hidden="true"><span class="btc-mini-track"><span class="btc-mini-seg btc-mini-green"></span><span class="btc-mini-seg btc-mini-yellow"></span><span class="btc-mini-seg btc-mini-red"></span></span><span class="btc-mini-needle"></span></span></button>
             </div>
             <div class="btc-zl-stars"><span class="btc-zl-stars-glyph" aria-hidden="true">★★★★</span><span id="btcZlStarsName">Rare buy · Rare sell</span></div>
             <p class="btc-zones-line" id="btcZonesLine">Reading the four models…</p>
@@ -943,20 +979,20 @@
         </div>
         <div id="btc-view-score" class="powerlaw-card" hidden>
         <div class="pl-readout" id="sc-readout" aria-live="polite">
-            <div class="pl-stat"><span class="pl-label">Combined score</span><span class="pl-value" id="sc-score">&mdash;</span><span class="pl-note" id="sc-date"></span></div>
+            <div class="pl-stat"><span class="pl-label">Johnny's combined score</span><span class="pl-value" id="sc-score">&mdash;</span><span class="pl-note" id="sc-date"></span></div>
             <div class="pl-stat"><span class="pl-label">Buy band</span><span class="pl-value">7.79</span><span class="pl-note">or lower — the rare buy</span></div>
             <div class="pl-stat"><span class="pl-label">Sell band</span><span class="pl-value">92.91</span><span class="pl-note">or higher — the rare sell</span></div>
         </div>
         <div class="pl-chart-wrap">
             <canvas id="sc-chart" height="420" aria-label="Chart of Johnny's combined score, the average of the four models' 0-to-100 scalings, with the buy band at a score of 7.79 or lower and the sell band at a score of 92.91 or higher"></canvas>
             <div class="pl-tip" id="sc-tip" hidden></div>
-            <div class="pl-zoom" role="group" aria-label="Combined score chart zoom controls">
+            <div class="pl-zoom" role="group" aria-label="Johnny's combined score chart zoom controls">
                 <button type="button" id="sc-zin" aria-label="Zoom in" title="Zoom in">+</button>
                 <button type="button" id="sc-zout" aria-label="Zoom out" title="Zoom out">&minus;</button>
                 <button type="button" id="sc-zreset" class="pl-zreset" aria-label="Reset view" title="Reset view">Reset</button>
             </div>
         </div>
-        <p class="pl-legend"><span class="pl-sw pl-sw-score"></span> Combined score &nbsp; <span class="pl-sq pl-sq-lo"></span> Buy band — 7.79 or lower &nbsp; <span class="pl-sq pl-sq-hi"></span> Sell band — 92.91 or higher &nbsp; <span class="pl-sw pl-sw-dotbuy"></span> In the buy band &nbsp; <span class="pl-sw pl-sw-below"></span> In the sell band &nbsp; <span class="pl-sw pl-sw-today"></span> Latest &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
+        <p class="pl-legend"><span class="pl-sw pl-sw-score"></span> Johnny's combined score &nbsp; <span class="pl-sq pl-sq-lo"></span> Buy band — 7.79 or lower &nbsp; <span class="pl-sq pl-sq-hi"></span> Sell band — 92.91 or higher &nbsp; <span class="pl-sw pl-sw-dotbuy"></span> In the buy band &nbsp; <span class="pl-sw pl-sw-below"></span> In the sell band &nbsp; <span class="pl-sw pl-sw-today"></span> Latest &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
         <p class="mm-state" id="sc-state"></p>
         <p class="pl-fine">The combined score is the average of the four models&rsquo; 0-to-100 scalings — the score the buy-time indicator&rsquo;s gauge marks. The daily series comes from the site&rsquo;s nightly update, computed from each day&rsquo;s closing figures out of the same feeds the four model charts use, and the line starts Feb 2, 2011, the first day all four models have a reading. Until the nightly series loads, the chart draws a weekly sample of the same series. The 7.79 line is the buy band&rsquo;s edge; the 92.91 line is the sell band&rsquo;s edge — the bands are Johnny&rsquo;s overlay, not a model&rsquo;s own lines.</p>
         </div>
@@ -998,6 +1034,16 @@
                     </tbody>
                 </table>
                 <p class="btc-returns-close">Even buying the exact top was ahead after four years, in every finished cycle. The gains shrink as Bitcoin grows — and the current cycle isn't finished yet.</p>
+                <h3 class="btc-returns-subhead">Following the score</h3>
+                <p class="btc-returns-text">The bottoms and tops above are exact — nobody can buy an exact bottom or sell an exact top. The score's buy band fires on real days, so the buy band can be followed. Here the rule is: buy $100 on the first day the score enters the buy band, and hold the $100 for exactly four years.</p>
+                <p class="btc-returns-buys">2011 — the band fired in three stretches, the first at $2.22: <strong>$11,923 to $14,974</strong> (230% to 250% a year)<br>
+                Winter 2018–19 — five stretches, the first at $3,700: <strong>$445 to $640</strong> (45% to 59% a year)<br>
+                March 2020 — one stretch, at $4,959: <strong>$1,440</strong> (95% a year)<br>
+                November 2022 — two stretches, at $15,758 and $16,917: <strong>$477 and $436</strong> (48% and 45% a year)</p>
+                <p class="btc-returns-text">All 11 finished buys were ahead after four years. The band has fired ten more times in 2026, most recently on November 14, 2026 — those four years have barely begun, and $100 from the first 2026 stretch (February 5, at $63,495) stands at $99 today.</p>
+                <p class="btc-returns-text">The sell band fired 15 times: the band was on at both famous tops — the price fell 68% in the year after December 4, 2013 and 84% in the year after December 16, 2017 — but the band also fired on the way up, in 2011 and in the spring of 2013, and four years after every sell signal the price stood higher than on the day the band fired, so the sell band marks an overheated stretch, not an ending.</p>
+                <p class="btc-returns-text">The score missed three famous turns: the score never entered the buy band at the January 2015 bottom (the score read 9.51 on January 14, 2015, against the buy line of 7.79), and the score never entered the sell band at either 2021 top (85.58 on April 14, 2021 and 71.83 on November 10, 2021, against the sell line of 92.91) — the last sell firing before the April top was on March 14, 2021.</p>
+                <p class="btc-returns-close">A reading of the models, not a promise.</p>
             </div>
         </details>
 
@@ -1008,6 +1054,18 @@
 
     <details class="btc-record btc-point">
 <summary><span class="btc-record-chev" aria-hidden="true">&#9654;</span><span class="btc-record-headtext"><span>The critical flaw of the dollar: once you understand it, you'll seek a solution</span></span></summary>
+<div style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 auto 20px;max-width:476px">
+        <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">Buying power of $100 of 1913, year by year</p>
+        <p style="font-size:0.95rem;line-height:1.5;margin:0 0 12px;color:var(--text-color)">Every point on the line is one year, from 1913 to 2024: the height of the point for a year is the buying power of $100 of 1913 in that year, out of 100 &mdash; 100 &times; the Consumer Price Index of 1913 &divide; the Consumer Price Index of that year. Prices fell between 1920 and 1933, so the line rises across those years; after 1933 the line falls for the rest of the span, apart from small rises in a few single years.</p>
+        <svg viewBox="0 -36 680 398" width="100%" role="img" aria-label="Line chart. Buying power of $100 of 1913, out of 100, for every year from 1913 to 2024. 100 of 100 in 1913; about 49 of 100 in 1920; about 76 of 100 in 1933, after prices fell in the 1920s and the early 1930s; about 24 of 100 in 1971; about 3 of 100 in 2024." style="display:block;height:auto;max-width:740px"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Buying power kept out of $100 of 1913</text><line x1="58" y1="318" x2="668" y2="318" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><line x1="58" y1="248" x2="668" y2="248" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="255" font-size="23" text-anchor="end" fill="var(--subtext-color)">25</text><line x1="58" y1="178" x2="668" y2="178" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="185" font-size="23" text-anchor="end" fill="var(--subtext-color)">50</text><line x1="58" y1="108" x2="668" y2="108" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="115" font-size="23" text-anchor="end" fill="var(--subtext-color)">75</text><line x1="58" y1="38" x2="668" y2="38" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="45" font-size="23" text-anchor="end" fill="var(--subtext-color)">100</text><polygon points="70.0,38.0 75.3,41.7 80.6,44.2 85.9,63.7 91.3,102.2 96.6,134.0 101.9,158.3 107.2,179.9 112.5,163.0 117.8,152.8 123.2,155.7 128.5,156.4 133.8,160.2 139.1,161.7 144.4,158.6 149.7,156.7 155.0,156.7 160.4,152.3 165.7,136.0 171.0,115.1 176.3,104.0 181.6,111.2 186.9,116.4 192.3,118.4 197.6,125.6 202.9,121.6 208.2,119.0 213.5,120.5 218.8,130.1 224.1,148.6 229.5,158.1 234.8,160.7 240.1,164.2 245.4,176.2 250.7,194.0 256.0,202.9 261.4,201.8 266.7,203.0 272.0,211.4 277.3,213.8 282.6,214.6 287.9,214.9 293.2,214.6 298.6,216.2 303.9,219.5 309.2,222.1 314.5,223.1 319.8,224.4 325.1,225.4 330.5,226.5 335.8,227.6 341.1,228.8 346.4,230.2 351.7,232.7 357.0,235.0 362.3,238.4 367.7,242.6 373.0,246.7 378.3,249.7 383.6,251.8 388.9,255.7 394.2,261.9 399.5,266.6 404.9,269.4 410.2,272.3 415.5,275.6 420.8,279.9 426.1,284.4 431.4,287.6 436.8,289.3 442.1,290.2 447.4,291.4 452.7,292.3 458.0,292.8 463.3,293.6 468.6,294.6 474.0,295.7 479.3,296.8 484.6,297.7 489.9,298.3 495.2,298.8 500.5,299.3 505.9,299.8 511.2,300.4 516.5,300.8 521.8,301.0 527.1,301.4 532.4,301.9 537.7,302.4 543.1,302.6 548.4,303.0 553.7,303.3 559.0,303.8 564.3,304.3 569.6,304.7 575.0,305.1 580.3,305.1 585.6,305.3 590.9,305.7 596.2,305.9 601.5,306.1 606.8,306.3 612.2,306.3 617.5,306.5 622.8,306.7 628.1,307.0 633.4,307.2 638.7,307.3 644.1,307.8 649.4,308.5 654.7,308.9 660.0,309.2 660.0,318 70.0,318" fill="var(--link-color)" opacity="0.12"/><polyline points="70.0,38.0 75.3,41.7 80.6,44.2 85.9,63.7 91.3,102.2 96.6,134.0 101.9,158.3 107.2,179.9 112.5,163.0 117.8,152.8 123.2,155.7 128.5,156.4 133.8,160.2 139.1,161.7 144.4,158.6 149.7,156.7 155.0,156.7 160.4,152.3 165.7,136.0 171.0,115.1 176.3,104.0 181.6,111.2 186.9,116.4 192.3,118.4 197.6,125.6 202.9,121.6 208.2,119.0 213.5,120.5 218.8,130.1 224.1,148.6 229.5,158.1 234.8,160.7 240.1,164.2 245.4,176.2 250.7,194.0 256.0,202.9 261.4,201.8 266.7,203.0 272.0,211.4 277.3,213.8 282.6,214.6 287.9,214.9 293.2,214.6 298.6,216.2 303.9,219.5 309.2,222.1 314.5,223.1 319.8,224.4 325.1,225.4 330.5,226.5 335.8,227.6 341.1,228.8 346.4,230.2 351.7,232.7 357.0,235.0 362.3,238.4 367.7,242.6 373.0,246.7 378.3,249.7 383.6,251.8 388.9,255.7 394.2,261.9 399.5,266.6 404.9,269.4 410.2,272.3 415.5,275.6 420.8,279.9 426.1,284.4 431.4,287.6 436.8,289.3 442.1,290.2 447.4,291.4 452.7,292.3 458.0,292.8 463.3,293.6 468.6,294.6 474.0,295.7 479.3,296.8 484.6,297.7 489.9,298.3 495.2,298.8 500.5,299.3 505.9,299.8 511.2,300.4 516.5,300.8 521.8,301.0 527.1,301.4 532.4,301.9 537.7,302.4 543.1,302.6 548.4,303.0 553.7,303.3 559.0,303.8 564.3,304.3 569.6,304.7 575.0,305.1 580.3,305.1 585.6,305.3 590.9,305.7 596.2,305.9 601.5,306.1 606.8,306.3 612.2,306.3 617.5,306.5 622.8,306.7 628.1,307.0 633.4,307.2 638.7,307.3 644.1,307.8 649.4,308.5 654.7,308.9 660.0,309.2" fill="none" stroke="var(--link-color)" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/><line x1="107.2" y1="318" x2="107.2" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="160.4" y1="318" x2="160.4" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="213.5" y1="318" x2="213.5" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="266.7" y1="318" x2="266.7" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="319.8" y1="318" x2="319.8" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="373.0" y1="318" x2="373.0" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="426.1" y1="318" x2="426.1" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="479.3" y1="318" x2="479.3" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="532.4" y1="318" x2="532.4" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="585.6" y1="318" x2="585.6" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="638.7" y1="318" x2="638.7" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="107.2" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1920</text><text x="213.5" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1940</text><text x="319.8" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1960</text><text x="426.1" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1980</text><text x="532.4" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2000</text><text x="676" y="350" font-size="24" text-anchor="end" fill="var(--text-color)">2024</text><circle cx="70.0" cy="38.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="88" y="44" font-size="25" font-weight="700" fill="var(--text-color)">100 of 100 kept in 1913</text><circle cx="378.3" cy="249.7" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="366" y="284" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">24 of 100 kept in 1971</text><circle cx="660.0" cy="309.2" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="676" y="266" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">3 of 100 kept in 2024</text></svg>
+        <details class="disclaimer-note">
+        <summary><span class="disclaimer-gist">Source</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
+        <div class="disclaimer-body">
+        <p class="btc-cpi-src" style="margin-top:12px">Source: U.S. Bureau of Labor Statistics, Consumer Price Index for All Urban Consumers (CPI-U), annual averages, 1913 to 2024. The annual average index was 9.88 in 1913, 40.49 in 1971, and 313.69 in 2024: $100 of 1913 kept 100 &times; 9.88 &divide; 313.69, about 3 of every 100, by 2024. The 1971 point on the line reads about 24 of 100 because the line measures every year from 1913; measured from 1971 itself, the dollar kept 40.49 &divide; 313.69, about 13 of every 100, by 2024.</p>
+        </div>
+        </details>
+    </div>
+
 <div style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 auto 20px;max-width:476px">
             <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">Grams of pure silver in one denarius of face value</p>
             <p style="font-size:0.95rem;line-height:1.5;margin:0 0 12px;color:var(--text-color)">Every point on the graph is one row of the Rome table in the record below. The AD 215 coin held about 2.6 grams of silver and was valued at 2 denarii, so the AD 215 point is about 1.3 grams per denarius of face value.</p>
@@ -1200,24 +1258,6 @@
 
 <details class="btc-record btc-point">
 <summary><span class="btc-record-chev" aria-hidden="true">&#9654;</span><span class="btc-record-headtext"><span>The deflationary promise of technological and social evolution</span></span></summary>
-<div style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 auto 20px;max-width:476px">
-        <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">Buying power of $100 of 1913, year by year</p>
-        <p style="font-size:0.95rem;line-height:1.5;margin:0 0 12px;color:var(--text-color)">Every point on the line is one year, from 1913 to 2024: the height of the point for a year is the buying power of $100 of 1913 in that year, out of 100 &mdash; 100 &times; the Consumer Price Index of 1913 &divide; the Consumer Price Index of that year. Prices fell between 1920 and 1933, so the line rises across those years; after 1933 the line falls for the rest of the span, apart from small rises in a few single years.</p>
-        <svg viewBox="0 -36 680 398" width="100%" role="img" aria-label="Line chart. Buying power of $100 of 1913, out of 100, for every year from 1913 to 2024. 100 of 100 in 1913; about 49 of 100 in 1920; about 76 of 100 in 1933, after prices fell in the 1920s and the early 1930s; about 24 of 100 in 1971; about 3 of 100 in 2024." style="display:block;height:auto;max-width:740px"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Buying power kept out of $100 of 1913</text><line x1="58" y1="318" x2="668" y2="318" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><line x1="58" y1="248" x2="668" y2="248" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="255" font-size="23" text-anchor="end" fill="var(--subtext-color)">25</text><line x1="58" y1="178" x2="668" y2="178" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="185" font-size="23" text-anchor="end" fill="var(--subtext-color)">50</text><line x1="58" y1="108" x2="668" y2="108" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="115" font-size="23" text-anchor="end" fill="var(--subtext-color)">75</text><line x1="58" y1="38" x2="668" y2="38" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="45" font-size="23" text-anchor="end" fill="var(--subtext-color)">100</text><polygon points="70.0,38.0 75.3,41.7 80.6,44.2 85.9,63.7 91.3,102.2 96.6,134.0 101.9,158.3 107.2,179.9 112.5,163.0 117.8,152.8 123.2,155.7 128.5,156.4 133.8,160.2 139.1,161.7 144.4,158.6 149.7,156.7 155.0,156.7 160.4,152.3 165.7,136.0 171.0,115.1 176.3,104.0 181.6,111.2 186.9,116.4 192.3,118.4 197.6,125.6 202.9,121.6 208.2,119.0 213.5,120.5 218.8,130.1 224.1,148.6 229.5,158.1 234.8,160.7 240.1,164.2 245.4,176.2 250.7,194.0 256.0,202.9 261.4,201.8 266.7,203.0 272.0,211.4 277.3,213.8 282.6,214.6 287.9,214.9 293.2,214.6 298.6,216.2 303.9,219.5 309.2,222.1 314.5,223.1 319.8,224.4 325.1,225.4 330.5,226.5 335.8,227.6 341.1,228.8 346.4,230.2 351.7,232.7 357.0,235.0 362.3,238.4 367.7,242.6 373.0,246.7 378.3,249.7 383.6,251.8 388.9,255.7 394.2,261.9 399.5,266.6 404.9,269.4 410.2,272.3 415.5,275.6 420.8,279.9 426.1,284.4 431.4,287.6 436.8,289.3 442.1,290.2 447.4,291.4 452.7,292.3 458.0,292.8 463.3,293.6 468.6,294.6 474.0,295.7 479.3,296.8 484.6,297.7 489.9,298.3 495.2,298.8 500.5,299.3 505.9,299.8 511.2,300.4 516.5,300.8 521.8,301.0 527.1,301.4 532.4,301.9 537.7,302.4 543.1,302.6 548.4,303.0 553.7,303.3 559.0,303.8 564.3,304.3 569.6,304.7 575.0,305.1 580.3,305.1 585.6,305.3 590.9,305.7 596.2,305.9 601.5,306.1 606.8,306.3 612.2,306.3 617.5,306.5 622.8,306.7 628.1,307.0 633.4,307.2 638.7,307.3 644.1,307.8 649.4,308.5 654.7,308.9 660.0,309.2 660.0,318 70.0,318" fill="var(--link-color)" opacity="0.12"/><polyline points="70.0,38.0 75.3,41.7 80.6,44.2 85.9,63.7 91.3,102.2 96.6,134.0 101.9,158.3 107.2,179.9 112.5,163.0 117.8,152.8 123.2,155.7 128.5,156.4 133.8,160.2 139.1,161.7 144.4,158.6 149.7,156.7 155.0,156.7 160.4,152.3 165.7,136.0 171.0,115.1 176.3,104.0 181.6,111.2 186.9,116.4 192.3,118.4 197.6,125.6 202.9,121.6 208.2,119.0 213.5,120.5 218.8,130.1 224.1,148.6 229.5,158.1 234.8,160.7 240.1,164.2 245.4,176.2 250.7,194.0 256.0,202.9 261.4,201.8 266.7,203.0 272.0,211.4 277.3,213.8 282.6,214.6 287.9,214.9 293.2,214.6 298.6,216.2 303.9,219.5 309.2,222.1 314.5,223.1 319.8,224.4 325.1,225.4 330.5,226.5 335.8,227.6 341.1,228.8 346.4,230.2 351.7,232.7 357.0,235.0 362.3,238.4 367.7,242.6 373.0,246.7 378.3,249.7 383.6,251.8 388.9,255.7 394.2,261.9 399.5,266.6 404.9,269.4 410.2,272.3 415.5,275.6 420.8,279.9 426.1,284.4 431.4,287.6 436.8,289.3 442.1,290.2 447.4,291.4 452.7,292.3 458.0,292.8 463.3,293.6 468.6,294.6 474.0,295.7 479.3,296.8 484.6,297.7 489.9,298.3 495.2,298.8 500.5,299.3 505.9,299.8 511.2,300.4 516.5,300.8 521.8,301.0 527.1,301.4 532.4,301.9 537.7,302.4 543.1,302.6 548.4,303.0 553.7,303.3 559.0,303.8 564.3,304.3 569.6,304.7 575.0,305.1 580.3,305.1 585.6,305.3 590.9,305.7 596.2,305.9 601.5,306.1 606.8,306.3 612.2,306.3 617.5,306.5 622.8,306.7 628.1,307.0 633.4,307.2 638.7,307.3 644.1,307.8 649.4,308.5 654.7,308.9 660.0,309.2" fill="none" stroke="var(--link-color)" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/><line x1="107.2" y1="318" x2="107.2" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="160.4" y1="318" x2="160.4" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="213.5" y1="318" x2="213.5" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="266.7" y1="318" x2="266.7" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="319.8" y1="318" x2="319.8" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="373.0" y1="318" x2="373.0" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="426.1" y1="318" x2="426.1" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="479.3" y1="318" x2="479.3" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="532.4" y1="318" x2="532.4" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="585.6" y1="318" x2="585.6" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="638.7" y1="318" x2="638.7" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="107.2" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1920</text><text x="213.5" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1940</text><text x="319.8" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1960</text><text x="426.1" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1980</text><text x="532.4" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2000</text><text x="676" y="350" font-size="24" text-anchor="end" fill="var(--text-color)">2024</text><circle cx="70.0" cy="38.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="88" y="44" font-size="25" font-weight="700" fill="var(--text-color)">100 of 100 kept in 1913</text><circle cx="378.3" cy="249.7" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="366" y="284" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">24 of 100 kept in 1971</text><circle cx="660.0" cy="309.2" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="676" y="266" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">3 of 100 kept in 2024</text></svg>
-        <details class="disclaimer-note">
-        <summary><span class="disclaimer-gist">Source</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
-        <div class="disclaimer-body">
-        <p class="btc-cpi-src" style="margin-top:12px">Source: U.S. Bureau of Labor Statistics, Consumer Price Index for All Urban Consumers (CPI-U), annual averages, 1913 to 2024. The annual average index was 9.88 in 1913, 40.49 in 1971, and 313.69 in 2024: $100 of 1913 kept 100 &times; 9.88 &divide; 313.69, about 3 of every 100, by 2024. The 1971 point on the line reads about 24 of 100 because the line measures every year from 1913; measured from 1971 itself, the dollar kept 40.49 &divide; 313.69, about 13 of every 100, by 2024.</p>
-        </div>
-        </details>
-    </div>
-
-    <p class="btc-cat-brief">People get better at making things every year, so things cost less to produce and life is better than ever. The money’s design taxes that progress: prices rise every year even though production gets cheaper, so the cheapening arrives as more expensive goods.</p>
-
-    <details class="btc-record">
-
-        <summary><span class="btc-record-chev" aria-hidden="true">&#9654;</span><span class="btc-record-headtext"><span>The record in the United States</span><span class="btc-record-gist">Productivity against buying power since 1947, the money supply and the federal debt, the prices of a weekly basket, and the big costs of a life — every figure with its source.</span></span></summary>
-
     <div class="btc-cpi">
         <p class="btc-cpi-title">Productivity vs. the dollar's buying power — since 1947</p>
         <p class="btc-cpi-intro"><span style="display:inline-block;width:16px;height:3px;border-radius:2px;background:#22c55e;vertical-align:middle;margin-right:6px"></span>Productivity — what an hour of work produces<span style="display:inline-block;width:16px;height:3px;border-radius:2px;background:#38bdf8;vertical-align:middle;margin:0 6px 0 16px"></span>Buying power — what $1 buys</p>
@@ -1226,6 +1266,12 @@
         </div>
         <p class="btc-cpi-src">Source: U.S. Bureau of Labor Statistics — output per hour and consumer prices, annual averages, 1947–2025. Both lines start at 100 in 1947.</p>
     </div>
+
+    <p class="btc-cat-brief">People get better at making things every year, so things cost less to produce and life is better than ever. The money’s design taxes that progress: prices rise every year even though production gets cheaper, so the cheapening arrives as more expensive goods.</p>
+
+    <details class="btc-record">
+
+        <summary><span class="btc-record-chev" aria-hidden="true">&#9654;</span><span class="btc-record-headtext"><span>The record in the United States</span><span class="btc-record-gist">The money supply and the federal debt, the prices of a weekly basket, and the big costs of a life — every figure with its source.</span></span></summary>
 
     <p class="btc-why-close">Since 1947, an hour of work produces about 5.3× more — the force pushing prices down. Over the same years, the dollar's buying power fell about 93% — a 1947 dollar buys about 7¢ today. The distance between those two lines is the printing. That gap is your purchasing power. It doesn't drain in a straight line — it compounds, and at the average pace since 1947 it halves about every 20 years. The halving pace has not been steady across the years. From the 2020 annual average to the 2024 annual average, the Consumer Price Index — the Bureau of Labor Statistics' measure of consumer prices — rose 4.9% a year on average; a 4.9% yearly rise, repeated every year, halves the dollar's buying power in about 14 years, faster than the average pace since 1947 of about 20 years. The fastest year of the 2020s was 2022, when consumer prices rose 8.0% from the 2021 annual average to the 2022 annual average; the 2021 and 2022 price rises have not reversed, and the Consumer Price Index at the 2024 annual average stood 22.7% above the Consumer Price Index at the 2019 annual average. The most recent full year ran slower: consumer prices rose 2.9% from the 2023 annual average to the 2024 annual average, and a 2.9% yearly rise, repeated every year, halves the dollar's buying power in about 24 years.</p>
 
@@ -1312,7 +1358,7 @@
 </details>
 
 <details class="btc-record btc-point">
-<summary><span class="btc-record-chev" aria-hidden="true">&#9654;</span><span class="btc-record-headtext"><span>The switch to a currency without the critical flaw</span></span></summary>
+<summary><span class="btc-record-chev" aria-hidden="true">&#9654;</span><span class="btc-record-headtext"><span>The switch to a currency without the critical flaw(s) of all money known to man throughout history</span></span></summary>
 <p class="btc-cat-brief">Bitcoin was invented to be a currency without that flaw — the flaw that has existed in money throughout history. Only 21 million will ever exist, and no one can change that number. Money that cannot be printed lets the cheapening show as falling prices.</p>
 <details class="btc-record">
 
@@ -1991,17 +2037,24 @@
                 ctx.beginPath(); ctx.arc(g.x(hd), g.y(PTS[hover][1]), 2.5, 0, Math.PI * 2); ctx.fill();
             }
 
-            /* today dot */
+            /* today dot — when today itself is in the zone, the
+               zone dot takes the point at full prominence in the
+               zone's own symbol and the today color becomes the
+               outer halo, so the zone dot is never hidden under
+               the today dot (2026-11-19) */
             var tx = g.x(SPOT.days), ty = g.y(SPOT.price);
-            ctx.fillStyle = '#f7931a';
-            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
-            /* today itself at or below the floor: its red zone marker
-               is drawn under this dot and hidden — ring the dot red */
             if (window.BTC_OVERLAY !== false && SPOT.price <= fair(SPOT.days) * LO) {
-                ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5;
-                ctx.beginPath(); ctx.arc(tx, ty, 8.5, 0, Math.PI * 2); ctx.stroke();
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, Math.PI * 2); ctx.stroke();
+                ctx.strokeStyle = '#f7931a'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
+            } else {
+                ctx.fillStyle = '#f7931a';
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             }
 
             ctx.restore();
@@ -2569,17 +2622,24 @@
                 ctx.beginPath(); ctx.arc(g.x(hd), g.y(PTS[hover][1]), 2.5, 0, Math.PI * 2); ctx.fill();
             }
 
-            /* today dot */
+            /* today dot — when today itself is in the zone, the
+               zone dot takes the point at full prominence in the
+               zone's own symbol and the today color becomes the
+               outer halo, so the zone dot is never hidden under
+               the today dot (2026-11-19) */
             var tx = g.x(SPOT.days), ty = g.y(SPOT.price);
-            ctx.fillStyle = '#f7931a';
-            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
-            /* today itself below the cost: its red zone marker is
-               drawn under this dot and hidden — ring the dot red */
             if (window.BTC_OVERLAY !== false && SPOT.price < todayCost()) {
-                ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5;
-                ctx.beginPath(); ctx.arc(tx, ty, 8.5, 0, Math.PI * 2); ctx.stroke();
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, Math.PI * 2); ctx.stroke();
+                ctx.strokeStyle = '#f7931a'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
+            } else {
+                ctx.fillStyle = '#f7931a';
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             }
             ctx.restore();
 
@@ -3095,18 +3155,25 @@
                 ctx.beginPath(); ctx.arc(g.x(hd), g.y(PTS[hover][1]), 2.5, 0, Math.PI * 2); ctx.fill();
             }
 
-            /* latest point */
+            /* latest point — when the latest point itself is in
+               the zone, the zone dot takes the point at full
+               prominence in the zone's own symbol and the latest
+               color becomes the outer halo, so the zone dot is
+               never hidden under the latest dot (2026-11-19) */
             var last = PTS[PTS.length - 1];
             var tx = g.x(last[0]), ty = g.y(last[1]);
-            ctx.fillStyle = '#38bdf8';
-            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
-            /* the latest point itself at or below 1.0: its red zone
-               marker is drawn under this dot and hidden — ring it red */
             if (window.BTC_OVERLAY !== false && last[1] <= 1) {
-                ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5;
-                ctx.beginPath(); ctx.arc(tx, ty, 8.5, 0, Math.PI * 2); ctx.stroke();
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, Math.PI * 2); ctx.stroke();
+                ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
+            } else {
+                ctx.fillStyle = '#38bdf8';
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             }
             ctx.restore();
         }
@@ -3630,18 +3697,25 @@
                 ctx.beginPath(); ctx.arc(g.x(hd), g.y(PTS[hover][1]), 2.5, 0, Math.PI * 2); ctx.fill();
             }
 
-            /* latest point */
+            /* latest point — when the latest point itself is in
+               the zone, the zone dot takes the point at full
+               prominence in the zone's own symbol and the latest
+               color becomes the outer halo, so the zone dot is
+               never hidden under the latest dot (2026-11-19) */
             var last = PTS[PTS.length - 1];
             var tx = g.x(last[0]), ty = g.y(last[1]);
-            ctx.fillStyle = '#a78bfa';
-            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
-            /* the latest point itself in the buy zone: its red zone
-               marker is drawn under this dot and hidden — ring it red */
             if (window.BTC_OVERLAY !== false && last[2] / last[3] <= 1.15) {
-                ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5;
-                ctx.beginPath(); ctx.arc(tx, ty, 8.5, 0, Math.PI * 2); ctx.stroke();
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, Math.PI * 2); ctx.stroke();
+                ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
+            } else {
+                ctx.fillStyle = '#a78bfa';
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             }
             ctx.restore();
         }
@@ -4914,19 +4988,25 @@
                 ctx.beginPath(); ctx.arc(g.x(hd), g.y(PTS[hover][1]), 2.5, 0, Math.PI * 2); ctx.fill();
             }
 
-            /* latest point */
+            /* latest point — when the latest point itself is in
+               a band, the band dot takes the point at full
+               prominence in the band's own symbol and the line
+               color becomes the outer halo, so the band dot is
+               never hidden under the latest dot (2026-11-19) */
             var last = PTS[PTS.length - 1];
             var tx = g.x(last[0]), ty = g.y(last[1]);
-            ctx.fillStyle = LINE;
-            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
-            /* the latest point itself in a band: the band marker
-               under the point is hidden — ring the point in the
-               band's color */
             if (last[1] <= BUY || last[1] >= SELL) {
-                ctx.strokeStyle = last[1] <= BUY ? '#22c55e' : '#ef4444'; ctx.lineWidth = 2.5;
-                ctx.beginPath(); ctx.arc(tx, ty, 8.5, 0, Math.PI * 2); ctx.stroke();
+                ctx.fillStyle = last[1] <= BUY ? '#22c55e' : '#ef4444';
+                ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, Math.PI * 2); ctx.stroke();
+                ctx.strokeStyle = LINE; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
+            } else {
+                ctx.fillStyle = LINE;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             }
             ctx.restore();
         }
@@ -4949,7 +5029,7 @@
                 if (dd < best) { best = dd; idx = j; }
             }
             var d = PTS[idx][0], v = PTS[idx][1];
-            tip.innerHTML = '<strong>' + dateStr(d) + '</strong><br>Combined score ' + v.toFixed(2) +
+            tip.innerHTML = '<strong>' + dateStr(d) + '</strong><br>Johnny&rsquo;s combined score ' + v.toFixed(2) +
                 (v <= BUY ? '<br>In the buy band — the rare buy' : (v >= SELL ? '<br>In the sell band — the rare sell' : ''));
             tip.hidden = false;
             var tx = g.x(d), ty = g.y(v);
@@ -5485,7 +5565,7 @@
         var eMayer = document.querySelector('[data-explain="mayer"]');
         var eMvrv = document.querySelector('[data-explain="mvrv"]');
         if (!root || !face || !panel || !anim || !vPl || !vCost || !vMayer || !vMvrv || !vScore) return;
-        var LABELS = { powerlaw: 'Bitcoin power law', cost: 'Production cost', mayer: 'Mayer Multiple', mvrv: 'MVRV Z-Score', score: 'Combined score' };
+        var LABELS = { powerlaw: 'Bitcoin power law', cost: 'Production cost', mayer: 'Mayer Multiple', mvrv: 'MVRV Z-Score', score: "Johnny's combined score" };
         var current = 'powerlaw', plLoaded = false, costLoaded = false, mayerLoaded = false, mvrvLoaded = false, scoreLoaded = false, animating = false, finishAnim = null;
         var open = false;
 
@@ -5735,6 +5815,61 @@
                     ' · Mayer Multiple ' + sc.parts.mayer.toFixed(1) +
                     ' · MVRV Z-Score ' + sc.parts.mvrv.toFixed(1) +
                     ' — the average of the four parts is the combined score.';
+                /* The mini scales (2026-11-19): each column's own
+                   scale under its name — the needle at the model's
+                   part, the segments at the model's own zone
+                   boundaries in that scaling. The power law's and
+                   Mayer's boundaries are fixed in their scalings
+                   and live in the stylesheet. The cost boundaries
+                   sit on its published position axis (green to a
+                   position of 5, yellow to 50) mapped through the
+                   log scaling by the peak ratio the published pair
+                   implies (dist ÷ pos). The MVRV green boundary is
+                   the Z-Score where the ratio is 1.15, from the
+                   same published pair (the Z-Score in proportion
+                   to the percent above the realized price); its
+                   red begins at a Z-Score of 7, which is 100 in
+                   the scaling, so its red segment is zero-width.
+                   When a boundary cannot be derived from the pair,
+                   the mini falls back to a plain track with the
+                   needle in the model's own band color — no
+                   boundary is invented. */
+                ORDER.forEach(function (k) {
+                    var b = btns[k]; if (!b) return;
+                    var mini = b.querySelector('[data-mini]'); if (!mini) return;
+                    mini.style.setProperty('--pos', sc.parts[k] + '%');
+                    var segs = mini.querySelectorAll('.btc-mini-seg');
+                    var flat = false, gw = null, yw = null;
+                    if (k === 'cost') {
+                        var cp = z.cost.pos;
+                        if (typeof cp === 'number' && cp !== 0 && isFinite(cp)) {
+                            var K = z.cost.dist / cp;
+                            if (K > 0) {
+                                var b5 = 100 * Math.log10(1 + 0.05 * K), b50 = 100 * Math.log10(1 + 0.5 * K);
+                                if (isFinite(b5) && isFinite(b50)) { gw = Math.min(100, Math.max(0, b5)); yw = Math.min(100, Math.max(0, b50)) - gw; }
+                            }
+                        }
+                        if (gw === null) flat = true;
+                    } else if (k === 'mvrv') {
+                        var md = z.mvrv.dist;
+                        if (typeof md === 'number' && md !== 0 && isFinite(md)) {
+                            var gb = 1500 * z.mvrv.z / (7 * md);
+                            if (isFinite(gb) && gb > 0) { gw = Math.min(100, gb); yw = 100 - gw; }
+                        }
+                        if (gw === null) flat = true;
+                    }
+                    if (flat) {
+                        mini.classList.add('flat');
+                        var nd = mini.querySelector('.btc-mini-needle');
+                        if (nd) nd.style.background = bands[k] === 'green' ? '#22c55e' : bands[k] === 'red' ? '#ef4444' : '#f59e0b';
+                    } else if (gw !== null) {
+                        mini.classList.remove('flat');
+                        if (segs[0]) segs[0].style.width = gw + '%';
+                        if (segs[1]) segs[1].style.width = yw + '%';
+                        if (segs[2]) segs[2].style.width = Math.max(0, 100 - gw - yw) + '%';
+                    }
+                    mini.classList.add('on');
+                });
             }
             /* the final-bottoms sentence: on average, price sits under
                all four bottom lines at once. On the baked record since
