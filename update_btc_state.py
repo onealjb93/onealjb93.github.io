@@ -16,7 +16,8 @@ one tiny file, btc-state.json, at the repo root:
      "score": {"value": ..., "band": "buy" | "sell" | "between",
                "parts": {"powerlaw": ..., "cost": ...,
                          "mayer": ..., "mvrv": ...}},
-     "record": {...}, "score_record": {...}}
+     "record": {...}, "score_record": {...},
+     "score_series": [["2011-02-02", ...], ...]}
 
 Each reading's "pct" is the percent note the page's indicator prints
 beside the model's name (its fmtDist input): how far the price sits
@@ -59,6 +60,25 @@ alongside under "score_record": {"weeks", "buy_weeks",
 "sell_weeks", "last_buy_end", "last_sell_end"}, counted over the
 same baked weekly series and with the same completed-episode rule
 as "record".
+
+"score_series" is the score's full daily history — one
+[ISO date, score] pair per day from 2011-02-02 (the first day all
+four models have a reading) to the latest complete day in the
+feeds, each score rounded to 2 decimals — so the Bitcoin page's
+combined-score chart is drawn from this file's own computation,
+never a page-side recomputation of the score. The construction is
+the measured pipeline's, day for day: the MVRV Z-Score built up
+day by day over the CoinMetrics history (Welford), the Mayer
+Multiple against the trailing 200 daily closes including the day
+itself, the power-law position from the day's closing price, and
+the production cost from the day's own 4-day grid cell of the
+page's baked inputs. Past the baked grid's last cell the cost
+follows the page's own live-tail method — the day's difficulty
+from mempool.space's adjustment history (difficulty is constant
+inside an adjustment period), with the last baked fees standing
+in for the tail's — so the series runs to the feeds' latest day
+instead of stopping at the grid's edge; if that history cannot be
+read, the series simply ends at the grid's edge.
 
 The state also carries a "record" object — the all-four record,
 still published unchanged (the alert emails state the score's
@@ -369,17 +389,20 @@ def fetch_difficulty_t():
 
 
 def fetch_mvrv_rows():
-    """CoinMetrics community API: daily market cap + MVRV ratio from
-    2010 onward, the page's own feed and request."""
+    """CoinMetrics community API: daily market cap + MVRV ratio +
+    closing price from 2010 onward, the page's own feed and request.
+    Returns (rows, prices): rows is a sorted list of (day, market
+    cap, MVRV ratio); prices maps day -> closing price (USD)."""
     j = get_json(
         "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics",
         params={"assets": "btc",
-                "metrics": "CapMrktCurUSD,CapMVRVCur",
+                "metrics": "CapMrktCurUSD,CapMVRVCur,PriceUSD",
                 "frequency": "1d",
                 "page_size": 10000,
                 "start_time": "2010-01-01T00:00:00.000Z",
                 "sort": "time"})
     rows = []
+    prices = {}
     for row in j.get("data") or []:
         try:
             y, m, d = str(row["time"])[:10].split("-")
@@ -390,13 +413,56 @@ def fetch_mvrv_rows():
             continue
         if mv > 0 and ratio > 0:
             rows.append((day, mv, ratio))
+        try:
+            p = float(row["PriceUSD"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if p > 0:
+            prices[day] = p
     rows.sort()
     # The page's own guard: anything short of the full, from-the-start
     # history is not this gauge — the baked figures stand there, and
     # here the previous state file stands.
     if len(rows) < 4000 or rows[0][0] > 600:
         fail("CoinMetrics history incomplete (%d rows)" % len(rows))
-    return rows
+    if len(prices) < 4000 or min(prices) > 600:
+        fail("CoinMetrics price history incomplete (%d rows)"
+             % len(prices))
+    return rows, prices
+
+
+def fetch_tail_diffs(first_day, last_day):
+    """Best-effort difficulty history for the score series' tail
+    past the page's baked grid: {day: difficulty in trillions} from
+    mempool.space's difficulty-adjustment history — this script's
+    own difficulty source. Difficulty is constant inside an
+    adjustment period, so a day takes the difficulty set by the
+    latest adjustment on or before that day. Any failure returns
+    {} and the series ends at the grid's edge, exactly as it did
+    before the tail existed."""
+    try:
+        adj = get_json(
+            "https://mempool.space/api/v1/mining/difficulty-adjustments")
+        periods = []
+        for row in adj:
+            ts, raw = float(row[0]), float(row[2])
+            day = (datetime.fromtimestamp(ts, timezone.utc).date()
+                   - GENESIS).days
+            if raw > 0:
+                periods.append((day, raw / 1e12))
+        periods.sort()
+    except Exception:
+        return {}
+    out = {}
+    cur = None
+    pi = 0
+    for day in range(first_day, last_day + 1):
+        while pi < len(periods) and periods[pi][0] <= day:
+            cur = periods[pi][1]
+            pi += 1
+        if cur is not None:
+            out[day] = cur
+    return out
 
 
 # --------------------------------------------------------------------- readings
@@ -633,6 +699,78 @@ def score_record_facts(inputs, peak, buy_now, sell_now):
         "last_sell_end": last_completed_end(episodes(sell_flags),
                                             sell_now),
     }
+
+
+def score_series(inputs, peak, prices, mvrv_rows, tail_diffs):
+    """The combined score's full daily history: one [ISO date,
+    score] pair per day, each score rounded to 2 decimals, from the
+    first day all four models have a reading (2011-02-02) to the
+    latest day in the feeds. The construction is the measured test
+    pipeline's, day for day (btc-averaged-score / the overlay v2
+    proof): the MVRV Z-Score from the running standard deviation of
+    market cap built up over the full CoinMetrics history (Welford,
+    the page's rebuild), taken from the 200th row on; the Mayer
+    Multiple against the trailing 200 daily closes including the
+    day itself, taken from the 200th close on; the power-law
+    position from the day's closing price; the production cost from
+    the day's own 4-day grid cell of the page's baked inputs — or,
+    past the grid's last cell, from the day's difficulty in
+    tail_diffs with the last baked fees standing in, the page's own
+    live-tail method. A day missing any one of the four readings is
+    not published — the series holds only days the score was fully
+    measured."""
+    mvrv_z = {}
+    n = 0
+    mean = 0.0
+    m2 = 0.0
+    for i, (day, mv, ratio) in enumerate(mvrv_rows):
+        rv = mv / ratio
+        n += 1
+        delta = mv - mean
+        mean += delta / n
+        m2 += delta * (mv - mean)
+        if i >= 199:
+            std = math.sqrt(m2 / n)
+            if std > 0:
+                mvrv_z[day] = (mv - rv) / std
+
+    price_days = sorted(prices)
+    mayer = {}
+    run = 0.0
+    for i, day in enumerate(price_days):
+        run += prices[day]
+        if i >= 200:
+            run -= prices[price_days[i - 200]]
+        if i >= 199:
+            mayer[day] = prices[day] / (run / 200.0)
+
+    diff, fees = inputs["diff"], inputs["fees"]
+    eff, sub = inputs["eff"], inputs["sub"]
+    out = []
+    for day in range(price_days[0], price_days[-1] + 1):
+        if day not in prices or day not in mayer or day not in mvrv_z:
+            continue
+        if day < GRID_START:
+            continue
+        gi = (day - GRID_START) // GRID_STEP
+        if gi < len(diff):
+            cost = cost_for(day, diff[gi], fees[gi], eff, sub)
+        elif day in tail_diffs:
+            cost = cost_for(day, tail_diffs[day], fees[-1], eff, sub)
+        else:
+            continue
+        price = prices[day]
+        fair = 10 ** (PL_A + PL_N * math.log10(day))
+        pos_pl = (math.log10(price) - math.log10(fair * PL_LO)) \
+            / math.log10(PL_HI / PL_LO) * 100
+        ratio = price / cost
+        s = score_value(score_parts(pos_pl, ratio, mayer[day],
+                                    mvrv_z[day]))
+        out.append([str(GENESIS + timedelta(days=day)),
+                    round(s, 2)])
+    if len(out) < 5000:
+        fail("score series implausibly short (%d days)" % len(out))
+    return out
 
 
 # ------------------------------------------------------------- share snapshot
@@ -919,7 +1057,7 @@ def main():
     diff_t = fetch_difficulty_t()
     if diff_t is None:
         diff_t = inputs["diff"][-1]  # the page's fallback: last baked
-    mvrv_rows = fetch_mvrv_rows()
+    mvrv_rows, cm_prices = fetch_mvrv_rows()
 
     readings = {
         "powerlaw": reading_powerlaw(today, price),
@@ -959,6 +1097,10 @@ def main():
     top = band == "sell"
     record = record_facts(inputs, peak, golden_all_four, top_all_four)
     score_record = score_record_facts(inputs, peak, golden, top)
+    grid_end = GRID_START + GRID_STEP * len(inputs["diff"]) - 1
+    tail_diffs = fetch_tail_diffs(grid_end + 1, max(cm_prices))
+    series = score_series(inputs, peak, cm_prices, mvrv_rows,
+                          tail_diffs)
     state = {
         "golden": golden,
         "top": top,
@@ -974,6 +1116,7 @@ def main():
         },
         "record": record,
         "score_record": score_record,
+        "score_series": series,
     }
     tmp = OUT_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
@@ -981,11 +1124,13 @@ def main():
         fh.write("\n")
     os.replace(tmp, OUT_PATH)
     print("update_btc_state: golden=%s top=%s score=%s band=%s "
-          "readings=%s record=%s score_record=%s"
+          "readings=%s record=%s score_record=%s series=%d days "
+          "(%s to %s, last %.2f)"
           % (golden, top, round(score, 2), band,
              json.dumps(readings, sort_keys=True),
              json.dumps(record, sort_keys=True),
-             json.dumps(score_record, sort_keys=True)))
+             json.dumps(score_record, sort_keys=True),
+             len(series), series[0][0], series[-1][0], series[-1][1]))
 
     # The share snapshot rides the same run, from the same state —
     # best-effort: a drawing failure never blocks the state above.
