@@ -591,6 +591,243 @@ def compute_pe(bars, facts, splits):
     return out
 
 
+# ------------------------------------------------------------- share snapshots
+# og-finance.jpg + og-finance-<TICKER>.jpg: dated snapshots of The
+# Chart's own Price view, drawn from the SAME weekly output dict this
+# script has just written — the page's default view (Weekly, the
+# five-year window, line style) with the page's own maths: SMA(50) and
+# SMA(200) over the full series' closes, the window's min/max across
+# closes and both averages padded 6%, four gridlines, fmtAxis labels,
+# "Mon ’YY" date labels. Colours are the page's constants (price in
+# the theme text colour, MA50 #2962FF, MA200 #FF9800). og-finance.jpg
+# is the S&P 500 — the instrument the page itself opens on — and each
+# of Johnny's 19 stocks gets its own file, which the /s/finance/
+# doorways declare as their og:image. Rendering mirrors the Bitcoin
+# snapshot's rules: a failure here never touches the data files (they
+# are already written), and the previous images stand.
+
+_FIN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+_FIN_BENCH = {"SPX", "IXIC", "GOLD", "BTC"}
+
+
+def _fin_sma(values, length):
+    """The page's sma(): the mean of the last `length` closes,
+    defined from index length-1 on."""
+    out = [None] * len(values)
+    total = 0.0
+    for i, v in enumerate(values):
+        total += v
+        if i >= length:
+            total -= values[i - length]
+        if i >= length - 1:
+            out[i] = total / length
+    return out
+
+
+def _fin_fmt_num(v):
+    """The page's fmtNum(): en-US, always two decimals."""
+    return format(v, ",.2f")
+
+
+def _fin_fmt_axis(v):
+    """The page's fmtAxis(): a 'k' form at five figures."""
+    if abs(v) >= 10000:
+        s = "%.1f" % (v / 1000.0)
+        if s.endswith(".0"):
+            s = s[:-2]
+        return s + "k"
+    return _fin_fmt_num(v)
+
+
+def _fin_fmt_date(iso):
+    """'Nov 13, 2026' — the Bitcoin snapshot's date form."""
+    y, m, d = iso.split("-")
+    return "%s %d, %s" % (_FIN_MONTHS[int(m) - 1], int(d), y)
+
+
+def render_finance_snapshot(key, entry, out_path):
+    """Draw one instrument's share snapshot from its weekly series.
+    Returns the printed facts, so a check can prove the image and the
+    data file tell the same story."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    bars = entry["bars"]
+    name = entry["name"]
+    closes = [b[4] for b in bars]
+    ma50 = _fin_sma(closes, 50)
+    ma200 = _fin_sma(closes, 200)
+    n_all = len(bars)
+    count = min(n_all, 260)             # the page's 5Y weekly window
+    start, end = n_all - count, n_all - 1
+
+    lo, hi = None, None
+    for i in range(start, end + 1):
+        for v in (closes[i], ma50[i], ma200[i]):
+            if v is not None:
+                lo = v if lo is None else min(lo, v)
+                hi = v if hi is None else max(hi, v)
+    pad = (hi - lo) * 0.06              # the page's 6% headroom
+    lo, hi = lo - pad, hi + pad
+
+    last_close = closes[end]
+    last_date = bars[end][0]
+    date_s = _fin_fmt_date(last_date)
+    # The page's dropdown label is name + ticker — except where the
+    # name IS the ticker (AMD), where the page's own form doubles it.
+    title = name if name == key else "%s (%s)" % (name, key)
+
+    S = 2  # supersample: draw at 2x, downscale for clean lines
+    W, H = 1200 * S, 630 * S
+    BG = (7, 9, 14)              # the site's dark --bg-color, #07090e
+    TEXT = (240, 243, 246)       # --text-color: the price line
+    MUTED = (148, 163, 184)      # #94a3b8, the chart's label grey
+    MA50C = (41, 98, 255)        # #2962FF
+    MA200C = (255, 152, 0)       # #FF9800
+
+    def font(sz, bold=False):
+        fname = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
+        try:
+            return ImageFont.truetype(
+                "/usr/share/fonts/truetype/dejavu/" + fname, sz * S)
+        except OSError:
+            return ImageFont.truetype(fname, sz * S)
+
+    img = Image.new("RGB", (W, H), BG)
+    dr = ImageDraw.Draw(img)
+
+    def blend(draw_fn, alpha):
+        layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        draw_fn(ImageDraw.Draw(layer), alpha)
+        img.paste(Image.alpha_composite(
+            img.convert("RGBA"), layer).convert("RGB"), (0, 0))
+        return ImageDraw.Draw(img)
+
+    MX = 40 * S
+    # ---- header: the instrument, the page's name for itself, the
+    # latest close and the week it belongs to ----
+    f_title, f_brand = font(33, True), font(16)
+    dr.text((MX, 26 * S), title, font=f_title, fill=TEXT)
+    dr.text((MX, 74 * S), "Finance & Markets \u2014 johnny-oneal.com",
+            font=f_brand, fill=MUTED)
+    f_close, f_note = font(30, True), font(13)
+    close_s = "$" + _fin_fmt_num(last_close)
+    cw = dr.textlength(close_s, font=f_close)
+    dr.text((W - MX - cw, 26 * S), close_s, font=f_close, fill=TEXT)
+    note_s = "Week ending " + date_s
+    nw = dr.textlength(note_s, font=f_note)
+    dr.text((W - MX - nw, 68 * S), note_s, font=f_note, fill=MUTED)
+    # ---- the line key (the page's chart-key wording) + dated tag ----
+    f_key = font(14)
+    kx = MX
+    for swatch, lab in ((TEXT, "Price"), (MA50C, "50-week average"),
+                        (MA200C, "200-week average")):
+        dr.rectangle([kx, 112 * S, kx + 26 * S, 116 * S], fill=swatch)
+        dr.text((kx + 34 * S, 106 * S), lab, font=f_key, fill=MUTED)
+        kx += 34 * S + dr.textlength(lab, font=f_key) + 22 * S
+    tag = "Snapshot \u00b7 " + date_s
+    tw = dr.textlength(tag, font=f_key)
+    dr.text((W - MX - tw, 106 * S), tag, font=f_key, fill=MUTED)
+
+    # ---- the chart: the page's price pane, its own geometry ----
+    x0, x1 = 46 * S, 1086 * S
+    y0, y1 = 140 * S, 556 * S
+    plotW, plotH = x1 - x0, y1 - y0
+    n = end - start + 1
+
+    def X(i):
+        return x0 + (plotW / 2 if n <= 1
+                     else (i - start) / (n - 1) * plotW)
+
+    def Y(p):
+        return y0 + (hi - p) / (hi - lo) * plotH
+
+    def grid(d, a):
+        for g in range(4):
+            gy = Y(lo + (hi - lo) * g / 3)
+            d.line([(x0, gy), (x1, gy)], fill=(148, 163, 184, a),
+                   width=S)
+    dr = blend(grid, 46)
+    f_ax = font(13)
+    for g in range(4):
+        gv = lo + (hi - lo) * g / 3
+        dr.text((1096 * S, Y(gv) - 7 * S), _fin_fmt_axis(gv),
+                font=f_ax, fill=MUTED)
+    # date labels: five evenly spaced bars, the page's own picks
+    for k in range(5):
+        xi = start + int((n - 1) * k / 4 + 0.5)
+        yy, mm, _dd = bars[xi][0].split("-")
+        lab = "%s \u2019%s" % (_FIN_MONTHS[int(mm) - 1], yy[2:])
+        lw = dr.textlength(lab, font=f_ax)
+        lx = min(max(X(xi) - lw / 2, 24 * S), W - 24 * S - lw)
+        dr.text((lx, 566 * S), lab, font=f_ax, fill=MUTED)
+
+    def line(vals, color, width):
+        seg = []
+        for i in range(start, end + 1):
+            if vals[i] is None:
+                if len(seg) > 1:
+                    dr.line(seg, fill=color, width=width, joint="curve")
+                seg = []
+            else:
+                seg.append((X(i), Y(vals[i])))
+        if len(seg) > 1:
+            dr.line(seg, fill=color, width=width, joint="curve")
+
+    line(closes, TEXT, 4)        # the page's 1.8px close line
+    line(ma50, MA50C, 2 * S)     # the page's 2px 50-week average
+    line(ma200, MA200C, 3 * S)   # the page's 3px 200-week average
+    # the latest point, dotted like the Bitcoin snapshot's today dot
+    ex, ey = X(end), Y(last_close)
+    R = 5 * S
+    dr.ellipse([ex - R, ey - R, ex + R, ey + R], fill=TEXT,
+               outline=(255, 255, 255), width=S)
+
+    dr.rectangle([0, 0, W - 1, H - 1], outline=(35, 40, 51), width=S)
+    img = img.resize((1200, 630), Image.LANCZOS)
+    img.save(out_path, "JPEG", quality=90)
+    return {
+        "key": key, "name": name, "title": title,
+        "close": last_close, "close_s": close_s, "date": date_s,
+        "window_bars": n, "first_bar": bars[start][0],
+        "last_bar": last_date,
+        "ma50": any(v is not None for v in ma50[start:end + 1]),
+        "ma200": any(v is not None for v in ma200[start:end + 1]),
+    }
+
+
+def render_finance_snapshots(chart_output, out_dir):
+    """Render og-finance.jpg (the S&P 500, the page's own opening
+    view) and one og-finance-<TICKER>.jpg per stock of Johnny's 19,
+    from the weekly output dict. Each render is isolated: a failure
+    leaves that image's previous copy standing and is logged, never
+    raised — the data files are already written."""
+    series = chart_output.get("series") or {}
+    jobs = []
+    if series.get("SPX", {}).get("bars"):
+        jobs.append(("SPX", os.path.join(out_dir, "og-finance.jpg")))
+    for key in sorted(series):
+        entry = series[key]
+        if key in _FIN_BENCH or entry.get("ndx"):
+            continue
+        if entry.get("bars"):
+            jobs.append((key, os.path.join(
+                out_dir, "og-finance-%s.jpg" % key)))
+    done = []
+    for key, out_path in jobs:
+        try:
+            st = render_finance_snapshot(key, series[key], out_path)
+            done.append(st)
+            log("  snapshot %s: %s, close %s, week ending %s"
+                % (os.path.basename(out_path), st["title"],
+                   st["close_s"], st["date"]))
+        except Exception as exc:
+            log("  WARNING: snapshot for %s failed (%s) — previous "
+                "image stands." % (key, exc))
+    log("Share snapshots: %d of %d rendered." % (len(done), len(jobs)))
+    return done
+
+
 def main():
     out_path = sys.argv[1] if len(sys.argv) > 1 else OUT_FILE
     now_utc = datetime.now(timezone.utc)
@@ -734,6 +971,19 @@ def main():
     log("Wrote %s (%d instruments, through %s%s)."
         % (out_path, len(series), output["through"],
            ", kept previous for: " + ", ".join(kept_old) if kept_old else ""))
+
+    # ---- share snapshots: og-finance.jpg + one
+    # og-finance-<TICKER>.jpg per stock, drawn from the weekly
+    # output just written (the share-snapshots section above).
+    # Isolated like the daily file below: a render failure
+    # leaves the previous images standing and never touches
+    # the data files.
+    try:
+        render_finance_snapshots(
+            output, os.path.dirname(os.path.abspath(out_path)))
+    except Exception as exc:
+        log("WARNING: share snapshots failed (%s) — previous "
+            "og-finance images stand." % exc)
 
     # ---- the daily file: same instruments, daily bars, last 5 years ----
     # Written second, from the same EDGAR facts cache, so a daily

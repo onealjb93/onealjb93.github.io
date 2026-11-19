@@ -14,6 +14,7 @@ page-cards — from the CURRENT sources of truth in the repo checkout:
     random.html         the POOLS data (photo entries + stage URLs)
     quotes-data.js      quote texts and authors
     engineering-data.js engineering entry names, overviews and photos
+    finance-chart-data.json the 19 stocks' names and weekly bars
 
 ...and rewrites ONLY what changed:
 
@@ -44,6 +45,11 @@ through the stage-URL rule). The retired Math pool's doorways and
 diagram PNGs (s/math/, s/img/math/) are no longer derived: they stay
 in the tree as orphans, logged by the orphan pass, never deleted —
 the same treatment the sea doorways got when Sea became Animals.
+
+Finance doorways (s/finance/<TICKER>.html) carry that stock's own
+chart snapshot — og-finance-<TICKER>.jpg, rendered nightly by
+fetch_chart_data.py from the same weekly data the chart draws —
+and land on the finance page with the chart showing that stock.
 
 House rules:
     * Idempotent and quiet: an unchanged repo -> zero file changes,
@@ -546,6 +552,53 @@ class Refresher:
                 self.problems.append('engineering ?: %s' % ex)
         return carina_url
 
+    # ---- finance stocks -------------------------------------------------
+    _FIN_MONTHS = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
+    _FIN_BENCH = {'SPX', 'IXIC', 'GOLD', 'BTC'}
+
+    def derive_finance(self):
+        """One doorway per stock of Johnny's 19 (s/finance/<TICKER>.html).
+
+        The doorway declares that stock's own nightly chart snapshot —
+        og-finance-<TICKER>.jpg, rendered by fetch_chart_data.py from
+        the same weekly data — and lands on the finance page with the
+        chart showing that stock. The stock set is the page's own:
+        every series in finance-chart-data.json that is neither a
+        benchmark pick nor a Nasdaq-100-only entry. An unreadable
+        chart file skips only this derivation (a logged problem); the
+        other doorways are never held hostage to it.
+        """
+        try:
+            chart = json.loads(self.read_source('finance-chart-data.json'))
+        except Exception as e:
+            self.problems.append('finance: chart data unreadable (%s) '
+                                 '— finance doorways skipped' % e)
+            return
+        series = chart.get('series') or {}
+        for key in sorted(series):
+            entry = series[key] or {}
+            if key in self._FIN_BENCH or entry.get('ndx') \
+                    or not entry.get('bars'):
+                continue
+            try:
+                name = entry['name']
+                title = name if name == key else '%s (%s)' % (name, key)
+                last = entry['bars'][-1]
+                y, m, d = last[0].split('-')
+                desc = ('%s \u2014 the weekly price chart with its '
+                        '50-week and 200-week averages. Latest close '
+                        '$%s, week ending %s %d, %s. Finance & Markets '
+                        '\u2014 Johnny O\u2019Neal.'
+                        % (title, format(last[4], ',.2f'),
+                           self._FIN_MONTHS[int(m) - 1], int(d), y))
+                self.emit('finance', 'finance/%s.html' % key, title, desc,
+                          '%s/og-finance-%s.jpg' % (SITE, key),
+                          '%s/finance.html#chart=%s:weekly' % (SITE, key),
+                          img_wh=(1200, 630))
+            except Exception as ex:
+                self.problems.append('finance %s: %s' % (key, ex))
+
     # ---- the three photo page-cards ------------------------------------
     def refresh_cards(self, recipe_photos, sust_doc, carina_url, state):
         try:
@@ -660,6 +713,7 @@ class Refresher:
         cover_check = self.force_covers or monday
         self.derive_books(media_doc, cover_check)
         carina_url = self.derive_random(random_src, quotes, eng_entries)
+        self.derive_finance()
         self.refresh_cards(photos, sust_doc, carina_url, state)
         self.log_orphans()
 
