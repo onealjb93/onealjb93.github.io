@@ -16,8 +16,26 @@
    mapped stars crowd together their light is added into a soft glow,
    so the sky's texture is the catalog's own density and no light
    appears where no stars are mapped; the brightest stars shimmer
-   slightly, and the view drifts very slowly when left alone. Flight
-   is faster than light — the HUD says by how much.
+   slightly, and the view drifts very slowly when left alone. The
+   bright nebulae ride along as soft coloured glows at their real
+   OpenNGC positions and catalogued sizes, on published distances
+   (universe-nebulae.json, baked by build_nebulae.py with its
+   sources listed); their colours follow the catalogued type and
+   their wispy shading is a convention, like the galaxy arms.
+   Bright objects bloom — light spilling around the brightest
+   stars, nebulae and galaxy cores — the way bright things bloom
+   to an eye; the bloom is extracted from the rendered frame
+   itself, so nothing blooms that is not bright in the data.
+   Earth, alone among the planets, upgrades her own surface when
+   you fly in to meet her: NASA's Blue Marble day map, the VIIRS
+   night-lights map (city lights on the dark side, lit by the
+   same sun that lights the day side), and the Visible Earth
+   cloud composite on its own slowly-drifting sphere — all
+   public-domain NASA imagery, fetched only on a first approach
+   to the solar system and crossfaded over the plainer map, so
+   nothing about the game's start changes for anyone who never
+   flies in.
+   Flight is faster than light — the HUD says by how much.
    Those are the only liberties, and the game states them.
 
    Data file: universe-data.bin (baked by build_data.py; layout documented
@@ -170,7 +188,11 @@ var STAR_VERT = [
        still without anything visibly twinkling. */
     '    float shim = sin(uTime * 0.8 + phase * 6.28318);',
     '    vShim = 1.0 + 0.13 * vGlow * shim;',
-    '    gl_PointSize = clamp(sz * (1.0 + 0.05 * vGlow * shim), 2.0, 46.0) * uDpr;',
+    /* QUALITY PASS: a glow-earning star also grows — up to 45%
+       larger — so its halo covers real screen and the brightest
+       stars read as orbs, not pinpricks. The 46px cap (a near
+       giant must not fill the screen) is unchanged. */
+    '    gl_PointSize = clamp(sz * (1.0 + 0.45 * vGlow + 0.05 * vGlow * shim), 2.0, 46.0) * uDpr;',
     '    vCol = ciColor(aCi);',
     /* Brightness follows the same squeezed scale, floored so the
        faintest catalogued stars stay faint but never vanish. */
@@ -196,6 +218,18 @@ var STAR_FRAG = [
     '    float halo = g2 * (0.20 + 0.85 * vGlow);',
     '    float a = clamp(core + halo, 0.0, 1.0) * vAlpha * vShim;',
     '    if (a < 0.004) discard;',
+    /* QUALITY PASS: with the HDR final pass the authored colour
+       is linearised here and the composite re-encodes it, so the
+       frame's response is unchanged — but the core of a bright
+       star is driven over the bloom threshold (1.0 in linear
+       HDR) in proportion to the glow the star has earned from
+       the camera's true distance. Bright stars bloom; the field
+       of ordinary stars, whose cores stay under the threshold,
+       does not. */
+    '#if HDR_LINEAR',
+    '    col = pow(max(col, vec3(0.0)), vec3(2.2));',
+    '    col *= 1.0 + core * vGlow * 2.8;',
+    '#endif',
     '    gl_FragColor = vec4(col, a);',
     '}'
 ].join('\n');
@@ -261,7 +295,11 @@ var GLOW_FRAG = [
     '    float g = max(0.0, 1.0 - d * d);',
     '    float a = g * g * vAlpha;',
     '    if (a < 0.003) discard;',
-    '    gl_FragColor = vec4(vCol, a);',
+    '    vec3 col = vCol;',
+    '#if HDR_LINEAR',
+    '    col = pow(max(col, vec3(0.0)), vec3(2.2));',
+    '#endif',
+    '    gl_FragColor = vec4(col, a);',
     '}'
 ].join('\n');
 var GAL_VERT = [
@@ -361,7 +399,182 @@ var GAL_FRAG = [
     '    lum *= 1.0 + 0.18 * uHalo;',
     '    float a = clamp(lum, 0.0, 1.0) * vAlpha;',
     '    if (a < 0.004) discard;',
+    /* QUALITY PASS: same HDR treatment as the stars — the
+       authored colour linearises, and a core multiplier driven
+       by the galaxy's own rendered luminance pushes only the
+       brightest cores (Andromeda class) over the bloom
+       threshold. */
+    '#if HDR_LINEAR',
+    '    col = pow(max(col, vec3(0.0)), vec3(2.2));',
+    '    col *= 1.0 + pow(clamp(lum, 0.0, 1.0), 3.0) * 1.8;',
+    '#endif',
     '    gl_FragColor = vec4(col, a);',
+    '}'
+].join('\n');
+
+/* Bright nebulae — very soft diffuse sprites at the real OpenNGC
+   positions in universe-nebulae.json. Colour family follows the
+   catalogued type: 0 emission (pink-red), 1 planetary (teal),
+   2 supernova remnant (violet), 3 reflection (blue). Sizes are
+   the true angular sizes (catalogued major axis at the published
+   distance) under the same pixel floor/cap discipline as the
+   galaxies, and the sprite fades as you fly inside it. */
+var NEB_VERT = [
+    'attribute float aDiam;',
+    'attribute float aFam;',
+    'attribute float aBright;',
+    'attribute float aSeed;',
+    'uniform float uScaleH;',
+    'uniform float uDpr;',
+    'varying float vFam;',
+    'varying float vBright;',
+    'varying float vSeed;',
+    'varying float vFade;',
+    'void main() {',
+    '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+    '    float rawDist = -mv.z;',
+    '    float dist = max(1.0, rawDist);',
+    '    float px = aDiam * uScaleH / dist;',   /* true angular size */
+    '    gl_PointSize = clamp(px, 9.0, 560.0) * uDpr;',
+    '    vFade = smoothstep(0.35, 1.4, rawDist / max(aDiam, 0.001));',
+    '    vFam = aFam; vBright = aBright; vSeed = aSeed;',
+    '    gl_Position = projectionMatrix * mv;',
+    '}'
+].join('\n');
+var NEB_FRAG = [
+    'precision mediump float;',
+    'varying float vFam;',
+    'varying float vBright;',
+    'varying float vSeed;',
+    'varying float vFade;',
+    'uniform float uOpacity;',
+    'vec3 famColor(float f) {',
+    '    if (f < 0.5) return vec3(1.00, 0.42, 0.52);',   /* emission — pink-red */
+    '    if (f < 1.5) return vec3(0.45, 0.95, 0.85);',   /* planetary — teal */
+    '    if (f < 2.5) return vec3(0.78, 0.55, 1.00);',   /* remnant — violet */
+    '    return vec3(0.55, 0.70, 1.00);',                /* reflection — blue */
+    '}',
+    'void main() {',
+    '    vec2 q = gl_PointCoord - 0.5;',
+    '    float d = length(q) * 2.0;',
+    '    if (d > 1.0) discard;',
+    '    float g = max(0.0, 1.0 - d * d);',
+    '    float body = g * g * g;',
+    /* Soft internal structure: two low-frequency lobes seeded per
+       object — a shading convention like the galaxy arms, not a
+       map of the real cloud. */
+    '    float w1 = sin(q.x * 3.4 + vSeed * 9.0 + q.y * 2.6);',
+    '    float w2 = sin(q.y * 4.6 - vSeed * 7.0 - q.x * 1.8);',
+    '    float structure = 0.82 + 0.18 * w1 * w2;',
+    '    float core = g * g * g * g * g * g * g * g;',
+    '    float a = clamp(body * structure + core * 0.55, 0.0, 1.0) * vBright * vFade * uOpacity;',
+    '    if (a < 0.004) discard;',
+    '    vec3 col = famColor(vFam);',
+    /* With the HDR final pass the authored colour is linearised
+       here and the composite re-encodes it; the core multiplier
+       then operates in linear HDR, where the brightest cores
+       (Orion class) cross the bloom threshold. */
+    '#if HDR_LINEAR',
+    '    col = pow(max(col, vec3(0.0)), vec3(2.2));',
+    '#endif',
+    '    col *= 0.55 + core * vBright * 2.6;',
+    '    gl_FragColor = vec4(col, a);',
+    '}'
+].join('\n');
+
+/* ------------------------------------------------------------------ *
+ *  Final pass shaders — HDR bloom + grade                             *
+ *                                                                     *
+ *  The scene renders (tone mapping off, as it always has) into a      *
+ *  half-float linear buffer. Bloom is extracted from that buffer:     *
+ *  a bright pass at quarter resolution, blurred down a five-level     *
+ *  mip chain, summed back in the composite. The composite applies     *
+ *  the ACES filmic curve and the sRGB encode — together a gentle      *
+ *  S-curve within a few percent of the game's previous response       *
+ *  across the base range, with highlight detail instead of a hard     *
+ *  clip, and whites free to pass 1.0 in the buffer so the bloom       *
+ *  threshold can sit above everything except genuinely bright         *
+ *  objects. All in-file: the vendored three.module.min.js ships       *
+ *  no post-processing modules. If the float targets are not           *
+ *  renderable (checked once, at setup), the game renders directly     *
+ *  to the canvas exactly as before this pass.                         *
+ * ------------------------------------------------------------------ */
+var FX_VERT = [
+    'varying vec2 vUv;',
+    'void main() {',
+    '    vUv = uv;',
+    '    gl_Position = vec4(position.xy, 0.0, 1.0);',
+    '}'
+].join('\n');
+var FX_BRIGHT_FRAG = [
+    'precision highp float;',
+    'uniform sampler2D tSrc;',
+    'uniform float uThresh;',
+    'uniform float uKnee;',
+    'varying vec2 vUv;',
+    'void main() {',
+    '    vec3 c = texture2D(tSrc, vUv).rgb;',
+    '    float l = max(c.r, max(c.g, c.b));',
+    /* soft knee: nothing at or below threshold - knee contributes,
+       so the field of ordinary stars stays bloom-free */
+    '    float w = smoothstep(uThresh - uKnee, uThresh + uKnee, l) * max(l - (uThresh - uKnee), 0.0);',
+    '    gl_FragColor = vec4(c * (w / max(l, 1e-4)), 1.0);',
+    '}'
+].join('\n');
+var FX_BLUR_FRAG = [
+    'precision highp float;',
+    'uniform sampler2D tSrc;',
+    'uniform vec2 uTexel;',
+    'uniform vec2 uDir;',
+    'varying vec2 vUv;',
+    'void main() {',
+    /* 9-tap Gaussian in the linear-sampling form (two fetches per
+       wing at the standard offsets) */
+    '    vec3 c = texture2D(tSrc, vUv).rgb * 0.2270270270;',
+    '    vec2 o1 = uDir * uTexel * 1.3846153846;',
+    '    vec2 o2 = uDir * uTexel * 3.2307692308;',
+    '    c += texture2D(tSrc, vUv + o1).rgb * 0.3162162162;',
+    '    c += texture2D(tSrc, vUv - o1).rgb * 0.3162162162;',
+    '    c += texture2D(tSrc, vUv + o2).rgb * 0.0702702703;',
+    '    c += texture2D(tSrc, vUv - o2).rgb * 0.0702702703;',
+    '    gl_FragColor = vec4(c, 1.0);',
+    '}'
+].join('\n');
+var FX_COPY_FRAG = [
+    'precision highp float;',
+    'uniform sampler2D tSrc;',
+    'varying vec2 vUv;',
+    'void main() {',
+    '    gl_FragColor = vec4(texture2D(tSrc, vUv).rgb, 1.0);',
+    '}'
+].join('\n');
+var FX_COMP_FRAG = [
+    'precision highp float;',
+    'uniform sampler2D tSrc;',
+    'uniform sampler2D tB0;',
+    'uniform sampler2D tB1;',
+    'uniform sampler2D tB2;',
+    'uniform sampler2D tB3;',
+    'uniform sampler2D tB4;',
+    'uniform float uStrength;',
+    'varying vec2 vUv;',
+    /* ACES filmic approximation (Krzysztof Narkowicz) */
+    'vec3 aces(vec3 x) {',
+    '    return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);',
+    '}',
+    'vec3 lin2srgb(vec3 c) {',
+    '    vec3 hi = 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055;',
+    '    vec3 lo = c * 12.92;',
+    '    return mix(lo, hi, step(vec3(0.0031308), c));',
+    '}',
+    'void main() {',
+    '    vec3 bloom = texture2D(tB0, vUv).rgb * 0.32',
+    '               + texture2D(tB1, vUv).rgb * 0.28',
+    '               + texture2D(tB2, vUv).rgb * 0.20',
+    '               + texture2D(tB3, vUv).rgb * 0.12',
+    '               + texture2D(tB4, vUv).rgb * 0.08;',
+    '    vec3 hdr = texture2D(tSrc, vUv).rgb + bloom * uStrength;',
+    '    gl_FragColor = vec4(lin2srgb(aces(hdr)), 1.0);',
     '}'
 ].join('\n');
 
@@ -405,9 +618,17 @@ export function initUniverse(stage) {
 
     var data = null, renderer = null, scene = null, camera = null;
     var starPoints = null, galNamedPoints = null, galCloudPoints = null, sunPoints = null;
+    var nebPoints = null, nebulae = [];
+    /* final pass (HDR bloom + grade) state — fxOK is decided once
+       at setup; when false the game renders directly, as before */
+    var fxOK = false, fxTarget = null, fxMips = [];
+    var fxScene = null, fxCam = null, fxMesh = null;
+    var fxBrightMat = null, fxBlurMat = null, fxCopyMat = null, fxCompMat = null;
     var glowFine = null, glowBroad = null;
     var backdrop = null;
     var solarGroup = null, solarBodies = null;
+    var earthSys = null;   /* Earth texture-stack refs (set in buildSolarSystem) */
+    var earthStackState = { started: false, ready: false, blend: 0 };
     var sysSurf = Infinity, sysRad = 0;   /* nearest solar-body surface distance + that body's radius */
     var sysBodyPos = null;                /* nearest solar body's centre (approach governor) */
     var govTmp = new THREE.Vector3();
@@ -474,6 +695,149 @@ export function initUniverse(stage) {
         });
     }
 
+    /* The bright nebulae live in their own small file:
+       universe-data.bin was baked from OpenNGC's galaxy rows
+       only, so no nebula has ever been in the game. The add-on
+       follows the named-galaxy precedent — direction and angular
+       size from the OpenNGC row itself, distance a curated
+       published value (sources in build_nebulae.py). A failed
+       fetch simply leaves the layer out; the game runs without
+       it. */
+    function loadNebulae() {
+        var url = new URL('./universe-nebulae.json', import.meta.url);
+        return fetch(url).then(function (resp) { return resp.ok ? resp.json() : []; })
+            .then(function (j) { if (Array.isArray(j)) nebulae = j; })
+            .catch(function () { /* enhancement layer — never fatal */ });
+    }
+    function buildNebulae() {
+        if (!nebulae.length) return;
+        var n = nebulae.length;
+        var pos = new Float32Array(n * 3), dia = new Float32Array(n),
+            fam = new Float32Array(n), bri = new Float32Array(n), seed = new Float32Array(n);
+        for (var i = 0; i < n; i++) {
+            var e = nebulae[i];
+            pos[i * 3] = e.p[0]; pos[i * 3 + 1] = e.p[1]; pos[i * 3 + 2] = e.p[2];
+            dia[i] = e.d; fam[i] = e.f; bri[i] = e.b;
+            var sh = (i + 1) * 0.61803398875;   /* the galaxies' own seed hash */
+            seed[i] = sh - Math.floor(sh);
+        }
+        var g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        g.setAttribute('aDiam', new THREE.BufferAttribute(dia, 1));
+        g.setAttribute('aFam', new THREE.BufferAttribute(fam, 1));
+        g.setAttribute('aBright', new THREE.BufferAttribute(bri, 1));
+        g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+        var m = new THREE.ShaderMaterial({
+            vertexShader: NEB_VERT, fragmentShader: NEB_FRAG,
+            uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uOpacity: { value: 0.9 } },
+            defines: { HDR_LINEAR: fxOK ? 1 : 0 },
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        nebPoints = new THREE.Points(g, m);
+        nebPoints.frustumCulled = false;
+        scene.add(nebPoints);
+    }
+
+    /* ---------------- final pass: HDR bloom + grade ----------------
+       One extra scene pass into a half-float target, a bright
+       pass, ten small blur draws down a five-level mip chain, and
+       one composite draw — about a dozen extra draws, all but one
+       at quarter resolution or below, against a scene of ~10
+       draws. The targets follow the drawing buffer, so the
+       adaptive DPR ladder sheds this cost exactly as it sheds
+       the scene's. */
+    function fxMakeTargets() {
+        if (!renderer) return;
+        var size = new THREE.Vector2();
+        renderer.getDrawingBufferSize(size);
+        var w = Math.max(2, size.x), h = Math.max(2, size.y);
+        if (fxTarget) fxTarget.dispose();
+        fxMips.forEach(function (m) { m.a.dispose(); m.b.dispose(); });
+        fxMips = [];
+        fxTarget = new THREE.WebGLRenderTarget(w, h, {
+            type: THREE.HalfFloatType, colorSpace: THREE.LinearSRGBColorSpace, depthBuffer: true
+        });
+        var mw = Math.max(2, w >> 2), mh = Math.max(2, h >> 2);
+        for (var i = 0; i < 5; i++) {
+            var opts = { type: THREE.HalfFloatType, colorSpace: THREE.LinearSRGBColorSpace, depthBuffer: false };
+            fxMips.push({ a: new THREE.WebGLRenderTarget(mw, mh, opts), b: new THREE.WebGLRenderTarget(mw, mh, opts) });
+            mw = Math.max(2, mw >> 1); mh = Math.max(2, mh >> 1);
+        }
+        if (fxCompMat) for (var k = 0; k < 5; k++) fxCompMat.uniforms['tB' + k].value = fxMips[k].a.texture;
+    }
+    function setupFinalPass() {
+        try {
+            if (!renderer.capabilities.isWebGL2) return;
+            fxScene = new THREE.Scene();
+            fxCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            fxMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial());
+            fxMesh.frustumCulled = false;
+            fxScene.add(fxMesh);
+            fxBrightMat = new THREE.ShaderMaterial({
+                uniforms: { tSrc: { value: null }, uThresh: { value: 1.0 }, uKnee: { value: 0.3 } },
+                vertexShader: FX_VERT, fragmentShader: FX_BRIGHT_FRAG, depthTest: false, depthWrite: false
+            });
+            fxBlurMat = new THREE.ShaderMaterial({
+                uniforms: { tSrc: { value: null }, uTexel: { value: new THREE.Vector2(1, 1) }, uDir: { value: new THREE.Vector2(1, 0) } },
+                vertexShader: FX_VERT, fragmentShader: FX_BLUR_FRAG, depthTest: false, depthWrite: false
+            });
+            fxCopyMat = new THREE.ShaderMaterial({
+                uniforms: { tSrc: { value: null } },
+                vertexShader: FX_VERT, fragmentShader: FX_COPY_FRAG, depthTest: false, depthWrite: false
+            });
+            fxCompMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    tSrc: { value: null },
+                    tB0: { value: null }, tB1: { value: null }, tB2: { value: null },
+                    tB3: { value: null }, tB4: { value: null },
+                    uStrength: { value: 0.85 }
+                },
+                vertexShader: FX_VERT, fragmentShader: FX_COMP_FRAG, depthTest: false, depthWrite: false
+            });
+            fxMakeTargets();
+            /* The float targets must actually be renderable on
+               this device — check the framebuffer status once;
+               if incomplete, fall back to direct rendering. */
+            var gl = renderer.getContext();
+            renderer.setRenderTarget(fxTarget);
+            var okA = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+            renderer.setRenderTarget(fxMips[0].a);
+            var okB = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+            renderer.setRenderTarget(null);
+            fxOK = !!(okA && okB);
+        } catch (e) { fxOK = false; }
+    }
+    function renderWithBloom() {
+        renderer.setRenderTarget(fxTarget);
+        renderer.render(scene, camera);
+        var n = fxMips.length, i, lvl;
+        fxMesh.material = fxBrightMat;
+        fxBrightMat.uniforms.tSrc.value = fxTarget.texture;
+        renderer.setRenderTarget(fxMips[0].a);
+        renderer.render(fxScene, fxCam);
+        for (i = 0; i < n; i++) {
+            lvl = fxMips[i];
+            fxMesh.material = fxBlurMat;
+            fxBlurMat.uniforms.uTexel.value.set(1 / lvl.a.width, 1 / lvl.a.height);
+            fxBlurMat.uniforms.tSrc.value = lvl.a.texture;
+            fxBlurMat.uniforms.uDir.value.set(1, 0);
+            renderer.setRenderTarget(lvl.b); renderer.render(fxScene, fxCam);
+            fxBlurMat.uniforms.tSrc.value = lvl.b.texture;
+            fxBlurMat.uniforms.uDir.value.set(0, 1);
+            renderer.setRenderTarget(lvl.a); renderer.render(fxScene, fxCam);
+            if (i + 1 < n) {
+                fxMesh.material = fxCopyMat;
+                fxCopyMat.uniforms.tSrc.value = lvl.a.texture;
+                renderer.setRenderTarget(fxMips[i + 1].a);
+                renderer.render(fxScene, fxCam);
+            }
+        }
+        fxMesh.material = fxCompMat;
+        fxCompMat.uniforms.tSrc.value = fxTarget.texture;
+        renderer.setRenderTarget(null);
+        renderer.render(fxScene, fxCam);
+    }
+
     /* ---------------- starlight glow ----------------
        The sky in the reference has no empty black in it: it is lit
        where stars crowd and dark where they do not, like folded
@@ -522,6 +886,7 @@ export function initUniverse(stage) {
                 uScaleH: { value: 1 }, uDpr: { value: 1 },
                 uTime: { value: 0 }, uAlpha: { value: alphaMax }
             },
+            defines: { HDR_LINEAR: fxOK ? 1 : 0 },
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
         });
         var pts = new THREE.Points(g, m);
@@ -588,7 +953,7 @@ export function initUniverse(stage) {
             wArr[i] = Math.log10(1 + L);
             if (wArr[i] > maxLog) maxLog = wArr[i];
         }
-        function splatAll(ctx, w2, h2, starSize, starAlpha, galSize, galAlpha) {
+        function splatAll(ctx, w2, h2, starSize, starAlpha, galSize, galAlpha, grainSize, grainAlpha) {
             function splat(x, y, img, size, alpha) {
                 ctx.globalAlpha = alpha;
                 ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
@@ -600,6 +965,12 @@ export function initUniverse(stage) {
                 var p = skyXY(data.starPos[i * 3], data.starPos[i * 3 + 1], data.starPos[i * 3 + 2], w2, h2);
                 splat(p[0], p[1], stampFor(data.starCi[i]),
                       starSize * (0.3 + 0.7 * w), starAlpha * (0.15 + 0.85 * w));
+                /* QUALITY PASS: a second, much tighter stamp per
+                   star in the same pass — the grain that keeps the
+                   far sky reading as individual stars instead of
+                   smooth wash, still the same catalog light. */
+                if (grainSize > 0) splat(p[0], p[1], stampFor(data.starCi[i]),
+                      grainSize * (0.3 + 0.7 * w), grainAlpha * (0.15 + 0.85 * w));
             }
             for (var j = 0; j < data.galCount; j++) {
                 var bright = data.galBright[j] / 255;
@@ -613,17 +984,20 @@ export function initUniverse(stage) {
         var ctx = cv.getContext('2d');
         ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H);
         ctx.globalCompositeOperation = 'lighter';
-        splatAll(ctx, W, H, 64, 0.30, 48, 0.22);
+        splatAll(ctx, W, H, 68, 0.32, 50, 0.24, 15, 0.30);
         /* the broad wash is the fine bake itself, drawn back
            scaled down and up, twice — a blur of the same light,
            never a second, hotter source (a per-star broad pass
            saturates: 100k stamps on a small canvas sum to white).
-           Constants calibrated offline against the catalog: the
-           finished sky reads mean ~45/255, the band ~70, the
-           poles ~17 — a floor the real field always outshines. */
-        ctx.globalAlpha = 0.30;
+           Constants calibrated offline against the catalog with
+           the bake simulator: against the previous bake the
+           finished sky's mean lifts about +26%, the band +24%,
+           the poles +29%, at an unchanged 99th-percentile peak —
+           a denser floor the real field still outshines, with
+           per-star grain so no patch of sky reads as empty. */
+        ctx.globalAlpha = 0.31;
         ctx.drawImage(cv, 0, 0, 256, 128, 0, 0, W, H);
-        ctx.globalAlpha = 0.22;
+        ctx.globalAlpha = 0.23;
         ctx.drawImage(cv, 0, 0, 512, 256, 0, 0, W, H);
         ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
         var tex = new THREE.CanvasTexture(cv);
@@ -681,9 +1055,148 @@ export function initUniverse(stage) {
         /* BackSide shell: brightness peaks at the limb and falls off
            outward — a thin rim of scattered light, nothing more. */
         '    float i = pow(max(0.0, 0.72 - dot(vN, vec3(0.0, 0.0, 1.0))), 3.5);',
-        '    gl_FragColor = vec4(0.35, 0.58, 1.0, 1.0) * i * 0.9;',
+        '    vec3 col = vec3(0.35, 0.58, 1.0);',
+        '#if HDR_LINEAR',
+        '    col = pow(max(col, vec3(0.0)), vec3(2.2));',
+        '#endif',
+        '    gl_FragColor = vec4(col, 1.0) * i * 0.9;',
         '}'
     ].join('\n');
+    /* ---------------- Earth's texture stack ----------------
+       Earth is drawn by a custom shader, not the Lambert the other
+       planets use, because she has three maps to reconcile: the
+       plain map every planet gets (planets/earth.jpg, 3840x1920),
+       and — loaded lazily on a first approach to the solar system
+       (startEarthStack, below) — NASA's Blue Marble day map, the
+       VIIRS night-lights map, and the Visible Earth cloud
+       composite (planets/earth-day.jpg / earth-night.jpg /
+       earth-clouds.jpg, 4096x2048 renditions; fetch_earth_stack.py
+       records the sources). The shader reproduces the game's
+       Lambert terms exactly — the PointLight's 5.2/pi on the day
+       side, the ambient's 0.22/pi whisper — so Earth sits in the
+       same light as her neighbours in both render paths; the
+       night lights are an emissive the sun's own direction
+       switches on across the terminator. When the stack lands,
+       uBlend crossfades the day map over ~1.6 s and fades the
+       lights and clouds in with it: the plain map is the base
+       until then, so there is no grey-ball window and no pop. */
+    var EARTH_VERT = [
+        'varying vec2 vUv;',
+        'varying vec3 vNV;',
+        'varying vec3 vVP;',
+        'void main() {',
+        '    vUv = uv;',
+        '    vNV = normalize(normalMatrix * normal);',
+        '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+        '    vVP = mv.xyz;',
+        '    gl_Position = projectionMatrix * mv;',
+        '}'
+    ].join('\n');
+    var SRGB_ENC_GLSL = [
+        'vec3 srgbEnc(vec3 c) {',
+        '    vec3 hi = 1.055 * pow(max(c, vec3(0.0)), vec3(0.41666667)) - 0.055;',
+        '    vec3 lo = c * 12.92;',
+        '    return mix(lo, hi, step(vec3(0.0031308), c));',
+        '}'
+    ].join('\n');
+    var EARTH_FRAG = [
+        'precision mediump float;',
+        'varying vec2 vUv;',
+        'varying vec3 vNV;',
+        'varying vec3 vVP;',
+        'uniform sampler2D tLow;',
+        'uniform sampler2D tDay;',
+        'uniform sampler2D tNight;',
+        'uniform float uBlend;',
+        'uniform float uHasLow;',
+        'uniform float uHasStack;',
+        'uniform vec3 uSunVP;',
+        SRGB_ENC_GLSL,
+        'void main() {',
+        '    vec3 N = normalize(vNV);',
+        '    vec3 L = normalize(uSunVP - vVP);',
+        '    float ndl = dot(N, L);',
+        /* before any map lands, the same 0x888888 grey the Lambert
+           planets show (0.2462 in linear working space) */
+        '    vec3 day = vec3(0.2462);',
+        '    if (uHasLow > 0.5) day = texture2D(tLow, vUv).rgb;',
+        '    if (uHasStack > 0.5) day = mix(day, texture2D(tDay, vUv).rgb, uBlend);',
+        '    vec3 col = day * (0.07003 + 1.6552 * clamp(ndl, 0.0, 1.0));',
+        '    if (uHasStack > 0.5) {',
+        /* city lights: an emissive the terminator switches — full
+           deep in the night, gone by mid-morning, fading in with
+           the stack's own blend so they never pop */
+        '        float nightF = (1.0 - smoothstep(-0.18, 0.10, ndl)) * uBlend;',
+        '        col += texture2D(tNight, vUv).rgb * nightF * 1.2;',
+        '    }',
+        '#if !HDR_LINEAR',
+        '    col = srgbEnc(col);',
+        '#endif',
+        '    gl_FragColor = vec4(col, 1.0);',
+        '}'
+    ].join('\n');
+    var CLOUD_FRAG = [
+        'precision mediump float;',
+        'varying vec2 vUv;',
+        'varying vec3 vNV;',
+        'varying vec3 vVP;',
+        'uniform sampler2D tCov;',
+        'uniform float uBlend;',
+        'uniform vec3 uSunVP;',
+        SRGB_ENC_GLSL,
+        'void main() {',
+        /* earth-clouds.jpg is a coverage map (alpha x gray of the
+           Visible Earth composite, baked at fetch time): coverage
+           in the red channel, data not colour — sampled raw */
+        '    float cov = texture2D(tCov, vUv).r;',
+        '    vec3 N = normalize(vNV);',
+        '    vec3 L = normalize(uSunVP - vVP);',
+        '    float ndl = dot(N, L);',
+        /* clouds take the same sunlight as the ground, a touch
+           dimmer; they thin to a whisper across the terminator
+           instead of glowing on the night side */
+        '    float light = (0.07003 + 1.6552 * clamp(ndl, 0.0, 1.0)) * 0.8;',
+        '    float dayness = clamp(ndl * 1.6 + 0.35, 0.05, 1.0);',
+        '    vec3 col = vec3(light);',
+        '#if !HDR_LINEAR',
+        '    col = srgbEnc(col);',
+        '#endif',
+        '    gl_FragColor = vec4(col, cov * uBlend * dayness * 0.96);',
+        '}'
+    ].join('\n');
+    function startEarthStack() {
+        if (!earthSys || earthStackState.started) return;
+        earthStackState.started = true;
+        var loader = new THREE.TextureLoader();
+        var maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        var settled = 0, dayOK = false;
+        function settle(ok, isDay) {
+            if (isDay) dayOK = ok;
+            settled++;
+            /* blend only on a complete, day-bearing stack: if the
+               day map failed, Earth keeps her plain map and the
+               lights and clouds stay off — a partial stack would
+               be worse than none */
+            if (settled === 3 && dayOK) {
+                earthStackState.ready = true;
+                earthSys.uniforms.uHasStack.value = 1;
+                earthSys.cloudMesh.visible = true;
+            }
+        }
+        function grab(file, srgb, isDay) {
+            var t = loader.load(new URL('./planets/' + file, import.meta.url).href,
+                function () { settle(true, isDay); },
+                undefined,
+                function () { settle(false, isDay); });
+            if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+            t.anisotropy = maxAniso;
+            return t;
+        }
+        earthSys.uniforms.tDay.value = grab('earth-day.jpg', true, true);
+        earthSys.uniforms.tNight.value = grab('earth-night.jpg', true, false);
+        earthSys.cloudUniforms.tCov.value = grab('earth-clouds.jpg', false, false);
+    }
+
     function buildSolarSystem() {
         solarGroup = new THREE.Group();
         var loader = new THREE.TextureLoader();
@@ -703,14 +1216,56 @@ export function initUniverse(stage) {
             /* the sphere's texture pole (+Y) onto the body's true
                IAU J2000 north-pole direction */
             grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), equatorial(b.pole[0], b.pole[1]));
-            var mat = b.sun
-                ? new THREE.MeshBasicMaterial({ color: 0xffdd88 })
-                : new THREE.MeshLambertMaterial({ color: 0x888888 });
-            var tex = loader.load(new URL('./planets/' + b.tex, import.meta.url).href,
-                function () { mat.map = tex; mat.color.set(0xffffff); mat.needsUpdate = true; });
-            tex.colorSpace = THREE.SRGBColorSpace;
-            tex.anisotropy = maxAniso;
-            grp.add(new THREE.Mesh(new THREE.SphereGeometry(b.r, 48, 32), mat));
+            /* QUALITY PASS: 64x48 segments (was 48x32) — the
+               silhouette and the terminator stay smooth at the
+               closest approaches the approach governor allows */
+            var geo = new THREE.SphereGeometry(b.r, 64, 48);
+            if (b.atmo) {
+                /* Earth: the custom shader (see EARTH_FRAG above).
+                   The sun's view-space position is one shared
+                   uniform object across both Earth materials, kept
+                   current once per frame. */
+                var sunVP = { value: new THREE.Vector3(1, 0, 0) };
+                var emat = new THREE.ShaderMaterial({
+                    vertexShader: EARTH_VERT, fragmentShader: EARTH_FRAG,
+                    uniforms: {
+                        tLow: { value: null }, tDay: { value: null }, tNight: { value: null },
+                        uBlend: { value: 0 }, uHasLow: { value: 0 }, uHasStack: { value: 0 },
+                        uSunVP: sunVP
+                    },
+                    defines: { HDR_LINEAR: fxOK ? 1 : 0 }
+                });
+                var etex = loader.load(new URL('./planets/' + b.tex, import.meta.url).href,
+                    function () { emat.uniforms.tLow.value = etex; emat.uniforms.uHasLow.value = 1; });
+                etex.colorSpace = THREE.SRGBColorSpace;
+                etex.anisotropy = maxAniso;
+                grp.add(new THREE.Mesh(geo, emat));
+                /* the cloud sphere: 1% proud of the surface, its
+                   own material, hidden until the stack lands */
+                var cmat = new THREE.ShaderMaterial({
+                    vertexShader: EARTH_VERT, fragmentShader: CLOUD_FRAG,
+                    uniforms: { tCov: { value: null }, uBlend: { value: 0 }, uSunVP: sunVP },
+                    defines: { HDR_LINEAR: fxOK ? 1 : 0 },
+                    transparent: true, depthWrite: false
+                });
+                var cloudMesh = new THREE.Mesh(new THREE.SphereGeometry(b.r * 1.01, 64, 48), cmat);
+                cloudMesh.renderOrder = 1;
+                cloudMesh.visible = false;
+                grp.add(cloudMesh);
+                earthSys = {
+                    pos: pos, uniforms: emat.uniforms, cloudUniforms: cmat.uniforms,
+                    cloudMesh: cloudMesh, sunVP: sunVP
+                };
+            } else {
+                var mat = b.sun
+                    ? new THREE.MeshBasicMaterial({ color: 0xffdd88 })
+                    : new THREE.MeshLambertMaterial({ color: 0x888888 });
+                var tex = loader.load(new URL('./planets/' + b.tex, import.meta.url).href,
+                    function () { mat.map = tex; mat.color.set(0xffffff); mat.needsUpdate = true; });
+                tex.colorSpace = THREE.SRGBColorSpace;
+                tex.anisotropy = maxAniso;
+                grp.add(new THREE.Mesh(geo, mat));
+            }
             if (b.ring) {
                 var rIn = b.r * 1.24, rOut = b.r * 2.27;   /* the real ring span, in Saturn radii */
                 var rg = new THREE.RingGeometry(rIn, rOut, 128, 1);
@@ -732,13 +1287,18 @@ export function initUniverse(stage) {
                 grp.add(ring);
             }
             if (b.atmo) {
-                grp.add(new THREE.Mesh(
-                    new THREE.SphereGeometry(b.r * 1.22, 48, 32),
+                var atmoMesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(b.r * 1.22, 64, 48),
                     new THREE.ShaderMaterial({
                         vertexShader: ATMO_VERT, fragmentShader: ATMO_FRAG,
+                        defines: { HDR_LINEAR: fxOK ? 1 : 0 },
                         blending: THREE.AdditiveBlending, side: THREE.BackSide,
                         transparent: true, depthWrite: false
-                    })));
+                    }));
+                /* transparent order around Earth is fixed by hand:
+                   surface (opaque) -> clouds (1) -> atmosphere (2) */
+                atmoMesh.renderOrder = 2;
+                grp.add(atmoMesh);
             }
             solarGroup.add(grp);
             solarBodies.push({ n: b.n, pos: pos, r: b.r, grp: grp });
@@ -750,6 +1310,10 @@ export function initUniverse(stage) {
     function buildScene() {
         renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, powerPreference: 'high-performance' });
         renderer.setClearColor(0x04070e, 1);
+        /* the HDR final pass decides here, before any material
+           compiles, so the custom shaders know whether their
+           colours will be re-encoded by the composite */
+        setupFinalPass();
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(55, 1, 0.0001, 3e9);
         camera.up.copy(GAL_NORTH);
@@ -774,6 +1338,7 @@ export function initUniverse(stage) {
         var sm = new THREE.ShaderMaterial({
             vertexShader: STAR_VERT, fragmentShader: STAR_FRAG,
             uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uTime: { value: 0 } },
+            defines: { HDR_LINEAR: fxOK ? 1 : 0 },
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
         });
         starPoints = new THREE.Points(sg, sm);
@@ -808,6 +1373,7 @@ export function initUniverse(stage) {
             var m = new THREE.ShaderMaterial({
                 vertexShader: GAL_VERT, fragmentShader: GAL_FRAG,
                 uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uHalo: { value: halo } },
+                defines: { HDR_LINEAR: fxOK ? 1 : 0 },
                 transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
             });
             var pts = new THREE.Points(g, m);
@@ -843,6 +1409,10 @@ export function initUniverse(stage) {
            sky is a floor under every position and speed */
         backdrop = buildBackdrop();
         scene.add(backdrop);
+
+        /* the bright nebulae — soft coloured glows at their real
+           catalog positions (universe-nebulae.json) */
+        buildNebulae();
 
         /* the solar system — textured worlds at true positions */
         buildSolarSystem();
@@ -1070,6 +1640,7 @@ export function initUniverse(stage) {
         applyView();
     }
     function flyTo(entry) {
+        if (entry.k === 2 && entry.n === 'The Sun') startEarthStack();
         var target = entryPos(entry).clone();
         var standoff;
         if (entry.k === 1) standoff = Math.max(data.galDiam[entry.i] * 1.5, 2500);
@@ -1086,6 +1657,7 @@ export function initUniverse(stage) {
         setCaption('Flying to ' + entry.n + '\u2026 grab the view to take over.');
     }
     function flyToSolar(b) {
+        startEarthStack();   /* any jump into the system starts Earth's maps loading — the 3.2 s flight is the head start */
         var target = new THREE.Vector3(b.p[0], b.p[1], b.p[2]);
         var standoff = b.r * 4.5;
         var away = camPos.clone().sub(target);
@@ -1294,8 +1866,30 @@ export function initUniverse(stage) {
         /* the Sun's point sprite hands over to its textured sphere
            once you are close enough for the sphere to be the Sun */
         if (sunPoints) sunPoints.visible = alt > 3e-6;
+        /* Earth's texture stack: the lazy trigger is a genuine
+           approach — inside the planetary region (alt < 2e-4 pc,
+           just outside Neptune's orbit; the home view starts at
+           1.7e-3 pc, so a player who never flies in never pays
+           for the maps) or closing on Earth herself — then the
+           crossfade, the clouds' slow drift (a full turn in ~10
+           minutes; one float add a frame), and the shared sun
+           position for Earth's two shaders */
+        if (earthSys) {
+            if (!earthStackState.started && (alt < 2e-4 || camPos.distanceTo(earthSys.pos) < 2e-6)) startEarthStack();
+            if (earthStackState.ready && earthStackState.blend < 1) {
+                earthStackState.blend = Math.min(1, earthStackState.blend + dt / 1.6);
+                var eb = earthStackState.blend;
+                eb = eb * eb * (3 - 2 * eb);
+                earthSys.uniforms.uBlend.value = eb;
+                earthSys.cloudUniforms.uBlend.value = eb;
+            }
+            if (earthSys.cloudMesh.visible) earthSys.cloudMesh.rotation.y += dt * 0.01;
+            camera.updateMatrixWorld();
+            earthSys.sunVP.value.set(0, 0, 0).applyMatrix4(camera.matrixWorldInverse);
+        }
         camera.updateProjectionMatrix();
-        renderer.render(scene, camera);
+        if (fxOK && fxTarget) renderWithBloom();
+        else renderer.render(scene, camera);
         hudDist.textContent = 'From the Sun: ' + fmtDist(alt);
         hudSpeed.textContent = 'Speed: ' + fmtSpeed(speedPc());
         labelTick++;
@@ -1323,12 +1917,16 @@ export function initUniverse(stage) {
         /* uScaleH is in CSS pixels; the shaders multiply by uDpr to reach
            device pixels for gl_PointSize. */
         var scaleH = h * 0.5 * camera.projectionMatrix.elements[5];
-        [starPoints, galNamedPoints, galCloudPoints, glowFine, glowBroad].forEach(function (p) {
+        [starPoints, galNamedPoints, galCloudPoints, glowFine, glowBroad, nebPoints].forEach(function (p) {
             if (p) {
                 p.material.uniforms.uScaleH.value = scaleH;
                 p.material.uniforms.uDpr.value = dpr;
             }
         });
+        /* the final-pass targets track the drawing buffer, so a
+           resize or a DPR-ladder step re-makes them at the new
+           size (a dozen small allocations, off the frame path) */
+        if (fxOK) fxMakeTargets();
     }
 
     /* ---------------- events ---------------- */
@@ -1476,6 +2074,8 @@ export function initUniverse(stage) {
     loadMsg.textContent = 'Loading the real universe\u2026';
     loadData().then(function (d) {
         data = d;
+        return loadNebulae();
+    }).then(function () {
         try {
             buildScene();
         } catch (err) {
