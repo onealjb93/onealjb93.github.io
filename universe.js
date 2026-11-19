@@ -1280,13 +1280,17 @@ export function initUniverse(stage) {
             moreBtn.textContent = open ? 'Fewer controls \u25B4' : 'More controls \u25BE';
             moreBtn.blur();
         });
+        var searchFlown = '';
         function doSearch() {
             var name = searchInput.value.trim();
             if (!name) return;
+            if (name.toLowerCase() === searchFlown) return;
             for (var i = 0; i < data.named.length; i++) {
                 if (data.named[i].n.toLowerCase() === name.toLowerCase()) {
                     interruptTour();
                     flyTo(data.named[i]);
+                    searchFlown = name.toLowerCase();
+                    searchInput.blur();
                     return;
                 }
             }
@@ -1294,14 +1298,17 @@ export function initUniverse(stage) {
                 if (SOLAR_BODIES[j].n.toLowerCase() === name.toLowerCase()) {
                     interruptTour();
                     flyToSolar(SOLAR_BODIES[j]);
+                    searchFlown = name.toLowerCase();
+                    searchInput.blur();
                     return;
                 }
             }
             setCaption('No match for \u201C' + name + '\u201D \u2014 try a name from the list as you type.');
         }
-        searchGo.addEventListener('click', doSearch);
+        searchGo.addEventListener('click', function () { doSearch(); searchGo.blur(); });
         searchInput.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); doSearch(); } });
         searchInput.addEventListener('change', doSearch);
+        searchInput.addEventListener('input', function () { searchFlown = ''; });
         labelsToggle.addEventListener('change', function () { labelsOn = labelsToggle.checked; });
         cloudToggle.addEventListener('change', function () { galCloudPoints.visible = cloudToggle.checked; });
         mouseBtn.addEventListener('click', function () {
