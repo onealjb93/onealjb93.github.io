@@ -891,16 +891,19 @@
     <script>
     // MOCK ONLY — scroll-linked focus for the greenhouse photo (the
     // .jbo-focus-armed rule above holds the opening state). D is the
-    // scroll distance over which the photo sharpens: 40% of the
-    // viewport height — 360px on a 1440x900 screen, 341px on a
-    // 393x852 phone — so the photo is fully sharp before its top edge
-    // (416px down the page on desktop, 425px on the phone) can reach
-    // the top of the screen. Progress latches: it only moves forward.
+    // scroll distance over which the photo sharpens: 18% of the
+    // viewport height — 162px on a 1440x900 screen, 153px on a
+    // 393x852 phone — and the blur eases out over that distance (the
+    // unfocused remainder falls with (1 - p)^1.6), so most of the
+    // sharpening lands in the first half of the scroll and the photo
+    // is fully sharp long before its top edge (431px down the page on
+    // desktop, 440px on the phone) can reach the top of the screen.
+    // Progress latches: it only moves forward.
     (function () {
         var img = document.querySelector('.syn-heroimg img');
         if (!img) return;
         if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        var D = Math.max(1, Math.round(window.innerHeight * 0.4));
+        var D = Math.max(1, Math.round(window.innerHeight * 0.18));
         var p = 0, ticking = false, done = false;
         img.classList.add('jbo-focus-armed');
         function finish() {
@@ -917,8 +920,9 @@
             if (target > 1) target = 1;
             if (target > p) p = target;
             if (p >= 1) { finish(); return; }
-            img.style.filter = 'blur(' + (16 * (1 - p)).toFixed(2) + 'px)';
-            img.style.transform = 'scale(' + (1 + 0.07 * (1 - p)).toFixed(4) + ')';
+            var rem = Math.pow(1 - p, 1.6);
+            img.style.filter = 'blur(' + (16 * rem).toFixed(2) + 'px)';
+            img.style.transform = 'scale(' + (1 + 0.07 * rem).toFixed(4) + ')';
         }
         function onScroll() {
             if (!ticking) { ticking = true; window.requestAnimationFrame(apply); }
