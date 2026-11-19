@@ -1338,6 +1338,15 @@ def build_durability_block(facts, ticker):
 # QUALITATIVE_GRADES constant, and gain a new point only when a
 # re-judging changes a count. No history is invented for them.
 #
+# Each ticker also carries a "combined" series (added 2026-11-18 for
+# the scoreboard's chart view): per week, the investors who pass the
+# stock out of the investors who could grade it, as a percentage —
+# the scoreboard table's Score tally computed for every week from
+# the same verdicts. Judgment points carry their verdict as a fourth
+# element ([date, passed, tested, verdict]) because a verdict cannot
+# be recovered from counts alone (gates); the Grades view reads only
+# the first three elements, exactly as before.
+#
 # Record-level fields here are EDGAR-only: Alpha Vantage OVERVIEW is
 # a current snapshot with no point-in-time form, so a historical PEG
 # or ROE may differ slightly from the live figure on a week where
@@ -1817,11 +1826,16 @@ def _gh_scan_object(text, start):
 
 
 def gh_extract_judgments(html):
-    """The judgment investors' snapshot counts from the page's
+    """The judgment investors' snapshot from the page's
     QUALITATIVE_GRADES constant: {investor: {"name":..., "tickers":
-    {ticker: (passed, tested)}}}. The counts are all the history can
-    honestly carry — the reasons stay on the page. Raises on any
-    structural surprise; the caller keeps the previous points."""
+    {ticker: (passed, tested, verdict)}}}. The verdict is the page's
+    own qualVerdict rule — every gate question passed and at least
+    `min` of the five questions passed — computed from the recorded
+    answers, because the combined score (below) needs each investor's
+    PASS/FAIL, which the counts alone cannot give (a stock can pass
+    3 of 5 questions and still fail a gate). The reasons stay on the
+    page. Raises on any structural surprise; the caller keeps the
+    previous points."""
     import re
     anchor = html.index("const QUALITATIVE_GRADES = {")
     obj_start = html.index("{", anchor)
@@ -1832,6 +1846,13 @@ def gh_extract_judgments(html):
         b_start = body.index("{", m.start())
         block = body[b_start:_gh_scan_object(body, b_start)]
         name_m = re.search(r'\bname: "([^"]+)"', block)
+        gates_m = re.search(r'\bgates: \[([^\]]*)\]', block)
+        gates = (re.findall(r'"([a-z]+)"', gates_m.group(1))
+                 if gates_m else [])
+        min_m = re.search(r'\bmin: (\d+)', block)
+        if min_m is None:
+            raise ValueError("%s: no min in the page constant" % inv)
+        min_pass = int(min_m.group(1))
         j_anchor = block.index("judgments: {")
         j_start = block.index("{", j_anchor)
         jbody = block[j_start:_gh_scan_object(block, j_start)]
@@ -1841,11 +1862,15 @@ def gh_extract_judgments(html):
             tk = tm.group(1)
             t_start = jbody.index("{", tm.start())
             tobj = jbody[t_start:_gh_scan_object(jbody, t_start)]
-            answers = re.findall(r'"[a-z]+": \[(true|false),', tobj)
+            answers = dict((k, v == "true") for k, v in re.findall(
+                r'"([a-z]+)": \[(true|false),', tobj))
             if len(answers) != 5:
                 raise ValueError("%s/%s: %d judgments, expected 5"
                                  % (inv, tk, len(answers)))
-            per_ticker[tk] = (sum(1 for a in answers if a == "true"), 5)
+            passed = sum(1 for a in answers.values() if a)
+            verdict = (all(answers.get(g) for g in gates)
+                       and passed >= min_pass)
+            per_ticker[tk] = (passed, 5, verdict)
         if len(per_ticker) != len(TICKERS):
             raise ValueError("%s: %d tickers, expected %d"
                              % (inv, len(per_ticker), len(TICKERS)))
@@ -1853,6 +1878,80 @@ def gh_extract_judgments(html):
                     "tickers": per_ticker}
     if not out:
         raise ValueError("no judgment investors found")
+    return out
+
+
+def _gh_formula_verdict(inv, cell):
+    """One formula investor's PASS/FAIL verdict from a week's
+    (passed, tested) counts — the page's own rule, inverted. The six
+    single-rule investors pass exactly when their one check passes;
+    Lynch passes when no checkable part of his checklist fails;
+    Graham passes when every testable test passes and at least four
+    of his tests could be tested (financials store (0, 0) — not
+    graded). None when nothing could be tested that week."""
+    if not cell:
+        return None
+    p, t = cell
+    if t == 0:
+        return None
+    if inv == "graham" and t < 4:
+        return None
+    return p == t
+
+
+def _gh_combined_series(entry):
+    """One ticker's combined score per week: the investors who pass
+    the stock that week, out of the investors whose tests could
+    grade it that week, as a percentage rounded the way the page
+    rounds its Score column (half up). The same tally the scoreboard
+    table renders for today, computed for every week from the same
+    point-in-time verdicts: formula verdicts inverted from the
+    week's counts, judgment verdicts read off the standing judgment
+    point (its fourth element) — a judgment point whose verdict is
+    unknown (written before verdicts were recorded, with counts the
+    current judging no longer reproduces) is left out of that week's
+    count rather than guessed. None for a week nothing could grade.
+
+    The standing judgment snapshot is dated after the last completed
+    week in the series (it is judged from the current table), so at
+    the series' final week — the current week, the one the table
+    renders — the standing verdicts apply; at every earlier week a
+    judgment point counts only from its own date forward, exactly
+    as the page forward-fills it. Judgment history is still never
+    back-filled: before the final week, the combined score rests on
+    the formula investors alone.
+    """
+    import math
+    weeks = entry.get("weeks") or []
+    formula = entry.get("formula") or {}
+    judgment = entry.get("judgment") or {}
+    last_i = len(weeks) - 1
+    out = []
+    for i, wk in enumerate(weeks):
+        passed = 0
+        graded = 0
+        for inv in GRADES_FORMULA_IDS:
+            arr = formula.get(inv) or []
+            cell = arr[i] if i < len(arr) else None
+            v = _gh_formula_verdict(inv, cell)
+            if v is not None:
+                graded += 1
+                if v:
+                    passed += 1
+        for pts in judgment.values():
+            active = None
+            for pt in pts:
+                if pt[0] <= wk or i == last_i:
+                    active = pt
+                else:
+                    break
+            if active is None or len(active) < 4:
+                continue
+            graded += 1
+            if active[3]:
+                passed += 1
+        out.append(int(math.floor(passed * 100.0 / graded + 0.5))
+                   if graded else None)
     return out
 
 
@@ -1901,8 +2000,9 @@ def build_grades_history(previous, extracted_by_ticker, today):
         else:
             continue
         # Judgment points: begin at the grading date with the
-        # snapshot counts; a new point lands only when a re-judging
-        # changes a count. The page forward-fills the standing grade.
+        # snapshot counts and verdict; a new point lands when a
+        # re-judging changes a count or the verdict. The page
+        # forward-fills the standing grade.
         prev_judgment = (prev_entry or {}).get("judgment") or {}
         inv_ids = set(prev_judgment)
         if judgments:
@@ -1912,11 +2012,23 @@ def build_grades_history(previous, extracted_by_ticker, today):
             if judgments and inv in judgments:
                 counts = judgments[inv]["tickers"].get(symbol)
                 if counts is not None:
-                    p, t = counts
+                    p, t, verdict = counts
+                    v01 = 1 if verdict else 0
                     if not pts:
-                        pts = [[GRADES_JUDGMENT_START, p, t]]
-                    elif [pts[-1][1], pts[-1][2]] != [p, t]:
-                        pts.append([today, p, t])
+                        pts = [[GRADES_JUDGMENT_START, p, t, v01]]
+                    elif [pts[-1][1], pts[-1][2]] != [p, t] or (
+                            len(pts[-1]) > 3
+                            and bool(pts[-1][3]) != verdict):
+                        # A re-judging changed the counts, or changed
+                        # the verdict at the same counts (a gate
+                        # flipped): a new point either way.
+                        pts.append([today, p, t, v01])
+                    elif len(pts[-1]) < 4:
+                        # The standing point predates recorded
+                        # verdicts and the current judging reproduces
+                        # its counts exactly, so its verdict is this
+                        # judging's verdict — complete it in place.
+                        pts[-1] = [pts[-1][0], p, t, v01]
             if pts:
                 entry["judgment"][inv] = pts
     if not series:
@@ -1928,6 +2040,10 @@ def build_grades_history(previous, extracted_by_ticker, today):
             entry["formula"][inv] = [
                 ([p, t] if t > 0 else None)
                 for (p, t) in res["inv"][inv]]
+    # The combined score: every week's tally over all 18 investors,
+    # from the same verdicts assembled above (see _gh_combined_series).
+    for entry in series.values():
+        entry["combined"] = _gh_combined_series(entry)
     investors = {}
     for inv in GRADES_FORMULA_IDS:
         investors[inv] = {"name": GRADES_FORMULA_NAMES[inv],
