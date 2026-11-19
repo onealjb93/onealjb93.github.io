@@ -92,20 +92,45 @@ async function loadFinancialData() {
     }
 }
 
-/* Golden star: the header's link to the Bitcoin indicator section,
-   revealed only while the nightly btc-state.json reports a rare
-   zone — Johnny's combined score in its buy band (the golden state,
-   gold stars) or in its sell band (the top state, red stars) — and
-   the file is fresh. The writer runs on weekdays, so freshness
-   allows 96 hours — a long weekend plus one missed run; anything
-   older, missing, malformed or future-dated leaves the stars hidden.
-   Fail-safe in every direction: a wrong star can never appear. */
+/* Golden star: the header's link to the Bitcoin indicator section.
+   Exactly one of its three anchors shows, chosen by the nightly
+   btc-state.json: a gold star while Johnny's combined score is in
+   its buy band (the golden state), a red star in its sell band
+   (the top state), an amber dot between the bands (Hold). Every
+   caption carries the published score itself (score.value, one
+   decimal) — the same number the alert emails carry. The writer
+   runs on weekdays, so freshness allows 96 hours — a long weekend
+   plus one missed run; anything older, missing, malformed or
+   future-dated, or a state file with no usable score, leaves all
+   three anchors hidden. Fail-safe in every direction: a wrong
+   indicator can never appear. */
 function initGoldenStar() {
     var star = document.querySelector('.golden-star:not(.top-star):not(.hold-star)');
     var topStar = document.querySelector('.top-star');
     var holdStar = document.querySelector('.hold-star');
     if ((!star && !topStar && !holdStar) || !window.fetch) return;
     var MAX_AGE_MS = 96 * 60 * 60 * 1000;
+    /* One decimal, rounded half-to-even on the decimal the state
+       file prints — the alert emails format the same value with
+       Python's "%.1f", which rounds the same way (47.25 -> "47.2");
+       JavaScript's toFixed(1) would print "47.3" there. */
+    function fmtScore(v) {
+        if (typeof v !== 'number' || !isFinite(v)) return null;
+        var s = String(Math.abs(v));
+        if (s.indexOf('e') >= 0 || s.indexOf('E') >= 0) return null;
+        var parts = s.split('.');
+        var whole = parts[0];
+        var frac = parts[1] || '';
+        var d1 = frac.length ? +frac.charAt(0) : 0;
+        var rest = frac.slice(1);
+        if (rest.length) {
+            var first = +rest.charAt(0);
+            if (first > 5 || (first === 5 && /[1-9]/.test(rest.slice(1)))) d1++;
+            else if (first === 5 && d1 % 2 === 1) d1++;
+        }
+        if (d1 === 10) { d1 = 0; whole = String(+whole + 1); }
+        return (v < 0 ? '-' : '') + whole + '.' + d1;
+    }
     fetch('btc-state.json').then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
@@ -115,9 +140,14 @@ function initGoldenStar() {
         if (!isFinite(t)) return;
         var age = Date.now() - t;
         if (age < -60 * 60 * 1000 || age > MAX_AGE_MS) return;
-        if (s.golden === true) { if (star) star.hidden = false; }
-        else if (s.top === true) { if (topStar) topStar.hidden = false; }
-        else if (holdStar) holdStar.hidden = false;
+        var num = fmtScore(s.score && s.score.value);
+        if (num === null) return;
+        var target = s.golden === true ? star : (s.top === true ? topStar : holdStar);
+        if (!target) return;
+        var slot = target.querySelector('.golden-star-score');
+        if (!slot) return;
+        slot.textContent = num;
+        target.hidden = false;
     }).catch(function () { /* no state file, no indicator */ });
 }
 
