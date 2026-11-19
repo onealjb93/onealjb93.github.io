@@ -108,7 +108,6 @@
     <header class="page-header">
         <h1>Random Generator</h1>
         <p class="subtitle">One tap, something new — lesser-known animals, epic oil paintings, gorgeous architecture up close, and the newest views of space.</p>
-        <button type="button" class="rg-fs-btn" id="rg-fs-btn" aria-label="Full screen" aria-pressed="false"><svg class="rg-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="rg-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="rg-fs-label">Full screen</span></button>
     </header>
 
     <style>
@@ -743,20 +742,25 @@
            fullscreen) the block pins itself over the page as a fixed
            layer at z-index 1500 — under the gallery (2900) and the
            photo viewer (3000), so both still paint above it. The
-           button is absolutely placed at the title row's right end,
-           the same trick the back link uses, so it costs the
-           one-screen frame nothing: the fixed title height and the
-           --rg-head-h arithmetic are untouched, and the back link
-           shifts left to clear the button. Inside full screen the
+           button rides at the right end of the active pool's own
+           topbar, after the prev/next arrows — the tool's header
+           row, not the page title row (moved 2026-11-19: in the
+           title row it read as part of the page, not of the tool).
+           One button serves all six pools: showGen moves it into
+           the visible pool's topbar. It costs the one-screen frame
+           nothing: the topbar row is already as tall as the
+           Generate button on phone and desktop alike, the fixed
+           title height and the --rg-head-h arithmetic are
+           untouched, and the back link keeps the title row's right
+           end to itself. Inside full screen the
            subtitle stays behind, the tab bar and the topbar give up
            their sticky pins, the negative side margins come off,
            the section flexes to fill what is left and the stage
            photo (width/height 100%, object-fit: contain) takes the
            whole stage at its stage rendition — no different image
            is ever requested. */
-        .page-header { position: relative; }
         .rg-fs-btn {
-            position: absolute; top: 0; right: 0; z-index: 6;
+            flex: none; order: 2;
             width: auto; height: 36px; padding: 0 12px; gap: 6px;
             display: inline-flex; align-items: center; justify-content: center;
             border-radius: 999px; border: 1px solid var(--border-color);
@@ -771,12 +775,24 @@
         .rg-fs-btn .rg-fs-icon-exit { display: none; }
         .rg-fs-btn.rg-fs-on .rg-fs-icon-enter { display: none; }
         .rg-fs-btn.rg-fs-on .rg-fs-icon-exit { display: block; }
-        .back-link { right: 172.7px; }
         @media (max-width: 600px) {
             .rg-fs-btn { flex-direction: column; gap: 1px; height: 36px; padding: 2px 6px; }
             .rg-fs-btn svg { width: 17px; height: 17px; }
             .rg-fs-label { font-size: 0.75rem; }
-            .back-link { right: 95px; }
+        }
+        /* Phones: topbar row one is exactly full by design —
+           Generate is the dominant control there (~72% of the row,
+           with an arrow at each end) — so the button takes the
+           right end of the name row beneath it, at every phone
+           width: no fit threshold to graze, and Generate keeps
+           its full width. The name text keeps its own line (its
+           100% basis is what forces the line break) but gives up
+           the button's width, so the two share the name row
+           instead of stacking into a third row. (The tabs row
+           cannot take the button either: its six segments are
+           budgeted to the pixel at these widths.) */
+        @media (max-width: 600px) {
+            .gen-topbar-text { flex-basis: calc(100% - 78px); }
         }
         .gen-block:fullscreen, .gen-block:-webkit-full-screen {
             display: flex; flex-direction: column;
@@ -831,6 +847,7 @@
                     <p class="gen-name" id="animals-name"></p>
                     <p class="gen-sub" id="animals-sub"></p>
                 </div>
+                <button type="button" class="rg-fs-btn" id="rg-fs-btn" aria-label="Full screen" aria-pressed="false"><svg class="rg-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="rg-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="rg-fs-label">Full screen</span></button>
             </div>
             <div class="gen-info" id="animals-info" hidden>
                 <p class="gen-overview" id="animals-overview"></p>
@@ -1804,6 +1821,12 @@
                 b.classList.toggle('active', on);
                 b.setAttribute('aria-selected', on ? 'true' : 'false');
             });
+            // The one Full screen button lives in the visible pool's
+            // topbar (the tool's header row): move it across on every
+            // switch so it is never stranded in a hidden section.
+            var fsBtnMove = document.getElementById('rg-fs-btn');
+            var fsTopbar = document.getElementById(prefix + '-topbar');
+            if (fsBtnMove && fsTopbar && fsBtnMove.parentNode !== fsTopbar) { fsTopbar.appendChild(fsBtnMove); }
             if (updateHash) { history.replaceState(null, '', '#' + GEN_HASH[prefix]); }
         }
         document.querySelectorAll('.gen-tab').forEach(function (b) {
