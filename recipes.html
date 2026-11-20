@@ -411,6 +411,59 @@
         #dailyApply:hover { border-color: var(--link-color); color: var(--link-color); }
         .daily-applied { font-size: 0.85rem; font-weight: 600; margin: 0.5rem 0 0; }
     
+    /* Front-door cards + pinned filter strip (2026-11-20): the page
+       opens on two blog-style cards (the homepage/sustainability card
+       idiom: photo, name, one lead line) instead of two stacked
+       expanders. Each card drives its section through the section's
+       own toggle, so every existing behaviour (sticky head row, Cook
+       button, calculator bubble) stays single-sourced. A closed
+       section hides its head row — the closed page shows the cards
+       alone — and an open section keeps its head row as the labeled
+       close control, as before. The recipe filter row pins in the
+       stack while the archive scrolls: on desktop the full pill row,
+       slimmed to one scrollable row while stuck; on phone one slim
+       row naming the active filter plus a Filter button that opens
+       the full pill set in a glass bubble. */
+    .door-cards { display: grid; grid-template-columns: 1fr; gap: 0.9rem; margin: 1rem 0 1.25rem; }
+    @media (min-width: 641px) { .door-cards { grid-template-columns: 1fr 1fr; } }
+    .door-card { display: flex; flex-direction: column; width: 100%; padding: 0; overflow: hidden; text-align: left; font: inherit; color: var(--text-color); background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; cursor: pointer; }
+    .door-card:hover { border-color: var(--link-color); }
+    .door-card:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+    .door-card-photo { display: block; }
+    .door-card-photo img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; }
+    .door-card-body { display: block; padding: 0.7rem 0.85rem 0.9rem; }
+    .door-card-name { display: block; font-size: 1rem; font-weight: 650; line-height: 1.3; }
+    .door-card-lead { display: block; margin-top: 0.3rem; font-size: 0.85rem; line-height: 1.45; color: var(--subtext-color); }
+    .door-card-state { display: block; margin-top: 0.55rem; font-size: 0.82rem; font-weight: 700; color: var(--link-color); }
+    .explainer-wrapper:has(> #recipeCard:not(.active)) > .recipes-head-row { display: none; }
+    .explainer-wrapper:has(> #nutritionToolCard:not(.active)) > .info-toggle { display: none; }
+    /* Filter strip: the controls row pins under the targets bar; its
+       top is set by script from the measured stack (site header +
+       stuck head row + targets bar), so the strip never slices or
+       covers content. While a recipe is open the recipe-name bar owns
+       the slot and the strip stands down (.no-stick). */
+    .recipe-controls { position: sticky; top: 150px; z-index: 90; background: var(--bg-color); box-shadow: 0 1px 0 var(--border-color); padding-top: 0.4rem; padding-bottom: 0.4rem; }
+    .recipe-controls.no-stick { position: static; box-shadow: none; }
+    .recipe-controls.is-stuck { flex-wrap: nowrap; }
+    .recipe-controls.is-stuck .recipe-filters { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    .recipe-controls.is-stuck > select { flex: none; }
+    .recipe-controls.is-stuck .recipe-filters::-webkit-scrollbar { display: none; }
+    .recipe-controls.is-stuck .filter-pill { flex: none; }
+    .filter-compact { display: none; }
+    @media (max-width: 768px) {
+        .recipe-controls .recipe-filters, .recipe-controls > select { display: none; }
+        .filter-compact { display: flex; align-items: center; gap: 0.6rem; width: 100%; }
+        .filter-now { flex: 1 1 auto; min-width: 0; font-size: 0.88rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .filter-open-btn { flex: none; min-height: 36px; border-radius: 999px; border: 1px solid var(--link-color); background: transparent; color: var(--link-color); font: inherit; font-size: 0.85rem; font-weight: 700; padding: 0.35rem 0.9rem; cursor: pointer; }
+    }
+    .filter-bubble { width: min(560px, 100%); max-height: min(82dvh, 720px); display: flex; flex-direction: column; overflow: hidden; }
+    .filter-bubble-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.65rem 1rem 0.35rem; font-weight: 700; font-size: 0.95rem; }
+    .filter-bubble-head button { cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 999px; width: 30px; height: 30px; font-size: 1rem; line-height: 1; padding: 0; flex: none; }
+    .filter-bubble-pills { display: flex; flex-wrap: wrap; gap: 8px; padding: 0.6rem 1rem 1rem; overflow-y: auto; }
+    .filter-bubble-sort { flex: none; padding: 0 1rem 1rem; font-size: 0.88rem; }
+    .filter-bubble-sort select { margin-left: 0.5rem; }
+    #filterPop[hidden] { display: none; }
+
     /* Sticky combiner footer bar (mobile + desktop) */
     #combinerBar { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 900; display: none; align-items: center; gap: 0.5rem; width: min(720px, calc(100vw - 2rem)); background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 10px 10px 0 0; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 0.6rem 0.55rem calc(0.5rem + env(safe-area-inset-bottom, 0px)) 0.9rem; }
     #combinerBar.show { display: block; }
@@ -1028,6 +1081,30 @@
         <p class="subtitle">My favorite recipes, and info about their nutrition.</p>
     </header>
 
+    <!-- Front door (2026-11-20): two blog-style cards — photo, title,
+         one lead line — replace the stacked-expander opening. Each
+         card toggles its section through the section's own toggle
+         (the script before </body>), opening it in place at full
+         width; the section's head row is its labeled close control. -->
+    <div class="door-cards">
+        <button type="button" class="door-card" id="doorRecipes" aria-expanded="false" aria-controls="recipeCard">
+            <span class="door-card-photo"><img src="s/img/recipe-peruvianRecipe.jpg" alt="Peruvian Chicken with Cilantro-Lime Green Sauce" width="602" height="800" loading="lazy" decoding="async"></span>
+            <span class="door-card-body">
+                <span class="door-card-name">🍳 Johnny's Recipes</span>
+                <span class="door-card-lead">Explore my favorite home-tested recipes, and info about their nutrition.</span>
+                <span class="door-card-state"><span class="door-card-arrow" aria-hidden="true">▶</span> <span class="door-card-word">Open</span></span>
+            </span>
+        </button>
+        <button type="button" class="door-card" id="doorTool" aria-expanded="false" aria-controls="nutritionToolCard">
+            <span class="door-card-photo"><img src="s/img/recipe-bistroSaladRecipe.jpg" alt="Fatty Bistro Salad" width="400" height="300" loading="lazy" decoding="async"></span>
+            <span class="door-card-body">
+                <span class="door-card-name">🥗 Nutrition Comparison Tool</span>
+                <span class="door-card-lead">What each recipe covers — and what it doesn't.</span>
+                <span class="door-card-state"><span class="door-card-arrow" aria-hidden="true">▶</span> <span class="door-card-word">Open</span></span>
+            </span>
+        </button>
+    </div>
+
     <!-- Recipe Archive Container -->
     <div class="explainer-wrapper">
         <!-- Section header row: the collapse toggle (chevron + title)
@@ -1037,11 +1114,11 @@
              script before </body>. -->
         <div class="recipes-head-row">
             <button class="info-toggle" onclick="toggleExplainer('recipeCard', 'recipeArrow')">
-                <span id="recipeArrow">▼</span> 🍳 Johnny's Recipes
+                <span id="recipeArrow">▶</span> 🍳 Johnny's Recipes
             </button>
             <button type="button" class="head-cook-btn" id="headCookBtn" aria-label="Try the cook tool: go to the first recipe's Cook button"><span id="headCookGlyph" aria-hidden="true">🍳</span> <span id="headCookLabel">Cook</span></button>
         </div>
-        <div class="explainer-card active" id="recipeCard">
+        <div class="explainer-card" id="recipeCard">
             <h4>Home-Tested Custom Recipes</h4>
             <p>Click any dish below to view ingredients, precise preparation steps, and health focuses. Each recipe now includes estimated nutrition per serving, and the Nutrition Comparison Tool below lets you combine recipes against your daily targets. <a href="#cooking-tips">Browse the evidence-informed cooking &amp; nutrition tips</a> — the same tips are also linked from inside the recipes where they apply.</p>
 
@@ -6787,10 +6864,10 @@
     <!-- Nutrition Comparison Tool -->
     <div class="explainer-wrapper">
         <button class="info-toggle" onclick="toggleExplainer('nutritionToolCard', 'nutritionToolArrow')">
-            <span id="nutritionToolArrow">▼</span> 🥗 Nutrition Comparison Tool
+            <span id="nutritionToolArrow">▶</span> 🥗 Nutrition Comparison Tool
         </button>
         <div id="nutritionCalcAnchor" hidden></div>
-        <div class="explainer-card active" id="nutritionToolCard">
+        <div class="explainer-card" id="nutritionToolCard">
             <h4>What each recipe covers — and what it doesn't</h4>
             <p>Every recipe now shows estimated nutrition per serving, scored 0–5 against your daily target, with the exact % alongside. By default the target is the FDA Daily Values (2,000 kcal reference) — enter your details below to personalize it. Pick the recipes you're eating below \u2014 and how many servings of each \u2014 to see the combined intake — what the meal covers for the day, and what it doesn't.</p>
             <p class="nutrition-legend">How to read the scores: 0–5 dots per nutrient — 0 is under 5% of your daily target, 1 is 5–19%, 2 is 20–49%, 3 is 50–79%, 4 is 80–119%, 5 is 120% or more. The exact % sits next to the dots. For sodium, saturated fat and cholesterol the target is a daily limit — more dots means closer to the limit, not better.</p>
@@ -11781,6 +11858,196 @@
         });
 
         refreshPill();
+    })();
+</script>
+<script>
+    // Front-door cards + pinned filter strip (2026-11-20).
+    (function () {
+        'use strict';
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var targetsBar = document.getElementById('targetsBar');
+
+        /* ---- Front-door cards: each card clicks its section's own
+           toggle, so the section's state has exactly one source. The
+           card mirrors the state (aria-expanded, arrow, Open/Close
+           word) and glides the opened section into view under the
+           pinned stack. ---- */
+        function sectionToggle(cardEl, arrowId) {
+            var arrow = document.getElementById(arrowId);
+            return arrow ? arrow.closest('button') : null;
+        }
+        var doors = [
+            { btn: document.getElementById('doorRecipes'), card: document.getElementById('recipeCard'), toggle: sectionToggle(null, 'recipeArrow') },
+            { btn: document.getElementById('doorTool'), card: document.getElementById('nutritionToolCard'), toggle: sectionToggle(null, 'nutritionToolArrow') }
+        ];
+        function syncDoor(d) {
+            if (!d.btn || !d.card) return;
+            var open = d.card.classList.contains('active');
+            d.btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            d.btn.classList.toggle('open', open);
+            var arrow = d.btn.querySelector('.door-card-arrow');
+            if (arrow) arrow.textContent = open ? '▼' : '▶';
+            var word = d.btn.querySelector('.door-card-word');
+            if (word) word.textContent = open ? 'Close' : 'Open';
+        }
+        function glideTo(cardEl) {
+            var wrap = cardEl.closest('.explainer-wrapper');
+            if (!wrap) return;
+            var offset = 55 + (targetsBar ? targetsBar.offsetHeight : 0) + 4;
+            var y = wrap.getBoundingClientRect().top + window.scrollY - offset;
+            window.scrollTo({ top: Math.max(0, y), behavior: reduce ? 'auto' : 'smooth' });
+        }
+        doors.forEach(function (d) {
+            if (!d.btn || !d.card || !d.toggle) return;
+            d.btn.addEventListener('click', function () {
+                if (d.card.closest('.glass-scrim')) return; // the tool is open as a bubble; its own close governs
+                var wasOpen = d.card.classList.contains('active');
+                d.toggle.click();
+                syncDoor(d);
+                if (!wasOpen) setTimeout(function () { glideTo(d.card); }, 30);
+            });
+            if (window.MutationObserver) new MutationObserver(function () { syncDoor(d); }).observe(d.card, { attributes: true, attributeFilter: ['class'] });
+            syncDoor(d);
+        });
+        /* Deep links: a hash naming anything inside a closed section
+           (a shared recipe link is the common case) opens that section
+           first, so the existing landing scripts find their target
+           visible. */
+        var hashId = (location.hash || '').slice(1);
+        if (hashId) {
+            var hashTarget = document.getElementById(hashId);
+            if (hashTarget) doors.forEach(function (d) {
+                if (d.card && d.toggle && !d.card.classList.contains('active') && d.card.contains(hashTarget)) {
+                    d.toggle.click();
+                    syncDoor(d);
+                }
+            });
+        }
+
+        /* ---- Pinned filter strip ---- */
+        var strip = document.querySelector('.recipe-controls');
+        var recipeCard = document.getElementById('recipeCard');
+        var filtersEl = strip ? strip.querySelector('.recipe-filters') : null;
+        var sortSel = document.getElementById('recipe-sort');
+        if (!strip || !filtersEl || !sortSel) return;
+
+        /* Phone compact row: the active filter's name + a Filter
+           button. Built here so the pill row stays the single source
+           of the filters themselves. */
+        var compact = document.createElement('div');
+        compact.className = 'filter-compact';
+        compact.innerHTML = '<span class="filter-now" id="filterNow"></span><button type="button" class="filter-open-btn" id="filterOpenBtn" aria-haspopup="dialog" aria-controls="filterPop">Filter</button>';
+        strip.appendChild(compact);
+        var nowEl = compact.querySelector('#filterNow');
+        var openBtn = compact.querySelector('#filterOpenBtn');
+
+        /* The full pill set, in the site's glass-bubble pattern. The
+           bubble's pills are mirrors: a tap clicks the real pill, so
+           the filter has exactly one state and one handler. The sort
+           select is mirrored the same way. */
+        var pop = document.createElement('div');
+        pop.id = 'filterPop';
+        pop.className = 'glass-scrim';
+        pop.hidden = true;
+        pop.innerHTML = '<div class="filter-bubble glass-bubble" role="dialog" aria-modal="true" aria-label="Filter recipes">'
+            + '<div class="filter-bubble-head"><span>Filter recipes</span><button type="button" id="filterPopClose" aria-label="Close filter">&times;</button></div>'
+            + '<div class="filter-bubble-pills" id="filterPopPills"></div>'
+            + '<div class="filter-bubble-sort" id="filterPopSortRow"></div></div>';
+        document.body.appendChild(pop);
+        var pillsBox = pop.querySelector('#filterPopPills');
+        var origPills = Array.prototype.slice.call(filtersEl.querySelectorAll('.filter-pill'));
+        origPills.forEach(function (p) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'filter-pill';
+            b.setAttribute('data-filter', p.getAttribute('data-filter'));
+            b.textContent = p.textContent;
+            b.addEventListener('click', function () { p.click(); closePop(); });
+            pillsBox.appendChild(b);
+        });
+        var sortRow = pop.querySelector('#filterPopSortRow');
+        var sortLabel = document.createElement('label');
+        sortLabel.appendChild(document.createTextNode('Sort'));
+        var sortClone = sortSel.cloneNode(true);
+        sortClone.removeAttribute('id');
+        sortClone.setAttribute('aria-label', 'Sort recipes');
+        sortClone.addEventListener('change', function () {
+            sortSel.value = sortClone.value;
+            sortSel.dispatchEvent(new Event('change'));
+        });
+        sortLabel.appendChild(sortClone);
+        sortRow.appendChild(sortLabel);
+
+        function syncFilter() {
+            var active = filtersEl.querySelector('.filter-pill.active');
+            if (nowEl && active) nowEl.textContent = 'Filter: ' + active.textContent.trim();
+            Array.prototype.forEach.call(pillsBox.children, function (b) {
+                b.classList.toggle('active', !!active && b.getAttribute('data-filter') === active.getAttribute('data-filter'));
+            });
+            sortClone.value = sortSel.value;
+        }
+        document.addEventListener('click', function (e) {
+            var t = e.target;
+            if (t && t.closest && t.closest('.recipe-filters .filter-pill')) setTimeout(syncFilter, 0);
+        });
+        if (window.MutationObserver) new MutationObserver(syncFilter).observe(filtersEl, { subtree: true, attributes: true, attributeFilter: ['class'] });
+        syncFilter();
+
+        var popOpen = false, savedY = 0, savedOverflow = '';
+        function openPop() {
+            if (popOpen) return;
+            popOpen = true;
+            syncFilter();
+            pop.hidden = false;
+            savedY = window.scrollY || 0;
+            savedOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            var c = document.getElementById('filterPopClose');
+            if (c) c.focus();
+        }
+        function closePop() {
+            if (!popOpen) return;
+            popOpen = false;
+            pop.hidden = true;
+            document.body.style.overflow = savedOverflow;
+            window.scrollTo(0, savedY);
+            if (openBtn) openBtn.focus();
+        }
+        if (openBtn) openBtn.addEventListener('click', openPop);
+        var popClose = document.getElementById('filterPopClose');
+        if (popClose) popClose.addEventListener('click', closePop);
+        pop.addEventListener('click', function (e) { if (e.target === pop) closePop(); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && popOpen) { e.stopPropagation(); closePop(); }
+        });
+
+        /* Placement: the strip's sticky top is the measured bottom of
+           the pinned stack above it (the fixed targets bar already
+           stacks itself under the stuck head row, so its bottom edge
+           IS the stack's bottom edge). The strip stands down while a
+           recipe is open (the recipe-name bar owns the slot and the
+           targets bar is covered) or the archive is closed. */
+        var ticking = false;
+        function placeStrip() {
+            ticking = false;
+            if (!recipeCard) return;
+            var expanded = document.querySelector('.recipe-wrapper.expanded');
+            var covered = targetsBar && targetsBar.classList.contains('covered');
+            var standDown = !recipeCard.classList.contains('active') || !!expanded || !!covered;
+            strip.classList.toggle('no-stick', standDown);
+            if (standDown) { strip.classList.remove('is-stuck'); return; }
+            var top = targetsBar ? Math.round(targetsBar.getBoundingClientRect().bottom) : 55;
+            strip.style.top = top + 'px';
+            var r = strip.getBoundingClientRect();
+            strip.classList.toggle('is-stuck', Math.abs(r.top - top) <= 1.5);
+        }
+        window.addEventListener('scroll', function () {
+            if (!ticking) { ticking = true; window.requestAnimationFrame(placeStrip); }
+        }, { passive: true });
+        window.addEventListener('resize', placeStrip);
+        window.addEventListener('load', placeStrip);
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeStrip);
+        placeStrip();
     })();
 </script>
 </body>
