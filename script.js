@@ -103,7 +103,9 @@ async function loadFinancialData() {
    runs on weekdays, so freshness allows 96 hours — a long weekend
    plus one missed run; anything older, missing, malformed or
    future-dated, or a state file with no usable score, leaves all
-   three anchors hidden. Fail-safe in every direction: a wrong
+   three anchors hidden. The homepage card's price dot
+   (.live-pulse) is driven by the same state and hides with
+   them. Fail-safe in every direction: a wrong
    indicator can never appear. */
 function initGoldenStar() {
     var star = document.querySelector('.golden-star:not(.top-star):not(.hold-star)');
@@ -146,6 +148,12 @@ function initGoldenStar() {
         var target = s.golden === true ? star : (s.top === true ? topStar : holdStar);
         if (!target) return;
         target.hidden = false;
+        var cardDot = document.querySelector('.live-pulse');
+        if (cardDot) {
+            if (s.top === true) cardDot.classList.add('band-sell');
+            else if (s.golden !== true) cardDot.classList.add('band-hold');
+            cardDot.hidden = false;
+        }
     }).catch(function () { /* no state file, no indicator */ });
 }
 
