@@ -18,21 +18,6 @@
 // habitat interiors, monumental ruins, harbours, quiet human moments.
 window.SCIFI_DATA = [
   {
-    "id": "stanford-torus-interior",
-    "name": "Inside the Stanford Torus",
-    "sub": "A valley, a river and a suburb inside a spinning wheel",
-    "overview": "A suburb inside a spinning wheel. This is the inside of the Stanford torus, a ring-shaped space colony designed for NASA's settlement studies: a river, a lake, pine forest and houses curve away overhead, lit by sunlight bounced in through mirrors.",
-    "details": [
-      "The ring spins, and the spin feels like gravity — strongest at the rim, where the houses stand.",
-      "In the foreground, colonists swim and stroll on a recreation deck; above them the far side of their world crosses the sky.",
-      "The blue ceiling is the inside of the wheel itself, panelled with glass and mirrors."
-    ],
-    "img": "https://johnny-oneal.com/scifi-stanford-torus-interior.webp",
-    "source": "https://johnny-oneal.com/scifi-stanford-torus-interior.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>The Stanford torus was designed in a ten-week study in the summer of 1975, when NASA and Stanford University asked engineers to design real space settlements. Their wheel measured about 1.8 kilometres across, turned once a minute, and was drawn for 10,000 residents. The study's artists — Don Davis and Rick Guidice among them — painted the settlements as they went, and their pictures remain the most famous space colonies ever imagined.</p>"
-  },
-  {
     "id": "bernal-interior",
     "name": "Inside the Bernal Sphere",
     "sub": "A whole countryside wrapped around the inside of a ball",
@@ -61,21 +46,6 @@ window.SCIFI_DATA = [
     "source": "https://johnny-oneal.com/scifi-quiet-fleet.webp",
     "credit": "Art: AI-generated · created for this page",
     "deep": "<p>Warships have always been the future arriving early: ironclads, dreadnoughts, carriers — each generation looked impossible beside the harbour it tied up in. The stealth generation hides its power entirely, all smooth faces and sealed decks, which makes the contrast stranger: a medieval waterfront, a fishing fleet, and three grey wedges that could be sculpture until they move.</p>"
-  },
-  {
-    "id": "cylinder-endcap",
-    "name": "Island Three: The End Cap",
-    "sub": "A suspension bridge across the bay, inside a cylinder",
-    "overview": "The view from the end of the world. Inside an O'Neill cylinder — a hollow tube kilometres long — a bay, a suspension bridge and towns stretch ahead from a stream bank, and the far side of the cylinder curves overhead as sky.",
-    "details": [
-      "The land overhead is real land: people live on it, upside down from where you stand.",
-      "Clouds form inside the cylinder, drifting between the two shores.",
-      "High above, the far end of the cylinder closes the world like a lid."
-    ],
-    "img": "https://johnny-oneal.com/scifi-cylinder-endcap.webp",
-    "source": "https://johnny-oneal.com/scifi-cylinder-endcap.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Gerard K. O'Neill, a Princeton physics professor, proposed the cylinder in 1974 and called the biggest version Island Three: about 8 kilometres wide and 32 long, turning slowly so its inner wall feels like Earth. The NASA study that followed in 1975 worked out how such a world could actually be built.</p>"
   },
   {
     "id": "cylinder-eclipse",
@@ -136,21 +106,6 @@ window.SCIFI_DATA = [
     "source": "https://johnny-oneal.com/scifi-first-humans-mars.webp",
     "credit": "Art: AI-generated · created for this page",
     "deep": "<p>NASA released the picture with its Mars 2020 mission, whose Perseverance rover carried rehearsals for this camp: an instrument that made oxygen from the Martian air, and a small helicopter that proved flight in it. Both worked — the oxygen maker produced about 122 grams of oxygen in total.</p>"
-  },
-  {
-    "id": "crater-base",
-    "name": "The Crater Base",
-    "sub": "A shuttle port on the rim of a snowy crater",
-    "overview": "In the painted style of the old space books: a shuttle stands on a launch complex built into the rim of a vast snowy crater on an icy moon, while a huge banded planet hangs in a black, starry sky.",
-    "details": [
-      "The crater is the harbour — its rim gives the base a horizon, shelter and a view in every direction.",
-      "Snow on a moon with no weather means the cold is ancient: nothing has melted here in eons.",
-      "The planet is this moon's whole sky — the base was built facing it, the way ports face the sea."
-    ],
-    "img": "https://johnny-oneal.com/scifi-crater-base.webp",
-    "source": "https://johnny-oneal.com/scifi-crater-base.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Before space photography, the future was painted: artists with gouache and airbrush built the first space age out of crater rims and looming planets, and their pictures taught two generations what a moon base should look like. The style is deliberately kept here — warm paint, impossible clarity, everything golden at the edges — because the dream came first, and the engineering is still catching up with it.</p>"
   },
   {
     "id": "domed-city",
@@ -406,21 +361,6 @@ window.SCIFI_DATA = [
     "source": "https://johnny-oneal.com/scifi-ring-arrival.webp",
     "credit": "Art: AI-generated · created for this page",
     "deep": "<p>Old and new strike their favourite bargain in this picture: a gown and a supercar — two antiques of style — set down in the newest place humans have ever lived, beneath the oldest view there is. The ring’s residents did not leave Earth behind; they arranged to keep it in sight, framed in the middle of their sky, while life at its feet got on with being life.</p>"
-  },
-  {
-    "id": "sail-harbour",
-    "name": "The Sail Harbour",
-    "sub": "Wooden boats, under towers shaped like sails",
-    "overview": "At blue dusk, three sailboats with dark canvas cross still water before a forested shore — and behind the trees, in the mist, rise the colossal crescent towers of a far-future city, curved like the sails below them, a few small lights burning in their heights.",
-    "details": [
-      "The boats are technology a thousand years old, and they are still working — wind is the one fuel that never runs out or sends a bill.",
-      "The towers took the hint: the city’s architects copied the oldest machine on the water and built it a mile high.",
-      "The shore in the foreground is littered with the harbour’s old iron — a winch, a rusted anchor, rope. Every age leaves its tools behind."
-    ],
-    "img": "https://johnny-oneal.com/scifi-sail-harbour.webp",
-    "source": "https://johnny-oneal.com/scifi-sail-harbour.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Technology does not replace; it layers. The sail was supposed to die with steam, then with diesel, then with the rocket — and here it is, crossing in front of a city that could unmake the weather, because a hull and a canvas remain the cheapest way across calm water ever found. The future in this picture is not the towers. It is that the towers’ builders still kept boats.</p>"
   },
   {
     "id": "canal-valley",
