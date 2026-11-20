@@ -199,20 +199,20 @@
            A script at the end of the body re-measures the live stack
            and refines this value. */
         #committee, #products { scroll-margin-top: 99px; }
-        /* Products & Services: searchable box grid (2026-11-20) — the
-           cooking-tips pattern from recipes.html brought to this page:
-           a pill search field (the tips' .food-filter-input values)
-           filters the boxes as you type, and each box opens in place
-           with a Details toggle (the tips' .deep-toggle treatment) to
-           its full unclamped text, spanning the grid row while open. */
-        .ps-search { width: 100%; max-width: 320px; box-sizing: border-box; margin: 0.2rem 0 0.9rem; padding: 6px 14px; border: 1px solid var(--border-color); border-radius: 20px; background: var(--card-bg); color: var(--text-color); font-size: 0.85rem; font-family: inherit; }
-        .ps-search::placeholder { color: var(--subtext-color); }
+        /* Products & Services box grid (2026-11-20): the section is a
+           dropdown in the committee tiers' own pattern — the heading
+           carries a .tier-toggle button and the grid sits in a
+           .tier-body that starts hidden, so the section rests as its
+           heading bar alone (Johnny: the nine boxes took up too much
+           of the page; the short-lived pill search is removed with
+           its empty-state line). Each box still opens in place with
+           a Details toggle (the tips' .deep-toggle treatment) to its
+           full unclamped text, spanning the grid row while open. */
         .ps-toggle { display: block; background: none; border: 0; padding: 0.3rem 0; margin-top: 0.35rem; font: inherit; font-size: 0.82rem; font-weight: 600; color: var(--link-color); cursor: pointer; }
         .ps-toggle:hover { text-decoration: underline; }
         .ps-toggle .ps-arrow { font-size: 0.78em; }
         .resource-grid--compact.ps-grid .resource-card.open { grid-column: 1 / -1; }
         .resource-grid--compact.ps-grid .resource-card.open p { display: block; -webkit-line-clamp: none; overflow: visible; }
-        .ps-empty { color: var(--subtext-color); font-size: 0.9rem; margin: 0.4rem 0 0; }
         .tier-toggle { display: flex; align-items: baseline; gap: 0.5rem; width: 100%; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
         .tier-toggle:hover { text-decoration: underline; }
         .tier-toggle .tier-arrow { font-size: 0.78em; }
@@ -1341,10 +1341,9 @@
     </script>
 
     <!-- 3. PRODUCTS & SERVICES CATEGORY -->
-    <h2 class="products-sticky" id="products">Products &amp; Services</h2>
+    <h2 class="products-sticky" id="products"><button type="button" class="tier-toggle" data-products-btn aria-expanded="false" aria-controls="products-body"><span class="tier-arrow" aria-hidden="true">▶</span> Products &amp; Services</button></h2>
 
-    <input type="text" class="ps-search" id="psSearch" placeholder="Search products &amp; services…" aria-label="Search products and services">
-
+    <div class="tier-body" id="products-body" hidden>
     <div class="resource-grid resource-grid--compact ps-grid">
         <div class="resource-card">
             <h3><a href="https://hubermanlab.com" target="_blank">Huberman Lab Toolkits <span>↗</span></a></h3>
@@ -1401,7 +1400,7 @@
             <button type="button" class="ps-toggle" aria-expanded="false">Details <span class="ps-arrow" aria-hidden="true">▶</span></button>
         </div>
     </div>
-    <p class="ps-empty" id="psEmpty" hidden>No products or services match that search.</p>
+    </div>
 
     <!-- Footer -->
 <footer class="site-footer">
@@ -1462,27 +1461,51 @@
         })();
     </script>
 <script>
-        // Products & Services (2026-11-20): the pill search filters the
-        // boxes as you type (the cooking-tips food filter's behaviour),
-        // and each box's Details toggle opens it in place — the box
-        // spans the grid row and its text unclamps; the same toggle,
-        // still at the box's head, closes it.
+        // Products & Services (2026-11-20): the section is a dropdown
+        // in the committee tiers' own pattern — the heading button
+        // toggles the grid's .tier-body, and the open/closed state
+        // persists across visits like the tiers (its own localStorage
+        // key, 'health-products-v1', so this script and the tier
+        // script can never overwrite each other's stored state).
+        // Collapsing the section also closes any open box inside it —
+        // the same reset the tiers apply to open expert cards. Each
+        // box's Details toggle opens it in place — the box spans the
+        // grid row and its text unclamps; the same toggle, still at
+        // the box's head, closes it. (The pill search that briefly
+        // filtered the boxes is removed — Johnny didn't need it.)
         (function () {
-            var input = document.getElementById('psSearch');
-            var empty = document.getElementById('psEmpty');
-            var cards = Array.prototype.slice.call(document.querySelectorAll('.ps-grid .resource-card'));
-            if (input && cards.length) {
-                input.addEventListener('input', function () {
-                    var q = input.value.trim().toLowerCase();
-                    var shown = 0;
-                    cards.forEach(function (card) {
-                        var hit = !q || card.textContent.toLowerCase().indexOf(q) !== -1;
-                        card.style.display = hit ? '' : 'none';
-                        if (hit) shown++;
+            var KEY = 'health-products-v1';
+            var secBtn = document.querySelector('[data-products-btn]');
+            var secBody = document.getElementById('products-body');
+            function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+            function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+            function setProducts(open) {
+                if (!secBody || !secBtn) return;
+                secBody.hidden = !open;
+                secBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                var arrow = secBtn.querySelector('.tier-arrow');
+                if (arrow) arrow.textContent = open ? '▼' : '▶';
+                if (!open) {
+                    Array.prototype.forEach.call(secBody.querySelectorAll('.resource-card.open'), function (card) {
+                        card.classList.remove('open');
+                        var t = card.querySelector('.ps-toggle');
+                        if (t) {
+                            t.setAttribute('aria-expanded', 'false');
+                            var a = t.querySelector('.ps-arrow');
+                            if (a) a.textContent = '▶';
+                        }
                     });
-                    if (empty) empty.hidden = shown !== 0;
+                }
+            }
+            if (secBtn && secBody) {
+                if (load().open) setProducts(true);
+                secBtn.addEventListener('click', function () {
+                    var open = !!secBody.hidden;
+                    setProducts(open);
+                    var s = load(); s.open = open; save(s);
                 });
             }
+            var cards = Array.prototype.slice.call(document.querySelectorAll('.ps-grid .resource-card'));
             cards.forEach(function (card) {
                 var btn = card.querySelector('.ps-toggle');
                 if (!btn) return;
