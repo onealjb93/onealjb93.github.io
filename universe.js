@@ -680,6 +680,20 @@ export function initUniverse(stage) {
     var tour = { on: false, index: 0, t: 0, dwell: 0, keys: [] };
     var pointers = new Map();
     var pinchDist = 0;
+    /* Steering rebuild (2026-11-19): grab-the-sky drag + tap-to-fly.
+       spin is the drag's release momentum (rad/s); gesture tracks the
+       one-pointer press from landing to lift (drag vs tap, and the
+       flick velocity); labelHits holds the boxes of the labels
+       actually on screen, rebuilt by updateLabels every frame. */
+    var spin = { yaw: 0, pitch: 0 };
+    var gesture = null;
+    var labelHits = [];
+    var GRAB_SWEEP = 1.8326;   /* radians of turn per canvas width of drag — 105 degrees */
+    var TAP_SLOP = 10;         /* px of travel that makes a press a drag, not a tap */
+    var TAP_MS = 350;          /* longest press that still counts as a tap */
+    var SPIN_TAU = 0.28;       /* momentum decay time constant, seconds */
+    var SPIN_MAX = 7;          /* rad/s — a hard flick's ceiling */
+    var SPIN_MIN = 0.15;       /* rad/s — a slower release is just a stop */
     var dprCap = Math.min(window.devicePixelRatio || 1, 4);
     var dprLevel = 0;          /* index into DPR_STEPS */
     var frameAcc = 0, frameN = 0;
@@ -1610,6 +1624,7 @@ export function initUniverse(stage) {
     function startTour(resume) {
         if (!ctrl.ready) return;
         tour.on = true; ctrl.mode = 'tour';
+        spin.yaw = 0; spin.pitch = 0;
         if (!resume) { tour.index = 0; tour.t = 0; tour.dwell = 0; camPos.copy(tour.keys[0].pos); }
         tourBtn.textContent = '\u25A0 Stop the tour';
         setCaption(tour.keys[Math.min(tour.index + 1, tour.keys.length - 1)].cap ||
@@ -1626,6 +1641,7 @@ export function initUniverse(stage) {
     }
     function interruptTour() {
         lastInputT = performance.now();
+        spin.yaw = 0; spin.pitch = 0;
         if (tour.on) {
             stopTour(false);
             setCaption('You have the controls. Drag to look around; hold Fly \u2014 or press W \u2014 to move.');
@@ -1647,6 +1663,24 @@ export function initUniverse(stage) {
         if (now - lastInputT < 6000) return;
         yaw += dt * 0.0055;
         pitch = Math.max(-1.45, Math.min(1.45, pitch + Math.sin(now * 0.00013) * dt * 0.004));
+    }
+    /* Grab momentum: a flick's turn keeps going after the finger
+       lets go, decaying exponentially (time constant SPIN_TAU) to a
+       full stop inside about a second — never a dead stop, never an
+       endless spin. Free flight only: the frame loop calls this only
+       on the free branch, and any new input zeroes the spin (the
+       pointerdown handler, interruptTour, the tour). */
+    function spinFrame(dt) {
+        if (!spin.yaw && !spin.pitch) return;
+        yaw += spin.yaw * dt;
+        if (spin.pitch) {
+            var np = pitch + spin.pitch * dt;
+            pitch = Math.max(-1.45, Math.min(1.45, np));
+            if (pitch !== np) spin.pitch = 0;   /* pressed into the pole clamp — stop pushing */
+        }
+        var d = Math.exp(-dt / SPIN_TAU);
+        spin.yaw *= d; spin.pitch *= d;
+        if (Math.abs(spin.yaw) < 0.03 && Math.abs(spin.pitch) < 0.03) { spin.yaw = 0; spin.pitch = 0; }
     }
     function flyFrame(dt) {
         var move = new THREE.Vector3();
@@ -1768,8 +1802,9 @@ export function initUniverse(stage) {
     }
     var labelTick = 0;
     function updateLabels(w, h) {
-        if (!labelsOn) { labelPool.forEach(function (d) { d.style.display = 'none'; }); return; }
+        if (!labelsOn) { labelHits = []; labelPool.forEach(function (d) { d.style.display = 'none'; }); return; }
         var cands = [];
+        labelHits = [];
         /* project() mirrors points behind the camera back into the
            frame with plausible-looking NDC — cull by the view
            direction itself, or a body behind you labels the planet
@@ -1813,7 +1848,7 @@ export function initUniverse(stage) {
                 if (tmpV.z > 1 || tmpV.z < -1) continue;
                 var ssx = (tmpV.x * 0.5 + 0.5) * w, ssy = (-tmpV.y * 0.5 + 0.5) * h;
                 if (ssx < -40 || ssx > w + 40 || ssy < -20 || ssy > h + 20) continue;
-                cands.push({ e: { n: sb2.n }, sx: ssx, sy: ssy, eff: sdist * 0.4, dist: sdist });
+                cands.push({ e: { n: sb2.n }, b: sb2, sx: ssx, sy: ssy, eff: sdist * 0.4, dist: sdist });
             }
         }
         cands.sort(function (a, b) { return a.eff - b.eff; });
@@ -1847,6 +1882,11 @@ export function initUniverse(stage) {
             }
             if (hit) { el.style.display = 'none'; continue; }
             placed.push({ x0: x0 - 3, y0: y0 - 3, x1: x1 + 3, y1: y1 + 3 });
+            /* the tap-to-fly hit box: the label's own box, padded a
+               few px for a fingertip, in the same labels-box
+               coordinates — rank order, so a tap picks the most
+               prominent label where padded boxes overlap */
+            labelHits.push({ x0: x0 - 6, y0: y0 - 6, x1: x1 + 6, y1: y1 + 6, e: c.e, b: c.b || null });
             el.style.transform = 'translate(-50%,-140%) translate(' + c.sx.toFixed(1) + 'px,' + c.sy.toFixed(1) + 'px)';
             el.style.opacity = used < 4 ? '0.95' : '0.75';
             used++;
@@ -1887,7 +1927,7 @@ export function initUniverse(stage) {
         }
         if (tour.on) tourFrame(dt);
         else if (flyAnim) flyAnimFrame(dt);
-        else { idleDrift(now, dt); flyFrame(dt); }
+        else { idleDrift(now, dt); spinFrame(dt); flyFrame(dt); }
 
         /* shader clocks — the star shimmer and the glow's slow
            undulation share the frame's timestamp */
@@ -1989,12 +2029,48 @@ export function initUniverse(stage) {
         if (typeof ResizeObserver === 'function') new ResizeObserver(resize).observe(box);
         window.addEventListener('resize', resize);
 
+        /* ---------------- steering: grab the sky, tap to fly --------
+           The old drag turned the view mouse-look style horizontally
+           (drag right, look right — the sky slid against the finger)
+           while the vertical already followed the finger, at a fixed
+           0.0032 rad/px, and stopped dead the instant the finger
+           lifted. The two axes disagreed with each other, which is
+           most of why it felt wrong. Now one press does three jobs,
+           told apart by how far and how long it travels:
+             grab drag — the stars follow the finger: drag right and
+               the view turns left, drag down and the view tips up, so
+               the grabbed point stays under the fingertip. The rate
+               is set from the canvas itself: one full width of drag
+               turns the view GRAB_SWEEP radians (105 degrees), the
+               same per-pixel rate on both axes, touch and mouse alike.
+             flick — a drag that is still moving when it lifts hands
+               its angular velocity to spinFrame, which decays it to
+               a stop; a drag that had already slowed to a halt hands
+               over nothing.
+             tap — a press inside TAP_SLOP px and TAP_MS ms: if it
+               lands on a visible name label, flyTo / flyToSolar run
+               the same flight the search jumps use; if it lands on
+               empty sky, nothing happens — a tap never jerks the view
+               and never starts a flight by accident.
+           Any press also interrupts the tour or a running flight
+           (interruptTour, as before), so a second tap or a fresh
+           grab mid-flight hands control straight back to the finger. */
         canvas.addEventListener('pointerdown', function (ev) {
             canvas.setPointerCapture(ev.pointerId);
             pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
             if (pointers.size === 2) {
                 var pts = Array.from(pointers.values());
                 pinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                gesture = null;
+            } else if (pointers.size === 1) {
+                var rect = canvas.getBoundingClientRect();
+                gesture = {
+                    id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, t0: ev.timeStamp,
+                    lx: ev.clientX, ly: ev.clientY, lt: ev.timeStamp,
+                    vx: 0, vy: 0, moved: false,
+                    rate: GRAB_SWEEP / Math.max(1, rect.width)
+                };
+                spin.yaw = 0; spin.pitch = 0;
             }
             dragging = true;
             interruptTour();
@@ -2014,16 +2090,79 @@ export function initUniverse(stage) {
             }
             if (!dragging) return;
             lastInputT = performance.now();
-            yaw += dx * 0.0032;
-            pitch = Math.max(-1.45, Math.min(1.45, pitch + dy * 0.0032));
+            if (!gesture || ev.pointerId !== gesture.id) return;
+            /* flick velocity: a running blend of the recent per-event
+               speeds (px/s), so the release inherits the motion the
+               finger actually had, not one event's jitter */
+            var mdt = (ev.timeStamp - gesture.lt) / 1000;
+            if (mdt > 0.002 && mdt < 0.25) {
+                gesture.vx = gesture.vx * 0.5 + (dx / mdt) * 0.5;
+                gesture.vy = gesture.vy * 0.5 + (dy / mdt) * 0.5;
+            }
+            gesture.lx = ev.clientX; gesture.ly = ev.clientY; gesture.lt = ev.timeStamp;
+            if (Math.hypot(ev.clientX - gesture.x0, ev.clientY - gesture.y0) > TAP_SLOP) gesture.moved = true;
+            yaw -= dx * gesture.rate;
+            pitch = Math.max(-1.45, Math.min(1.45, pitch + dy * gesture.rate));
         });
         function endPointer(ev) {
+            var g = (gesture && ev.pointerId === gesture.id) ? gesture : null;
             pointers.delete(ev.pointerId);
-            if (pointers.size === 0) dragging = false;
+            if (pointers.size === 0) {
+                dragging = false;
+                if (g) {
+                    if (ev.type === 'pointerup' && !g.moved && ev.timeStamp - g.t0 <= TAP_MS) {
+                        tapAt(ev.clientX, ev.clientY);
+                    } else if (ev.type === 'pointerup' && g.moved
+                               && (ev.timeStamp - g.lt) / 1000 < 0.09) {
+                        /* still moving at lift-off: hand the turn to
+                           the momentum decay. The gap test is what
+                           keeps a drag that paused before lifting
+                           from flinging — its last move is stale. */
+                        spin.yaw = -g.vx * g.rate;
+                        spin.pitch = g.vy * g.rate;
+                        var m = Math.hypot(spin.yaw, spin.pitch);
+                        if (m > SPIN_MAX) { spin.yaw *= SPIN_MAX / m; spin.pitch *= SPIN_MAX / m; }
+                        if (m < SPIN_MIN) { spin.yaw = 0; spin.pitch = 0; }
+                    }
+                    gesture = null;
+                }
+            } else if (pointers.size === 1) {
+                /* one finger of a pinch lifted: the survivor keeps
+                   steering from where it rests — re-seeded as an
+                   already-moved gesture, so it can never become a tap */
+                var left = Array.from(pointers.entries())[0];
+                var rect2 = canvas.getBoundingClientRect();
+                gesture = {
+                    id: left[0], x0: left[1].x, y0: left[1].y, t0: ev.timeStamp,
+                    lx: left[1].x, ly: left[1].y, lt: ev.timeStamp,
+                    vx: 0, vy: 0, moved: true,
+                    rate: GRAB_SWEEP / Math.max(1, rect2.width)
+                };
+            }
             pinchDist = 0;
         }
         canvas.addEventListener('pointerup', endPointer);
         canvas.addEventListener('pointercancel', endPointer);
+        /* A tap on a visible name label flies to that object through
+           the existing flight machinery (flyAnim and its standoff
+           distances — the search jumps' own), never a second system.
+           labelHits is rebuilt by updateLabels every frame from the
+           labels actually on screen, in rank order, in labels-box
+           coordinates. Labels toggled off means no hits, so no
+           invisible tap targets. */
+        function tapAt(cx, cy) {
+            if (!labelsOn || !labelHits.length) return;
+            var r = labelsEl.getBoundingClientRect();
+            var x = cx - r.left, y = cy - r.top;
+            for (var i = 0; i < labelHits.length; i++) {
+                var hb = labelHits[i];
+                if (x >= hb.x0 && x <= hb.x1 && y >= hb.y0 && y <= hb.y1) {
+                    interruptTour();
+                    if (hb.b) flyToSolar(hb.b); else flyTo(hb.e);
+                    return;
+                }
+            }
+        }
         canvas.addEventListener('wheel', function (ev) {
             ev.preventDefault();
             interruptTour();
