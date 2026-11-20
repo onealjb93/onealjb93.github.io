@@ -1524,9 +1524,25 @@ export function initUniverse(stage) {
             var away = target.clone().multiplyScalar(-1).normalize(); /* toward Sun side */
             return target.clone().add(away.multiplyScalar(backPc)).add(GAL_NORTH.clone().multiplyScalar(upPc));
         }
-        var start = gcDir.clone().multiplyScalar(-0.0016).add(GAL_NORTH.clone().multiplyScalar(0.0005));
+        /* The start is Earth (Johnny, 2026-11-20): every game opens
+           at home — just off Earth on the Sun's side, a little
+           north, facing her — so the lit face fills the opening
+           view and the HUD reads Earth. The standoff is 3.2 drawn
+           radii, inside the 4.5 a jump to Earth arrives at: Venus
+           sits only 0.35 AU from Earth in this era, and from 4.5
+           radii out on the Sun's side she would be the nearer
+           body and the readout would name her instead. The tour
+           leaves from here, and its last key comes home to the
+           same spot. */
+        var earthBody = null;
+        for (var eb = 0; eb < SOLAR_BODIES.length; eb++)
+            if (SOLAR_BODIES[eb].n === 'Earth') earthBody = SOLAR_BODIES[eb];
+        var earthPos = new THREE.Vector3(earthBody.p[0], earthBody.p[1], earthBody.p[2]);
+        var start = earthPos.clone()
+            .add(earthPos.clone().multiplyScalar(-1).normalize().multiplyScalar(earthBody.r * 3.2))
+            .add(GAL_NORTH.clone().multiplyScalar(earthBody.r * 3.2 * 0.30));
         tour.keys = [
-            { pos: start, tgt: gcDir.clone().multiplyScalar(100), dur: 0, cap: '' },
+            { pos: start, tgt: earthPos, dur: 0, cap: '' },
             { pos: GAL_NORTH.clone().multiplyScalar(14).add(gcDir.clone().multiplyScalar(-6)), tgt: sun, dur: 11,
               cap: 'The Sun\u2019s neighborhood. Every star of your night sky is here \u2014 Sirius, Alpha Centauri, a few hundred more \u2014 each at its true distance.' },
             { pos: GAL_NORTH.clone().multiplyScalar(260).add(gcDir.clone().multiplyScalar(90)), tgt: sun, dur: 13,
@@ -1544,7 +1560,8 @@ export function initUniverse(stage) {
             { pos: start, tgt: gcDir.clone().multiplyScalar(100), dur: 17,
               cap: 'Home again. Everything you flew past is real \u2014 measured, catalogued, and set at its true position.' }
         ];
-        /* initial yaw/pitch: facing the galactic center */
+        /* initial yaw/pitch: resetView(true) at the end of setup
+           aims the camera from keys[0].pos to keys[0].tgt (Earth) */
         yaw = 0; pitch = 0;
         camPos.copy(start);
     }
@@ -1772,10 +1789,12 @@ export function initUniverse(stage) {
     function resetView(instant) {
         var start = tour.keys[0];
         if (instant) {
-            camPos.copy(start.pos); yaw = 0; pitch = 0; applyView();
+            /* open facing the start key's own target (Earth), the
+               same aim the tour's first dwell uses */
+            camPos.copy(start.pos); setViewFromTarget(start.tgt);
             return;
         }
-        flyAnim = { from: camPos.clone(), to: start.pos.clone(), target: new THREE.Vector3(0, 0, 0), t: 0, dur: 2.6 };
+        flyAnim = { from: camPos.clone(), to: start.pos.clone(), target: start.tgt.clone(), t: 0, dur: 2.6 };
         ctrl.mode = 'jump';
     }
 
@@ -1962,12 +1981,13 @@ export function initUniverse(stage) {
         if (sunPoints) sunPoints.visible = alt > 3e-6;
         /* Earth's texture stack: the lazy trigger is a genuine
            approach — inside the planetary region (alt < 2e-4 pc,
-           just outside Neptune's orbit; the home view starts at
-           1.7e-3 pc, so a player who never flies in never pays
-           for the maps) or closing on Earth herself — then the
-           crossfade, the clouds' slow drift (a full turn in ~10
-           minutes; one float add a frame), and the shared sun
-           position for Earth's two shaders */
+           just outside Neptune's orbit) or closing on Earth
+           herself. The game starts at Earth, so the maps load
+           with the opening view and the crossfade runs as the
+           player settles in; the trigger also covers every later
+           return. Then the crossfade, the clouds' slow drift (a
+           full turn in ~10 minutes; one float add a frame), and
+           the shared sun position for Earth's two shaders */
         if (earthSys) {
             if (!earthStackState.started && (alt < 2e-4 || camPos.distanceTo(earthSys.pos) < 2e-6)) startEarthStack();
             if (earthStackState.ready && earthStackState.blend < 1) {
@@ -2281,7 +2301,7 @@ export function initUniverse(stage) {
         loadingEl.hidden = true;
         ctrl.ready = true;
         lastInputT = performance.now();
-        setCaption('You are at the Sun \u2014 home. Every light around you is a real star at its true position. Drag to look \u00B7 hold Fly (or press W) to fly anywhere \u00B7 scroll for speed. The tour is there when you want it.');
+        setCaption('You are at Earth \u2014 home. Every light around you is a real star at its true position. Drag to look \u00B7 hold Fly (or press W) to fly anywhere \u00B7 scroll for speed. The tour is there when you want it.');
         updateNearest();
         if (ctrl.active) { lastT = performance.now(); rafId = requestAnimationFrame(frame); }
         if (window) window.__uv = ctrl;
