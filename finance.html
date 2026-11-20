@@ -659,12 +659,27 @@
     #scoreTip .term-eq { color: var(--text-color); font-weight: 600; }
     #scoreTip ul { margin: 0.4rem 0 0; padding-left: 1.1rem; color: var(--subtext-color); }
     #scoreTip li { margin: 0.15rem 0; }
+    /* Score-summary groups (2026-11-20): the verdict lines are laid
+       out by outcome — Passes, Fails, Couldn’t be tested — via flex
+       order on a single committee-ordered list; each status word is
+       coloured in the board's own colours, glyphs in CSS so the
+       line's text stays the board's text word for word. */
+    #scoreTip .sb-groups { display: flex; flex-direction: column; }
+    #scoreTip .sb-groups ul { display: contents; }
+    #scoreTip .sb-groups li { padding-left: 1.1rem; position: relative; }
+    #scoreTip .sb-groups li::before { content: '•'; position: absolute; left: 0.28rem; }
+    #scoreTip .sb-group-h { margin: 0.45rem 0 0.05rem; font-size: 0.82rem; font-weight: 700; color: var(--text-color); }
+    #scoreTip .sb-st-pass { color: var(--pass-text); font-weight: 600; }
+    #scoreTip .sb-st-pass::before { content: '✓ '; }
+    #scoreTip .sb-st-fail { color: var(--fail-text); font-weight: 600; }
+    #scoreTip .sb-st-fail::before { content: '✕ '; }
+    #scoreTip .sb-st-untested { color: var(--subtext-color); }
     .score-tip-close { position: absolute; top: 0.3rem; right: 0.45rem; background: none; border: none; color: var(--subtext-color); font-size: 1.05rem; line-height: 1; padding: 0.3rem; cursor: pointer; }
     .sb-drill-btn { margin-top: 0.6rem; }
     /* Scoreboard chart view (2026-11-18): the Table | Chart toggle's
        canvas — one line per stock, its combined score per week. */
-    .sb-chart-box { width: 100%; }
-    #sbChartCanvas { display: block; width: 100%; height: 320px; }
+    .sb-chart-box { width: 100%; position: relative; }
+    #sbChartCanvas { display: block; width: 100%; height: 320px; touch-action: pan-y; cursor: crosshair; }
     @media (max-width: 640px) { #sbChartCanvas { height: 240px; } }
     /* Scoreboard chart price overlay (2026-11-19): with one stock
        selected, the stock's weekly price joins the chart on a right
@@ -680,6 +695,21 @@
     .sb-legend-line { display: inline-block; width: 22px; height: 0; border-top: 3px solid var(--subtext-color); border-radius: 2px; }
     .sb-legend-line.price { border-top-width: 2px; opacity: 0.75; }
     #sbChartNote { font-size: 0.85rem; color: var(--subtext-color); margin: 0.5rem 0 0; }
+    /* Scoreboard chart readout (2026-11-20): the hover / touch
+       readout for the chart — the price chart's #jboChartTip
+       restated for this chart: one glass bubble inside the chart
+       box, naming the hovered week's date, its combined score
+       with the count behind the percentage, and its price while
+       the price overlay is drawn. The canvas's touch-action
+       (pan-y, above) is the touch contract: a vertical drag
+       scrolls the page, a horizontal scrub reads values. */
+    #sbChartTip { position: absolute; left: 6px; top: 6px; z-index: 5; display: none; pointer-events: none; padding: 0.6rem 0.75rem; font-size: 0.83rem; line-height: 1.5; color: var(--subtext-color); min-width: 172px; max-width: calc(100% - 12px); }
+    #sbChartTip.open { display: block; }
+    #sbChartTip .sb-tip-head strong { display: block; color: var(--text-color); font-size: 0.92rem; }
+    #sbChartTip .sb-tip-head span { display: block; }
+    .sb-tip-row { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.18rem; }
+    .sb-tip-chip { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--subtext-color); }
+    .sb-tip-val { margin-left: auto; padding-left: 0.9rem; color: var(--text-color); font-weight: 600; white-space: nowrap; }
     #sbPriceToggle[aria-pressed="true"] { border-color: var(--accent-color); background: var(--badge-bg); background: color-mix(in srgb, var(--accent-color) 14%, var(--badge-bg)); }
     /* Scoreboard chart selection (2026-11-19): selection used to
        live only in aria-pressed — no rule keyed on it, so a selected
@@ -1307,7 +1337,7 @@
         </div>
         <div id="scoreboardChartWrap" hidden>
             <p id="sbChartStatus" style="font-size: 0.85rem; color: var(--subtext-color);" hidden></p>
-            <div class="sb-chart-box"><canvas id="sbChartCanvas" role="img" aria-label="Line chart: each stock's combined score, week by week"></canvas></div>
+            <div class="sb-chart-box"><canvas id="sbChartCanvas" role="img" aria-label="Line chart: each stock's combined score, week by week"></canvas><div class="glass-bubble" id="sbChartTip" aria-hidden="true"></div></div>
             <div id="sbChartLegend" hidden></div>
             <p id="sbChartNote" hidden></p>
             <div class="sb-dd sb-dd-stocks" id="sbStocksDd">
@@ -1525,21 +1555,21 @@
                     <tr class="glance-detail" id="glance-detail-simons" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="simonsCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
-                <p>James Simons (1938–2024), mathematician and former code-breaker, founded Renaissance Technologies; its Medallion Fund averaged about 66% a year gross and about 39% net, 1988–2018. He replaced narrative stock-picking with scientific, computer-driven searches for small, brief price anomalies.</p>
+                <p>James Simons (1938–2024), mathematician and former code-breaker, founded Renaissance Technologies; its Medallion Fund averaged about 66% a year gross and about 39% net, 1988–2018. He replaced reading about companies with a scientific search: computers testing whether a price pattern repeats more often than chance can explain.</p>
                 <div class="rules-grid">
                     <div class="rule-item">
                         <strong>Entry</strong>
-                        <p>Principle (not measurable): buys when a historical price pattern recurs beyond chance — the signal, threshold and test are secret, so no outside number can be stated.</p>
+                        <p>The buy rule itself is secret — the patterns, and how strong one must be before the computer acts, have never been published, so no outside number can be stated. What is public is the shape of the machine: it trades only where there are many years of clean price history to test against, and enough daily trading to get in and out within days without moving the price.</p>
                         <span>Secret signal</span>
                     </div>
                     <div class="rule-item">
                         <strong>Edge</strong>
-                        <p>a tiny statistical edge — Renaissance co-CEO Robert Mercer put the hit rate at 50.75% — repeated over 150,000–300,000 trades a day, with positions held 1–2 days to 1–2 weeks.</p>
+                        <p>A tiny edge, repeated relentlessly: Renaissance co-CEO Robert Mercer put the share of winning trades at 50.75% — barely better than a coin flip — across 150,000–300,000 trades a day, with positions held 1–2 days to 1–2 weeks.</p>
                         <span>50.75% hit rate</span>
                     </div>
                     <div class="rule-item">
                         <strong>Risk / Exit</strong>
-                        <p>Sells / avoids when size threatens the edge: Medallion is capped at about $10B, profits are returned annually, outside money was expelled in 2005, and traders never override the models.</p>
+                        <p>The edge is protected by staying small: Medallion is capped at about $10B, profits are returned to investors every year, outside money was expelled in 2005, and the traders never override the computers.</p>
                         <span>~$10B capacity cap</span>
                     </div>
                 </div>
@@ -1573,21 +1603,21 @@
                     <tr class="glance-detail" id="glance-detail-thiel" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="thielCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
-                <p>Co-founded PayPal (sold to eBay for $1.5B, 2002) and Palantir (2003); first outside investor in Facebook — $500,000 for 10.2% in 2004, sold for over $1B in 2012. He backs only companies that can become monopolies in a small market first, judged by seven questions and the power law — a venture framework for startups, not a public-stock screen.</p>
+                <p>Co-founded PayPal (sold to eBay for $1.5B, 2002) and Palantir (2003); first outside investor in Facebook — $500,000 for 10.2% in 2004, sold for over $1B in 2012. He backs only companies that can become monopolies — the only real player in a small market first — judged by seven questions. A venture framework for startups, not a public-stock screen.</p>
                 <div class="rules-grid">
                     <div class="rule-item">
                         <strong>Entry</strong>
-                        <p>Buys when a company's proprietary technology is at least 10× better than its nearest substitute in an important dimension.</p>
+                        <p>Buys when a company's own technology is at least 10 times better than its nearest substitute in a dimension that matters — not a little better, an order of magnitude better.</p>
                         <span>≥10× vs substitute</span>
                     </div>
                     <div class="rule-item">
                         <strong>Edge</strong>
-                        <p>a monopoly that strengthens as it grows — network effects, near-zero marginal cost, and a brand rivals cannot copy.</p>
+                        <p>A monopoly that strengthens as it grows: each new user makes it more valuable to the others (network effects), serving one more customer costs almost nothing, and the brand cannot be copied.</p>
                         <span>Principle (not measurable)</span>
                     </div>
                     <div class="rule-item">
                         <strong>Risk / Exit</strong>
-                        <p>Sells / avoids when a business cannot answer all seven questions — breakthrough tech, timing, big share of a small market, team, distribution, durability, secret — or must compete on price.</p>
+                        <p>Avoids any company that cannot answer all seven of his questions: Is the technology a breakthrough, not an improvement? Is now the right time to start it? Does it begin with a big share of a small market? Is the team the right one? Is there a way to reach customers? Will the advantage still stand in 10–20 years? Is it built on a secret — an important truth few people agree with?</p>
                         <span>Principle (not measurable)</span>
                     </div>
                 </div>
@@ -1625,21 +1655,21 @@
                     <tr class="glance-detail" id="glance-detail-ives" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="ivesCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
-                <p>Partner and Senior Managing Director at Yorkville Ives (co-founded July 2026 after eight years as Wedbush Global Head of Technology Research); named Nvidia ($300), Microsoft ($615), Palantir ($250), Apple ($400) and CrowdStrike ($335) his Top 5 into 2027 on 7 Oct 2026. He rates stocks on their place in the AI buildout — a sell-side analyst's ratings and targets, not a fund manager's screening rules.</p>
+                <p>Partner and Senior Managing Director at Yorkville Ives (co-founded July 2026 after eight years as Wedbush Global Head of Technology Research). He is a stock analyst, not a fund manager: his framework is a rating and a 12-month price target, and the rating rests on one bet — a company is a central receiver of the AI buildout's spending.</p>
                 <div class="rules-grid">
                     <div class="rule-item">
                         <strong>Entry</strong>
-                        <p>Buys when a company is a central AI beneficiary — chips, cloud, enterprise software or cybersecurity — with accelerating enterprise adoption.</p>
+                        <p>Rates a stock Outperform (his buy rating) when the company sits at the centre of the AI buildout — chips, cloud, business software or cybersecurity — with business adoption accelerating. His current top five into 2027, with the 12-month targets he published on 7 Oct 2026: Nvidia $300, Microsoft $615, Palantir $250, Apple $400, CrowdStrike $335. Tesla, target $500, is his preferred AI and robotics play.</p>
                         <span>Principle (not measurable)</span>
                     </div>
                     <div class="rule-item">
                         <strong>Edge</strong>
-                        <p>a platform position in the AI stack — Nvidia compute, Microsoft Azure/OpenAI, Palantir AIP, Apple installed base — judged by channel checks and backlog.</p>
+                        <p>He owns the platform layer of the AI stack in his ratings — Nvidia's chips, Microsoft's Azure cloud and OpenAI link, Palantir's AIP software, Apple's installed base of devices — judged by channel checks (asking buyers and sellers what is actually being ordered) and order backlogs.</p>
                         <span>Principle (not measurable)</span>
                     </div>
                     <div class="rule-item">
                         <strong>Risk / Exit</strong>
-                        <p>Sells / avoids when the AI adoption thesis breaks — Ives has published no sell or exit rule; his ratings are 12-month Outperform targets, revised when the thesis changes.</p>
+                        <p>He has published no sell rule. A rating stands while the AI adoption story holds and is revised when the story changes. His measure of the story: "The AI revolution is less than 15% complete" (Seoul, 14 Oct 2026), with $3–4 trillion of AI spending still ahead.</p>
                         <span>Principle (not measurable)</span>
                     </div>
                 </div>
@@ -1691,21 +1721,21 @@
                     <tr class="glance-detail" id="glance-detail-druck" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="druckCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
-                <p>Stanley Druckenmiller founded Duquesne Capital in 1981 and averaged about 30% a year to 2010, with no losing completed calendar year. He invests top-down, 18 months ahead, on central-bank liquidity — not on current earnings.</p>
+                <p>Stanley Druckenmiller founded Duquesne Capital in 1981 and averaged about 30% a year to 2010, with no losing completed calendar year. He invests looking 18 months ahead, following central-bank liquidity — how much money the central banks are putting into the system or taking out of it — not what companies are earning today.</p>
                 <div class="rules-grid">
                     <div class="rule-item">
                         <strong>Entry</strong>
-                        <p>Buys when central-bank liquidity is expanding and the outlook 18 months ahead is materially better than today — the direction of liquidity, not a single stock's earnings, is the test.</p>
+                        <p>Buys when that money flow is expanding and the world 18 months ahead looks materially better than today. The direction of the money flow is the test, not a single stock's earnings.</p>
                         <span>Liquidity expanding</span>
                     </div>
                     <div class="rule-item">
                         <strong>Edge</strong>
-                        <p>concentrated sizing only on tremendous conviction with an asymmetric payoff — in 1992 the pound short risked about 0.5–6% against about 15–20% upside, sized to about $10B. And he acts on it before the proof is complete — 'My advantage is not IQ, it's trigger pulling' (Morgan Stanley, 2026).</p>
+                        <p>Bets big only on tremendous conviction, and only when the payoff is lopsided — far more to gain than to lose. In the 1992 pound trade, a position of about $10B risked roughly 0.5–6% against roughly 15–20% upside. And he acts before the proof is complete: "My advantage is not IQ, it's trigger pulling" (Morgan Stanley, 2026).</p>
                         <span>Asymmetric payoff</span>
                     </div>
                     <div class="rule-item">
                         <strong>Risk / Exit</strong>
-                        <p>Sells / avoids when the liquidity regime turns or the 18-month thesis breaks, cutting the position rather than waiting for current earnings to confirm it.</p>
+                        <p>Sells when the money flow turns or the 18-month story breaks — cutting the position then, rather than waiting for company earnings to confirm it.</p>
                         <span>Thesis broken = exit</span>
                     </div>
                 </div>
@@ -1750,21 +1780,21 @@
                     <tr class="glance-detail" id="glance-detail-buffett" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="buffettCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
-                <p>Berkshire Hathaway's former CEO, whose per-share market value compounded 19.7% a year from 1965–2025, against 10.5% for the S&amp;P 500 with dividends. He buys understandable businesses with durable advantages, run by honest and competent managers, at a very attractive price — and then holds them.</p>
+                <p>Berkshire Hathaway's former CEO, whose per-share market value compounded 19.7% a year from 1965–2025, against 10.5% for the S&amp;P 500 with dividends. He buys businesses he can understand, protected by an advantage rivals cannot copy, run by honest and capable managers, at a very attractive price — and then holds them.</p>
                 <div class="rules-grid">
                     <div class="rule-item">
                         <strong>Entry</strong>
-                        <p>Buys when he sees a very high probability of at least 10% pre-tax returns, at a price below intrinsic value as measured by owner earnings.</p>
+                        <p>Buys when he sees a very high probability of at least 10% a year before tax, at a price below intrinsic value — what the business is really worth — measured by owner earnings: the cash the business produces after spending what it needs to stay in shape.</p>
                         <span>≥10% pre-tax, very high probability (2002 letter)</span>
                     </div>
                     <div class="rule-item">
                         <strong>Edge</strong>
-                        <p>a moat that shows up as ROE averaging over 20% across 10 years, with no single year below 15%.</p>
+                        <p>A moat — an advantage rivals cannot copy — that shows up in the numbers: return on equity (the profit earned on the owners' money in the business) averaging over 20% across 10 years, with no single year below 15%.</p>
                         <span>ROE &gt;20% avg / ≥15% every year (1987 letter)</span>
                     </div>
                     <div class="rule-item">
                         <strong>Risk / Exit</strong>
-                        <p>Principle (not measurable): Sells / avoids when management is dishonest or incompetent, or the business needs undue leverage to earn its returns.</p>
+                        <p>Sells / avoids when management is dishonest or incompetent, or when the business needs heavy borrowing to earn its returns. He has never stated a debt number — the test is the borrowing the business needs, not a ratio. <em>(Principle — not measurable.)</em></p>
                         <span>No debt-to-equity threshold stated (1989 letter)</span>
                     </div>
                 </div>
@@ -1815,21 +1845,21 @@
                     <tr class="glance-detail" id="glance-detail-dalio" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="dalioCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
-                <p>Ray Dalio founded Bridgewater in 1975 and built Pure Alpha to about 11.4% a year since December 1991 (Bloomberg, July 2022), including +9.5% in 2008, while All Weather returned about 7.8% a year since 1996 to 2019. He treats the economy as a machine of short-term (5–8 year) and long-term (50–75 year) debt cycles and builds portfolios that survive every regime by balancing risk, not by picking stocks.</p>
+                <p>Ray Dalio founded Bridgewater in 1975 and built Pure Alpha to about 11.4% a year since December 1991 (Bloomberg, July 2022), including +9.5% in 2008, while All Weather returned about 7.8% a year from 1996 to 2019. He treats the economy as a machine of short-term (5–8 year) and long-term (50–75 year) debt cycles, and builds portfolios that survive every kind of economic weather by balancing risk — not by picking stocks.</p>
                 <div class="rules-grid">
                     <div class="rule-item">
                         <strong>Entry</strong>
-                        <p>Buys when a portfolio can be balanced to equal risk across four regimes — rising/falling growth × rising/falling inflation — at 30% stocks / 40% long-term bonds / 15% intermediate bonds / 7.5% gold / 7.5% commodities, rebalanced at least annually.</p>
+                        <p>Buys a balanced mix, split by risk rather than by dollars — 30% stocks / 40% long-term bonds / 15% intermediate bonds / 7.5% gold / 7.5% commodities — so that each of the four kinds of weather (growth rising or falling, inflation rising or falling) finds part of the portfolio built for it. Rebalanced at least once a year.</p>
                         <span>Risk parity, not dollars</span>
                     </div>
                     <div class="rule-item">
                         <strong>Edge</strong>
-                        <p>holds 15–20 good, uncorrelated return streams, which Dalio says cuts portfolio risk by about 80% without cutting expected return — tested by pairwise correlation near zero, not by position count.</p>
+                        <p>Holds 15–20 good return streams — sources of return that move for unrelated reasons — which he says cuts the portfolio's risk by about 80% without cutting the expected return. The test is that the streams genuinely move independently, not how many positions there are.</p>
                         <span>15–20 streams, ~80% risk cut</span>
                     </div>
                     <div class="rule-item">
                         <strong>Risk / Exit</strong>
-                        <p>Sells / avoids when debt-to-income and debt service show a long-term debt cycle is late and deleveraging is unavoidable — underweight bonds and debt assets, and on 21 August 2026 Dalio put that at 10–15% in gold plus a bit of Bitcoin.</p>
+                        <p>Avoids debt-heavy assets when the long debt cycle is late and borrowers must start paying debt down instead of rolling it over. On 21 August 2026 his version of that was: underweight bonds, and hold 10–15% in gold plus a bit of Bitcoin.</p>
                         <span>Underweight debt, 10–15% gold</span>
                     </div>
                 </div>
@@ -1869,21 +1899,21 @@
                     <tr class="glance-detail" id="glance-detail-tepper" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="tepperCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
-                <p>Founder of Appaloosa Management (1993), which returned 132% in 2009 on ~$7–7.5B of profit from distressed bank debt and equity, and was up 32% (gross) in H1 2026. He buys distressed claims at a deep margin of safety when a government backstop or seniority bounds the downside, and buys everything when a central bank or government is easing aggressively.</p>
+                <p>Founder of Appaloosa Management (1993), which returned 132% in 2009 on ~$7–7.5B of profit from distressed bank debt and equity, and was up 32% (gross) in H1 2026. He buys claims that stand at the front of the payment queue at a deep discount when a government backstop or that front-of-queue position limits what he can lose — and buys everything when a central bank or government is easing aggressively.</p>
                 <div class="rules-grid">
                     <div class="rule-item">
                         <strong>Entry</strong>
-                        <p>Buys when senior or preferred claims trade at 12–20¢ on the dollar, or equity at $2–3 against a stated government purchase price of $6 — a margin of safety of roughly 50–67% to that floor.</p>
+                        <p>Buys when senior or preferred claims — the debts and preferred shares that get paid first if a company fails — trade at 12–20 cents per dollar of face value, or when shares trade at $2–3 against a stated government purchase price of $6. Either way he pays roughly a third to a half of a stated floor price: a margin of safety of roughly 50–67%.</p>
                         <span>12–20¢ on the dollar</span>
                     </div>
                     <div class="rule-item">
                         <strong>Edge</strong>
-                        <p>he reads the rescue terms before the market does — the stated government floor is at least 2x the price he pays, so the downside is bounded by seniority and the floor, not by hope.</p>
+                        <p>He reads the rescue terms before the market does. The stated government floor is at least twice the price he pays, so what he can lose is bounded by his place in the queue and by the floor — not by hope.</p>
                         <span>Floor ≥2x price paid</span>
                     </div>
                     <div class="rule-item">
                         <strong>Risk / Exit</strong>
-                        <p>Principle (not measurable): Sells / avoids when valuations run far ahead of that floor or a rally becomes extreme — he trimmed Micron 41% in Q2 2026 after a 300%+ H1 run and exited SanDisk after a 591% run — but he states no numeric sell trigger.</p>
+                        <p>He states no numeric sell trigger. He trims when prices run far ahead of that floor or a rally becomes extreme — he trimmed Micron by 41% in Q2 2026 after a run of more than 300% in half a year, and sold out of SanDisk after a 591% run. <em>(Principle — not measurable.)</em></p>
                         <span>No stated trigger</span>
                     </div>
                 </div>
@@ -1932,21 +1962,21 @@
                     <tr class="glance-detail" id="glance-detail-klarman" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="klarmanCard">
                 <h4>Accomplishments &amp; Quantifiable Framework</h4>
-                <p>Founder of The Baupost Group (1982), whose largest partnership returned just over 20% a year net since 1983 with only one losing year at that point — a record that has since cooled to about 4% a year since 2014, with five down years in 44 years. He invests for absolute return by avoiding permanent loss first: buy only at a margin of safety, hold cash when nothing qualifies, and use no leverage.</p>
+                <p>Founder of The Baupost Group (1982), whose largest partnership returned just over 20% a year net since 1983 with only one losing year at that point — a record that has since cooled to about 4% a year since 2014, with five down years in 44 years. He invests for absolute return — making money outright, not just keeping up with an index — by avoiding permanent loss first: buy only at a margin of safety, hold cash when nothing qualifies, and use no borrowed money.</p>
                 <div class="rules-grid">
                     <div class="rule-item">
                         <strong>Entry</strong>
-                        <p>Buys when price is at least 50% below a conservative estimate of intrinsic value for uncertain or distressed assets, and at a smaller but still significant margin of safety where value is highly certain.</p>
+                        <p>Buys when the price is at least 50% below a careful, pessimistic estimate of intrinsic value — what the asset is really worth — for uncertain or distressed assets. Where the value is highly certain, the discount can be smaller, but it must still be significant.</p>
                         <span>Margin of safety up to 50%+ by uncertainty (1991)</span>
                     </div>
                     <div class="rule-item">
                         <strong>Edge</strong>
-                        <p>senior claims and distressed debt bought far below recovery value, with no leverage — tested by only five down years in 44 years, the worst −12%.</p>
+                        <p>Senior claims (the debts that get paid first if a company fails) and distressed debt bought far below what they would recover, with no leverage — tested by only five down years in 44 years, the worst −12%.</p>
                         <span>5 down years / worst −12% (2026)</span>
                     </div>
                     <div class="rule-item">
                         <strong>Risk / Exit</strong>
-                        <p>Sells / avoids when price rises to the conservative estimate of intrinsic value, so the margin of safety is gone, or when an investment would need leverage to work.</p>
+                        <p>Sells when the price rises to his careful estimate of value, so the margin of safety is gone — or avoids anything that would need borrowed money to work.</p>
                         <span>Sell at intrinsic value; leverage 0</span>
                     </div>
                 </div>
@@ -1994,21 +2024,21 @@
                     <tr class="glance-detail" id="glance-detail-alden" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="aldenCard">
             <h4>Accomplishments &amp; Quantifiable Framework</h4>
-            <p>Founder of Lyn Alden Investment Strategy (2016) and author of Broken Money (2023), with no fund track record — an analyst and author, and a general partner at Ego Death Capital. She invests for the fiscal-dominance regime rather than predicting it, holding a three-pillar portfolio built to survive persistent 5–7% of GDP deficits.</p>
+            <p>Founder of Lyn Alden Investment Strategy (2016) and author of Broken Money (2023), with no fund track record — an analyst and author, and a general partner at Ego Death Capital. She invests for the fiscal-dominance regime — a world where the government's borrowing needs, not the central bank, steer the economy — rather than predicting when it arrives.</p>
             <div class="rules-grid">
                 <div class="rule-item">
                     <strong>Entry</strong>
-                    <p>Buys when US fiscal deficits run at 5–7% of GDP with public debt above 100% of GDP, holding profitable equities, commodities/producers and hard monies, and cash equivalents instead of long-duration bonds.</p>
+                    <p>Her starting condition: US fiscal deficits running at 5–7% of GDP (the size of the whole economy) with public debt above 100% of GDP. For that world she holds three pillars: profitable equities; commodities, their producers and hard monies (assets no one can print more of, like gold and Bitcoin); and cash equivalents — instead of long-duration bonds, which lock money away for decades and fall hardest when rates rise.</p>
                     <span>Deficits 5–7% of GDP</span>
                 </div>
                 <div class="rule-item">
                     <strong>Edge</strong>
-                    <p>the three pillars cover all three regimes — profitable equities for disinflationary growth, commodities/producers and hard monies for inflation or stagflation, and cash equivalents, typically 5–10%, for credit contractions — where a 60/40 has no answer for stagflation.</p>
+                    <p>The three pillars cover the three ways the economy can go: profitable equities for growth with slowing inflation; commodities, producers and hard monies for inflation or stagflation (prices rising while the economy stalls); cash equivalents, typically 5–10%, for a credit contraction — the case a standard 60/40 portfolio has no answer for.</p>
                     <span>Cash typically 5–10%</span>
                 </div>
                 <div class="rule-item">
                     <strong>Risk / Exit</strong>
-                    <p>Principle (not measurable): Sells / avoids when assets depend on long-duration fiat promises or become over-owned and overvalued — she leans out of what is overbought and into what is cheap, gradually — but she states no numeric sell trigger.</p>
+                    <p>Avoids assets that depend on long-term promises paid in printed money, and leans gradually out of whatever has become over-owned and overvalued, into what is cheap. She states no numeric sell trigger. <em>(Principle — not measurable.)</em></p>
                     <span>No stated trigger</span>
                 </div>
             </div>
@@ -2074,21 +2104,21 @@
                     <tr class="glance-detail" id="glance-detail-visser" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="visserCard">
             <h4>Accomplishments &amp; Quantifiable Framework</h4>
-            <p>30+ year Wall Street veteran — Morgan Stanley managing director, founding partner of Anchor Point, and Weiss Multi-Strategy president &amp; CIO 2005–2024 — now head of AI Macro Nexus at 22V Research and founder of Visser Labs (2024); his tracked 100-stock AI portfolio was up about 40% in 2026 to October, while his equally weighted 42-token + 4-stock index has outperformed Bitcoin since June 2026. He invests where AI capital expenditure flows — to the physical receivers of that spending — and treats crypto as the payment rails for AI agents.</p>
+            <p>30+ year Wall Street veteran — Morgan Stanley managing director, founding partner of Anchor Point, and Weiss Multi-Strategy president &amp; CIO 2005–2024 — now head of AI Macro Nexus at 22V Research and founder of Visser Labs (2024). He invests where the AI building money flows: to the companies that physically receive the spending. He also treats crypto as the payment rails for AI agents.</p>
             <div class="rules-grid">
                 <div class="rule-item">
                     <strong>Entry</strong>
-                    <p>Buys when hyperscaler AI capex is rising year on year and the company is a receiver of that spending in the bottom layers of the five-layer cake — energy, chips/compute, or networking/storage — rather than a top-layer software business.</p>
+                    <p>Buys when the hyperscalers — the handful of giant companies building AI data centres — are raising their capital spending (capex: money spent building) year on year, and the company receives that spending in the bottom layers of his five-layer stack: energy, chips and computing, networking and storage — rather than selling software on top.</p>
                     <span>CapEx receivers</span>
                 </div>
                 <div class="rule-item">
                     <strong>Edge</strong>
-                    <p>major benchmarks still weight the last era's software winners, so the physical inputs to AI are underweight until the indexes catch up, a gap he tracks in his 100-stock AI portfolio (up about 40% in 2026 to October) and his thematic basket (up 34% since November 2024).</p>
+                    <p>The big indexes still weight the last era's software winners most heavily, so the physical inputs to AI are under-owned until the indexes catch up. He tracks the gap in his 100-stock AI portfolio (up about 40% in 2026 to October) and his thematic basket (up 34% since November 2024).</p>
                     <span>Benchmark arbitrage</span>
                 </div>
                 <div class="rule-item">
                     <strong>Risk / Exit</strong>
-                    <p>Sells / avoids when the AI trade is crowded — he began trimming Micron in mid-May 2026 after hedge funds and retail piled in — or when a spender's capex exceeds its operating cash flow and is debt-funded, as with Oracle's $55.7bn capex against $32bn operating cash flow in fiscal 2026.</p>
+                    <p>Sells when the AI trade gets crowded — he began trimming Micron in mid-May 2026 after hedge funds and retail piled in — or when a spender's building budget outruns the cash its business generates and is funded with debt, as with Oracle's $55.7B of capex against $32B of operating cash flow in fiscal 2026.</p>
                     <span>Crowding / debt-funded capex</span>
                 </div>
             </div>
@@ -2137,21 +2167,21 @@
                     <tr class="glance-detail" id="glance-detail-oshaughnessy" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="oshaughnessyCard">
             <h4>Accomplishments &amp; Quantifiable Framework</h4>
-            <p>Patrick O'Shaughnessy is the son of quant pioneer James O'Shaughnessy, ran his father's firm OSAM as CEO from 2018 until its sale to Franklin Templeton (announced 2021, completed January 2022; $6.5 billion AUM, Canvas over $2 billion), and built a second career in venture capital, where his firm Positive Sum put $20 million into Tegus, acquired by AlphaSense for $930 million in 2024. [Quant hat] In public equities he buys only through a systematic value-plus-momentum factor model, and [Venture hat] in private markets he backs early-stage founders pursuing their life's work — two different frameworks, scored separately.</p>
+            <p>Patrick O'Shaughnessy, son of quant pioneer James O'Shaughnessy, ran his father's firm OSAM as CEO from 2018 until its sale to Franklin Templeton (announced 2021, completed January 2022; $6.5 billion AUM). In public stocks he never picks by opinion: a fixed system of tests ranks every stock, and he buys only what passes. (His venture firm Positive Sum, which put $20 million into Tegus before its $930 million acquisition by AlphaSense in 2024, is a separate business and is not scored here.)</p>
             <div class="rules-grid">
                 <div class="rule-item">
                     <strong>Entry</strong>
-                    <p>Buys when a stock ranks in the cheapest 10% of its universe on the six-ratio Value Composite Two and among the top 25–50 names on six-month momentum, a measurable margin of safety confirmed by momentum.</p>
+                    <p>A stock must rank in the cheapest 10% of its universe on Value Composite Two — six price ratios combined into one cheapness score — and among the top 25–50 names on six-month momentum: how strongly its price has risen over the last six months.</p>
                     <span>Entry · Cheapest decile + top 6-month momentum</span>
                 </div>
                 <div class="rule-item">
                     <strong>Edge</strong>
-                    <p>a purely systematic six-factor model — value, momentum and shareholder yield to select, financial strength, earnings quality and earnings growth to reject — removes discretionary stock-picking, and its 45-year backtest (1964–2009) returned 21.19% a year against 11.22% for the average stock.</p>
+                    <p>Six tests, none of them his opinion. Three select: cheapness, momentum, and shareholder yield (the cash a company returns to its shareholders for each share). Three reject: financial strength, earnings quality and earnings growth flag companies that are poor quality despite a cheap price. The 45-year backtest of the system (1964–2009) returned 21.19% a year against 11.22% for the average stock.</p>
                     <span>Edge · Six-factor system; backtested 1964–2009</span>
                 </div>
                 <div class="rule-item">
                     <strong>Risk / Exit</strong>
-                    <p>Sells / avoids when a holding's financial-strength, earnings-quality or earnings-growth factors flag it as a poor-quality company, or when its factor ranking fades at rebalance — typically holding each name at least one year — and the model, not discretion, decides.</p>
+                    <p>Sells at the scheduled rebalance when a holding's quality tests flag it as a poor company, or when its ranking fades — typically holding each name at least one year. The model decides, not discretion.</p>
                     <span>Exit · Quality-screen fail or faded factor rank</span>
                 </div>
             </div>
@@ -2204,21 +2234,21 @@
                     <tr class="glance-detail" id="glance-detail-baker" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="bakerCard">
             <h4>Accomplishments &amp; Quantifiable Framework</h4>
-            <p>Gavin Baker is the founder and CIO of Atreides Management, who ran Fidelity's $17 billion OTC fund for eight years (2009–2017), compounding roughly 19.3% a year net of fees and beating over 99% of Morningstar peers. He buys the physical bottlenecks of the AI buildout — watts, wafers and memory — where supply cannot expand to meet demand, and only when the cheap side of the stack is priced far below the expensive side.</p>
+            <p>Gavin Baker is the founder and CIO of Atreides Management, who ran Fidelity's $17 billion OTC fund for eight years (2009–2017), compounding roughly 19.3% a year net of fees and beating over 99% of Morningstar peers. He buys the physical bottlenecks of the AI buildout — watts (electricity), wafers (the silicon discs chips are printed on) and memory — where supply cannot expand to meet demand, and only when the cheap side of that chain is priced far below the expensive side.</p>
             <div class="rules-grid">
                 <div class="rule-item">
                     <strong>Entry</strong>
-                    <p>Buys when a company in the AI stack trades at a mid-single-digit earnings multiple while same-cycle peers trade at 40x earnings or more — the gap he quantified in May 2026 as DRAM at mid-single digits versus semi-cap equipment at about 40x and optical names at triple-digit P/E.</p>
+                    <p>Buys the cheap side of a wide price gap inside the AI chain. In May 2026 he put numbers on it: memory (DRAM) traded at a mid-single-digit multiple of its earnings — roughly 5–9 times — while chip-making equipment traded at about 40 times earnings and optical names at over 100 times. (A multiple is the price divided by one year's earnings: 40 times means paying $40 for each $1 of yearly earnings.)</p>
                     <span>Cross-sectional valuation</span>
                 </div>
                 <div class="rule-item">
                     <strong>Edge</strong>
-                    <p>supply and demand learned covering cement and aggregates — he owns the bottleneck (watts, wafers and memory) only while supply cannot expand to meet demand, tested by sold-out capacity, rising prices and full utilization, with every GPU running at 100% in May 2026.</p>
+                    <p>He owns the bottleneck only while supply cannot expand to meet demand — tested by sold-out capacity, rising prices and full utilisation, with every GPU (the processor AI runs on) running at 100% in May 2026. He learned supply and demand covering cement and aggregates.</p>
                     <span>Physical bottleneck</span>
                 </div>
                 <div class="rule-item">
                     <strong>Risk / Exit</strong>
-                    <p>Sells / avoids when the AI buildout is funded with debt rather than operating cash flow, or when TSMC expands capacity enough to end the wafer shortage — his single watch-item — and he crystallizes a loss when the thesis is disproved, not on price alone.</p>
+                    <p>Sells when the AI buildout starts being funded with debt rather than the operating cash flow of the spenders, or when TSMC expands capacity enough to end the wafer shortage — his single watch-item. When the facts disprove the thesis he sells and accepts the loss; a falling price alone is not a reason.</p>
                     <span>Funding &amp; capacity</span>
                 </div>
             </div>
@@ -2258,21 +2288,21 @@
                     <tr class="glance-detail" id="glance-detail-lavish" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="lavishCard">
             <h4>Accomplishments &amp; Quantifiable Framework</h4>
-            <p>James Lavish, CFA, is a macro / Bitcoin strategist — not a stock picker — with 30+ years on Wall Street, co-founder and managing partner of the Bitcoin Opportunity Fund, author of <em>The Informationist</em> since 2021, and a Strive (ASST) board director. His approach in one line: own assets no government can print, because unsustainable sovereign debt leaves currency debasement as the only politically survivable exit.</p>
+            <p>James Lavish, CFA, is a macro / Bitcoin strategist — not a stock picker — with 30+ years on Wall Street, co-founder and managing partner of the Bitcoin Opportunity Fund, author of <em>The Informationist</em> since 2021, and a Strive (ASST) board director. His approach in one line: own assets no government can print, because a government debt load that cannot be repaid leaves debasing the currency as the only politically survivable way out.</p>
             <div class="rules-grid">
                 <div class="rule-item">
                     <strong>Entry</strong>
-                    <p>Buys when bank reserves fall below 10% of GDP while the Fed's reverse-repo facility is effectively drained, the signal that quantitative tightening must end and quantitative easing must follow.</p>
+                    <p>Buys when bank reserves fall below 10% of GDP (the size of the whole economy) while the Fed's reverse-repo facility — the overnight parking place where banks leave spare cash with the Fed — is effectively drained. That is his signal that quantitative tightening (the Fed taking money out of the system) must end and quantitative easing (the Fed putting money in) must follow. In October 2025 the readings were 9.71% and about $5B.</p>
                     <span>Test: reserves / GDP; RRP balance — Oct 2025: 9.71% and ~$5B</span>
                 </div>
                 <div class="rule-item">
                     <strong>Edge</strong>
-                    <p>Bitcoin's fixed 21 million supply cap, which no government, central bank, corporation or miner can raise, against gold whose supply grows about 1.5–2% a year.</p>
+                    <p>Bitcoin's fixed cap of 21 million, which no government, central bank, company or miner can raise — against gold, whose supply grows about 1.5–2% a year as new metal is mined.</p>
                     <span>Test: protocol supply cap of 21M vs gold's annual mining growth</span>
                 </div>
                 <div class="rule-item">
-                    <strong>Principle (not measurable)</strong>
-                    <p>Principle (not measurable): he has stated no sell price or exit condition for Bitcoin — his $400,000–$500,000 mid-2029 figure is a power-law forecast, not a sell rule, and he expects a 60–70% drawdown after any such peak.</p>
+                    <strong>Risk / Exit</strong>
+                    <p>He has stated no sell price or exit condition for Bitcoin. His $400,000–$500,000 figure for mid-2029 is a power-law forecast — a price path fitted to Bitcoin's history — not a sell rule, and he expects a 60–70% drawdown after any such peak. <em>(Principle — not measurable.)</em></p>
                     <span>No stated exit test; forecast only</span>
                 </div>
             </div>
@@ -2312,21 +2342,21 @@
                     <tr class="glance-detail" id="glance-detail-sacks" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="sacksCard">
             <h4>Accomplishments &amp; Quantifiable Framework</h4>
-            <p>Venture investor and policy advocate — not a stock picker. PayPal's first product leader, then COO (1999–2002, eBay acquired PayPal for $1.5B); co-founded Yammer, sold to Microsoft for $1.2B in cash in 2012; co-founded Craft Ventures in late 2017 (Fund I $350M; $3.3B AUM at Nov 2023); angel investor in Facebook, Uber, SpaceX, Palantir and Airbnb; White House AI &amp; Crypto Czar, 20 Jan 2025–26 Mar 2026, then PCAST co-chair. His testable framework is Craft's published SaaS screen: buy only viral, recurring-revenue software that grows fast, retains customers and burns little per dollar of new revenue.</p>
+            <p>Venture investor and policy advocate — not a stock picker. PayPal's first product leader, then COO (1999–2002; eBay acquired PayPal for $1.5B); co-founded Yammer, sold to Microsoft for $1.2B in cash in 2012; co-founded Craft Ventures in late 2017; White House AI &amp; Crypto Czar, 20 Jan 2025–26 Mar 2026. His testable framework is Craft's published screen for subscription software sold to businesses: buy only software that spreads on its own, keeps its customers spending, and burns little cash for each new dollar of revenue.</p>
             <div class="rules-grid">
                 <div class="rule-item">
                     <strong>Entry</strong>
-                    <p>Buys when a B2B SaaS company shows compound monthly growth of at least 15% below $1M ARR and at least 10% above $1M ARR, with dollar retention of at least 100% and gross margin of at least 75%.</p>
+                    <p>Buys when a company grows at a compound monthly rate of at least 15% while its ARR — annual recurring revenue, its subscription income counted for a full year — is below $1M, and at least 10% once ARR is above $1M; when its existing customers spend at least as much as they did last year (dollar retention of at least 100%); and when its gross margin — what remains of each sales dollar after the direct cost of serving customers — is at least 75%.</p>
                     <span>Craft, "The SaaS Metrics That Matter" — Series A bar</span>
                 </div>
                 <div class="rule-item">
                     <strong>Edge</strong>
-                    <p>Bottom-Up SaaS — a product that spreads virally inside companies like a consumer product before any top-down sale, tested by engagement of at least 40% DAU/MAU and by Yammer's own deed: 0 to 5M users and 85% of the Fortune 500 in under four years.</p>
+                    <p>Bottom-up software: a product workers adopt inside a company the way they adopt a consumer app, before any executive buys it. His engagement test is at least 40% DAU/MAU — of the people who use it in a month, at least 40% use it on any given day. Yammer's own proof: 0 to 5M users and 85% of the Fortune 500 in under four years.</p>
                     <span>Craft, "Announcing Craft III" (2021); Yammer, 2008–2012</span>
                 </div>
                 <div class="rule-item">
                     <strong>Risk / Exit</strong>
-                    <p>Sells / avoids when the Burn Multiple — net burn divided by net new ARR — rises above 2, or dollar retention falls below 100%, or gross margin stays persistently below 75%.</p>
+                    <p>Avoids companies whose Burn Multiple — the cash burned divided by the net new ARR gained — rises above 2, whose customers spend less than last year (retention below 100%), or whose gross margin stays below 75%.</p>
                     <span>Sacks, Burn Multiple (Apr 2020); Craft SaaS benchmarks</span>
                 </div>
             </div>
@@ -2364,21 +2394,21 @@
                     <tr class="glance-detail" id="glance-detail-andreessen" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="andreessenCard">
             <h4>Accomplishments &amp; Quantifiable Framework</h4>
-            <p>Co-founded Netscape — IPO August 1995 at $28, closing $58.25 for a ~$2.9B valuation, sold to AOL for $4.2B in stock in 1998 — and Opsware, sold to HP for about $1.6B in 2007; co-founded Andreessen Horowitz in 2009 with a $300M first fund, now about $90B under management, backing GitHub ($100M in 2012, over $1B returned on Microsoft's $7.5B acquisition) and Coinbase (led the $25M Series B in 2013). He backs software companies attacking industries software has not eaten yet, betting the venture power law — a venture investor and policy advocate, not a public-stock screen.</p>
+            <p>Co-founded Netscape — IPO August 1995 at $28, closing $58.25 for a ~$2.9B valuation, sold to AOL for $4.2B in stock in 1998 — and Opsware, sold to HP for about $1.6B in 2007; co-founded Andreessen Horowitz in 2009 with a $300M first fund, now about $90B under management. He backs software companies attacking industries software has not eaten yet. A venture investor and policy advocate, not a public-stock screen.</p>
             <div class="rules-grid">
                 <div class="rule-item">
                     <strong>Entry</strong>
-                    <p>Buys when a startup is a software company attacking a large industry software has not yet eaten, with an extreme strength on one important dimension — his "strength versus lack of weakness" test (2014) — tolerating other weaknesses.</p>
+                    <p>Buys when a startup is a software company attacking a large industry software has not yet eaten, and it has one extreme strength — one dimension where it is an outlier — even if it is weak elsewhere. His name for the test is "strength versus lack of weakness" (2014): being merely good at everything fails it.</p>
                     <span>Principle (not measurable)</span>
                 </div>
                 <div class="rule-item">
                     <strong>Edge</strong>
-                    <p>the power law — about 15 of ~4,000 venture-fundable companies a year reach $100M in revenue and generate about 97% of all venture returns, so he sizes for the outlier and accepts that most bets fail.</p>
+                    <p>The power law: about 15 of the roughly 4,000 venture-fundable companies a year reach $100M in revenue, and those few generate about 97% of all venture returns. So he sizes for the outlier and accepts that most bets fail.</p>
                     <span>15 of ~4,000; ~97% of returns</span>
                 </div>
                 <div class="rule-item">
                     <strong>Risk / Exit</strong>
-                    <p>Sells / avoids when a company has no extreme strength and no software edge over its industry, or is a "check-box" deal — reasonable on every dimension, remarkable on none; he states no numeric sell trigger, and venture positions are held to IPO or acquisition.</p>
+                    <p>Avoids companies with no extreme strength and no software edge over their industry — "check-box" deals, reasonable on every dimension and remarkable on none. He states no numeric sell trigger; venture positions are held to an IPO or an acquisition. <em>(Principle — not measurable.)</em></p>
                     <span>Principle (not measurable)</span>
                 </div>
             </div>
@@ -2419,21 +2449,23 @@
                     <tr class="glance-detail" id="glance-detail-marks" hidden><td colspan="6"><div class="glance-detail-inner">
             <div class="explainer-card" id="marksCard">
             <h4>Accomplishments &amp; Quantifiable Framework</h4>
-            <p>Co-founded Oaktree Capital Management in 1995 with Bruce Karsh, after running high-yield and distressed debt at TCW (1985–1995) and Citicorp (1969–1985); Oaktree stated $209B under management as of June 30, 2025. He has written around 160 public investor memos since his first in October 1990 — "bubble.com" (January 2000) warned of the dot-com bust — distilled into "The Most Important Thing" (2011) and "Mastering the Market Cycle" (2018). He buys credit at a discount to value when others are fearful, and waits when they are euphoric — a credit and distressed-debt investor, not a public-stock screen.</p>
+            <p>Co-founded Oaktree Capital Management in 1995 with Bruce Karsh, after running high-yield and distressed debt at TCW (1985–1995) and Citicorp (1969–1985); Oaktree stated $209B under management as of 30 June 2025. He has written around 160 public investor memos since October 1990 — "bubble.com" (January 2000) warned of the dot-com bust. He buys credit — the bonds and loans of troubled companies — below what he judges them to be worth when other investors are fearful, and waits when they are euphoric. His method is judgment, not measurement: he publishes no numeric rules. These are the five questions his published work asks of any investment:</p>
+            <ol>
+                <li><strong>Second-level thinking</strong> — is my view both different from the crowd's and right? (First-level thinking says "good company, buy it"; second-level asks what is already in the price.)</li>
+                <li><strong>Price against value</strong> — is the price below what it is worth, with a margin of safety?</li>
+                <li><strong>Cycle position</strong> — where are we in the swing between fear and euphoria?</li>
+                <li><strong>Permanent-loss risk</strong> — what is the chance of losing money for good? For Marks that, not price movement, is the only risk that counts.</li>
+                <li><strong>Knowability</strong> — can this actually be known, or is it a guess about the future dressed up as analysis?</li>
+            </ol>
             <div class="rules-grid">
                 <div class="rule-item">
                     <strong>Entry</strong>
-                    <p>Buys when price is below his estimate of intrinsic value, with a margin of safety — most often the bonds and loans of troubled companies, bought at a deep discount on the bet that recovery value exceeds price.</p>
-                    <span>Principle (not measurable)</span>
-                </div>
-                <div class="rule-item">
-                    <strong>Edge</strong>
-                    <p>second-level thinking — a view that is both different from the consensus and correct, asking what is already in the price; and risk as the probability of permanent loss, not volatility, so risk is highest when it is least perceived.</p>
+                    <p>Buys when the price is below his estimate of intrinsic value — what the asset is really worth — with a margin of safety, most often the bonds and loans of troubled companies at a deep discount, on the bet that what they would recover is more than the price.</p>
                     <span>Principle (not measurable)</span>
                 </div>
                 <div class="rule-item">
                     <strong>Risk / Exit</strong>
-                    <p>Sells / refrains when the pendulum swings to euphoria — prices above value, thin risk premiums, widespread belief there is no risk — and prepares rather than predicts, waiting for the cycle to turn; he states no numeric sell trigger.</p>
+                    <p>Refrains when the swing reaches euphoria — prices above value, investors barely paid extra for taking risk (thin risk premiums), and a widespread belief that there is no risk. He prepares rather than predicts, waiting for the cycle to turn. He states no numeric sell trigger. <em>(Judgment — not measured.)</em></p>
                     <span>Principle (not measurable)</span>
                 </div>
             </div>
@@ -2471,17 +2503,23 @@
             <div class="rules-grid">
                 <div class="rule-item">
                     <strong>Entry</strong>
-                    <p>Buys when a stock passes the defensive screen — current ratio of at least 2, long-term debt below net current assets, positive earnings in each of the last 10 years, dividends for 20 years, earnings growth of at least a third over 10 years, P/E no more than 15 on 3-year average earnings and P/B no more than 1.5 (P/E x P/B no more than 22.5) — or, for the enterprising investor, when its price is below two-thirds of net current asset value (current assets minus all liabilities).</p>
+                    <p>For the defensive investor, a stock must pass every test on his list:<br>
+— the company is substantial (in his day, sales of $100M or more);<br>
+— its current ratio is at least 2 (short-term assets at least twice short-term debts), and long-term debt is below net current assets;<br>
+— it earned a profit in each of the last 10 years, and paid dividends for 20 years;<br>
+— earnings grew by at least a third over 10 years;<br>
+— the price is no more than 15 times average earnings of the last three years (P/E ≤ 15) and no more than 1.5 times book value (P/B ≤ 1.5) — or the two multiplied together come to no more than 22.5.</p>
+                    <p>For the enterprising investor, the simpler test: the price is below two-thirds of net current asset value — current assets minus all debts. He called such stocks net-nets.</p>
                     <span>P/E ≤15, P/B ≤1.5; net-net ≤⅔ NCAV</span>
                 </div>
                 <div class="rule-item">
                     <strong>Edge</strong>
-                    <p>the margin of safety — "Confronted with a challenge to distill the secret of sound investment into three words, we venture the motto, MARGIN OF SAFETY" (<em>The Intelligent Investor</em>, ch. 20) — a gap large enough that "it is enough to assume that future earnings will not fall far below those of the past."</p>
+                    <p>The margin of safety. "Confronted with a challenge to distill the secret of sound investment into three words, we venture the motto, MARGIN OF SAFETY" (<em>The Intelligent Investor</em>, ch. 20) — a gap large enough that "it is enough to assume that future earnings will not fall far below those of the past."</p>
                     <span>Margin of safety (1949)</span>
                 </div>
                 <div class="rule-item">
                     <strong>Risk / Exit</strong>
-                    <p>Sells / avoids when price rises above the Graham Number — the square root of (22.5 x EPS x book value per share) — or when a holding fails the financial-strength tests; he never pays up for growth and never buys on a forecast.</p>
+                    <p>Sells when the price rises above the Graham Number — the highest price his formula allows: the square root of 22.5 × earnings per share × book value per share — or when a holding fails the financial-strength tests. He never pays up for growth and never buys on a forecast.</p>
                     <span>Graham Number = √(22.5 × EPS × BVPS)</span>
                 </div>
             </div>
@@ -3751,6 +3789,21 @@
             Object.keys(r).forEach(id => { if (r[id] !== null) { graded++; if (r[id]) passed++; } });
             return graded === 0 ? null : Math.round(passed / graded * 100);
         };
+        // The same tally's count, exposed for the scoreboard chart's
+        // hover readout (2026-11-20): the current point's percentage
+        // is only half its story — how many investors could grade
+        // the stock is the other half, and the readout names both,
+        // exactly as the score cell does. Null until the market data
+        // has loaded, or when nothing could grade the stock.
+        window.jboScoreCount = function (ticker) {
+            if (!marketDataLoaded) return null;
+            const t = tickerData.find(x => x.ticker === ticker);
+            if (!t) return null;
+            const r = scoreTicker(t).results;
+            let passed = 0, graded = 0;
+            Object.keys(r).forEach(id => { if (r[id] !== null) { graded++; if (r[id]) passed++; } });
+            return graded === 0 ? null : { passed: passed, graded: graded };
+        };
 
         // The score cell's summary: the same verdicts, one line each,
         // under a heading that matches the cell's own wording.
@@ -3761,7 +3814,7 @@
                 const w = scoreWhy(id, t, tickerData);
                 if (w.verdict !== null) { graded++; if (w.verdict) passed++; }
                 const word = w.verdict === null ? (w.byDesign ? 'Not graded' : 'Can’t test') : (w.verdict ? 'Pass' : 'Fail');
-                return { label: SCOREBOARD_RULES[id].label, word, short: w.short };
+                return { label: SCOREBOARD_RULES[id].label, word, short: w.short, group: w.verdict === null ? 'untested' : (w.verdict ? 'pass' : 'fail') };
             });
             const score = graded === 0 ? null : Math.round(passed / graded * 100);
             const heading = score === null ? 'Why there’s no score for ' + t.name + ' yet' : 'Why ' + score + '% — ' + passed + ' of ' + graded + ' tested';
@@ -3829,17 +3882,44 @@
             scoreTipContent.innerHTML = '';
             const h = document.createElement('strong');
             h.textContent = s.heading;
+            scoreTipContent.appendChild(h);
+            // Grouped by outcome (2026-11-20): Passes first, then
+            // Fails, then Couldn’t be tested — committee order inside
+            // each group, and each group heading carries its count.
+            // The lines stay one committee-ordered <ul> in the DOM;
+            // the grouping is laid out by flex order (the headings
+            // are the flex container's children, the list its
+            // contents), and each status word is coloured in the
+            // board's own colours. Heading, reason texts and the
+            // Drill down button are word-for-word as before.
+            const wrap = document.createElement('div');
+            wrap.className = 'sb-groups';
             const ul = document.createElement('ul');
-            s.lines.forEach(ln => {
+            s.lines.forEach((ln, idx) => {
                 const li = document.createElement('li');
                 const b = document.createElement('strong');
                 b.textContent = ln.label;
                 li.appendChild(b);
-                li.appendChild(document.createTextNode(' — ' + ln.word + ' — ' + ln.short));
+                li.appendChild(document.createTextNode(' — '));
+                const st = document.createElement('span');
+                st.className = 'sb-st-' + ln.group;
+                st.textContent = ln.word;
+                li.appendChild(st);
+                li.appendChild(document.createTextNode(' — ' + ln.short));
+                li.style.order = String((ln.group === 'pass' ? 0 : ln.group === 'fail' ? 1000 : 2000) + 10 + idx);
                 ul.appendChild(li);
             });
-            scoreTipContent.appendChild(h);
-            scoreTipContent.appendChild(ul);
+            [['pass', 'Passes'], ['fail', 'Fails'], ['untested', 'Couldn’t be tested']].forEach(([key, title], gi) => {
+                const n = s.lines.filter(ln => ln.group === key).length;
+                if (!n) return;
+                const gh = document.createElement('div');
+                gh.className = 'sb-group-h';
+                gh.textContent = title + ' — ' + n;
+                gh.style.order = String(gi * 1000);
+                wrap.appendChild(gh);
+            });
+            wrap.appendChild(ul);
+            scoreTipContent.appendChild(wrap);
             const drill = document.createElement('button');
             drill.type = 'button';
             drill.className = 'filter-pill sb-drill-btn';
@@ -7107,6 +7187,7 @@ if (typeof module !== "undefined") {
         // states. A failed fetch simply leaves the score line alone.
         var legendEl = document.getElementById("sbChartLegend");
         var noteEl = document.getElementById("sbChartNote");
+        var tipEl = document.getElementById("sbChartTip");
         var priceToggleEl = document.getElementById("sbPriceToggle");
         // The two dropdowns (2026-11-19): the view pills and the
         // stock chips became faces + glass panels in the Bitcoin
@@ -7200,6 +7281,7 @@ if (typeof module !== "undefined") {
             });
             if (viewFaceText) viewFaceText.textContent = v === "chart" ? "Chart" : "Table";
             setViewPanel(false);
+            if (v !== "chart") sbClearHover();
             var chart = v === "chart";
             tableWrap.style.display = chart ? "none" : "";
             if (sortGroup) sortGroup.style.visibility = chart ? "hidden" : "";
@@ -7304,6 +7386,229 @@ if (typeof module !== "undefined") {
             for (var i = s.values.length - 1; i >= 0; i--) if (s.values[i] !== null && s.values[i] !== undefined) return s.values[i];
             return null;
         }
+        // ---- Hover / touch readout (2026-11-20) ----
+        // The chart had no point readout: a hover showed nothing.
+        // Now a mouse hover — or a touch tap, or a horizontal
+        // finger scrub (the canvas's touch-action: pan-y leaves
+        // vertical drags to the page) — marks the nearest week: a
+        // light vertical guide, a dot on the score line and, while
+        // the price overlay is drawn, a dot on the price line at
+        // that week's own bar, plus one glass readout naming the
+        // week, the combined score WITH its count, and the price.
+        // Every value comes from the same baked data the lines
+        // draw — grades-history.json for the score and its count,
+        // finance-chart-data.json for the price — and the final,
+        // current point takes its count from the table's own
+        // tally (window.jboScoreCount), so the readout can never
+        // disagree with the score cell. The price chart's
+        // crosshair and #jboChartTip are the model throughout.
+        var sbHover = null;   // { ticker, idx } — idx into seriesFor(ticker)
+        var sbGeom = null;    // the last full draw's geometry
+        var sbPtr = null;     // the last pointer position over the canvas
+        var sbTipKey = "";    // the readout content last filled
+        var SB_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        function sbFmtDate(iso) {
+            var p = String(iso).split("-");
+            if (p.length !== 3) return String(iso);
+            return Number(p[2]) + " " + SB_MONTHS[Number(p[1]) - 1] + " " + p[0];
+        }
+        function sbFmtPrice(v) {
+            return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        // The count behind one point, from the same file the lines
+        // draw. Each formula investor's [passed, graded] cell
+        // becomes a verdict the way the scoreboard itself reads
+        // it: a single-test cell is its own verdict; Lynch's and
+        // Graham's multi-part cells pass only when every graded
+        // part passes, and Graham is not graded on fewer than four
+        // testable parts. The file's final week also carries the
+        // ten judgment verdicts (they join the count from the week
+        // of 18 November 2026). This rule reproduces the file's
+        // combined percentage at every week of every stock. The
+        // appended current point defers to the table's own count.
+        function sbCountFor(t, idx) {
+            var e = sbData && sbData.series ? sbData.series[t] : null;
+            if (!e) return null;
+            if (idx >= (e.weeks || []).length) {
+                return (typeof window.jboScoreCount === "function") ? window.jboScoreCount(t) : null;
+            }
+            var f = e.formula || {}, p = 0, g = 0;
+            Object.keys(f).forEach(function (inv) {
+                var cell = f[inv] && f[inv][idx];
+                if (!cell || !cell[1]) return;
+                if (inv === "graham" && cell[1] < 4) return;
+                g++; if (cell[0] === cell[1]) p++;
+            });
+            if (idx === e.weeks.length - 1 && e.judgment) {
+                Object.keys(e.judgment).forEach(function (inv) {
+                    var entries = e.judgment[inv];
+                    if (entries && entries.length) { g++; if (entries[entries.length - 1][3]) p++; }
+                });
+            }
+            return g ? { passed: p, graded: g } : null;
+        }
+        // The price bar nearest a week — the overlay's own bars,
+        // matched by date; a bar more than ten days away belongs
+        // to a different week and is not read out.
+        function sbPriceNear(bars, ms) {
+            var best = null, bd = Infinity;
+            for (var i = 0; i < bars.length; i++) {
+                var d = Math.abs(Date.parse(bars[i][0]) - ms);
+                if (d < bd) { bd = d; best = bars[i]; }
+            }
+            return bd <= 10 * 24 * 3600 * 1000 ? best : null;
+        }
+        // The hover state resolved to screen points against the
+        // last draw's geometry; null when it no longer applies
+        // (the stock was deselected, the point is a gap, the chart
+        // has not drawn yet).
+        function sbHoverPoint() {
+            if (!sbHover || !sbGeom || !selected || !selected[sbHover.ticker]) return null;
+            var s = sbGeom.allSeries[sbHover.ticker];
+            if (!s || sbHover.idx >= s.values.length) return null;
+            var v = s.values[sbHover.idx];
+            if (v === null || v === undefined) return null;
+            var iso = s.dates[sbHover.idx];
+            var ms = Date.parse(iso);
+            var x = sbGeom.leftPad + ((ms - sbGeom.minMs) / (sbGeom.maxMs - sbGeom.minMs)) * sbGeom.plotW;
+            var y = sbGeom.topPad + (1 - v / 100) * sbGeom.plotH;
+            var price = null;
+            if (sbGeom.overlayOn && sbGeom.pY && sbGeom.priceBars && sbGeom.singleTicker === sbHover.ticker) {
+                var bar = sbPriceNear(sbGeom.priceBars, ms);
+                if (bar) {
+                    var bms = Date.parse(bar[0]);
+                    price = { v: bar[1], x: sbGeom.leftPad + ((bms - sbGeom.minMs) / (sbGeom.maxMs - sbGeom.minMs)) * sbGeom.plotW, y: sbGeom.pY(bar[1]) };
+                }
+            }
+            var baked = sbData && sbData.series ? sbData.series[sbHover.ticker] : null;
+            var isToday = !baked || sbHover.idx >= (baked.weeks || []).length;
+            return { ticker: sbHover.ticker, idx: sbHover.idx, dateISO: iso, value: v, x: x, y: y, price: price, isToday: isToday };
+        }
+        // The markers, drawn last so they ride on top of every
+        // line: the guide at the hovered week, a dot on the score
+        // line in its own colour, a dot on the price line at that
+        // week's bar in the price line's muted tone.
+        function drawSbHover(ctx) {
+            var hp = sbHoverPoint();
+            if (!hp) return;
+            var subC = sbGeom.subC || "#888";
+            ctx.save();
+            ctx.strokeStyle = subC; ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
+            ctx.beginPath(); ctx.moveTo(hp.x, sbGeom.topPad); ctx.lineTo(hp.x, sbGeom.topPad + sbGeom.plotH); ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = (sbGeom.lineColors && sbGeom.lineColors[hp.ticker]) || "#888";
+            ctx.beginPath(); ctx.arc(hp.x, hp.y, 3.4, 0, Math.PI * 2); ctx.fill();
+            if (hp.price) {
+                ctx.fillStyle = subC;
+                ctx.beginPath(); ctx.arc(hp.price.x, hp.price.y, 3, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.restore();
+        }
+        // The readout's placement, the price chart tip's own math:
+        // beside the point (flipping at the chart's middle), above
+        // or below a touch finger so the finger never covers it,
+        // clamped inside the chart's bounds at both edges.
+        function sbTipPos(W, H, tipW, tipH, x, pointY, ptr) {
+            var GAP = 14, EDGE = 6;
+            var left = x < W / 2 ? x + GAP : x - tipW - GAP;
+            left = Math.max(EDGE, Math.min(Math.max(EDGE, W - tipW - EDGE), left));
+            var top;
+            if (ptr && ptr.type === "touch") {
+                top = ptr.y - tipH - 44;
+                if (top < EDGE) top = ptr.y + 44;
+            } else {
+                top = pointY - tipH / 2;
+            }
+            top = Math.max(EDGE, Math.min(Math.max(EDGE, H - tipH - EDGE), top));
+            return { left: Math.round(left), top: Math.round(top) };
+        }
+        function fillSbTip(hp) {
+            tipEl.textContent = "";
+            var head = document.createElement("div");
+            head.className = "sb-tip-head";
+            var nm = document.createElement("strong");
+            nm.textContent = hp.ticker;
+            var dt = document.createElement("span");
+            dt.textContent = hp.isToday ? "Today · " + sbFmtDate(hp.dateISO) : "Week ending " + sbFmtDate(hp.dateISO);
+            head.appendChild(nm); head.appendChild(dt);
+            tipEl.appendChild(head);
+            var mkRow = function (color, label, value) {
+                var row = document.createElement("div");
+                row.className = "sb-tip-row";
+                var chip = document.createElement("span");
+                chip.className = "sb-tip-chip";
+                chip.setAttribute("aria-hidden", "true");
+                if (color) chip.style.background = color;
+                var lab = document.createElement("span");
+                lab.textContent = label;
+                var val = document.createElement("span");
+                val.className = "sb-tip-val";
+                val.textContent = value;
+                row.appendChild(chip); row.appendChild(lab); row.appendChild(val);
+                tipEl.appendChild(row);
+            };
+            var cnt = sbCountFor(hp.ticker, hp.idx);
+            mkRow(sbGeom.lineColors[hp.ticker] || null, "Combined score", hp.value + "%" + (cnt ? " — " + cnt.passed + " of " + cnt.graded + " tested" : ""));
+            if (hp.price) mkRow(sbGeom.subC, hp.ticker + " price", sbFmtPrice(hp.price.v));
+        }
+        function updateSbTip() {
+            if (!tipEl) return;
+            var hp = sbHoverPoint();
+            if (!hp || view !== "chart") { tipEl.classList.remove("open"); sbTipKey = ""; return; }
+            var key = hp.ticker + "|" + hp.idx + "|" + (hp.price ? hp.price.v : "");
+            if (key !== sbTipKey) { sbTipKey = key; fillSbTip(hp); }
+            tipEl.classList.add("open");
+            var W = canvas.clientWidth, H = canvas.clientHeight;
+            if (!W || !H) return;
+            var pos = sbTipPos(W, H, tipEl.offsetWidth, tipEl.offsetHeight, hp.x, hp.y, sbPtr);
+            tipEl.style.left = pos.left + "px";
+            tipEl.style.top = pos.top + "px";
+        }
+        function sbClearHover() {
+            sbHover = null; sbPtr = null; sbTipKey = "";
+            if (tipEl) tipEl.classList.remove("open");
+            requestDraw();
+        }
+        // The pointer's week: each drawn line offers its point
+        // nearest the pointer's date, and the readout names the
+        // line whose offered point sits nearest the pointer on
+        // the screen, so it always names the line being touched.
+        function sbPointer(e) {
+            if (view !== "chart" || !sbGeom || !selected) return;
+            var r = canvas.getBoundingClientRect();
+            if (!r.width) return;
+            var pos = { x: e.clientX - r.left, y: e.clientY - r.top, type: e.pointerType || "mouse" };
+            sbPtr = pos;
+            var ms = sbGeom.minMs + ((pos.x - sbGeom.leftPad) / sbGeom.plotW) * (sbGeom.maxMs - sbGeom.minMs);
+            var best = null;
+            Object.keys(selected).forEach(function (t) {
+                var s = sbGeom.allSeries[t];
+                if (!s) return;
+                var bi = -1, bd = Infinity;
+                for (var i = 0; i < s.values.length; i++) {
+                    if (s.values[i] === null || s.values[i] === undefined) continue;
+                    var dd = Math.abs(Date.parse(s.dates[i]) - ms);
+                    if (dd < bd) { bd = dd; bi = i; }
+                }
+                if (bi < 0) return;
+                // Nearness is measured in screen distance on both
+                // axes, so a young stock's first point — weeks away
+                // from the pointer — can never steal the readout
+                // from the line under the pointer; an exact tie goes
+                // to the line drawn last, the one on top.
+                var px = sbGeom.leftPad + ((Date.parse(s.dates[bi]) - sbGeom.minMs) / (sbGeom.maxMs - sbGeom.minMs)) * sbGeom.plotW;
+                var py = sbGeom.topPad + (1 - s.values[bi] / 100) * sbGeom.plotH;
+                var score = Math.abs(px - pos.x) + Math.abs(py - pos.y);
+                if (!best || score <= best.score) best = { ticker: t, idx: bi, score: score };
+            });
+            if (!best) return;
+            sbHover = { ticker: best.ticker, idx: best.idx };
+            requestDraw();
+        }
+        canvas.addEventListener("pointermove", sbPointer);
+        canvas.addEventListener("pointerdown", sbPointer);
+        canvas.addEventListener("pointerleave", sbClearHover);
+        canvas.addEventListener("pointercancel", sbClearHover);
         function buildChips() {
             if (!chipsEl || chipsEl.childElementCount) return;
             ensureSelection();
@@ -7364,6 +7669,7 @@ if (typeof module !== "undefined") {
 
         function showStatus(msg) {
             if (statusEl) { statusEl.textContent = msg; statusEl.hidden = !msg; }
+            if (msg) sbClearHover();
             canvas.parentElement.style.display = msg ? "none" : "";
             if (chipsEl) chipsEl.style.display = msg ? "none" : "";
             if (actionsEl) actionsEl.style.display = msg ? "none" : "";
@@ -7381,6 +7687,7 @@ if (typeof module !== "undefined") {
             if (!tickers.length) { showStatus("The grades file doesn’t carry combined scores yet — the table has every stock’s current score."); return; }
             ensureSelection();
             if (!selectedCount()) {
+                sbClearHover();
                 // An empty selection is a state, not an error: the
                 // chips stay on screen so a stock can be tapped back
                 // on, and one plain line stands where the chart was.
@@ -7569,6 +7876,12 @@ if (typeof module !== "undefined") {
                     }
                 }
             }
+            // The hover readout rides on this draw's geometry:
+            // cache it for the pointer handlers, draw the markers
+            // over the finished lines, and place the readout.
+            sbGeom = { minMs: minMs, maxMs: maxMs, leftPad: leftPad, topPad: topPad, plotW: plotW, plotH: plotH, overlayOn: overlayOn, singleTicker: singleTicker, priceBars: priceBars, allSeries: allSeries, lineColors: lineColors, pY: pY, subC: subC };
+            drawSbHover(ctx);
+            updateSbTip();
             ctx.lineWidth = 1;
         }
         var sbTicking = false;
