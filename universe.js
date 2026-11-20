@@ -303,6 +303,7 @@ var GLOW_FRAG = [
     '}'
 ].join('\n');
 var GAL_VERT = [
+    'attribute vec3 aPos;',
     'attribute vec3 aMajor;',
     'attribute float aDiam;',
     'attribute float aAxis;',
@@ -310,7 +311,6 @@ var GAL_VERT = [
     'attribute float aTint;',
     'attribute float aSeed;',
     'uniform float uScaleH;',
-    'uniform float uDpr;',
     'uniform mediump float uHalo;',   /* mediump: must match the fragment stage's precision or strict drivers reject the program */
     'varying vec3 vCol;',
     'varying float vAlpha;',
@@ -319,11 +319,26 @@ var GAL_VERT = [
     'varying float vTint;',
     'varying float vSeed;',
     'varying float vDetail;',
+    'varying vec2 vQ;',
     'void main() {',
-    '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+    '    vec4 mv = modelViewMatrix * vec4(aPos, 1.0);',
     '    float dist = max(1.0, -mv.z);',
     '    float px = aDiam * uScaleH / dist;',   /* true angular size */
-    '    gl_PointSize = clamp(px, mix(2.6, 2.0, uHalo), 460.0) * uDpr;',
+    /* Billboarded quad, not a GL point (graphics fix, 2026-11-19):
+       points are square and size-capped — 460 CSS px in the old code
+       and far less in phone hardware — so a galaxy you flew toward
+       froze as a flat square card, and the profile, which never
+       reaches zero inside the square, printed a straight rim around
+       every galaxy big enough to see (Johnny's Sagittarius Dwarf
+       screenshot). The quad spans 1.5x the profile diameter — the
+       true catalogued diameter, or the old point-size floor in world
+       units when the true size is below it — so vQ is in profile
+       units (0.5 = the catalogued edge) and the fragment profile
+       always fades to zero well inside the quad, at any distance,
+       with no size ceiling. position is the quad corner (+/-0.5). */
+    '    float profD = max(aDiam, mix(2.6, 2.0, uHalo) * dist / uScaleH);',
+    '    mv.xy += position.xy * (profD * 1.5);',
+    '    vQ = position.xy * 1.5;',
     '    vec3 majView = (modelViewMatrix * vec4(aMajor, 0.0)).xyz;',
     '    vAng = atan(majView.y, majView.x);',
     '    vAxis = aAxis;',
@@ -353,12 +368,14 @@ var GAL_FRAG = [
     'varying float vTint;',
     'varying float vSeed;',
     'varying float vDetail;',
+    'varying vec2 vQ;',
     'void main() {',
-    '    vec2 q = gl_PointCoord - 0.5;',
+    '    vec2 q = vQ;',                          /* profile units: 0.5 = catalogued edge; the quad reaches 0.75 */
     '    float ca = cos(vAng), sa = sin(vAng);',
     '    vec2 r = mat2(ca, -sa, sa, ca) * q;',   /* into the galaxy frame */
     '    r.y /= max(0.10, vAxis);',              /* undo the tilt squeeze */
     '    float d = length(r) * 2.0;',            /* 1.0 = catalogued edge */
+    '    if (d > 1.52) discard;',                /* outside the feather — keeps the padded quad cheap */
     '    float ang = atan(r.y, r.x);',
     '    vec3 col = vCol;',
     '    float lum;',
@@ -397,6 +414,12 @@ var GAL_FRAG = [
        with real presence instead of ending at a hard rim. */
     '    lum += exp(-d * d * 1.6) * 0.38 * uHalo;',
     '    lum *= 1.0 + 0.18 * uHalo;',
+    /* The feather: the exponentials above still carry light at the
+       catalogued edge (~0.10 for a named elliptical), which is what
+       printed the old square rim where the point sprite cut them
+       off. The window takes the profile to exactly zero by d = 1.5,
+       the quad's own edge, so no straight edge can ever show. */
+    '    lum *= 1.0 - smoothstep(1.28, 1.5, d);',
     '    float a = clamp(lum, 0.0, 1.0) * vAlpha;',
     '    if (a < 0.004) discard;',
     /* QUALITY PASS: same HDR treatment as the stars — the
@@ -420,22 +443,31 @@ var GAL_FRAG = [
    distance) under the same pixel floor/cap discipline as the
    galaxies, and the sprite fades as you fly inside it. */
 var NEB_VERT = [
+    'attribute vec3 aPos;',
     'attribute float aDiam;',
     'attribute float aFam;',
     'attribute float aBright;',
     'attribute float aSeed;',
     'uniform float uScaleH;',
-    'uniform float uDpr;',
     'varying float vFam;',
     'varying float vBright;',
     'varying float vSeed;',
     'varying float vFade;',
+    'varying vec2 vQ;',
     'void main() {',
-    '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+    '    vec4 mv = modelViewMatrix * vec4(aPos, 1.0);',
     '    float rawDist = -mv.z;',
     '    float dist = max(1.0, rawDist);',
-    '    float px = aDiam * uScaleH / dist;',   /* true angular size */
-    '    gl_PointSize = clamp(px, 9.0, 560.0) * uDpr;',
+    /* Billboarded quad like the galaxies (graphics fix, 2026-11-19):
+       the point version's 560 CSS px cap — and the lower hardware
+       cap under it — froze a nebula's growth as you approached. The
+       quad spans 1.25x the profile diameter (true size, or the old
+       9 px floor in world units), so vQ is in profile units
+       (0.5 = the profile edge, where the fragment reaches zero) and
+       the d > 1 discard circle never touches the quad's edge. */
+    '    float profD = max(aDiam, 9.0 * dist / uScaleH);',
+    '    mv.xy += position.xy * (profD * 1.25);',
+    '    vQ = position.xy * 1.25;',
     '    vFade = smoothstep(0.35, 1.4, rawDist / max(aDiam, 0.001));',
     '    vFam = aFam; vBright = aBright; vSeed = aSeed;',
     '    gl_Position = projectionMatrix * mv;',
@@ -447,6 +479,7 @@ var NEB_FRAG = [
     'varying float vBright;',
     'varying float vSeed;',
     'varying float vFade;',
+    'varying vec2 vQ;',
     'uniform float uOpacity;',
     'vec3 famColor(float f) {',
     '    if (f < 0.5) return vec3(1.00, 0.42, 0.52);',   /* emission — pink-red */
@@ -455,7 +488,7 @@ var NEB_FRAG = [
     '    return vec3(0.55, 0.70, 1.00);',                /* reflection — blue */
     '}',
     'void main() {',
-    '    vec2 q = gl_PointCoord - 0.5;',
+    '    vec2 q = vQ;',                          /* profile units: 0.5 = profile edge */
     '    float d = length(q) * 2.0;',
     '    if (d > 1.0) discard;',
     '    float g = max(0.0, 1.0 - d * d);',
@@ -721,19 +754,23 @@ export function initUniverse(stage) {
             var sh = (i + 1) * 0.61803398875;   /* the galaxies' own seed hash */
             seed[i] = sh - Math.floor(sh);
         }
-        var g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        g.setAttribute('aDiam', new THREE.BufferAttribute(dia, 1));
-        g.setAttribute('aFam', new THREE.BufferAttribute(fam, 1));
-        g.setAttribute('aBright', new THREE.BufferAttribute(bri, 1));
-        g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+        var base = new THREE.PlaneGeometry(1, 1);
+        var g = new THREE.InstancedBufferGeometry();
+        g.index = base.index;
+        g.setAttribute('position', base.getAttribute('position'));
+        g.setAttribute('aPos', new THREE.InstancedBufferAttribute(pos, 3));
+        g.setAttribute('aDiam', new THREE.InstancedBufferAttribute(dia, 1));
+        g.setAttribute('aFam', new THREE.InstancedBufferAttribute(fam, 1));
+        g.setAttribute('aBright', new THREE.InstancedBufferAttribute(bri, 1));
+        g.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seed, 1));
+        g.instanceCount = n;
         var m = new THREE.ShaderMaterial({
             vertexShader: NEB_VERT, fragmentShader: NEB_FRAG,
             uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uOpacity: { value: 0.9 } },
             defines: { HDR_LINEAR: fxOK ? 1 : 0 },
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
         });
-        nebPoints = new THREE.Points(g, m);
+        nebPoints = new THREE.Mesh(g, m);
         nebPoints.frustumCulled = false;
         scene.add(nebPoints);
     }
@@ -1350,10 +1387,18 @@ export function initUniverse(stage) {
            set was baked first (indices 0..namedGalCount-1). */
         function galPoints(from, to, halo) {
             var n = to - from;
-            var g = new THREE.BufferGeometry();
-            g.setAttribute('position', new THREE.BufferAttribute(data.galPos.slice(from * 3, to * 3), 3));
-            g.setAttribute('aMajor', new THREE.BufferAttribute(data.galMajor.slice(from * 3, to * 3), 3));
-            g.setAttribute('aDiam', new THREE.BufferAttribute(data.galDiam.slice(from, to), 1));
+            /* One instanced quad per galaxy (graphics fix, 2026-11-19):
+               the base PlaneGeometry supplies the corner 'position'
+               (+/-0.5) and the index; every catalog attribute rides
+               as an instanced attribute, so both clouds stay a single
+               draw call each, exactly as the points were. */
+            var base = new THREE.PlaneGeometry(1, 1);
+            var g = new THREE.InstancedBufferGeometry();
+            g.index = base.index;
+            g.setAttribute('position', base.getAttribute('position'));
+            g.setAttribute('aPos', new THREE.InstancedBufferAttribute(data.galPos.slice(from * 3, to * 3), 3));
+            g.setAttribute('aMajor', new THREE.InstancedBufferAttribute(data.galMajor.slice(from * 3, to * 3), 3));
+            g.setAttribute('aDiam', new THREE.InstancedBufferAttribute(data.galDiam.slice(from, to), 1));
             var axis = new Float32Array(n), bright = new Float32Array(n), tint = new Float32Array(n);
             var seed = new Float32Array(n);
             for (var i = 0; i < n; i++) {
@@ -1366,17 +1411,18 @@ export function initUniverse(stage) {
                 var sh = (from + i + 1) * 0.61803398875;
                 seed[i] = sh - Math.floor(sh);
             }
-            g.setAttribute('aAxis', new THREE.BufferAttribute(axis, 1));
-            g.setAttribute('aBright', new THREE.BufferAttribute(bright, 1));
-            g.setAttribute('aTint', new THREE.BufferAttribute(tint, 1));
-            g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+            g.setAttribute('aAxis', new THREE.InstancedBufferAttribute(axis, 1));
+            g.setAttribute('aBright', new THREE.InstancedBufferAttribute(bright, 1));
+            g.setAttribute('aTint', new THREE.InstancedBufferAttribute(tint, 1));
+            g.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seed, 1));
+            g.instanceCount = n;
             var m = new THREE.ShaderMaterial({
                 vertexShader: GAL_VERT, fragmentShader: GAL_FRAG,
                 uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uHalo: { value: halo } },
                 defines: { HDR_LINEAR: fxOK ? 1 : 0 },
                 transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
             });
-            var pts = new THREE.Points(g, m);
+            var pts = new THREE.Mesh(g, m);
             pts.frustumCulled = false;
             return pts;
         }
@@ -1824,11 +1870,19 @@ export function initUniverse(stage) {
             }
         }
         /* adaptive resolution: if frames run slow, step the pixel ratio
-           down; the catalog is light enough that this rarely engages. */
+           down; the catalog is light enough that this rarely engages.
+           The ladder also climbs back when frames run fast again
+           (graphics fix, 2026-11-19): it used to only descend, so one
+           slow stretch — a dense field at full ratio — permanently
+           softened the rest of the session, part of why the graphics
+           "got worse" the longer Johnny flew. The wide hysteresis
+           band (24 ms down, 12 ms up, one step per 90-frame window)
+           keeps it from oscillating. */
         frameAcc += dt; frameN++;
         if (frameN >= 90) {
             var avg = frameAcc / frameN;
             if (avg > 0.024 && dprLevel < DPR_STEPS.length - 1) { dprLevel++; applyDpr(); }
+            else if (avg < 0.012 && dprLevel > 0) { dprLevel--; applyDpr(); }
             frameAcc = 0; frameN = 0;
         }
         if (tour.on) tourFrame(dt);
