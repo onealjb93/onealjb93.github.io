@@ -180,6 +180,10 @@
     }
     .loop-svg { display: block; width: 100%; height: auto; }
     .loop-svg text { font-family: inherit; }
+    /* Three E's Venn (2026-11-20): the diagram is capped and centred so it
+       reads at a glance instead of filling the card; its caption below
+       keeps the card's full width. Below 480px of room nothing changes. */
+    .ees-venn { max-width: 480px; margin: 0 auto; }
     .loop-caption { color: var(--subtext-color); font-size: 0.85rem; margin: 0.55rem 0 0 0; }
     .link-line { margin: 0.6rem 0 0 0; font-size: 0.85rem; color: var(--subtext-color); }
     .loop-intro { margin: 0 0 0.9rem 0; }
@@ -325,6 +329,31 @@
         .resource-media img { display: block; }
         .resource-media img.rm-logo { height: 100%; width: auto; max-width: 100%; object-fit: contain; }
         .resource-media img.rm-photo { width: 100%; height: 100%; object-fit: cover; }
+        /* Sanctuary card (2026-11-20): the card is one horizontal
+           button — the Sanctuary logo on the left, the card's words
+           in the middle, the O'NO II artwork on the right. Each image
+           keeps the white plate the old media band gave it, so the
+           round badge and the boat print read the same in both
+           themes. */
+        .resource-card.resource-card--sanctuary {
+            display: flex; align-items: center; gap: 14px;
+        }
+        .resource-card--sanctuary img.rm-logo {
+            height: 84px; width: auto; max-width: 30%;
+            object-fit: contain; flex: 0 0 auto;
+            background: #fff; border-radius: 10px; padding: 6px;
+        }
+        .resource-card--sanctuary .sanctuary-text { flex: 1 1 auto; min-width: 0; }
+        .resource-card--sanctuary img.rm-boat {
+            width: 34%; max-width: 190px; height: auto; max-height: 100px;
+            object-fit: contain; flex: 0 1 auto;
+            background: #fff; border-radius: 10px; padding: 6px;
+        }
+        @media (max-width: 359px) {
+            .resource-card.resource-card--sanctuary { gap: 10px; }
+            .resource-card--sanctuary img.rm-logo { height: 62px; padding: 4px; }
+            .resource-card--sanctuary img.rm-boat { width: 30%; padding: 4px; }
+        }
     </style>
     <style>
         /* Top reorganization (2026-11-20): the merged story section's
@@ -349,6 +378,68 @@
         .examples-toggle:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         .frameworks-master { margin: 0.25rem 0 0.5rem; }
         .case-grid[hidden] { display: none; }
+
+        /* Framework bubbles (2026-11-20): a framework viewer is the
+           case viewer's own pattern one layer down — a case bubble
+           opened from inside a framework bubble stacks above it,
+           and the framework bubble is wider than a case bubble:
+           it holds an overview and a grid, not one case. */
+        .case-viewer.fw-viewer { z-index: 1390; }
+        .fw-bubble { max-width: 880px; }
+        @media (min-width: 900px) {
+            .fw-bubble { max-width: 1120px; }
+        }
+
+        /* Category containment (2026-11-20): the merged story
+           section gets the framework wrapper's own two-layer shape —
+           a card shell holding its heading row, and a body on the
+           page background holding its grid — so its examples sit
+           inside their section's box, the way a framework's examples
+           now sit inside the framework's own card. */
+        .section-box {
+            border: 1px solid var(--border-color); border-radius: 8px;
+            background: var(--card-bg); margin-bottom: 0.75rem;
+            overflow: clip;
+        }
+        .section-box > .section-head-row { padding: 0.9rem 1.25rem; }
+        .section-box .section-head-row h3 { margin: 0; }
+        .section-box-body {
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-color);
+            padding: 0.25rem 1.25rem 1.25rem;
+        }
+
+        /* Alive examples pills (2026-11-20): a Show examples pill
+           breathes until the visitor's first use of any examples
+           control — the Random Generator's approved attention
+           pattern (gen-btn-pulse): a held, two-layer shadow in the
+           accent, peaking from 25% to 70% of a 3s cycle. Shadow
+           only, so no layout box moves. The examples script retires
+           the cue for good on the first press (remembered under
+           jbo-sus-examples-v1; <html> gains .examples-cue-done).
+           Only a pill still offering examples glows — one reading
+           "Hide examples" has already been found. Under reduced
+           motion the glow stands still instead of breathing. */
+        @keyframes examples-cue-pulse {
+            0% { box-shadow: 0 0 3px 2px transparent, 0 0 12px 2px transparent; }
+            25% { box-shadow: 0 0 3px 6px color-mix(in srgb, color-mix(in srgb, var(--accent-color) 85%, var(--text-color) 15%) 70%, transparent 30%), 0 0 24px 10px color-mix(in srgb, color-mix(in srgb, var(--accent-color) 85%, var(--text-color) 15%) 28%, transparent 72%); }
+            70% { box-shadow: 0 0 3px 6px color-mix(in srgb, color-mix(in srgb, var(--accent-color) 85%, var(--text-color) 15%) 70%, transparent 30%), 0 0 24px 10px color-mix(in srgb, color-mix(in srgb, var(--accent-color) 85%, var(--text-color) 15%) 28%, transparent 72%); }
+            100% { box-shadow: 0 0 3px 10px transparent, 0 0 28px 14px transparent; }
+        }
+        html:not(.examples-cue-done) .examples-toggle[aria-expanded="false"] {
+            animation: examples-cue-pulse 3s var(--ease-inout) infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            html:not(.examples-cue-done) .examples-toggle[aria-expanded="false"] {
+                animation: none;
+                /* The pulse's peak (the 25%/70% keyframes), held
+                   still. Nested two-part mixes: they resolve to the
+                   keyframes' exact colour and strength, where the
+                   keyframes' three-part form computes to no shadow
+                   at all in Chromium. */
+                box-shadow: 0 0 3px 6px color-mix(in srgb, color-mix(in srgb, var(--accent-color) 85%, var(--text-color) 15%) 70%, transparent 30%), 0 0 24px 10px color-mix(in srgb, color-mix(in srgb, var(--accent-color) 85%, var(--text-color) 15%) 28%, transparent 72%);
+            }
+        }
 
         /* Case bubble, wide on desktop: the bubble uses the width —
            photo and diagram/text side by side. Phones keep the tall
@@ -643,38 +734,45 @@
     <h3 id="three-ees">🌍 The Three E's: Environment, Economy, and Equity</h3>
     <h4>Simultaneous Attention Framework</h4>
     <div class="loop-figure">
-        <svg class="loop-svg" viewBox="0 0 340 196" role="img" aria-label="Three overlapping circles — Environment, Economy, and Equity. A plan passes only where all three overlap.">
-            <g fill="var(--accent-color)" fill-opacity="0.10" stroke="var(--accent-color)" stroke-width="1.5">
-                <circle cx="133" cy="78" r="57"/>
-                <circle cx="207" cy="78" r="57"/>
-                <circle cx="170" cy="130" r="57"/>
+        <svg class="loop-svg ees-venn" viewBox="0 0 720 643" role="img" aria-label="Three overlapping circles — Environment, Economy, and Equity. A plan passes only where all three overlap.">
+            <g fill="var(--accent-color)" fill-opacity="0.10" stroke="var(--accent-color)" stroke-width="3">
+                <circle cx="210" cy="209" r="205"/>
+                <circle cx="510" cy="209" r="205"/>
+                <circle cx="360" cy="429" r="210"/>
             </g>
-            <circle cx="170" cy="95" r="12" fill="var(--accent-color)"/>
-            <g font-size="13" font-weight="650" text-anchor="middle" fill="var(--text-color)">
-                <text x="102" y="58">Environment</text>
-                <text x="238" y="58">Economy</text>
-                <text x="170" y="176">Equity</text>
+            <circle cx="360" cy="282.3" r="25" fill="var(--accent-color)"/>
+            <g font-size="36.54" font-weight="650" text-anchor="middle" fill="var(--text-color)">
+                <text x="206.5" y="73">Environment</text>
+                <text x="560" y="88">Economy</text>
+                <text x="360" y="429">Equity</text>
+            </g>
+            <g font-size="29.95" text-anchor="middle" fill="var(--text-color)">
+                <text x="166.7" y="119.5">Actively preserving</text>
+                <text x="160" y="156.7">and enhancing</text>
+                <text x="160" y="193.8">ecological systems.</text>
+                <text x="560" y="134.5">Fostering efficient,</text>
+                <text x="560" y="171.7">short-term and</text>
+                <text x="563.9" y="208.8">long-term market-based</text>
+                <text x="560" y="246">prosperity.</text>
+                <text x="360" y="475.5">Embedding equity so gains from</text>
+                <text x="360" y="512.7">environmental and economic</text>
+                <text x="360" y="549.8">progress are more fairly</text>
+                <text x="360" y="587">distributed.</text>
             </g>
         </svg>
         <p class="loop-caption">A plan passes only in the middle, where all three overlap: the plan protects the Environment, the plan pays its own way in the Economy, and the plan treats people fairly — Equity.</p>
     </div>
     <p>The definition this page works from is the United Nations Brundtland Commission&rsquo;s, from its 1987 report <em>Our Common Future</em>: development that &ldquo;meets the needs of the present without compromising the ability of future generations to meet their own needs.&rdquo;</p>
-    <div class="rules-grid">
-        <div class="rule-item"><strong>Environment</strong><p>Actively preserving and enhancing ecological systems.</p><span>Ecological Vitality</span></div>
-        <div class="rule-item"><strong>Economy</strong><p>Fostering efficient, short-term and long-term market-based prosperity.</p><span>Market Resilience</span></div>
-        <div class="rule-item"><strong>Equity</strong><p>Embedding equity so gains from environmental and economic progress are more fairly distributed.</p><span>Structural Fairness</span></div>
-    </div>
     <p class="link-line">Official: <a href="https://sdgs.un.org/goals" target="_blank" rel="noopener">United Nations Sustainable Development Goals ↗</a></p>
 
     <h2 id="go-deeper-frameworks">The Frameworks</h2>
-    <div class="frameworks-master">
-        <button type="button" class="examples-toggle" id="examplesMaster" aria-expanded="false">Show all examples</button>
-    </div>
 
+    <div class="section-box">
     <div class="section-head-row">
         <h3 id="the-frameworks-in-action">The Frameworks in Action</h3>
         <button type="button" class="examples-toggle" id="fiaExamplesToggle" aria-expanded="false">Show examples</button>
     </div>
+        <div class="section-box-body">
 
             <div class="explainer-wrapper">
                 <button class="info-toggle" onclick="toggleExplainer('exCalAcademyCard', 'exCalAcademyArrow')">
@@ -863,13 +961,15 @@
             </div>
                 </div>
             </div>
+        </div>
+    </div>
 
     <!-- Agricultural & Regional Systems Accordion -->
     <div class="explainer-wrapper" id="regenerative-agriculture">
         <button class="info-toggle" onclick="toggleExplainer('agCard', 'agArrow')">
-            <span id="agArrow">▼</span> <span class="example-toggle-text">🌾 Regenerative Agriculture & Applied Technologies<span class="example-hook">Ranch soil rebuilt with cover crops and cattle — organic matter from under 2% to roughly 5–8%, no synthetic fertilizer since 2008.</span></span>
+            <span id="agArrow">▶</span> <span class="example-toggle-text">🌾 Regenerative Agriculture & Applied Technologies<span class="example-hook">Ranch soil rebuilt with cover crops and cattle — organic matter from under 2% to roughly 5–8%, no synthetic fertilizer since 2008.</span></span>
         </button>
-        <div class="explainer-card active" id="agCard">
+        <div class="explainer-card" id="agCard">
             <h4>Applied Regional Frameworks</h4>
                         <div class="loop-figure">
                 <div class="loop-panels">
@@ -989,9 +1089,9 @@
     <!-- Controlled Environment Agriculture Accordion -->
     <div class="explainer-wrapper" id="controlled-environment-agriculture">
         <button class="info-toggle" onclick="toggleExplainer('ceaCard', 'ceaArrow')">
-            <span id="ceaArrow">▼</span> <span class="example-toggle-text">🌱 Controlled Environment Agriculture<span class="example-hook">Tomatoes at up to 80 kilos per square metre, on as little as 4 litres of water per kilo.</span></span>
+            <span id="ceaArrow">▶</span> <span class="example-toggle-text">🌱 Controlled Environment Agriculture<span class="example-hook">Tomatoes at up to 80 kilos per square metre, on as little as 4 litres of water per kilo.</span></span>
         </button>
-        <div class="explainer-card active" id="ceaCard">
+        <div class="explainer-card" id="ceaCard">
             <h4>The Weather, Moved Indoors</h4>
             <div class="loop-figure">
                                 <div class="loop-lead">
@@ -1150,9 +1250,9 @@
     <!-- Bitcoin Mining Accordion -->
     <div class="explainer-wrapper btc-cursor" id="bitcoin-mining">
         <button class="info-toggle" onclick="toggleExplainer('miningCard', 'miningArrow')">
-            <span id="miningArrow">▼</span> <span class="example-toggle-text">⛏️ Bitcoin Mining<span class="example-hook">The most flexible electricity customer ever built — and every watt it uses comes out as heat.</span></span>
+            <span id="miningArrow">▶</span> <span class="example-toggle-text">⛏️ Bitcoin Mining<span class="example-hook">The most flexible electricity customer ever built — and every watt it uses comes out as heat.</span></span>
         </button>
-        <div class="explainer-card active" id="miningCard">
+        <div class="explainer-card" id="miningCard">
             <h4>The Power Nobody Wanted</h4>
             <div class="loop-figure">
                 <svg class="loop-svg" viewBox="0 0 340 178" role="img" aria-label="Power flows into the mine from wherever power is stranded — a dam, a gas well, a waterfall. Bitcoin flows out by internet cable, not by truck. Every watt in comes out as heat, and the mine switches off in about a second.">
@@ -1289,9 +1389,9 @@
     <!-- Biomimicry Accordion -->
     <div class="explainer-wrapper" id="biomimicry">
         <button class="info-toggle" onclick="toggleExplainer('biomimicryCard', 'biomimicryArrow')">
-            <span id="biomimicryArrow">▼</span> <span class="example-toggle-text">🌿 Biomimicry<span class="example-hook">An office block in Harare with no air conditioning at all — its ventilation uses about a tenth of the energy of a conventionally cooled building.</span></span>
+            <span id="biomimicryArrow">▶</span> <span class="example-toggle-text">🌿 Biomimicry<span class="example-hook">An office block in Harare with no air conditioning at all — its ventilation uses about a tenth of the energy of a conventionally cooled building.</span></span>
         </button>
-        <div class="explainer-card active" id="biomimicryCard">
+        <div class="explainer-card" id="biomimicryCard">
             <h4>Nature as Model, Measure, and Mentor</h4>
             <div class="loop-figure">
                 <svg class="loop-svg" viewBox="0 0 340 92" role="img" aria-label="Biomimicry in three steps: find the organism that solves the problem best, work out the principle behind its solution, then build the human version of the principle.">
@@ -1481,9 +1581,9 @@
     <!-- Circular Economy Accordion -->
     <div class="explainer-wrapper" id="circular-economy">
         <button class="info-toggle" onclick="toggleExplainer('circularCard', 'circularArrow')">
-            <span id="circularArrow">▼</span> <span class="example-toggle-text">🦋 Circular Economy<span class="example-hook">A remanufactured part typically uses 80% less energy, 88% less water and 70% less waste than making the part new.</span></span>
+            <span id="circularArrow">▶</span> <span class="example-toggle-text">🦋 Circular Economy<span class="example-hook">A remanufactured part typically uses 80% less energy, 88% less water and 70% less waste than making the part new.</span></span>
         </button>
-        <div class="explainer-card active" id="circularCard">
+        <div class="explainer-card" id="circularCard">
             <h4>A Regenerative Economic System</h4>
             <div class="loop-figure">
                 <div class="loop-panels">
@@ -1620,9 +1720,9 @@
     <!-- Cradle to Cradle Certified Accordion -->
     <div class="explainer-wrapper" id="cradle-to-cradle">
         <button class="info-toggle" onclick="toggleExplainer('c2cCard', 'c2cArrow')">
-            <span id="c2cArrow">▼</span> <span class="example-toggle-text">♻️ Cradle to Cradle Certified®<span class="example-hook">Ford's truck plant cleans its stormwater through a 10.4-acre living roof — for less than a third of a treatment plant's cost.</span></span>
+            <span id="c2cArrow">▶</span> <span class="example-toggle-text">♻️ Cradle to Cradle Certified®<span class="example-hook">Ford's truck plant cleans its stormwater through a 10.4-acre living roof — for less than a third of a treatment plant's cost.</span></span>
         </button>
-        <div class="explainer-card active" id="c2cCard">
+        <div class="explainer-card" id="c2cCard">
             <h4>Circular Product Certification</h4>
             <div class="loop-figure">
                 <p class="loop-panel-title">One product, scored — an example</p>
@@ -1685,9 +1785,9 @@
     <!-- LEED Accordion -->
     <div class="explainer-wrapper" id="leed" style="margin-top: 20px;">
         <button class="info-toggle" onclick="toggleExplainer('leedCard', 'leedArrow')">
-            <span id="leedArrow">▼</span> <span class="example-toggle-text">🏢 LEED (Leadership in Energy and Environmental Design)<span class="example-hook">The Empire State Building's retrofit cut energy use by 38% — saving about $4.4 million a year.</span></span>
+            <span id="leedArrow">▶</span> <span class="example-toggle-text">🏢 LEED (Leadership in Energy and Environmental Design)<span class="example-hook">The Empire State Building's retrofit cut energy use by 38% — saving about $4.4 million a year.</span></span>
         </button>
-        <div class="explainer-card active" id="leedCard">
+        <div class="explainer-card" id="leedCard">
             <h4>Global Green Building Standard</h4>
             <div class="loop-figure">
                 <svg class="loop-svg" viewBox="0 0 340 170" role="img" aria-label="LEED levels on the 110-point scale: under 40 points earns no level; 40 to 49 is Certified; 50 to 59 is Silver; 60 to 79 is Gold; 80 to 110 is Platinum.">
@@ -1766,9 +1866,9 @@
     <!-- Passivehaus Accordion -->
     <div class="explainer-wrapper" id="passive-house">
         <button class="info-toggle" onclick="toggleExplainer('passiveCard', 'passiveArrow')">
-            <span id="passiveArrow">▼</span> <span class="example-toggle-text">🏠 Passivehaus (Passive House)<span class="example-hook">Houses that use over 90% less heating energy — one has run as designed for 25 years.</span></span>
+            <span id="passiveArrow">▶</span> <span class="example-toggle-text">🏠 Passivehaus (Passive House)<span class="example-hook">Houses that use over 90% less heating energy — one has run as designed for 25 years.</span></span>
         </button>
-        <div class="explainer-card active" id="passiveCard">
+        <div class="explainer-card" id="passiveCard">
             <h4>Ultra-Low Energy Building Standard</h4>
             <div class="loop-figure">
                 <table class="fig-table">
@@ -1847,9 +1947,9 @@
     <!-- Living Building Challenge Accordion -->
     <div class="explainer-wrapper" id="living-building-challenge">
         <button class="info-toggle" onclick="toggleExplainer('lbcCard', 'lbcArrow')">
-            <span id="lbcArrow">▼</span> <span class="example-toggle-text">🌸 Living Building Challenge<span class="example-hook">Buildings that give more than they take — one Seattle office made 90,793 kWh more electricity than it used in a year.</span></span>
+            <span id="lbcArrow">▶</span> <span class="example-toggle-text">🌸 Living Building Challenge<span class="example-hook">Buildings that give more than they take — one Seattle office made 90,793 kWh more electricity than it used in a year.</span></span>
         </button>
-        <div class="explainer-card active" id="lbcCard">
+        <div class="explainer-card" id="lbcCard">
             <h4>Regenerative Building Standard</h4>
             <div class="loop-figure">
                 <svg class="loop-svg" viewBox="0 0 340 208" role="img" aria-label="A flower with seven Petals — Beauty, Place, Water, Energy, Materials, Equity, and Health and Happiness — holding 20 Imperatives at its centre.">
@@ -1881,7 +1981,7 @@
             <div class="rules-grid">
                 <div class="rule-item"><strong>Place</strong><p>Restoring a healthy interrelationship with nature.</p><span>Restored Habitat</span></div>
                 <div class="rule-item"><strong>Water</strong><p>Developments that operate within the water balance of a given place and climate.</p><span>Net Positive Water</span></div>
-                <div class="rule-item"><strong>Energy</strong><p>Relying only on current solar income.</p><span>Net Positive Energy</span></div>
+                <div class="rule-item"><strong>Energy</strong><p>Relying only on current solar income.</p><span>Net Positive Carbon</span></div>
                 <div class="rule-item"><strong>Health + Happiness</strong><p>Environments that optimize physical and psychological health and well-being.</p><span>Healthy Interiors</span></div>
                 <div class="rule-item"><strong>Materials</strong><p>Endorsing products that are safe for all species through time.</p><span>Nothing Toxic</span></div>
                 <div class="rule-item"><strong>Equity</strong><p>Supporting a just and equitable world.</p><span>Open to Everyone</span></div>
@@ -1921,10 +2021,13 @@
 
     <h2 id="trusted-networks">Trusted Networks & Organizations</h2>
     <div class="resource-grid">
-        <div class="resource-cell"><a href="https://www.crystalcoastsanctuary.com/" target="_blank" class="resource-card">
-            <div class="resource-media"><img class="rm-logo" src="crystal-coast-sanctuary-logo.jpg" alt="The Crystal Coast Sanctuary logo — the retreat house inside a circular badge" width="737" height="771" loading="lazy" decoding="async"></div>
-            <h3>The Crystal Coast Sanctuary and Cruise Beaufort NC <span>↗</span></h3>
-            <p>Maritime retreat in Beaufort, NC.</p>
+        <div class="resource-cell"><a href="https://www.crystalcoastsanctuary.com/" target="_blank" class="resource-card resource-card--sanctuary">
+            <img class="rm-logo" src="crystal-coast-sanctuary-logo.jpg" alt="The Crystal Coast Sanctuary logo — the retreat house inside a circular badge" width="737" height="771" loading="lazy" decoding="async">
+            <div class="sanctuary-text">
+                <h3>The Crystal Coast Sanctuary and Cruise Beaufort NC <span>↗</span></h3>
+                <p>Maritime retreat in Beaufort, NC.</p>
+            </div>
+            <img class="rm-boat" src="ono-ii.webp" alt="O'NO II, Beaufort, NC" width="640" height="460" loading="lazy" decoding="async">
         </a>
         </div>
         <div class="resource-cell"><a href="https://www.row7seeds.com" target="_blank" class="resource-card">
@@ -2177,12 +2280,12 @@
     // own card node, moved — every word of the case text is the page's
     // own text, untouched. The old in-flow example rows are hidden.
     // Section cards keep their headers, intros and rule chips behind
-    // their toggles; a grid built from a section's example rows is
-    // placed in the page flow directly below the section's own box,
-    // so the whole page reads in the same blog style — and each
+    // their toggles; a grid built from a section's example rows stays
+    // inside the section's own card, under its overview, so the
+    // framework's examples read as part of the framework — and each
     // standalone story group between the page's headings gets a
-    // grid of its own. The photo-credits expander is not a case and is
-    // left exactly as it is.
+    // grid of its own, inside its section's box. The photo-credits
+    // expander is not a case and is left exactly as it is.
     (function () {
         var openViewer = null, lastBlock = null;
 
@@ -2332,20 +2435,6 @@
                 });
                 if (grid.children.length) {
                     parent.insertBefore(grid, run[0].wrap);
-                    // A grid built from a section card's example rows
-                    // belongs in the page flow, not inside the section's
-                    // collapsed card: move it to directly below the
-                    // section's own box, so every case on the page
-                    // stands in the open in the same blog style as the
-                    // standalone story groups. The section keeps its
-                    // header, intro and rule chips behind its toggle.
-                    var secCard = grid.closest('.explainer-card');
-                    var secWrap = secCard ? secCard.closest('.explainer-wrapper') : null;
-                    if (secWrap && secWrap.parentElement) {
-                        var anchor = secWrap._gridAnchor || secWrap;
-                        secWrap.parentElement.insertBefore(grid, anchor.nextSibling);
-                        secWrap._gridAnchor = grid;
-                    }
                 }
                 run = [];
             }
@@ -2383,49 +2472,182 @@
     })();
 </script>
 <script>
-    // Framework examples (2026-11-20): the frameworks read first.
-    // Each framework's example grid starts collapsed behind a
-    // labeled pill on its header row; the merged story section
-    // carries the same pill beside its heading, and one master pill
-    // under The Frameworks heading works the category's six
-    // framework grids together. State does not persist — the
-    // framework bars themselves do not persist either, and a fresh
-    // visit starts frameworks-first. A deep link that arrives on a
-    // case opens its grid as well as its bubble, so the case is
-    // never landed on invisibly.
+    // Framework bubbles (2026-11-20): the focus model — the six
+    // frameworks rest as bars alone. Tapping a framework's bar opens
+    // that framework as a glass bubble over the page, in the case
+    // bubble machinery's own pattern (.case-viewer glass-scrim,
+    // .case-bubble glass-bubble, a labeled Close in the bubble's
+    // bar, Esc and scrim tap also close): inside the bubble sits
+    // the framework's own card — its overview and its examples
+    // grid — moved, not copied, exactly as the case runtime moves
+    // a case's card into its bubble. The bubble's content scrolls
+    // inside the bubble; the page behind does not scroll, and
+    // closing returns the visitor to the scroll position they
+    // left. One framework bubble at a time. There is no master
+    // pill anymore — no open-everything control. The merged story
+    // section and the three certifications keep the in-flow pill
+    // behaviour further down this script. The remaining pills
+    // breathe (the .examples-toggle glow in the CSS) until the
+    // visitor's first press of any examples control — a pill, or
+    // one of the six framework bars — when the cue retires for
+    // good, remembered under jbo-sus-examples-v1, the jbo- key
+    // family the Random Generator's jbo-random-pressed-v1
+    // belongs to.
     (function () {
         var FRAMEWORK_IDS = ['regenerative-agriculture', 'controlled-environment-agriculture', 'bitcoin-mining', 'biomimicry', 'circular-economy', 'cradle-to-cradle'];
         var entries = [];
-        function syncMaster() {
-            var master = document.getElementById('examplesMaster');
-            if (!master) return;
-            var anyOpen = entries.some(function (e) { return e.master && !e.grid.hidden; });
-            master.textContent = anyOpen ? 'Hide all examples' : 'Show all examples';
-            master.setAttribute('aria-expanded', anyOpen ? 'true' : 'false');
+
+        // The alive cue: the first press of any examples control,
+        // anywhere on the page, retires it for good.
+        var CUE_KEY = 'jbo-sus-examples-v1';
+        var cueDone = false;
+        try { cueDone = !!window.localStorage.getItem(CUE_KEY); } catch (e) { }
+        if (cueDone) { document.documentElement.classList.add('examples-cue-done'); }
+        document.addEventListener('click', function (e) {
+            if (cueDone) { return; }
+            var t = e.target && e.target.closest ? e.target.closest('.examples-toggle, .fw-bar') : null;
+            if (!t) { return; }
+            cueDone = true;
+            try { window.localStorage.setItem(CUE_KEY, '1'); } catch (err) { }
+            document.documentElement.classList.add('examples-cue-done');
+        });
+
+        // ---- The six frameworks, as bubbles ----
+        var fwEntries = [];
+        var fwOpen = null;   // the open framework viewer
+        var fwBar = null;    // the bar that opened it (focus return)
+
+        function closeFramework() {
+            if (!fwOpen) { return; }
+            fwOpen.hidden = true;
+            fwOpen = null;
+            document.body.style.overflow = '';
+            if (fwBar) { fwBar.focus(); fwBar = null; }
+        }
+        function showFramework(entry) {
+            if (fwOpen && fwOpen !== entry.viewer) { fwOpen.hidden = true; }
+            entry.viewer.hidden = false;
+            fwOpen = entry.viewer;
+            fwBar = entry.bar;
+            document.body.style.overflow = 'hidden';
+        }
+        function openFramework(entry) {
+            if (fwOpen === entry.viewer) { return; }
+            showFramework(entry);
+            entry.scroll.scrollTop = 0;
+            entry.closeBtn.focus();
+        }
+        // Escape belongs to the topmost layer. The photo viewer and
+        // a case bubble handle their own Escape further down the
+        // event's path; this capture-phase listener runs first and
+        // closes the framework only when nothing above it is open,
+        // so one Escape closes exactly one layer.
+        window.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape' || !fwOpen) { return; }
+            var pv = document.getElementById('photoViewer');
+            if (pv && !pv.hidden) { return; }
+            if (document.querySelector('.case-viewer:not(.fw-viewer):not([hidden])')) { return; }
+            closeFramework();
+        }, true);
+        // Closing a case that sits above a framework bubble: the
+        // case runtime restores the body's scroll lock as it closes
+        // (its closeCase clears body overflow). While a framework
+        // bubble is still open underneath, re-apply the lock — the
+        // photo viewer's own restore pattern, mirrored.
+        if ('MutationObserver' in window) {
+            document.querySelectorAll('.case-viewer:not(.fw-viewer)').forEach(function (v) {
+                new MutationObserver(function () {
+                    if (v.hidden && fwOpen) { document.body.style.overflow = 'hidden'; }
+                }).observe(v, { attributes: true, attributeFilter: ['hidden'] });
+            });
+        }
+
+        FRAMEWORK_IDS.forEach(function (id) {
+            var wrap = document.getElementById(id);
+            if (!wrap) { return; }
+            var bar = wrap.querySelector(':scope > .info-toggle');
+            var card = wrap.querySelector(':scope > .explainer-card');
+            if (!bar || !card) { return; }
+            var grid = card.querySelector('.case-grid');
+            var toggleText = bar.querySelector('.example-toggle-text');
+            var name = (toggleText && toggleText.childNodes.length)
+                ? toggleText.childNodes[0].textContent.replace(/\s+/g, ' ').trim() : id;
+            // A case deep link may have opened this card in-flow
+            // (the case runtime above); the framework rests closed,
+            // so put the bar back to its resting state.
+            if (card.classList.contains('active')) {
+                card.classList.remove('active');
+                var arrow = document.getElementById(card.id.replace(/Card$/, 'Arrow'));
+                if (arrow) { arrow.textContent = '▶'; }
+            }
+            var viewer = document.createElement('div');
+            viewer.className = 'case-viewer glass-scrim fw-viewer';
+            viewer.hidden = true;
+            viewer.setAttribute('role', 'dialog');
+            viewer.setAttribute('aria-modal', 'true');
+            viewer.setAttribute('aria-label', name);
+            var bubble = document.createElement('div');
+            bubble.className = 'case-bubble glass-bubble fw-bubble';
+            var bubbleBar = document.createElement('div');
+            bubbleBar.className = 'case-bubble-bar';
+            var closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'case-close';
+            closeBtn.textContent = 'Close';
+            closeBtn.setAttribute('aria-label', 'Close ' + name);
+            bubbleBar.appendChild(closeBtn);
+            var scroll = document.createElement('div');
+            scroll.className = 'case-bubble-scroll';
+            scroll.appendChild(card);
+            bubble.appendChild(bubbleBar);
+            bubble.appendChild(scroll);
+            viewer.appendChild(bubble);
+            document.body.appendChild(viewer);
+            if (grid) { grid.hidden = false; }
+            var entry = { id: id, bar: bar, card: card, grid: grid,
+                          viewer: viewer, scroll: scroll, closeBtn: closeBtn };
+            fwEntries.push(entry);
+            bar.removeAttribute('onclick');
+            bar.classList.add('fw-bar');
+            bar.setAttribute('aria-haspopup', 'dialog');
+            bar.addEventListener('click', function () { openFramework(entry); });
+            closeBtn.addEventListener('click', closeFramework);
+            viewer.addEventListener('click', function (e) {
+                if (e.target === viewer) { closeFramework(); }
+            });
+        });
+
+        // ---- The pill sections keep their in-flow behaviour ----
+        // (the merged story section, and the certifications: their
+        // grids open inside their own boxes, under their overviews,
+        // behind the labeled pill on the header row; closing a bar
+        // whose examples are showing hides the examples with it.)
+        function setFramework(entry, open) {
+            if (!entry.card || typeof toggleExplainer !== 'function') return;
+            if (entry.card.classList.contains('active') !== open) {
+                toggleExplainer(entry.card.id, entry.arrowId);
+            }
         }
         function setGrid(entry, show) {
+            if (show) { setFramework(entry, true); }
             entry.grid.hidden = !show;
             entry.btn.textContent = show ? 'Hide examples' : 'Show examples';
             entry.btn.setAttribute('aria-expanded', show ? 'true' : 'false');
-            syncMaster();
         }
-        function wire(grid, btn, isMaster) {
+        function wire(grid, btn, wrap) {
             if (!grid || !btn) return null;
-            var entry = { grid: grid, btn: btn, master: !!isMaster };
+            var card = wrap ? wrap.querySelector(':scope > .explainer-card') : null;
+            var entry = { grid: grid, btn: btn, card: card,
+                          arrowId: card ? card.id.replace(/Card$/, 'Arrow') : null };
             entries.push(entry);
             grid.hidden = true;
             btn.addEventListener('click', function () { setGrid(entry, grid.hidden); });
             return entry;
         }
-        // Section grids: each sits directly below its framework's
-        // wrapper in the flow (the grid runtime put it there). Give
-        // the wrapper a header row — its toggle plus the pill.
         document.querySelectorAll('.case-grid').forEach(function (grid) {
-            var el = grid.previousElementSibling;
-            while (el && !(el.classList && el.classList.contains('explainer-wrapper') && el.id)) {
-                el = el.previousElementSibling;
-            }
-            if (!el) return; // the story section's grid is wired below
+            var el = grid.closest('.explainer-wrapper');
+            if (!el || !el.id) return; // the story section's grid is wired below
+            if (FRAMEWORK_IDS.indexOf(el.id) !== -1) return; // a framework: bubbled above
             var tog = el.querySelector(':scope > .info-toggle');
             if (!tog) return;
             var head = document.createElement('div');
@@ -2438,37 +2660,48 @@
             btn.textContent = 'Show examples';
             btn.setAttribute('aria-expanded', 'false');
             head.appendChild(btn);
-            wire(grid, btn, FRAMEWORK_IDS.indexOf(el.id) !== -1);
+            var entry = wire(grid, btn, el);
+            if (entry) {
+                tog.addEventListener('click', function () {
+                    if (entry.card && !entry.card.classList.contains('active') && !grid.hidden) {
+                        setGrid(entry, false);
+                    }
+                });
+            }
         });
-        // The merged story section: its pill is in the page already.
+        // The merged story section: its pill is in the page already,
+        // and its grid sits inside the section's own box.
         var fiaBtn = document.getElementById('fiaExamplesToggle');
         if (fiaBtn) {
-            var row = fiaBtn.closest('.section-head-row');
-            var fiaGrid = row ? row.nextElementSibling : null;
-            if (fiaGrid && fiaGrid.classList.contains('case-grid')) { wire(fiaGrid, fiaBtn, false); }
+            var fiaBox = fiaBtn.closest('.section-box');
+            var fiaGrid = fiaBox ? fiaBox.querySelector('.case-grid') : null;
+            if (fiaGrid) { wire(fiaGrid, fiaBtn, null); }
         }
-        // The master pill under The Frameworks heading.
-        var master = document.getElementById('examplesMaster');
-        if (master) {
-            master.addEventListener('click', function () {
-                var fw = entries.filter(function (e) { return e.master; });
-                var anyHidden = fw.some(function (e) { return e.grid.hidden; });
-                fw.forEach(function (e) { setGrid(e, anyHidden); });
-            });
-        }
-        // A deep link that opened a case bubble on arrival: open
-        // the grid the case belongs to as well. The bubble can open
-        // on a timer, so check again shortly after load.
-        function openGridForOpenCase() {
-            var v = document.querySelector('.case-viewer:not([hidden])');
-            if (v && v._block) {
-                var g = v._block.parentElement;
-                entries.forEach(function (e) { if (e.grid === g && g.hidden) { setGrid(e, true); } });
+        // A deep link that opened a case bubble on arrival: when the
+        // case belongs to one of the six frameworks, open that
+        // framework's bubble beneath the case bubble, scrolled to
+        // the case; when it belongs to a pill section, open its grid
+        // as before. The bubble can open on a timer, so check again
+        // shortly after load.
+        function openForOpenCase() {
+            var v = document.querySelector('.case-viewer:not(.fw-viewer):not([hidden])');
+            if (!v || !v._block) { return; }
+            var g = v._block.parentElement;
+            for (var i = 0; i < fwEntries.length; i++) {
+                if (fwEntries[i].grid === g) {
+                    var entry = fwEntries[i];
+                    if (fwOpen !== entry.viewer) { showFramework(entry); }
+                    var sr = entry.scroll.getBoundingClientRect();
+                    var br = v._block.getBoundingClientRect();
+                    entry.scroll.scrollTop += br.top - sr.top - 12;
+                    return;
+                }
             }
+            entries.forEach(function (e) { if (e.grid === g && g.hidden) { setGrid(e, true); } });
         }
-        openGridForOpenCase();
-        setTimeout(openGridForOpenCase, 400);
-        syncMaster();
+        openForOpenCase();
+        setTimeout(openForOpenCase, 400);
+        setTimeout(openForOpenCase, 900);
     })();
 </script>
 <script>
@@ -2481,8 +2714,8 @@
     // Building Certifications & Standards, and Trusted Networks &
     // Organizations. A region runs
     // from its heading or framework box to the next region's start, so
-    // the case grids the grid runtime moves into the flow below each
-    // box belong to that box's region. The spy reads each region's
+    // the case grids inside each box belong to that box's region.
+    // The spy reads each region's
     // HEADING (the category's h2, a story's h3, or the framework box's
     // toggle row) against the landing line — the bar's bottom edge
     // plus the 10px landing gap. One refinement (the same name never

@@ -65,11 +65,16 @@ previous file's pe is carried over when the old bars are a strict
 prefix of the new ones) — it never blocks or degrades the price
 data.
 
-Daily file (added 2026-11-16): the same run also writes
-finance-chart-daily.json — the same instruments as DAILY bars for
-the last five years, so the chart's Daily view can draw the same
+Daily file (added 2026-11-16; full history since 2026-11-20): the
+same run also writes finance-chart-daily.json — the same
+instruments as DAILY bars over the same full history as the weekly
+file (from 2000-01-01, or the instrument's own first trading day
+where that is later), so the chart's Daily view can draw the same
 gauges in their daily forms (200-day / 50-day averages, daily RSI,
-20-day volume average). The page fetches it lazily, only when a
+20-day volume average) on every range the chart offers. (The daily
+file originally carried only the last five years, which capped the
+Daily view at the 5Y range; the window was widened to match the
+weekly file's.) The page fetches it lazily, only when a
 visitor first switches to Daily, so the weekly file stays the
 page's normal load. Same honesty rules: only completed days (a day
 counts once it is past, or once it is 21:00 UTC or later that day —
@@ -986,7 +991,7 @@ def main():
         log("WARNING: share snapshots failed (%s) — previous "
             "og-finance images stand." % exc)
 
-    # ---- the daily file: same instruments, daily bars, last 5 years ----
+    # ---- the daily file: same instruments, daily bars, full history ----
     # Written second, from the same EDGAR facts cache, so a daily
     # failure can never degrade the weekly file above. The workflow's
     # commit step picks this file up once its name joins the git add
@@ -995,9 +1000,11 @@ def main():
     daily_path = os.path.join(os.path.dirname(os.path.abspath(out_path)),
                               DAILY_OUT_FILE)
     through_day = last_completed_day(today, now_utc)
-    cutoff = years_ago(today, 5)
-    d_period1 = int(datetime(cutoff.year, cutoff.month, cutoff.day,
-                             tzinfo=timezone.utc).timestamp()) - 10 * 86400
+    # Full history: the same START as the weekly fetch (2000-01-01).
+    # Until 2026-11-20 this was years_ago(today, 5), which capped the
+    # chart's Daily view at the 5Y range.
+    cutoff = START
+    d_period1 = period1 - 10 * 86400
     d_previous = {}
     if os.path.exists(daily_path):
         try:
@@ -1068,7 +1075,8 @@ def main():
     d_output = {
         "last_updated": today.isoformat(),
         "source": "Yahoo Finance v8 chart API (query1.finance.yahoo.com), "
-                  "daily OHLCV bars for the last five years; "
+                  "daily OHLCV bars since 2000 (or the instrument's "
+                  "first trading day); "
                   "completed days only. P/E arrays: daily close / "
                   "trailing-twelve-month diluted EPS from SEC EDGAR "
                   "companyfacts, point-in-time by first filing date, "
