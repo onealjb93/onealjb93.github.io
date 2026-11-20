@@ -27,7 +27,7 @@
     <script>
         // Recipe text size: apply the saved size before first paint, so a
         // returning reader never sees the reading text jump size. The
-        // exact factor (v2, written by a cook-view pinch) wins over the
+        // exact factor (v2, written by a pinch) wins over the
         // step index (v1); a factor resting on a step applies as that
         // step, any other factor applies as the live "pinch" state.
         (function () {
@@ -430,7 +430,7 @@
     .door-card:hover { border-color: var(--link-color); }
     .door-card:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
     .door-card-photo { display: block; }
-    .door-card-photo img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; }
+    .door-card-photo img { display: block; width: 100%; height: auto; aspect-ratio: 5 / 2; object-fit: cover; }
     .door-card-body { display: block; padding: 0.7rem 0.85rem 0.9rem; }
     .door-card-name { display: block; font-size: 1rem; font-weight: 650; line-height: 1.3; }
     .door-card-lead { display: block; margin-top: 0.3rem; font-size: 0.85rem; line-height: 1.45; color: var(--subtext-color); }
@@ -449,6 +449,29 @@
     .recipe-controls.is-stuck > select { flex: none; }
     .recipe-controls.is-stuck .recipe-filters::-webkit-scrollbar { display: none; }
     .recipe-controls.is-stuck .filter-pill { flex: none; }
+    /* Drag-to-scroll (2026-11-20): while stuck, the strip becomes a
+       glass bar — the site's glass-bubble material (blur, large
+       radius, soft shadow) — so the pill row reads as something you
+       can grab. The row scrolls by mouse drag, touch swipe, and
+       trackpad; a soft mask fade marks whichever edge has more pills
+       beyond it; the sort select stays fixed at the bar's right end,
+       outside the scroller, fully visible at every scroll position.
+       The glass ring is an inset shadow rather than a border, so
+       sticking changes no layout box: the bar's height and the pills'
+       places are the same stuck as at rest. Desktop only — the phone
+       strip keeps its slim row and its Filter bubble. */
+    @media (min-width: 769px) {
+        .recipe-controls { transition: padding 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease; }
+        .recipe-controls.is-stuck { background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25); backdrop-filter: blur(var(--glass-blur)) saturate(1.25); border-radius: var(--glass-radius); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--border-color); padding-left: 0.85rem; padding-right: 0.85rem; }
+        .recipe-controls.is-stuck .recipe-filters { cursor: grab; }
+        .recipe-controls.is-stuck .recipe-filters.dragging { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+        .recipe-controls.is-stuck .recipe-filters.fade-r { -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 30px), transparent 100%); mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 30px), transparent 100%); }
+        .recipe-controls.is-stuck .recipe-filters.fade-l { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 30px, #000 100%); mask-image: linear-gradient(to right, transparent 0, #000 30px, #000 100%); }
+        .recipe-controls.is-stuck .recipe-filters.fade-l.fade-r { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%); mask-image: linear-gradient(to right, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%); }
+    }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+        @media (min-width: 769px) { .recipe-controls.is-stuck { background: var(--glass-bg-solid); } }
+    }
     .filter-compact { display: none; }
     @media (max-width: 768px) {
         .recipe-controls .recipe-filters, .recipe-controls > select { display: none; }
@@ -462,6 +485,13 @@
     .filter-bubble-pills { display: flex; flex-wrap: wrap; gap: 8px; padding: 0.6rem 1rem 1rem; overflow-y: auto; }
     .filter-bubble-sort { flex: none; padding: 0 1rem 1rem; font-size: 0.88rem; }
     .filter-bubble-sort select { margin-left: 0.5rem; }
+    /* The scrim class carries no positioning, so the Filter bubble
+       takes the same fixed-overlay rule as the nutrition bubble
+       (#nutriPop). Without it the bubble rendered in-flow at the end
+       of the document and opening it scrolled the page to the bottom
+       (found 2026-11-20 during the drag-strip verification; the fix
+       is this one rule — delete it to revert). */
+    #filterPop { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
     #filterPop[hidden] { display: none; }
 
     /* Sticky combiner footer bar (mobile + desktop) */
@@ -870,9 +900,12 @@
        as the exact value in localStorage (jbo-recipe-text-v2; the step
        index in jbo-recipe-text-v1 is kept alongside whenever the factor
        rests on a step) and applied before paint by the head script.
-       Only the reading text scales: the opened card body and the cook
-       panes' content, via --rts on <html data-textscale>. Headings,
-       nav, filter labels and the nutrition tool keep their own sizes.
+       Only the reading text scales: the opened card body, via --rts
+       on <html data-textscale>. (The cook panes' content scaled the
+       same way until 2026-11-20; the cook view is per-section now —
+       see the "Per-section text size in the cook view" block below.)
+       Headings, nav, filter labels and the nutrition tool keep their
+       own sizes.
        The default factor (1 = 100%) defines no --rts and matches no
        override rule, so the page renders exactly as before until the
        reader changes the size. A two-finger pinch drives the setting:
@@ -881,7 +914,9 @@
        released size stands. During either gesture the live factor
        writes --rts inline under data-textscale="pinch" (matched by the
        scale rules, claimed by no step). (The A−/A+ stepper buttons
-       were removed 2026-11-16 — pinch is the control.) */
+       were removed 2026-11-16 — pinch was the only control until
+       2026-11-20, when the pair returned to the cook view as a
+       per-section control; on the card list pinch remains it.) */
     html[data-textscale="0"] { --rts: 0.85; }
     html[data-textscale="2"] { --rts: 1.15; }
     html[data-textscale="3"] { --rts: 1.30; }
@@ -912,6 +947,39 @@
     html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-steps,
     html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-steps ol,
     html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-notes ol { padding-left: calc(1.2rem * var(--rts)); }
+    /* Per-section text size in the cook view (2026-11-20): the cook
+       panes no longer follow the page-wide factor above. Each pane's
+       Ingredients and Preparation sections carry their OWN factor,
+       --srts, written inline on the section's title and lists by the
+       section's A−/A+ pair or by a pinch on that section (see the
+       per-section script). The factor lives only in the pane DOM —
+       nothing is stored — so every cook-view open starts both sections
+       of every recipe at 100%. The rules below hold the pane's base
+       sizes at every page-wide setting and let --srts do the scaling;
+       the card list keeps the page-wide setting exactly as before. */
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content { font-size: 1.05rem; }
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-section-title { font-size: calc(1.15rem * var(--srts, 1)); }
+    .cook-recipe .recipe-content .recipe-section-title { font-size: calc(1.15rem * var(--srts, 1)); }
+    .cook-recipe .recipe-content .recipe-list,
+    .cook-recipe .recipe-content .recipe-steps { font-size: calc(1.05rem * var(--srts, 1)); }
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-list,
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-steps,
+    html[data-textscale]:not([data-textscale="1"]) .cook-recipe .recipe-content .recipe-steps ol { padding-left: calc(1.2rem * var(--srts, 1)); }
+    .cook-recipe .recipe-content .recipe-list,
+    .cook-recipe .recipe-content .recipe-steps,
+    .cook-recipe .recipe-content .recipe-steps ol { padding-left: calc(1.2rem * var(--srts, 1)); }
+    /* The ingredients bubble is the single pane's Ingredients section
+       read on a phone: it follows that section's factor, not the
+       page-wide one. */
+    .cook-ing-bubble-body { font-size: calc(1.05rem * var(--srts, 1)); }
+    .cook-ing-bubble-body .recipe-section-title { font-size: calc(1.15rem * var(--srts, 1)); }
+    /* The A−/A+ pair sits on the section title it governs: small and
+       muted at rest, always visible, pushed to the title's far end. */
+    .cook-recipe .recipe-section-title.ts-host { display: flex; align-items: center; gap: 0.5rem; }
+    .ts-pair { margin-left: auto; display: inline-flex; gap: 0.25rem; flex: none; }
+    .ts-btn { font: inherit; font-size: 0.72rem; font-weight: 600; line-height: 1; color: var(--subtext-color); background: transparent; border: 1px solid var(--border-color); border-radius: 999px; padding: 0.28rem 0.5rem; min-height: 24px; cursor: pointer; text-transform: none; letter-spacing: normal; }
+    .ts-btn:hover { color: var(--text-color); background: var(--hover-bg); }
+    .ts-btn:active { color: var(--text-color); background: var(--hover-bg); }
 </style>
 <style>
 .discuss-link { display: inline-block; margin-top: 0.75rem; font-size: 0.85rem; font-weight: 600; color: var(--link-color); text-decoration: none; }
@@ -1142,7 +1210,7 @@
                      <button class="filter-pill" data-filter="pantry">Pantry (3)</button>
                 </div>
                 <select id="recipe-sort" aria-label="Sort recipes">
-                    <option value="archive">Archive order</option>
+                    <option value="archive">Sort</option>
                     <option value="name">Name A–Z</option>
                     <option value="newest">Newest first</option>
                 </select>
@@ -9522,12 +9590,14 @@
 
     <script>
     (function () {
-        // Recipe text size: pinch-to-zoom drives the one setting.
-        // The setting is a factor, stored two ways: v2 holds the exact
-        // factor (a cook-view pinch is continuous and lands between
-        // steps); v1 holds the step index, kept in step whenever the
-        // factor rests on a step (the original store — a card-list
-        // pinch still snaps to a step). v2 wins when both exist.
+        // Recipe text size: on the card list, pinch-to-zoom drives the
+        // one setting. The setting is a factor, stored two ways: v2
+        // holds the exact factor (the pre-2026-11-20 cook-view pinch
+        // was continuous and landed between steps; the cook pinch is
+        // per-section now and stores nothing); v1 holds the step
+        // index, kept in step whenever the factor rests on a step
+        // (the original store — a card-list pinch still snaps to a
+        // step). v2 wins when both exist.
         var KEY1 = 'jbo-recipe-text-v1';
         var KEY2 = 'jbo-recipe-text-v2';
         var STEPS = [0.85, 1, 1.15, 1.30, 1.50];
@@ -9575,16 +9645,19 @@
                 } catch (e) {}
             }
         }
-        /* Pinch-to-zoom is the control for this setting, with two scopes.
-           In the cook view — anywhere inside #cookView, the pane head
-           and buttons included, because a cooking reader's fingers land
-           where they land — the pinch is a continuous text-size
-           adjustment: the live factor writes --rts inline under
-           data-textscale="pinch", clamped to MIN–MAX, and releasing the
-           fingers keeps the exact size, no snap. On the card list (an
-           opened card's .recipe-content) the original behaviour stands:
-           the same live write, clamped to the step range, snapping to
-           the nearest step on release.
+        /* Pinch-to-zoom, with two scopes. In the cook view the pinch
+           is LOCAL (2026-11-20): it zooms the one section it lands
+           on — that recipe's Ingredients or Preparation — through the
+           per-section hooks (window.__jboTsPinchResolve /
+           __jboTsPinchApply, defined by the per-section script after
+           this one), continuous between MIN and MAX, and releasing
+           the fingers keeps the section's exact size; the setting
+           above and localStorage are not touched, and a cook pinch
+           that resolves to no section does nothing. On the card list
+           (an opened card's .recipe-content) the original behaviour
+           stands: the live factor writes --rts inline under
+           data-textscale="pinch", clamped to the step range, snapping
+           to the nearest step on release.
            One finger is never intercepted — page scroll, cook pane
            scroll and scroll-snap behave exactly as before; the pinch
            engages only when a second touch lands, and the start
@@ -9596,8 +9669,9 @@
            below covers the same ground on iOS. The non-passive
            preventDefault on two-touch moves stops the page scrolling
            mid-pinch. Attribute writes are value-guarded and the only
-           per-move write is the inline --rts, so the gesture path never
-           churns the page-wide MutationObserver. */
+           per-move writes are the inline --rts (card list) or the
+           section's inline --srts (cook view), so the gesture path
+           never churns the page-wide MutationObserver. */
         var pinch = null;
         function pinchDist(t) {
             var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
@@ -9613,11 +9687,17 @@
             var v = String(round3(s));
             if (pinch.written === v) return;
             pinch.written = v;
+            if (pinch.ts) { window.__jboTsPinchApply(pinch.ts, s); return; }
             document.documentElement.style.setProperty('--rts', v);
         }
-        function pinchStart(e, mode) {
+        function pinchStart(e, mode, tsRef) {
             var d0 = pinchDist(e.touches);
             if (!d0) return false;
+            if (tsRef) {
+                pinch = { mode: mode, ts: tsRef, d0: d0, s0: tsRef.factor, scale: tsRef.factor, written: null };
+                pinchLive(tsRef.factor);
+                return true;
+            }
             pinch = { mode: mode, d0: d0, s0: factor, scale: factor, written: null };
             var el = document.documentElement;
             if (el.getAttribute('data-textscale') !== 'pinch') el.setAttribute('data-textscale', 'pinch');
@@ -9626,15 +9706,19 @@
         }
         function pinchFinish() {
             if (!pinch) return;
-            var mode = pinch.mode, s = pinch.scale;
+            var mode = pinch.mode, s = pinch.scale, ts = pinch.ts;
             pinch = null;
-            factor = (mode === 'cook') ? s : STEPS[nearestStepIdx(s)];
+            if (ts) return; /* the section keeps its exact size; nothing is stored */
+            factor = STEPS[nearestStepIdx(s)];
             render(true);
         }
         document.addEventListener('touchstart', function (e) {
             if (pinch || e.touches.length !== 2) return;
             var t0 = e.touches[0].target, t1 = e.touches[1].target;
-            if (pinchInCook(t0) && pinchInCook(t1)) { if (pinchStart(e, 'cook')) e.preventDefault(); }
+            if (pinchInCook(t0) && pinchInCook(t1)) {
+                var tsRef = window.__jboTsPinchResolve ? window.__jboTsPinchResolve(e.touches[0], e.touches[1]) : null;
+                if (tsRef && pinchStart(e, 'cook', tsRef)) e.preventDefault();
+            }
             else if (pinchInRead(t0) && pinchInRead(t1)) { if (pinchStart(e, 'step')) e.preventDefault(); }
         }, { passive: false });
         document.addEventListener('touchmove', function (e) {
@@ -9659,6 +9743,175 @@
             if (pinchInCook(e.target) || pinchInRead(e.target)) e.preventDefault();
         }, { passive: false });
         render(false);
+    })();
+    </script>
+
+    <script>
+    (function () {
+        /* Per-section text size in the cook view (2026-11-20).
+           Every cook pane's Ingredients and Preparation headers carry
+           a tiny A− / A+ pair — visible at rest, muted, on the header
+           of the text it governs. The pair, or a pinch on the section,
+           scales ONLY that section of that recipe; both controls share
+           one factor per recipe + section, held on the pane element
+           itself (pane.__ts) and written as the inline --srts the CSS
+           above reads. Nothing is written to localStorage: openCook
+           rebuilds the panes and calls __jboTsSetup, closeCook calls
+           __jboTsReset, so every open starts both sections of every
+           recipe at 100%. Bounds match the old cook-pinch range,
+           0.70–2.00; the pair steps by 0.10. The pinch script above
+           resolves a cook pinch through __jboTsPinchResolve /
+           __jboTsPinchApply. The ingredients bubble is the single
+           pane's Ingredients section on a phone — its clones carry the
+           pair and the factor with them, and __jboTsBubbleOpened keeps
+           the bubble body's own --srts in step. */
+        var MIN = 0.70, MAX = 2.00, STEP = 0.10;
+        var cookRecipesEl = document.getElementById('cookRecipes');
+        var cookIngBodyEl = document.getElementById('cookIngBody');
+        var cookIngPopEl = document.getElementById('cookIngPop');
+        function clamp(f) { return Math.max(MIN, Math.min(MAX, f)); }
+        function round2(f) { return Math.round(f * 100) / 100; }
+        function titleText(el) {
+            var t = '';
+            Array.prototype.forEach.call(el.childNodes, function (n) { if (n.nodeType === 3) t += n.textContent; });
+            return t.replace(/\s+/g, ' ').trim().toLowerCase();
+        }
+        function sectionMembers(content, ingTitle, prepTitle) {
+            var members = { ing: [], prep: [] };
+            if (ingTitle) members.ing.push(ingTitle);
+            if (prepTitle) members.prep.push(prepTitle);
+            var items = content.querySelectorAll('.recipe-section-title, .recipe-list, .recipe-steps');
+            Array.prototype.forEach.call(items, function (el) {
+                if (el === ingTitle || el === prepTitle) return;
+                var afterPrep = prepTitle && (prepTitle.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+                var afterIng = ingTitle && (ingTitle.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+                if (afterPrep) members.prep.push(el);
+                else if (afterIng) members.ing.push(el);
+            });
+            return members;
+        }
+        function makePair(label) {
+            var pair = document.createElement('span');
+            pair.className = 'ts-pair';
+            pair.setAttribute('role', 'group');
+            pair.setAttribute('aria-label', label + ' text size');
+            var lower = label.toLowerCase();
+            pair.innerHTML = '<button type="button" class="ts-btn" data-ts-dir="-1" aria-label="Smaller ' + lower + ' text">A−</button>' +
+                '<button type="button" class="ts-btn" data-ts-dir="1" aria-label="Larger ' + lower + ' text">A+</button>';
+            return pair;
+        }
+        function setupPane(pane) {
+            var content = pane.querySelector('.recipe-content');
+            if (!content) return;
+            var ingTitle = null, prepTitle = null;
+            Array.prototype.forEach.call(content.querySelectorAll('.recipe-section-title'), function (t) {
+                var tx = titleText(t);
+                if (tx === 'ingredients' && !ingTitle) ingTitle = t;
+                if (tx === 'preparation' && !prepTitle) prepTitle = t;
+            });
+            var members = sectionMembers(content, ingTitle, prepTitle);
+            pane.__ts = { ing: 1, prep: 1, members: members, ingTitle: ingTitle, prepTitle: prepTitle };
+            [['ing', ingTitle, 'Ingredients'], ['prep', prepTitle, 'Preparation']].forEach(function (cfg) {
+                var key = cfg[0], title = cfg[1], label = cfg[2];
+                if (!title) return;
+                title.setAttribute('data-ts-sec', key);
+                title.classList.add('ts-host');
+                title.appendChild(makePair(label));
+                members[key].forEach(function (el) { el.setAttribute('data-ts-sec', key); });
+            });
+        }
+        function syncBubble(pane) {
+            var st = pane && pane.__ts;
+            if (!st || !cookIngBodyEl || !cookIngPopEl || cookIngPopEl.hidden) return;
+            if (!cookRecipesEl || cookRecipesEl.children[0] !== pane) return;
+            cookIngBodyEl.style.setProperty('--srts', String(st.ing));
+        }
+        function applyFactor(pane, key) {
+            var st = pane.__ts;
+            if (!st) return;
+            var v = String(st[key]);
+            st.members[key].forEach(function (el) { el.style.setProperty('--srts', v); });
+            if (key === 'ing') syncBubble(pane);
+        }
+        function setFactor(pane, key, f) {
+            var st = pane.__ts;
+            if (!st) return;
+            st[key] = clamp(round2(f));
+            applyFactor(pane, key);
+        }
+        document.addEventListener('click', function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest('.ts-btn') : null;
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            var dir = parseInt(btn.getAttribute('data-ts-dir'), 10) || 0;
+            var host = btn.closest('[data-ts-sec]');
+            var key = host ? host.getAttribute('data-ts-sec') : null;
+            var pane = btn.closest('.cook-recipe');
+            if (!pane && cookIngBodyEl && btn.closest('#cookIngBody')) {
+                pane = cookRecipesEl ? cookRecipesEl.children[0] : null;
+                key = 'ing';
+            }
+            if (pane && key && pane.__ts) setFactor(pane, key, pane.__ts[key] + dir * STEP);
+        }, false);
+        function sectionForTouch(touch) {
+            var node = touch.target;
+            if (!node || !node.closest) return null;
+            if (cookIngBodyEl && node.closest('#cookIngBody')) {
+                var p0 = cookRecipesEl ? cookRecipesEl.children[0] : null;
+                return p0 && p0.__ts ? { pane: p0, key: 'ing' } : null;
+            }
+            var member = node.closest('[data-ts-sec]');
+            if (member) {
+                var p1 = member.closest('.cook-recipe');
+                return p1 && p1.__ts ? { pane: p1, key: member.getAttribute('data-ts-sec') } : null;
+            }
+            var col = node.closest('.cook-col-ing, .pane-col-ing');
+            if (col) {
+                var p2 = col.closest('.cook-recipe');
+                return p2 && p2.__ts ? { pane: p2, key: 'ing' } : null;
+            }
+            var pane = node.closest('.cook-recipe');
+            if (pane && pane.__ts) {
+                var st = pane.__ts;
+                if (st.prepTitle) {
+                    var r = st.prepTitle.getBoundingClientRect();
+                    return { pane: pane, key: touch.clientY < r.top ? 'ing' : 'prep' };
+                }
+                return { pane: pane, key: 'ing' };
+            }
+            return null;
+        }
+        window.__jboTsPinchResolve = function (t0, t1) {
+            var a = sectionForTouch(t0);
+            var b = sectionForTouch(t1);
+            var ref = a || b;
+            if (!ref) return null;
+            return { pane: ref.pane, key: ref.key, factor: ref.pane.__ts[ref.key] };
+        };
+        window.__jboTsPinchApply = function (ref, f) {
+            if (!ref || !ref.pane) return;
+            setFactor(ref.pane, ref.key, f);
+        };
+        window.__jboTsSetup = function () {
+            if (!cookRecipesEl) return;
+            Array.prototype.forEach.call(cookRecipesEl.children, function (pane) { setupPane(pane); });
+        };
+        window.__jboTsReset = function () {
+            if (cookRecipesEl) Array.prototype.forEach.call(cookRecipesEl.children, function (pane) {
+                var st = pane.__ts;
+                if (!st) return;
+                st.ing = 1; st.prep = 1;
+                ['ing', 'prep'].forEach(function (key) {
+                    st.members[key].forEach(function (el) { el.style.removeProperty('--srts'); });
+                });
+            });
+            if (cookIngBodyEl) cookIngBodyEl.style.removeProperty('--srts');
+        };
+        window.__jboTsBubbleOpened = function () {
+            var pane = cookRecipesEl ? cookRecipesEl.children[0] : null;
+            if (pane) syncBubble(pane);
+        };
     })();
     </script>
 
@@ -10347,6 +10600,7 @@
             cookIngBody.innerHTML = '';
             Array.prototype.slice.call(ckIngCol.childNodes).forEach(function (n) { cookIngBody.appendChild(n.cloneNode(true)); });
             cookIngPop.hidden = false;
+            if (window.__jboTsBubbleOpened) window.__jboTsBubbleOpened();
             cookIngBody.scrollTop = 0;
             if (cookIngBtn) cookIngBtn.setAttribute('aria-expanded', 'true');
             if (cookIngClose) cookIngClose.focus();
@@ -10743,6 +10997,7 @@
             });
             setupCookSingle();
             setupCookPaneSplits();
+            if (window.__jboTsSetup) window.__jboTsSetup();
             cookViewTitle.textContent = 'Cooking ' + selected.length + ' recipe' + (selected.length === 1 ? '' : 's');
             if (window.__jboRenderCookScore) window.__jboRenderCookScore(selected);
             cookView.classList.add('open');
@@ -10757,6 +11012,7 @@
         window.__jboOpenCook = openCook;
         function closeCook() {
             if (!cookView) return;
+            if (window.__jboTsReset) window.__jboTsReset();
             teardownCookSingle();
             teardownCookPaneSplits();
             refreshCardSplits();
@@ -12048,6 +12304,57 @@
         window.addEventListener('load', placeStrip);
         if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeStrip);
         placeStrip();
+
+        /* Drag-to-scroll + edge fades for the stuck strip's pill row.
+           Touch keeps its native swipe and the trackpad its native
+           horizontal scroll — only the mouse needs a drag. A small
+           threshold (7px) means a press that barely moves is still a
+           tap; a drag that did move swallows the click it ends with,
+           so letting go on a pill never fires that pill's filter. */
+        var dragState = null, swallowClick = false;
+        function syncStripFades() {
+            var max = filtersEl.scrollWidth - filtersEl.clientWidth;
+            var sl = filtersEl.scrollLeft;
+            filtersEl.classList.toggle('fade-r', max > 2 && sl < max - 2);
+            filtersEl.classList.toggle('fade-l', max > 2 && sl > 2);
+        }
+        filtersEl.addEventListener('scroll', syncStripFades, { passive: true });
+        window.addEventListener('resize', syncStripFades);
+        window.addEventListener('load', syncStripFades);
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncStripFades);
+        if (window.ResizeObserver) new ResizeObserver(syncStripFades).observe(filtersEl);
+        filtersEl.addEventListener('pointerdown', function (e) {
+            if (e.pointerType !== 'mouse' || e.button !== 0) return;
+            if (!strip.classList.contains('is-stuck')) return;
+            dragState = { x: e.clientX, sl: filtersEl.scrollLeft, id: e.pointerId, moved: false };
+        });
+        filtersEl.addEventListener('pointermove', function (e) {
+            if (!dragState) return;
+            var dx = e.clientX - dragState.x;
+            if (!dragState.moved) {
+                if (Math.abs(dx) < 7) return;
+                dragState.moved = true;
+                filtersEl.classList.add('dragging');
+                try { filtersEl.setPointerCapture(dragState.id); } catch (err) {}
+            }
+            filtersEl.scrollLeft = dragState.sl - dx;
+            e.preventDefault();
+        });
+        function endStripDrag() {
+            if (!dragState) return;
+            if (dragState.moved) {
+                swallowClick = true;
+                setTimeout(function () { swallowClick = false; }, 50);
+            }
+            dragState = null;
+            filtersEl.classList.remove('dragging');
+        }
+        filtersEl.addEventListener('pointerup', endStripDrag);
+        filtersEl.addEventListener('pointercancel', endStripDrag);
+        filtersEl.addEventListener('click', function (e) {
+            if (swallowClick) { e.preventDefault(); e.stopPropagation(); swallowClick = false; }
+        }, true);
+        syncStripFades();
     })();
 </script>
 </body>
