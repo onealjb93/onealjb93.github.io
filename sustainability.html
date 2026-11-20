@@ -306,6 +306,116 @@
         .resource-media img.rm-logo { height: 100%; width: auto; max-width: 100%; object-fit: contain; }
         .resource-media img.rm-photo { width: 100%; height: 100%; object-fit: cover; }
     </style>
+    <style>
+        /* Sustainability navigation (2026-11-19): one pinned context bar
+           under the 55px site header — where you are on the left (the
+           category, then the framework or section being read), a Jump
+           button on the right opening the page's sections in a glass
+           panel. The same targets are listed as pills under the page's
+           opening. The bar is fixed, not sticky: no ancestor transform
+           or filter can capture it, and it leaves no gap in the page at
+           rest. It appears once the opening block (title + featured
+           case) has scrolled away and hides again above it. The
+           category level joins the label at 481px and up: below that,
+           one line cannot hold category + name + the Jump button
+           without cutting a word, so the specific name stands alone. */
+        .sus-nav-bar {
+            position: fixed; top: 55px; left: 0; right: 0; z-index: 900;
+            height: 36px; box-sizing: border-box;
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0 0.65rem;
+            background: var(--bg-color);
+            border-bottom: 1px solid var(--border-color);
+            opacity: 0; visibility: hidden; transform: translateY(-4px);
+            transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+        }
+        .sus-nav-bar.is-on { opacity: 1; visibility: visible; transform: none; }
+        .sus-nav-label {
+            flex: 1 1 auto; min-width: 0;
+            white-space: nowrap; overflow: hidden;
+            font-size: 0.85rem; font-weight: 600; color: var(--text-color);
+        }
+        .sus-nav-cat { color: var(--subtext-color); font-weight: 500; }
+        @media (max-width: 480px) {
+            .sus-nav-cat, .sus-nav-sep { display: none; }
+        }
+        @media (max-width: 380px) {
+            .sus-nav-label { font-size: 0.8rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .sus-nav-bar { transition: none; }
+        }
+        .sus-nav-jump {
+            flex: none; font: inherit; font-size: 0.82rem; font-weight: 600;
+            height: 28px; box-sizing: border-box; padding: 0 0.6rem; border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg); color: var(--text-color);
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
+        }
+        .sus-nav-jump:active { background: var(--hover-bg); }
+        .sus-nav-jump:focus-visible, .sus-nav-close:focus-visible,
+        .sus-nav-item:focus-visible, .sus-index-pill:focus-visible {
+            outline: 2px solid var(--link-color); outline-offset: 2px;
+        }
+        /* Jump targets land clear of the 55px header + this 36px bar. */
+        #from-a-line-to-a-loop, #two-more-stories, #more-loops-at-work,
+        #go-deeper-frameworks, #three-ees, #regenerative-agriculture,
+        #controlled-environment-agriculture, #bitcoin-mining, #biomimicry,
+        #circular-economy, #building-certifications-standards, #leed,
+        #passive-house, #living-building-challenge, #cradle-to-cradle,
+        #trusted-networks { scroll-margin-top: 101px; }
+
+        /* The top index: the page's map, in the page's pill grammar. */
+        .sus-index {
+            display: flex; flex-wrap: wrap; gap: 0.45rem;
+            margin: 1rem 0 0.25rem;
+        }
+        .sus-index-pill {
+            font-size: 0.85rem; font-weight: 500; line-height: 1.25;
+            padding: 0.42rem 0.85rem; border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg); color: var(--text-color);
+            text-decoration: none; -webkit-tap-highlight-color: transparent;
+        }
+        .sus-index-pill:hover { background: var(--hover-bg); }
+
+        /* Jump panel: the glass standard, shaped like the case viewer. */
+        .sus-nav-panel {
+            position: fixed; inset: 0; z-index: 1600;
+            display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+            padding-top: max(1rem, env(safe-area-inset-top));
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        }
+        .sus-nav-panel[hidden] { display: none; }
+        .sus-nav-bubble {
+            display: flex; flex-direction: column;
+            width: 100%; max-width: 520px; max-height: 100%;
+            overflow: hidden; padding: 0;
+        }
+        .sus-nav-bubble-bar {
+            flex: none; display: flex; justify-content: flex-end;
+            padding: 0.65rem 0.9rem 0.35rem;
+        }
+        .sus-nav-close {
+            font: inherit; font-size: 0.85rem; font-weight: 600;
+            padding: 0.4rem 0.95rem; border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg); color: var(--text-color);
+            cursor: pointer;
+        }
+        .sus-nav-close:hover { background: var(--hover-bg); }
+        .sus-nav-list { overflow-y: auto; padding: 0.25rem 0.9rem 1rem; }
+        .sus-nav-item {
+            display: block; width: 100%; text-align: left;
+            font: inherit; font-size: 0.95rem; color: var(--text-color);
+            background: none; border: none; border-radius: 10px;
+            padding: 0.65rem 0.7rem; min-height: 44px;
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
+        }
+        .sus-nav-item:hover { background: var(--hover-bg); }
+        .sus-nav-group { font-weight: 700; margin-top: 0.5rem; }
+    </style>
 </head>
 <body>
     <script>
@@ -359,6 +469,30 @@
         <p>41 real places where the loop already runs — farms, factories, buildings, and one whole country — each one with the numbers that prove the loop works. Tap any name to open the story.</p>
     </header>
 
+    <div class="sus-nav-bar" id="susNavBar" aria-hidden="true">
+        <span class="sus-nav-label"><span class="sus-nav-cat" id="susNavCat"></span><span class="sus-nav-sep" id="susNavSep"> · </span><span class="sus-nav-name" id="susNavName"></span></span>
+        <button type="button" class="sus-nav-jump" id="susNavJump" aria-haspopup="dialog" aria-expanded="false" tabindex="-1">Jump ▾</button>
+    </div>
+
+    <nav class="sus-index" aria-label="On this page">
+        <a class="sus-index-pill" href="#from-a-line-to-a-loop">From a Line to a Loop</a>
+        <a class="sus-index-pill" href="#two-more-stories">Two more stories</a>
+        <a class="sus-index-pill" href="#more-loops-at-work">More Loops at Work</a>
+        <a class="sus-index-pill" href="#go-deeper-frameworks">Go deeper — the frameworks</a>
+        <a class="sus-index-pill" href="#three-ees">The Three E's</a>
+        <a class="sus-index-pill" href="#regenerative-agriculture">Regenerative Agriculture</a>
+        <a class="sus-index-pill" href="#controlled-environment-agriculture">Controlled Environment Agriculture</a>
+        <a class="sus-index-pill" href="#bitcoin-mining">Bitcoin Mining</a>
+        <a class="sus-index-pill" href="#biomimicry">Biomimicry</a>
+        <a class="sus-index-pill" href="#circular-economy">Circular Economy</a>
+        <a class="sus-index-pill" href="#building-certifications-standards">Building Certifications &amp; Standards</a>
+        <a class="sus-index-pill" href="#leed">LEED</a>
+        <a class="sus-index-pill" href="#passive-house">Passive House</a>
+        <a class="sus-index-pill" href="#living-building-challenge">Living Building Challenge</a>
+        <a class="sus-index-pill" href="#cradle-to-cradle">Cradle to Cradle</a>
+        <a class="sus-index-pill" href="#trusted-networks">Trusted Networks &amp; Organizations</a>
+    </nav>
+
                 <figure class="example-photo">
                     <div class="example-photo-pair">
                         <div class="example-photo-half">
@@ -386,7 +520,7 @@
         </div>
     </div>
 
-    <h2>From a Line to a Loop</h2>
+    <h2 id="from-a-line-to-a-loop">From a Line to a Loop</h2>
     <p>Most of the economy still runs in a straight line. Sustainability means bending that line into a loop — here is the whole idea in one picture:</p>
     <div class="loop-figure">
         <div class="loop-panels">
@@ -494,7 +628,7 @@
         </div>
     </div>
 
-    <h2>Two more stories</h2>
+    <h2 id="two-more-stories">Two more stories</h2>
 
             <div class="explainer-wrapper">
                 <button class="info-toggle" onclick="toggleExplainer('exCalAcademyCard', 'exCalAcademyArrow')">
@@ -548,7 +682,7 @@
                 </div>
             </div>
 
-    <h2>More Loops at Work</h2>
+    <h2 id="more-loops-at-work">More Loops at Work</h2>
     <p>Three more places where the loop already runs — a country, a city's water, and a port's exhaust:</p>
 
     <div class="explainer-wrapper">
@@ -622,10 +756,10 @@
         </div>
     </div>
 
-    <h2>Go deeper — the frameworks</h2>
+    <h2 id="go-deeper-frameworks">Go deeper — the frameworks</h2>
 
     <!-- Three E's Framework Accordion (Synchronized with Homepage Definitions) -->
-    <div class="explainer-wrapper" style="margin-top: 20px;">
+    <div class="explainer-wrapper" id="three-ees" style="margin-top: 20px;">
         <button class="info-toggle" onclick="toggleExplainer('eesCard', 'eesArrow')">
             <span id="eesArrow">▶</span> <span class="example-toggle-text">🌍 The Three E's: Environment, Economy, and Equity<span class="example-hook">One city where over 70% of commuters ride the bus — and about 70% of the garbage is recycled.</span></span>
         </button>
@@ -662,7 +796,7 @@
     </div>
 
     <!-- Agricultural & Regional Systems Accordion -->
-    <div class="explainer-wrapper">
+    <div class="explainer-wrapper" id="regenerative-agriculture">
         <button class="info-toggle" onclick="toggleExplainer('agCard', 'agArrow')">
             <span id="agArrow">▶</span> <span class="example-toggle-text">🌾 Regenerative Agriculture & Applied Technologies<span class="example-hook">Ranch soil rebuilt with cover crops and cattle — organic matter from under 2% to roughly 5–8%, no synthetic fertilizer since 2008.</span></span>
         </button>
@@ -738,7 +872,7 @@
     </div>
 
     <!-- Controlled Environment Agriculture Accordion -->
-    <div class="explainer-wrapper">
+    <div class="explainer-wrapper" id="controlled-environment-agriculture">
         <button class="info-toggle" onclick="toggleExplainer('ceaCard', 'ceaArrow')">
             <span id="ceaArrow">▶</span> <span class="example-toggle-text">🌱 Controlled Environment Agriculture<span class="example-hook">Tomatoes at up to 80 kilos per square metre, on as little as 4 litres of water per kilo.</span></span>
         </button>
@@ -845,7 +979,7 @@
     </div>
 
     <!-- Bitcoin Mining Accordion -->
-    <div class="explainer-wrapper">
+    <div class="explainer-wrapper btc-cursor" id="bitcoin-mining">
         <button class="info-toggle" onclick="toggleExplainer('miningCard', 'miningArrow')">
             <span id="miningArrow">▶</span> <span class="example-toggle-text">⛏️ Bitcoin Mining<span class="example-hook">The most flexible electricity customer ever built — and every watt it uses comes out as heat.</span></span>
         </button>
@@ -962,7 +1096,7 @@
     </div>
 
     <!-- Biomimicry Accordion -->
-    <div class="explainer-wrapper">
+    <div class="explainer-wrapper" id="biomimicry">
         <button class="info-toggle" onclick="toggleExplainer('biomimicryCard', 'biomimicryArrow')">
             <span id="biomimicryArrow">▶</span> <span class="example-toggle-text">🌿 Biomimicry<span class="example-hook">An office block in Harare with no air conditioning at all — its ventilation uses about a tenth of the energy of a conventionally cooled building.</span></span>
         </button>
@@ -1131,7 +1265,7 @@
     </div>
 
     <!-- Circular Economy Accordion -->
-    <div class="explainer-wrapper">
+    <div class="explainer-wrapper" id="circular-economy">
         <button class="info-toggle" onclick="toggleExplainer('circularCard', 'circularArrow')">
             <span id="circularArrow">▶</span> <span class="example-toggle-text">🦋 Circular Economy<span class="example-hook">A remanufactured part typically uses 80% less energy, 88% less water and 70% less waste than making the part new.</span></span>
         </button>
@@ -1241,10 +1375,10 @@
     </div>
 
     <!-- CERTIFICATIONS CATEGORY -->
-    <h2>Building Certifications & Standards</h2>
+    <h2 id="building-certifications-standards">Building Certifications & Standards</h2>
 
     <!-- LEED Accordion -->
-    <div class="explainer-wrapper" style="margin-top: 20px;">
+    <div class="explainer-wrapper" id="leed" style="margin-top: 20px;">
         <button class="info-toggle" onclick="toggleExplainer('leedCard', 'leedArrow')">
             <span id="leedArrow">▶</span> <span class="example-toggle-text">🏢 LEED (Leadership in Energy and Environmental Design)<span class="example-hook">The Empire State Building's retrofit cut energy use by 38% — saving about $4.4 million a year.</span></span>
         </button>
@@ -1299,7 +1433,7 @@
     </div>
 
     <!-- Passivehaus Accordion -->
-    <div class="explainer-wrapper">
+    <div class="explainer-wrapper" id="passive-house">
         <button class="info-toggle" onclick="toggleExplainer('passiveCard', 'passiveArrow')">
             <span id="passiveArrow">▶</span> <span class="example-toggle-text">🏠 Passivehaus (Passive House)<span class="example-hook">Houses that use over 90% less heating energy — one has run as designed for 25 years.</span></span>
         </button>
@@ -1372,7 +1506,7 @@
     </div>
 
     <!-- Living Building Challenge Accordion -->
-    <div class="explainer-wrapper">
+    <div class="explainer-wrapper" id="living-building-challenge">
         <button class="info-toggle" onclick="toggleExplainer('lbcCard', 'lbcArrow')">
             <span id="lbcArrow">▶</span> <span class="example-toggle-text">🌸 Living Building Challenge<span class="example-hook">Buildings that give more than they take — one Seattle office made 90,793 kWh more electricity than it used in a year.</span></span>
         </button>
@@ -1423,7 +1557,7 @@
     </div>
 
     <!-- Cradle to Cradle Certified Accordion -->
-    <div class="explainer-wrapper">
+    <div class="explainer-wrapper" id="cradle-to-cradle">
         <button class="info-toggle" onclick="toggleExplainer('c2cCard', 'c2cArrow')">
             <span id="c2cArrow">▶</span> <span class="example-toggle-text">♻️ Cradle to Cradle Certified®<span class="example-hook">Ford's truck plant cleans its stormwater through a 10.4-acre living roof — for less than a third of a treatment plant's cost.</span></span>
         </button>
@@ -1459,7 +1593,7 @@
         </div>
     </div>
 
-    <h2>Trusted Networks & Organizations</h2>
+    <h2 id="trusted-networks">Trusted Networks & Organizations</h2>
     <div class="resource-grid">
         <div class="resource-cell"><a href="https://www.crystalcoastsanctuary.com/" target="_blank" class="resource-card">
             <div class="resource-media"><img class="rm-logo" src="crystal-coast-sanctuary-logo.jpg" alt="The Crystal Coast Sanctuary logo — the retreat house inside a circular badge" width="737" height="771" loading="lazy" decoding="async"></div>
@@ -1595,6 +1729,32 @@
         <figcaption id="photoViewerCaption"></figcaption>
         <button type="button" class="photo-viewer-close" id="photoViewerClose" aria-label="Close photo">&times;</button>
     </figure>
+</div>
+
+<div class="sus-nav-panel glass-scrim" id="susNavPanel" hidden role="dialog" aria-modal="true" aria-label="Jump to a section">
+    <div class="sus-nav-bubble glass-bubble">
+        <div class="sus-nav-bubble-bar">
+            <button type="button" class="sus-nav-close" id="susNavClose">Close</button>
+        </div>
+        <nav class="sus-nav-list" aria-label="Sections">
+            <button type="button" class="sus-nav-item" data-target="from-a-line-to-a-loop">From a Line to a Loop</button>
+            <button type="button" class="sus-nav-item" data-target="two-more-stories">Two more stories</button>
+            <button type="button" class="sus-nav-item" data-target="more-loops-at-work">More Loops at Work</button>
+            <button type="button" class="sus-nav-item sus-nav-group" data-target="go-deeper-frameworks">Go deeper — the frameworks</button>
+            <button type="button" class="sus-nav-item" data-target="three-ees">The Three E's</button>
+            <button type="button" class="sus-nav-item" data-target="regenerative-agriculture">Regenerative Agriculture</button>
+            <button type="button" class="sus-nav-item" data-target="controlled-environment-agriculture">Controlled Environment Agriculture</button>
+            <button type="button" class="sus-nav-item" data-target="bitcoin-mining">Bitcoin Mining</button>
+            <button type="button" class="sus-nav-item" data-target="biomimicry">Biomimicry</button>
+            <button type="button" class="sus-nav-item" data-target="circular-economy">Circular Economy</button>
+            <button type="button" class="sus-nav-item sus-nav-group" data-target="building-certifications-standards">Building Certifications &amp; Standards</button>
+            <button type="button" class="sus-nav-item" data-target="leed">LEED</button>
+            <button type="button" class="sus-nav-item" data-target="passive-house">Passive House</button>
+            <button type="button" class="sus-nav-item" data-target="living-building-challenge">Living Building Challenge</button>
+            <button type="button" class="sus-nav-item" data-target="cradle-to-cradle">Cradle to Cradle</button>
+            <button type="button" class="sus-nav-item" data-target="trusted-networks">Trusted Networks &amp; Organizations</button>
+        </nav>
+    </div>
 </div>
 <script>
     // Photo viewer: on phones (the <=640px layout), tapping either photo
@@ -1942,6 +2102,125 @@
                 }
             }
         }
+    })();
+</script>
+<script>
+    // Sustainability navigation: the pinned context bar and Jump panel.
+    // A region runs from its heading or framework box to the next
+    // region's start, so the case grids the grid runtime moves into the
+    // flow below each box belong to that box's region. The bar shows
+    // once the first region reaches the reading line under the header
+    // (the opening block — title + featured case — has scrolled away)
+    // and hides again above it.
+    (function () {
+        var bar = document.getElementById('susNavBar');
+        var catEl = document.getElementById('susNavCat');
+        var sepEl = document.getElementById('susNavSep');
+        var nameEl = document.getElementById('susNavName');
+        var jumpBtn = document.getElementById('susNavJump');
+        var panel = document.getElementById('susNavPanel');
+        if (!bar || !catEl || !sepEl || !nameEl || !jumpBtn || !panel) return;
+        var closeBtn = document.getElementById('susNavClose');
+        var OFFSET = 101; // 55px header + 36px bar + 10px gap
+        var REGIONS = [
+            { id: 'from-a-line-to-a-loop', name: 'From a Line to a Loop' },
+            { id: 'two-more-stories', name: 'Two more stories' },
+            { id: 'more-loops-at-work', name: 'More Loops at Work' },
+            { id: 'go-deeper-frameworks', name: 'The Frameworks' },
+            { id: 'three-ees', cat: 'The Frameworks', name: "The Three E's" },
+            { id: 'regenerative-agriculture', cat: 'The Frameworks', name: 'Regenerative Agriculture' },
+            { id: 'controlled-environment-agriculture', cat: 'The Frameworks', name: 'Controlled Environment Agriculture' },
+            { id: 'bitcoin-mining', cat: 'The Frameworks', name: 'Bitcoin Mining' },
+            { id: 'biomimicry', cat: 'The Frameworks', name: 'Biomimicry' },
+            { id: 'circular-economy', cat: 'The Frameworks', name: 'Circular Economy' },
+            { id: 'building-certifications-standards', name: 'Certifications' },
+            { id: 'leed', cat: 'Certifications', name: 'LEED' },
+            { id: 'passive-house', cat: 'Certifications', name: 'Passive House' },
+            { id: 'living-building-challenge', cat: 'Certifications', name: 'Living Building Challenge' },
+            { id: 'cradle-to-cradle', cat: 'Certifications', name: 'Cradle to Cradle' },
+            { id: 'trusted-networks', name: 'Trusted Networks & Organizations' }
+        ];
+        var els = [];
+        REGIONS.forEach(function (r) {
+            var el = document.getElementById(r.id);
+            if (el) els.push({ region: r, el: el });
+        });
+        var current = null;
+        function render(region) {
+            if (region === current) return;
+            current = region;
+            var on = !!region;
+            bar.classList.toggle('is-on', on);
+            bar.setAttribute('aria-hidden', on ? 'false' : 'true');
+            jumpBtn.tabIndex = on ? 0 : -1;
+            if (!on) return;
+            if (region.cat) {
+                catEl.textContent = region.cat;
+                catEl.style.display = '';
+                sepEl.style.display = '';
+            } else {
+                catEl.textContent = '';
+                catEl.style.display = 'none';
+                sepEl.style.display = 'none';
+            }
+            nameEl.textContent = region.name;
+        }
+        function update() {
+            var probe = window.scrollY + OFFSET + 24;
+            var found = null;
+            for (var i = 0; i < els.length; i++) {
+                var top = els[i].el.getBoundingClientRect().top + window.scrollY;
+                if (top <= probe) { found = els[i].region; } else { break; }
+            }
+            render(found);
+        }
+        var ticking = false;
+        function onScroll() {
+            if (ticking) return;
+            ticking = true;
+            window.requestAnimationFrame(function () { ticking = false; update(); });
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+        update();
+
+        var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+        function scrollToId(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            var y = el.getBoundingClientRect().top + window.scrollY - OFFSET;
+            window.scrollTo({ top: Math.max(0, y), behavior: (reduceMotion && reduceMotion.matches) ? 'auto' : 'smooth' });
+            try { history.pushState(null, '', '#' + id); } catch (e) { }
+        }
+        var savedOverflow = '';
+        function openPanel() {
+            savedOverflow = document.body.style.overflow || '';
+            document.body.style.overflow = 'hidden';
+            panel.hidden = false;
+            jumpBtn.setAttribute('aria-expanded', 'true');
+            if (closeBtn) closeBtn.focus();
+        }
+        function closePanel() {
+            if (panel.hidden) return;
+            panel.hidden = true;
+            document.body.style.overflow = savedOverflow;
+            jumpBtn.setAttribute('aria-expanded', 'false');
+            jumpBtn.focus();
+        }
+        jumpBtn.addEventListener('click', openPanel);
+        if (closeBtn) closeBtn.addEventListener('click', closePanel);
+        panel.addEventListener('click', function (e) { if (e.target === panel) closePanel(); });
+        document.addEventListener('keydown', function (e) {
+            if (!panel.hidden && (e.key === 'Escape' || e.key === 'Esc')) closePanel();
+        });
+        var items = panel.querySelectorAll('.sus-nav-item');
+        Array.prototype.forEach.call(items, function (btn) {
+            btn.addEventListener('click', function () {
+                var id = btn.getAttribute('data-target');
+                closePanel();
+                scrollToId(id);
+            });
+        });
     })();
 </script>
 </body>
