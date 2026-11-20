@@ -519,14 +519,22 @@
            the stage reveals exactly the footer's own height. */
         .site-footer { margin-top: 0; }
         @media (max-width: 600px) {
-            body { --rg-head-h: 116px; }
+            body { --rg-head-h: 160px; }
             .back-link { top: 63px; right: 18px; font-size: 0.82rem; }
-            .page-header { height: 104px; margin: 6px 0; }
+            .page-header { height: 148px; margin: 6px 0; }
             .page-header h1 { font-size: 2.4rem; }
             /* The subtitle wraps in full (3 lines at phone widths) —
                it was line-clamped to 2 with an ellipsis; the taller
                --rg-head-h budget above pays for the third line out of
-               the frame, never out of the photo (see the stage arithmetic). */
+               the frame, never out of the photo (see the stage arithmetic).
+               TITLE WRAP (2026-11-20): the budget now also pays for the
+               H1's second line. "Random Generator" wraps at phone
+               widths — the original budget assumed one H1 line, so the
+               second line overflowed the fixed header box and painted
+               behind the tab bar, slicing "Generator" off. Two H1 lines
+               (88px) + the H1's margin (3px) + the subtitle's three
+               lines (48px) fit the 148px box; the frame pays the 44px,
+               exactly as it paid for the subtitle's third line. */
             .page-header .subtitle { font-size: 0.78rem; line-height: 1.35; }
         }
         /* Short viewports: the title block gives up its subtitle line
@@ -538,8 +546,12 @@
             .page-header .subtitle { display: none; }
         }
         @media (max-width: 600px) and (max-height: 700px) {
-            body { --rg-head-h: 60px; }
-            .page-header { height: 48px; }
+            /* The subtitle is hidden in this band, so the box holds
+               just the H1 — but the H1 still wraps to two lines at
+               phone widths (see TITLE WRAP above): 88px + its 3px
+               margin in a 94px box, paid out of the frame the same way. */
+            body { --rg-head-h: 106px; }
+            .page-header { height: 94px; }
         }
         @media (max-width: 768px) {
             .gen-tab { font-size: 0.85rem; gap: 0.25rem; }
@@ -765,6 +777,27 @@
         .gen-fs-quote.qlen-4 .gen-fs-quotetext { font-size: clamp(1.4rem, 4vw, 2.1rem); line-height: 1.42; }
         .gen-fs-quoteattrib { margin-top: 1.2rem; font-size: 0.98rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.75); }
         .gen-gallery-quote { display: block; padding: 0.7rem 0.7rem 0.25rem; font-size: 0.84rem; font-weight: 550; line-height: 1.45; color: var(--text-color); }
+        /* QUOTES BALANCE (2026-11-20): in the wide rail layouts the
+           stage's row is the frame's full remaining height, but the
+           shared stage rule tops the stage in its row (align-self:
+           start — right for a photo, whose box should hug the image,
+           with the leftover collecting below). A quote is type, not
+           a photo: topped in a tall row it leaves the row's lower
+           half dead and the page reads top-weighted. At rail widths
+           the Quotes stage therefore centres in its row instead —
+           the quote, its attribution and the action chips (which are
+           positioned against the stage, so they travel with it) sit
+           as one block with the space above and below in balance.
+           The stacked layouts (phones, portrait tablets) are NOT
+           changed: there the stage is content-sized, the frame's
+           leftover already collects in the empty row under the
+           brief, and the phone rendering stays exactly as it was. */
+        @media (min-width: 900px) {
+            #gen-quotes:not(.deep-open) .gen-stage { align-self: center; }
+        }
+        @media (max-height: 560px) and (min-width: 640px) {
+            #gen-quotes:not(.deep-open) .gen-stage { align-self: center; }
+        }
         /* Seven tab segments now (six pools + Loved): at the smallest widths
            the short labels step down once more so "Paintings" still
            fits its segment whole — segment at 360px = (360 - 36 body
@@ -1279,8 +1312,8 @@
             GEN[prefix] = st;
             restoreDeck(st);
             // Session history (in memory only — the persisted deck is
-            // untouched): a card restored from the deck record is this
-            // session's first card for the pool.
+            // untouched): it starts empty; the session's first dealt
+            // card becomes its first entry when it is drawn.
             if (st.cur.all) { st.hist = [st.cur.all.id]; st.histPos = 0; }
             document.getElementById(prefix + '-prev').addEventListener('click', function () { histStep(prefix, -1); });
             document.getElementById(prefix + '-next').addEventListener('click', function () { histStep(prefix, 1); });
@@ -1694,7 +1727,9 @@
         // the first few presses. The 'all' deck now persists per pool:
         // the cards still to deal (in order), the last card dealt (so
         // the reshuffle seam guard survives the visit boundary), the
-        // card on screen (so a return shows that card, undealt) and the
+        // card on screen (kept in the record so the cycle's accounting
+        // stays exact; since 2026-11-20 a return no longer opens on
+        // it — see RANDOM OPENER in restoreDeck) and the
         // pool's full id list (so new cards can be told apart from ones
         // already seen). Pool changes MERGE (2026-11-17): a saved deck
         // is never discarded whole just because the pool grew or
@@ -1762,12 +1797,27 @@
                 }
             }
             if (!kept.length && !cur) { return; }
+            // RANDOM OPENER (2026-11-20): the saved on-screen card is
+            // no longer restored as the card on screen. It used to be
+            // ("so a return shows that card, undealt"), which meant
+            // every visit reopened on the exact card the last visit
+            // ended on — the opener only ever changed when the visitor
+            // drew. The card now goes back into the undealt pile
+            // instead: never at the front, so it cannot be the opener,
+            // and not at all when the pile is empty (the first draw
+            // then reshuffles a full deck, whose seam guard in draw()
+            // already keeps that card from leading). The deck and the
+            // last-dealt card still restore, so the no-repeats cycle
+            // holds across visits as before; what changed is only
+            // that a pool's first show in a session deals a fresh
+            // card — restoreGen falls through to draw() — instead of
+            // presenting the restored one, and the session history
+            // starts from that dealt card.
+            if (cur && kept.length) {
+                kept.splice(1 + Math.floor(Math.random() * kept.length), 0, cur);
+            }
             st.decks.all = kept;
             st.last.all = last;
-            if (cur) {
-                st.cur.all = st.byId[cur];
-                st.started.all = true;
-            }
         }
 
         function effIds(st) {
