@@ -18,21 +18,6 @@
 // habitat interiors, monumental ruins, harbours, quiet human moments.
 window.SCIFI_DATA = [
   {
-    "id": "bernal-interior",
-    "name": "Inside the Bernal Sphere",
-    "sub": "A whole countryside wrapped around the inside of a ball",
-    "overview": "Inside a hollow ball. The Bernal sphere holds a whole countryside on the inside of its shell — villages, rivers and a lake — while the hub floats overhead and a colonist soars beneath it on a hang-glider.",
-    "details": [
-      "Stand anywhere on the inner surface and the rest of the world curves up around you; the sky is the far side of the sphere.",
-      "The sphere spins slowly, so the land around the equator feels like solid ground.",
-      "Sunlight enters through the hub and is spread over the land by mirrors."
-    ],
-    "img": "https://johnny-oneal.com/scifi-bernal-interior.webp",
-    "source": "https://johnny-oneal.com/scifi-bernal-interior.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>The idea is older than spaceflight: the physicist J. D. Bernal described a hollow, spinning sphere as a permanent home for humanity in 1929, decades before any rocket reached orbit. NASA's settlement studies of the 1970s filled in Bernal's sketch — a place with garden parties and human-powered flight.</p>"
-  },
-  {
     "id": "quiet-fleet",
     "name": "The Quiet Fleet",
     "sub": "Stealth warships at rest in an old harbour",
@@ -48,36 +33,6 @@ window.SCIFI_DATA = [
     "deep": "<p>Warships have always been the future arriving early: ironclads, dreadnoughts, carriers — each generation looked impossible beside the harbour it tied up in. The stealth generation hides its power entirely, all smooth faces and sealed decks, which makes the contrast stranger: a medieval waterfront, a fishing fleet, and three grey wedges that could be sculpture until they move.</p>"
   },
   {
-    "id": "cylinder-eclipse",
-    "name": "Eclipse Inside a Cylinder",
-    "sub": "The sun goes dark over a golden savanna in space",
-    "overview": "An eclipse, indoors. The moment the light dies inside an O'Neill cylinder: the dark disc of the hub crosses the sun, the clouds overhead turn to copper, and two walking machines cross a golden savanna far below.",
-    "details": [
-      "The 'sun' here is sunlight reflected down the cylinder's length by its great mirrors.",
-      "When the hub passes in front of the mirror, the whole world gets a sunset at once.",
-      "The land above your head is the cylinder's other side, with its own weather."
-    ],
-    "img": "https://johnny-oneal.com/scifi-cylinder-eclipse.webp",
-    "source": "https://johnny-oneal.com/scifi-cylinder-eclipse.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>The cylinder's weather is manufactured — clouds, wind and daylight all follow from the mirrors and the spin — so even an eclipse here is an engineering event: a shadow the designers could schedule, crossing a sky they built.</p>"
-  },
-  {
-    "id": "mars-colony-ames",
-    "name": "A Mars Settlement",
-    "sub": "Dinner grows underground, safe from the radiation",
-    "overview": "A settlement on Mars: red dunes under a pink sky, a rocket and a dome on the horizon — and a cutaway in the foreground showing the colony's heart, a glowing underground room where greens grow in stacked trays.",
-    "details": [
-      "The farm is buried on purpose: metres of Martian soil block the radiation that falls on the surface.",
-      "An astronaut kneels outside with a probe, testing the ground the colony depends on.",
-      "Everything the settlement needs — power, water, air — has to be made or mined on the spot."
-    ],
-    "img": "https://johnny-oneal.com/scifi-mars-colony-ames.webp",
-    "source": "https://johnny-oneal.com/scifi-mars-colony-ames.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>The buried greenhouse is the design's argument: on Mars the safest building material is Mars itself, piled over the roof. NASA's Ames Research Center in California still works on exactly this problem — growing food for crews in sealed, soil-shielded rooms.</p>"
-  },
-  {
     "id": "moon-colony-rover",
     "name": "A Base on the Moon",
     "sub": "Rovers, buried bedrooms and Earth in a black sky",
@@ -91,36 +46,6 @@ window.SCIFI_DATA = [
     "source": "https://johnny-oneal.com/scifi-moon-colony-rover.webp",
     "credit": "Art: AI-generated · created for this page",
     "deep": "<p>A NASA summer study in 1986 asked what astronauts might do next on the Moon. The base it pictured — rovers, buried modules, a small spaceport — became the standard picture of a lunar outpost for years afterward.</p>"
-  },
-  {
-    "id": "first-humans-mars",
-    "name": "First Camp on Mars",
-    "sub": "Two astronauts and a row of can-shaped homes",
-    "overview": "The first camp on Mars, as NASA pictures it: two astronauts in the orange dust, a row of can-shaped habitat modules behind them and a rugged rover parked nearby, under a butterscotch sky.",
-    "details": [
-      "The habitats are cylinders because pressure vessels like round shapes — the air inside pushes out evenly.",
-      "Long shadows: the picture is set near sunset, when the thin air turns the whole sky amber.",
-      "The crew's footprints and wheel tracks are the only marks on an untouched plain."
-    ],
-    "img": "https://johnny-oneal.com/scifi-first-humans-mars.webp",
-    "source": "https://johnny-oneal.com/scifi-first-humans-mars.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>NASA released the picture with its Mars 2020 mission, whose Perseverance rover carried rehearsals for this camp: an instrument that made oxygen from the Martian air, and a small helicopter that proved flight in it. Both worked — the oxygen maker produced about 122 grams of oxygen in total.</p>"
-  },
-  {
-    "id": "domed-city",
-    "name": "The Domed City",
-    "sub": "A walker's dawn approach to a city under glass",
-    "overview": "An astronaut crosses a foggy plain at dawn toward a domed city: a great glass hemisphere glowing gold and teal from inside, the only shelter for miles on a silent, mist-covered world.",
-    "details": [
-      "The dome is one bubble of air — inside it, weather is a choice; outside, the plain is cold and silent.",
-      "The walker's track is a single line across the mist — out here, the city's road is a footpath.",
-      "Dawn light and dome light meet in the fog, so the city seems to float on its own glow."
-    ],
-    "img": "https://johnny-oneal.com/scifi-domed-city.webp",
-    "source": "https://johnny-oneal.com/scifi-domed-city.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>The dome is the oldest shelter in science fiction: a bubble of Earth — air, warmth, weather — held against a world that offers none of them. Engineers still draw it because the physics is honest: a hemisphere is the strongest shape pressure can push against, and glass lets the one free resource, sunlight, do the lighting. Everything inside the line is home; everything outside is expedition.</p>"
   },
   {
     "id": "sky-harbour",
@@ -153,36 +78,6 @@ window.SCIFI_DATA = [
     "deep": "<p>This is the space age rendered as infrastructure: not one heroic rocket but a row of them, serviced like airliners at a shoreline airport. The first launch sites were chosen for empty ocean downrange and clear weather; the mature ones will look like this — a working port at the edge of a continent, busiest at dawn and dusk, when the light makes even industry look like a promise.</p>"
   },
   {
-    "id": "cliff-city",
-    "name": "The Cliff City",
-    "sub": "An astronaut above a megacity of another world",
-    "overview": "A lone astronaut stands on a cliff at dusk, looking down on a vast alien megacity: towers of warm light in a fog-filled valley, cargo ships drifting overhead, and twin crescent moons in a violet sky.",
-    "details": [
-      "The city fills the valley to the horizon — a million windows lit against the fog.",
-      "Twin moons hang over the towers; on this world, the night sky is never empty.",
-      "From the cliff, the astronaut is the only still thing in it — everything else drifts, glows or sails past."
-    ],
-    "img": "https://johnny-oneal.com/scifi-cliff-city.webp",
-    "source": "https://johnny-oneal.com/scifi-cliff-city.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Cities are where most science fiction actually happens: not on the bridge of a ship but down in the streets, where the future has to be lived in. A megacity on another world would still run on the old rules — height for prestige, light for safety, fog for weather — with the differences piled on top: moons in pairs, cargo moving through the sky, and a traveller in a pressure suit standing at the edge of town, looking in.</p>"
-  },
-  {
-    "id": "ocean-city",
-    "name": "The Ocean City",
-    "sub": "A ringed giant rises over a shore city of another world",
-    "overview": "A lone figure on a twilight ridge watches a huge ringed planet rise over an alien ocean, where a glowing city lines the shore — its lights doubling in the still water under a sky dominated by the giant.",
-    "details": [
-      "The ringed planet is not this world's sun — it is a neighbour, close enough to fill the evening sky.",
-      "The city hugs the shore, as cities at home do: harbours first, towers behind.",
-      "At twilight the planet's light and the city's light are the same colour — the whole scene is lit twice."
-    ],
-    "img": "https://johnny-oneal.com/scifi-ocean-city.webp",
-    "source": "https://johnny-oneal.com/scifi-ocean-city.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Most habitable worlds, if they have company at all, will have it closer than ours: moons and sister planets looming large enough to steer tides, calendars and religions. A city under a giant planet would grow up the way harbour towns at home grow up under a mountain — orienting by it, naming streets after it, and treating its rising as the start of the evening.</p>"
-  },
-  {
     "id": "first-light-pad",
     "name": "First Light on the Pad",
     "sub": "One rocket, floodlit in the dawn fog",
@@ -196,96 +91,6 @@ window.SCIFI_DATA = [
     "source": "https://johnny-oneal.com/scifi-first-light-pad.webp",
     "credit": "Art: AI-generated · created for this page",
     "deep": "<p>Before a rocket is a spectacle it is a shift: crews in the fog at 5 a.m., checklists, vapour, floodlights. Photographs of launches are famous; photographs of the hour before are rarer and truer. Every spacecraft that ever left Earth spent its last night on the ground like this — lit, tended, and very quiet — with a handful of people and one small truck for company.</p>"
-  },
-  {
-    "id": "night-port",
-    "name": "The Night Port",
-    "sub": "A spaceport in the rain, after midnight",
-    "overview": "A vast spaceport at night in the rain: neon signs and landing lights doubled in wet concrete, ships coming and going through the drizzle, and one small figure crossing the apron under an umbrella of light.",
-    "details": [
-      "Rain is the same on every world with weather — ports are wet, loud and bright at 3 a.m. everywhere.",
-      "The figure's umbrella sheds light as well as rain — a personal lamp against the port's glare.",
-      "Reflections do half the lighting: in a port at night, the ground is a second sky."
-    ],
-    "img": "https://johnny-oneal.com/scifi-night-port.webp",
-    "source": "https://johnny-oneal.com/scifi-night-port.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Every age gets the port it deserves: sail, steam, jet — and then this, the spaceport as a rainy city district that happens to have rockets. The romance of departure survives the technology. People will still cross wet tarmac at night with a bag in one hand, hurrying toward a lighted doorway, while something enormous waits in the drizzle to take them off the world.</p>"
-  },
-  {
-    "id": "dry-dock",
-    "name": "The Dry Dock",
-    "sub": "A giant ship in for repairs, and the crew small enough to fix it",
-    "overview": "The scorched, patched underside of a very large spaceship fills the frame, standing on its landing legs in an open-air dry dock while scaffolding towers, cranes and a crew of tiny humans go over it in the last of the sun.",
-    "details": [
-      "The scissor lift under the hull carries one mechanic up to a service doorway — the people are the size of the ship’s fittings.",
-      "Everything in the yard is ordinary — forklifts, cable reels, trucks, dust — except the thing being repaired.",
-      "A ship that works for a living comes home dirty: streaked, patched and scorched is what honest mileage looks like."
-    ],
-    "img": "https://johnny-oneal.com/scifi-dry-dock.webp",
-    "source": "https://johnny-oneal.com/scifi-dry-dock.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>The glamorous end of spaceflight is the launch; the real end is the yard. Working ships live most of their lives like this — legs down in the dust, panels open, crews swarming with lifts and cables while the light goes. A dry dock is where the future gets its maintenance done, and there is a particular dignity in it: the largest machine humans ever built, held up by scaffolding and looked after by hand.</p>"
-  },
-  {
-    "id": "transport-apron",
-    "name": "The Loading Apron",
-    "sub": "A winged freighter takes on cargo the old way",
-    "overview": "A huge grey winged freighter sits on a concrete apron in the desert hills, its nose cargo door swung open and the ramp down, while a crew in hard hats and orange vests loads netted crates with a forklift in the late sun.",
-    "details": [
-      "The ramp, the forklift and the crates are this century’s tools — the future still moves boxes one at a time.",
-      "Scorch streaks run down the hull behind the wing: this aircraft has been up and come back, more than once.",
-      "Heat shimmers off the concrete and dust hangs in the light — an airfield is an airfield, whatever flies from it."
-    ],
-    "img": "https://johnny-oneal.com/scifi-transport-apron.webp",
-    "source": "https://johnny-oneal.com/scifi-transport-apron.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Freight is the unglamorous engine of every age, and it never changes its shape: a vehicle, a ramp, a crew, a pile of boxes that all have to be somewhere else by morning. The freighter on the apron could cross to orbit before lunch, but on the ground it is loaded exactly the way cargo has always been loaded — by people, in vests, arguing with a forklift.</p>"
-  },
-  {
-    "id": "ring-gate",
-    "name": "The Ring Gate",
-    "sub": "A doorway between worlds, at the end of the causeway",
-    "overview": "A ring the size of a mountain stands in the water at a city’s edge, its heart a slow whirlpool of golden light; the evening traffic crosses the long causeway toward it in two calm streams, and a banded giant planet hangs low over the rooftops.",
-    "details": [
-      "The ring is old — moss on its rim, rust in its joints, scaffolding on its flanks. Even a gate between worlds needs scaffolding sometimes.",
-      "The causeway is the tell: this is infrastructure, not magic. People commute through it.",
-      "The planet in the sky is banded like Jupiter — wherever this city is, it is not Earth, and the gate is how its people leave."
-    ],
-    "img": "https://johnny-oneal.com/scifi-ring-gate.webp",
-    "source": "https://johnny-oneal.com/scifi-ring-gate.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Every great machine ends up as furniture. A gate that can throw a ship across the dark becomes, within a generation, the thing the traffic queues for at rush hour — miraculous for exactly as long as it takes to build a road up to it. That is not the miracle failing; it is the miracle working. A civilisation is measured by what it finds ordinary.</p>"
-  },
-  {
-    "id": "moss-tower",
-    "name": "The Moss Tower",
-    "sub": "A skyscraper of the far future, given back to the valley",
-    "overview": "A pale tower of the far future — docking arms jutting from its sides, a broken ring near its top — stands abandoned above a green valley, every ledge furred with moss and small trees, morning mist lying in the river bottom far below.",
-    "details": [
-      "The trees growing from its platforms are fully grown. Whatever emptied this tower, it happened a long time ago.",
-      "Its scale is the future’s signature: the docking arms are the size of office blocks, and the valley’s whole river passes beneath notice.",
-      "The valley kept no scar of the builders. The river runs as it always ran, and the mist does not care."
-    ],
-    "img": "https://johnny-oneal.com/scifi-moss-tower.webp",
-    "source": "https://johnny-oneal.com/scifi-moss-tower.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Every age builds one thing it is sure will outlast it, and every age is right — the building outlasts the purpose. The tower was somebody’s triumph of engineering, a port and a city in one vertical mile; now it is a cliff that trees grow on, and the valley treats it exactly the way it treats the hills. Given enough time, the future becomes geology.</p>"
-  },
-  {
-    "id": "savanna-ruins",
-    "name": "The Savanna Ruins",
-    "sub": "Rhinos grazing where the great domes fell silent",
-    "overview": "Two enormous ruined shells of the far future — cracked, rust-streaked, their crowns broken rings — stand empty on a golden savanna, while three white rhinos graze the grass in front of them and a cracked service road runs away to nowhere.",
-    "details": [
-      "The rhinos are the point of the picture: to them the mightiest structures ever raised are just shade and skyline.",
-      "Rusted pipes lie in the grass where they fell — infrastructure becomes litter, given a century or two.",
-      "Nobody maintains these ruins and nobody visits them. They are not monuments. They are weather."
-    ],
-    "img": "https://johnny-oneal.com/scifi-savanna-ruins.webp",
-    "source": "https://johnny-oneal.com/scifi-savanna-ruins.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>There is a special silence to a ruin the animals have taken back. The domes were built by people who expected to be remembered by them; instead they are remembered, if at all, by rhinos, who find the grass at their feet good. Deep time is the one critic no architect can argue with — and there is something hopeful in it, too: the world goes on, grazing, unbothered, green.</p>"
   },
   {
     "id": "canyon-bridge",
@@ -303,108 +108,123 @@ window.SCIFI_DATA = [
     "deep": "<p>Some buildings are architecture and some are arguments with geography. This one argues with a canyon: it takes a gorge that split the land in two and answers with a single black span that carries the road, holds the river, and lets the excess fall through its heart in one white thread. Engineering at this scale stops looking like construction and starts looking like a feature of the planet.</p>"
   },
   {
-    "id": "habitat-market",
-    "name": "Market Day in the Cylinder",
-    "sub": "Grocery shopping on ground that curves into the sky",
-    "overview": "A busy market street — vegetable stalls, canvas awnings, shoppers with baskets and a pushchair — runs between sleek apartment blocks furred with ivy; and overhead, where the sky should be, the ground itself curves up and away, banded with glass.",
+    "id": "cloudsea-vessel",
+    "name": "The Cloud-Sea Vessel",
+    "sub": "A habitat ship sailing on a sea of cloud",
+    "overview": "A city that flies. One vast habitat ship rides the top of the clouds at sunset, its glass domes lit from within and green with growing things, engines glowing at the stern, the whole vessel strung with masts and rigging like a ship at sea.",
     "details": [
-      "Everything ordinary is here: tomatoes, bread, flowers, a child in a pushchair. That ordinariness is the achievement.",
-      "The curve is the tell — this street is inside a rotating colony, and ‘down’ is a direction the engineers chose.",
-      "The banded glass overhead is the sun’s deputy: a light strip doing daylight’s job for a town that has no outside."
+      "The domes are greenhouses: from outside you can see the green of growing things under glass.",
+      "A ship this big would never land. Everything — fuel, food, people — would come and go by smaller craft.",
+      "The light is all accounted for: low sun ahead, and windows and engine glow from the ship itself."
     ],
-    "img": "https://johnny-oneal.com/scifi-habitat-market.webp",
-    "source": "https://johnny-oneal.com/scifi-habitat-market.webp",
+    "img": "https://johnny-oneal.com/scifi-cloudsea-vessel.webp",
+    "source": "https://johnny-oneal.com/scifi-cloudsea-vessel.webp",
     "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>The endgame of space settlement is not adventure. It is errands. A habitat has truly worked when the most remarkable thing about it — that its ground curves into its sky — ranks below the price of tomatoes in the minds of the people shopping under it. The cylinder’s engineers did not build a wonder; they built a Tuesday, and the wonder is that they could.</p>"
+    "deep": "<p>Keeping a city in the sky is an old engineering dream with a hard physics problem: lift. The airships of the 1930s lifted their hulls with hydrogen or helium; a vessel this size would need lift measured in millions of cubic metres, which is why every serious design since — from NASA's high-altitude airship studies to modern cargo-airship prototypes — treats the envelope itself as the structure. What has changed is materials: carbon-fibre frames and films stronger than steel by weight make hulls plausible now that were fantasy in 1930.</p>"
   },
   {
-    "id": "cloud-pagodas",
-    "name": "The City Above the Clouds",
-    "sub": "Pagodas, torii gates and airships, moored in the sky",
-    "overview": "Above an endless sea of cloud at dusk, a Japanese sky city stacks pagoda roofs and red torii gates between brass pipes and steam vents, its lanterns lit against the violet sky, airships drifting in to moor for the night.",
+    "id": "snow-approach",
+    "name": "The Walk to the Ship",
+    "sub": "Two astronauts cross the snow to a landed spacecraft",
+    "overview": "The last hundred metres are walked. Two astronauts cross a snowfield in blowing weather toward their ship, its landing lights on and vapour curling from its hull, the rest of the spaceport lost in the murk behind them.",
     "details": [
-      "The old forms are load-bearing: a thousand years of rooflines, carried up into the sky unchanged.",
-      "Steam vents and pipework lace the temples together — the city is a machine as much as a shrine town, and makes no apology for either.",
-      "Even the balloon is painted, with the great wave. Art survives the move to altitude."
+      "The ship waits with its lights on — a landed craft is never fully asleep; heaters and systems run against the cold.",
+      "The vapour at the hull is vented gas meeting freezing air — the same frost behaviour real rockets show on winter pads.",
+      "Polar spaceports are real: high-latitude sites suit polar orbits, and their crews work in exactly this weather."
     ],
-    "img": "https://johnny-oneal.com/scifi-cloud-pagodas.webp",
-    "source": "https://johnny-oneal.com/scifi-cloud-pagodas.webp",
+    "img": "https://johnny-oneal.com/scifi-snow-approach.webp",
+    "source": "https://johnny-oneal.com/scifi-snow-approach.webp",
     "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>The future will not look the same everywhere. A people who move to the sky will take their skyline with them — the curved roofs, the vermilion gates, the lanterns — because a city is not shelter, it is memory made solid. The sky city’s technology is in its pipes and moorings; its soul is in its silhouettes, and it kept both.</p>"
+    "deep": "<p>Real spaceports already work in this register: Esrange in Arctic Sweden and the pads of Plesetsk in northern Russia launch through snow seasons, and crews at modern pads have fuelled rockets in freezing rain. Cold is not just discomfort for a spacecraft — propellants thicken, seals shrink, and ice shed at liftoff can strike the vehicle, which is why a winter ship is kept warm, lit and venting long before its crew walks out to it.</p>"
   },
   {
-    "id": "night-balcony",
-    "name": "One Chair Above the City",
-    "sub": "A quiet minute over a loud century",
-    "overview": "A lone figure in a hooded coat sits in a chair on a rain-wet balcony, a drink waiting on the small table, looking out over a megacity that fills the night to the horizon — towers standing in blue haze, threaded with thin lines of red neon.",
+    "id": "dusk-megacity",
+    "name": "Dusk Over the Megacity",
+    "sub": "A dense future city at the blue hour",
+    "overview": "The blue hour over a city that never thins out. Towers crowd both banks of the harbour, bridges stitch them together at height, and the first traffic of the evening threads the canyons between them as the fog comes in.",
     "details": [
-      "The city is enormous and the moment is small: one chair, one drink, one person, and no errand at all.",
-      "Rain beads on the glass railing and smears the lights — the oldest special effect there is, still working.",
-      "Nothing up here is for sale and nobody is expected. The future, for all its noise, still has quiet in it."
+      "Every light in the frame belongs to a building, a bridge or a craft — the city lights itself.",
+      "The towers share one architectural language: this is one city built in one era, not a collage of futures.",
+      "Fog at street level and clear air at the rooftops is what real harbour cities do at dusk."
     ],
-    "img": "https://johnny-oneal.com/scifi-night-balcony.webp",
-    "source": "https://johnny-oneal.com/scifi-night-balcony.webp",
+    "img": "https://johnny-oneal.com/scifi-dusk-megacity.webp",
+    "source": "https://johnny-oneal.com/scifi-dusk-megacity.webp",
     "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Every picture of the future is loud except this one. The megacity does everything at full volume — towers, traffic, neon, weather — and one person sits above all of it doing nothing, on purpose. It may be the most futuristic thing in the pool: not the skyline, but the idea that in a century of infinite stimulation, a chair, a drink and a view are still enough.</p>"
+    "deep": "<p>Cities this dense are an extrapolation, not an invention: Hong Kong already stacks homes, offices, a port and an airport into the same few square kilometres of harbour, and its towers carry malls and walkways between them at height. What the picture adds is degree — the same pressures of land price and population, run further forward.</p>"
   },
   {
-    "id": "ring-arrival",
-    "name": "Arrival in the Ring",
-    "sub": "A red car, a white dress, and home overhead",
-    "overview": "On a polished plaza inside a colossal ring habitat, a woman in a white gown stands beside a gleaming red supercar, looking up — past the pagoda-roofed towers that climb the ring’s inner wall — at Earth, hanging huge and blue in the ring’s open heart.",
+    "id": "arch-city-night",
+    "name": "The Arch City",
+    "sub": "One great arch spanning a city at night",
+    "overview": "The city lives under one piece of engineering. A colossal inhabited arch strides over the rooftops, its own windows lit along the curve, while the streets below run their ordinary night traffic in its shadow.",
     "details": [
-      "The supercar is jewellery, not transport: inside a habitat, a machine like that exists to be looked at, and it knows it.",
-      "The towers wear the rooflines of home. The ring is a machine, but the town inside it is a culture.",
-      "Everyone else in the plaza is strolling, shopping or pushing a pram. An arrival under a hanging Earth is an everyday event here."
+      "The arch is not a monument: it is trussed, railed and windowed — a building bent into a bridge.",
+      "Its lights and the city's lights are the same kind of light: windows and streetlamps, nothing sourceless.",
+      "Fog gathers at street level; the top of the arch stands clear of it."
     ],
-    "img": "https://johnny-oneal.com/scifi-ring-arrival.webp",
-    "source": "https://johnny-oneal.com/scifi-ring-arrival.webp",
+    "img": "https://johnny-oneal.com/scifi-arch-city-night.webp",
+    "source": "https://johnny-oneal.com/scifi-arch-city-night.webp",
     "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Old and new strike their favourite bargain in this picture: a gown and a supercar — two antiques of style — set down in the newest place humans have ever lived, beneath the oldest view there is. The ring’s residents did not leave Earth behind; they arranged to keep it in sight, framed in the middle of their sky, while life at its feet got on with being life.</p>"
+    "deep": "<p>An arch is the oldest long-span structure humans have — Roman aqueducts still stand on the principle that a curve turns downward weight into sideways thrust the ground can absorb. Building one at this scale is a materials problem, not a shape problem: the span-to-weight ratio only closes with steel and composites far beyond Roman stone, which is why inhabited mega-arches appear in serious arcology studies and almost nowhere else.</p>"
   },
   {
-    "id": "canal-valley",
-    "name": "The Canal Valley",
-    "sub": "A green world, farmed between cliffs and giants",
-    "overview": "A valley of impossible scale — cliffs streaked with waterfalls, trees the height of towers — carries a dead-straight canal to the horizon, boats moving on it between patchwork fields and a small farming town, under clouds piled up like a second range of mountains.",
+    "id": "canyon-dam",
+    "name": "The Canyon Dam",
+    "sub": "A river, a road and a power station in one structure",
+    "overview": "One structure does three jobs. A dam-bridge crosses a misty canyon: the river arrives along the canyon floor, passes through the gates, and falls away below, while traffic crosses on the roadway overhead and the powerhouse windows glow in the dawn.",
     "details": [
-      "The canal is the giveaway: nature does not draw a line that straight for that long. However green it looks, this valley is a built place.",
-      "The great trees are older than the town and taller than its roofs will ever be — the farmers work in the shade of giants.",
-      "Everything in the frame is food or the moving of it: fields, orchards, water, boats. This is the future, fed."
+      "The water's whole journey is visible — in along the canyon, through the gates, out below. Nothing falls from nowhere.",
+      "Dams that carry roads are real engineering: the Hoover Dam carried a highway on its crest for 75 years.",
+      "The mist is river weather — cold water and cool morning air in a deep canyon."
     ],
-    "img": "https://johnny-oneal.com/scifi-canal-valley.webp",
-    "source": "https://johnny-oneal.com/scifi-canal-valley.webp",
+    "img": "https://johnny-oneal.com/scifi-canyon-dam.webp",
+    "source": "https://johnny-oneal.com/scifi-canyon-dam.webp",
     "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Most futures are drawn in metal. This one is drawn in chlorophyll — a world engineered at the scale of cliffs and centuries, then handed to farmers. The canal, the field pattern and the harbour town are technology as surely as any starship; they are just technology that has finished arguing and settled down to feed people under enormous trees.</p>"
+    "deep": "<p>Combining a dam, a bridge and a power station in one structure is an old economy: the same concrete that holds back the reservoir can carry the road, and the same fall of water can turn the turbines. The largest example, Three Gorges in China, spans a river more than two kilometres wide; canyon dams like this one trade width for height, taking their strength from the rock walls themselves.</p>"
   },
   {
-    "id": "snow-fortress",
-    "name": "The Orange Slit",
-    "sub": "A fortress-city in the snow, with one warm wound of light",
-    "overview": "In a snowbound mountain valley, a colossal ring-shaped citadel of black stone stands split by a single vertical slit of orange light; a frozen road runs to its small domed gatehouse between colonnades crusted with icicles, and one small tracked vehicle waits in the cold.",
+    "id": "orbital-shipyard",
+    "name": "The Ring Shipyard",
+    "sub": "A capital ship in dock above the Earth",
+    "overview": "Shipbuilding, moved upstairs. A ring dock hangs over the Earth's limb in hard sunlight, floodlights blazing along its gantries, and a capital ship sits at its centre with tugs and work crews attending her.",
     "details": [
-      "One slit of warmth in all that stone and snow. Whoever lives in the citadel is home, and the light is how the valley knows.",
-      "The colonnades make the road a ceremony — you approach this place the way you approach a temple, slowly and in single file.",
-      "The little tracked vehicle gives away the scale: the citadel’s ring could swallow the town it guards."
+      "Every floodlight is a fixture on a gantry — in orbit there is no sky to borrow light from.",
+      "The ship is held, not parked: dock arms and scaffolding reach her from the ring on all sides.",
+      "Ships built in orbit never have to survive launch — they can be shaped for space alone."
     ],
-    "img": "https://johnny-oneal.com/scifi-snow-fortress.webp",
-    "source": "https://johnny-oneal.com/scifi-snow-fortress.webp",
+    "img": "https://johnny-oneal.com/scifi-orbital-shipyard.webp",
+    "source": "https://johnny-oneal.com/scifi-orbital-shipyard.webp",
     "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Shelter is the oldest technology, and at sufficient scale it becomes drama. The citadel does not negotiate with its winter; it out-masses it, walling a city’s warmth inside a ring of black stone and letting exactly one seam of light escape — part window, part signal, part boast. Every traveller on that frozen road steers by it.</p>"
+    "deep": "<p>Nothing this size has been built in orbit yet, but the practice has begun: the International Space Station was assembled module by module over more than a decade, and every serious plan for a large interplanetary ship starts from the same logic — launch the pieces, build where the ship will live. A vessel assembled in a dock never needs a nose cone, wings or launch-proof strength, which is why dock-built ships in engineering studies look like this one: all function, no aerodynamics.</p>"
   },
   {
-    "id": "hangar-deck",
-    "name": "End of the Shift",
-    "sub": "A pilot, a spider-bot, and a fighter warming up",
-    "overview": "On a hangar deck so large that its roof is the curved belly of a starship, a pilot kneels beside a small spider-legged robot, the two of them watching a fighter idle nearby with its round engines glowing orange in the sunset haze.",
+    "id": "storm-launch",
+    "name": "Launch in the Rain",
+    "sub": "A rocket leaves a coastal pad in storm weather",
+    "overview": "Weather does not always get a vote. A great rocket climbs out of a coastal pad in driving rain, its engines lighting the wet concrete, and the floodlight towers stand in the murk around the flame trench.",
     "details": [
-      "The bot is treated as a colleague, not a tool — the pilot has knelt down to its level to watch the engines with it.",
-      "The fighter’s engines burn steady, not flaring. This is a warm-up, a routine — a Tuesday, not a battle.",
-      "The deck is littered with the ordinary clutter of work: cables, crates, a dropped wrench. Even here. Especially here."
+      "The brightest light in the picture is the rocket's own exhaust — everything else is floodlights and grey sky.",
+      "Rain at a launch is a studied risk: real launch rules set hard limits for lightning, wind and cloud.",
+      "The sea beside the pad is not scenery — coasts are chosen so a failing rocket falls into water, not towns."
     ],
-    "img": "https://johnny-oneal.com/scifi-hangar-deck.webp",
-    "source": "https://johnny-oneal.com/scifi-hangar-deck.webp",
+    "img": "https://johnny-oneal.com/scifi-storm-launch.webp",
+    "source": "https://johnny-oneal.com/scifi-storm-launch.webp",
     "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>The hangar is where the future clocks in. Between the pilot and the little spider-bot there is an entire philosophy: that the machines we send to the stars will be maintained by mixed crews of humans and robots who know each other’s habits, and that the most advanced workplace ever built will still end its day the way every workplace does — with two colleagues watching the light go, in no hurry to leave.</p>"
+    "deep": "<p>Real rockets launch in weather that would ground airliners, but the limits are precise: NASA and SpaceX flight rules forbid launch through certain cloud types, within set distances of lightning, and above strict wind speeds at each altitude. What those rules protect against is not the rain itself but what rides with it — a rocket's exhaust plume can help trigger lightning, which is why the floodlit, rain-swept pad is a scene engineers plan for rather than a surprise.</p>"
+  },
+  {
+    "id": "sea-gate",
+    "name": "The Sea Gate",
+    "sub": "A gate that holds back the ocean",
+    "overview": "The harbour mouth, fortified. Two monumental gate towers rise out of a storm sea, their fixtures lit against the grey, while a laden container ship threads the opening between them on its way in from the weather.",
+    "details": [
+      "The towers are working structures — gantries, rails and gate machinery, not decoration.",
+      "The ship's red and green navigation lights mark its port and starboard sides, the oldest signalling system at sea.",
+      "Waves break where the structure meets the water: the sea does the same work it does on any pier, at larger scale."
+    ],
+    "img": "https://johnny-oneal.com/scifi-sea-gate.webp",
+    "source": "https://johnny-oneal.com/scifi-sea-gate.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Sea gates are real, and the largest are among the biggest moving structures on Earth: the Netherlands' Maeslantkering storm-surge barrier has arms as long as the Eiffel Tower is tall, and it closes automatically when a surge threatens Rotterdam. Venice's MOSE barriers rise from the seabed to hold back the Adriatic. A gate at this scale is the same idea extended — a harbour that can be shut like a door.</p>"
   }
 ];
