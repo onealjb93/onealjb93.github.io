@@ -188,6 +188,20 @@
             border-bottom: 1px solid var(--border-color);
         }
         .gen-topbar-text { min-width: 0; flex: 1 1 12rem; }
+        /* The entry-title row (2026-11-19): the name block is a
+           wrapping flex row of its own — the entry name first, the
+           one Full screen pill at the row's right end (showGen
+           moves the pill into the visible pool's name block), the
+           sub on its own line under both. The name flexes inside
+           the space the pill leaves and wraps there when it is
+           long, so a name is never truncated and never slides
+           under the pill, and the pill never takes a row of its
+           own. Top-aligned: a two-line name grows downward from
+           the pill's line, never over it. */
+        .gen-topbar-text { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: 0.6rem; }
+        .gen-topbar-text .gen-name { order: 1; flex: 1 1 auto; min-width: 0; }
+        .gen-topbar-text .rg-fs-btn { order: 2; flex: none; }
+        .gen-topbar-text .gen-sub { order: 3; flex: 1 1 100%; min-width: 0; }
         /* Heart toggle: lives ON the photo, not in the topbar — a
            glass chip at the stage's bottom-left corner (the same
            chrome as the back-to-top button: translucent card
@@ -309,7 +323,8 @@
             display: block;
             max-width: 100%;
             width: 100%;
-            height: 100%;
+            height: auto;
+            max-height: 100%;
             object-fit: contain;
             margin: 0 auto;
             border-radius: 8px;
@@ -649,12 +664,30 @@
         @media (max-width: 768px) {
             .gen-tabs, .gen-section { margin-left: -18px; margin-right: -18px; }
         }
+        /* STAGE HUGS THE PHOTO (2026-11-19): the stacked grid gains
+           a fourth, empty flexible row under the brief. The stage
+           row is content-sized now — the img renders at full stage
+           width with its natural aspect (height: auto above), so
+           the stage box IS the photo's rendered box and no
+           letterbox band sits above or below the photo. The fixed
+           frame's leftover collects in the empty row, below the
+           credit line, where a card's bottom breathing room
+           belongs — never between the controls and the photo. The
+           one case CSS cannot bound alone is a portrait photo
+           taller than the frame leaves room for: the stage-cap
+           script in renderEntry measures that room and caps the
+           img's box to it (object-fit: contain fits the photo
+           whole inside, height-bound). The rail layouts keep
+           their two-row template (their rules below override this
+           one): there the stage tops its row at the photo's own
+           height, capped by the row itself (max-height below). */
         .gen-body { display: grid;
-            grid-template-rows: auto minmax(0, 1fr) auto;
+            grid-template-rows: auto auto auto minmax(0, 1fr);
             grid-template-columns: minmax(0, 1fr);
             padding: 0; }
         .gen-topbar { grid-row: 1; grid-column: 1; padding: 0.3rem 1rem; }
         .gen-stage { grid-row: 2; grid-column: 1; min-width: 0; }
+        .gen-section:not(.deep-open) .gen-stage { align-self: start; max-height: 100%; }
         .gen-info { grid-row: 3; grid-column: 1; padding: 0.45rem 1rem 0.5rem; }
         /* PHOTO HERO (2026-11-16): in the stacked layout the stage sits
            directly under the topbar and the brief zone moves BELOW the
@@ -756,23 +789,28 @@
            fullscreen) the block pins itself over the page as a fixed
            layer at z-index 1500 — under the gallery (2900) and the
            photo viewer (3000), so both still paint above it. The
-           button rides at the right end of the active pool's own
-           topbar, after the prev/next arrows — the tool's header
-           row, not the page title row (moved 2026-11-19: in the
-           title row it read as part of the page, not of the tool).
-           One button serves all six pools: showGen moves it into
-           the visible pool's topbar. It costs the one-screen frame
-           nothing: the topbar row is already as tall as the
-           Generate button on phone and desktop alike, the fixed
-           title height and the --rg-head-h arithmetic are
-           untouched, and the back link keeps the title row's right
-           end to itself. Inside full screen the
+           button rides at the right end of the active pool's
+           entry-title row — inside the name block, beside the
+           entry's name (the tool's title row for the entry on
+           stage). One button serves all seven pools: showGen
+           moves it into the visible pool's name block. (Moved
+           2026-11-19, twice: first out of the page title row,
+           where it read as part of the page, not of the tool;
+           then out of its own wrapped row under the name — on
+           phones the 78px basis budget missed the button's true
+           width by a few pixels, so it wrapped onto a row of its
+           own and wasted a band of the frame.) It costs the
+           one-screen frame nothing on desktop — the Generate row
+           still sets the topbar height — and on phones it saves
+           the whole row it used to wrap into; the fixed title
+           height and the --rg-head-h arithmetic are untouched,
+           and the back link keeps the page title row's right end
+           to itself. Inside full screen the
            subtitle stays behind, the tab bar and the topbar give up
            their sticky pins, the negative side margins come off,
            the section flexes to fill what is left and the stage
-           photo (width/height 100%, object-fit: contain) takes the
-           whole stage at its stage rendition — no different image
-           is ever requested. */
+           photo hugs its rendered box at its stage rendition — no
+           different image is ever requested. */
         .rg-fs-btn {
             flex: none; order: 2;
             width: auto; height: 36px; padding: 0 12px; gap: 6px;
@@ -796,18 +834,14 @@
         }
         /* Phones: topbar row one is exactly full by design —
            Generate is the dominant control there (~72% of the row,
-           with an arrow at each end) — so the button takes the
-           right end of the name row beneath it, at every phone
-           width: no fit threshold to graze, and Generate keeps
-           its full width. The name text keeps its own line (its
-           100% basis is what forces the line break) but gives up
-           the button's width, so the two share the name row
-           instead of stacking into a third row. (The tabs row
-           cannot take the button either: its six segments are
-           budgeted to the pixel at these widths.) */
-        @media (max-width: 600px) {
-            .gen-topbar-text { flex-basis: calc(100% - 78px); }
-        }
+           with an arrow at each end) — so the button shares the
+           name row beneath it, inside the name block's own flex
+           row (see .gen-topbar-text above): the name flexes and
+           gives up exactly the button's own width at every phone
+           width, with no basis budget to graze, and Generate
+           keeps its full width. (The tabs row cannot take the
+           button either: its segments are budgeted to the pixel
+           at these widths.) */
         .gen-block:fullscreen, .gen-block:-webkit-full-screen {
             display: flex; flex-direction: column;
             width: 100%; height: 100%; box-sizing: border-box;
@@ -1408,9 +1442,11 @@
             // or show the error box under the new image.
             var gen = (st.gen = (st.gen || 0) + 1);
             var retried = false;
+            var natW = 0, natH = 0;
             prefetchNext(prefix);
             if (st.shownStage === stage && !img.hidden) {
                 img.classList.remove('fading');
+                capStageImg(prefix);
                 return;
             }
             if (!st.shownStage) { img.classList.add('fading'); }
@@ -1426,6 +1462,7 @@
                 img.hidden = false;
                 img.src = url;
                 img.classList.remove('fading');
+                capStageImg(prefix, natW, natH);
             }
             function loadFailed() {
                 if (gen !== st.gen) { return; }
@@ -1446,6 +1483,8 @@
                 var loader = new Image();
                 loader.onload = function () {
                     if (gen !== st.gen) { return; }
+                    natW = loader.naturalWidth;
+                    natH = loader.naturalHeight;
                     if (loader.decode) {
                         loader.decode().then(function () { swapIn(url); }, function () { swapIn(url); });
                     } else { swapIn(url); }
@@ -1458,8 +1497,52 @@
         }
 
 
-        // One-screen sizing is pure CSS (height-driven flex stage,
-        // object-fit: contain) — no JS measurement needed.
+        // Stage sizing (2026-11-19): the stage hugs the photo — pure
+        // CSS (full stage width, natural aspect, no letterbox). The
+        // one case CSS cannot bound alone is a portrait photo in the
+        // stacked layout, whose stage row is content-sized: left to
+        // itself the photo would push the brief out of the fixed
+        // frame. capStageImg measures the height the frame actually
+        // leaves (body minus topbar minus brief) and, only when the
+        // photo's natural height at full width exceeds it, gives the
+        // img that height as its box — object-fit: contain then fits
+        // the photo whole inside it, height-bound, still with no
+        // band above or below. The rail layouts cap by CSS instead
+        // (the stage's own max-height), so the script stands down
+        // there, and it clears the cap whenever the Deep Overview
+        // opens (that layout sizes the photo by its own rule).
+        function rgRailLayout() {
+            try {
+                return window.matchMedia('(min-width: 900px)').matches ||
+                    window.matchMedia('(max-height: 560px) and (min-width: 640px)').matches;
+            } catch (e) { return false; }
+        }
+        function capStageImg(prefix, nw, nh) {
+            var sec = document.getElementById('gen-' + prefix);
+            var img = document.getElementById(prefix + '-img');
+            if (!sec || !img) { return; }
+            var w = nw || img.naturalWidth;
+            var h = nh || img.naturalHeight;
+            if (sec.classList.contains('deep-open') || img.hidden || !w || !h || rgRailLayout()) {
+                img.style.height = '';
+                return;
+            }
+            var body = sec.querySelector('.gen-body');
+            var top = document.getElementById(prefix + '-topbar');
+            var info = document.getElementById(prefix + '-info');
+            var stage = img.parentNode;
+            if (!body || !top || !info || !stage) { return; }
+            var avail = body.clientHeight - top.offsetHeight - (info.hidden ? 0 : info.offsetHeight);
+            var natural = stage.clientWidth * h / w;
+            img.style.height = (natural > avail && avail > 0) ? avail + 'px' : '';
+        }
+        window.addEventListener('resize', function () {
+            ['animals', 'art', 'arch', 'space', 'quotes', 'engineering', 'websites'].forEach(function (p) { capStageImg(p); });
+        });
+        ['animals', 'art', 'arch', 'space', 'quotes', 'engineering', 'websites'].forEach(function (p) {
+            var deep = document.getElementById(p + '-deep');
+            if (deep) { deep.addEventListener('toggle', function () { capStageImg(p); }); }
+        });
 
         // Hearts (phase 1): per-visitor only — loved ids live in this
         // browser's localStorage, never on a server. Two effects: the
@@ -1941,11 +2024,13 @@
                 b.setAttribute('aria-selected', on ? 'true' : 'false');
             });
             // The one Full screen button lives in the visible pool's
-            // topbar (the tool's header row): move it across on every
+            // entry-title row (inside the name block, at the right
+            // end of the entry's name line): move it across on every
             // switch so it is never stranded in a hidden section.
             var fsBtnMove = document.getElementById('rg-fs-btn');
             var fsTopbar = document.getElementById(prefix + '-topbar');
-            if (fsBtnMove && fsTopbar && fsBtnMove.parentNode !== fsTopbar) { fsTopbar.appendChild(fsBtnMove); }
+            var fsTitleRow = fsTopbar ? fsTopbar.querySelector('.gen-topbar-text') : null;
+            if (fsBtnMove && fsTitleRow && fsBtnMove.parentNode !== fsTitleRow) { fsTitleRow.appendChild(fsBtnMove); }
             if (updateHash) { history.replaceState(null, '', '#' + GEN_HASH[prefix]); }
         }
         document.querySelectorAll('.gen-tab').forEach(function (b) {
