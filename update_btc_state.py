@@ -409,7 +409,7 @@ def fetch_mvrv_rows():
             day = (date(int(y), int(m), int(d)) - GENESIS).days
             mv = float(row["CapMrktCurUSD"])
             ratio = float(row["CapMVRVCur"])
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, TypeError):
             continue
         if mv > 0 and ratio > 0:
             rows.append((day, mv, ratio))
