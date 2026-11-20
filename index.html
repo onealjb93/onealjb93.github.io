@@ -741,14 +741,16 @@
     @media (max-width: 760px) { .syn-duo { grid-template-columns: 1fr; gap: 2.5rem; } }
     .syn-sec-t { margin: 0 0 0.6rem; }
     .syn-board-list { margin-bottom: 2.8rem; }
-    /* Library duo: one shared card outline, one fixed compact height
-       (600px) for both cards. The books outline lives in style.css
-       (.book-list-container); .pod-card copies it value-for-value, so
-       both cards share border, radius, padding, background and shadow.
-       Headers (the books filter controls) stay fixed; the lists
-       scroll inside their cards. */
+    /* Library duo: one shared card outline for both cards. The books
+       outline lives in style.css (.book-list-container); .pod-card
+       copies it value-for-value, so both cards share border, radius,
+       padding, background and shadow. The card's height is its
+       content's: at rest the preview window (below) sets it;
+       expanded, the full list in flow sets it. Headers (the books
+       filter controls) stay fixed; the lists scroll inside their
+       cards. */
     .syn-duo > div { display: flex; flex-direction: column; min-width: 0; }
-    .syn-duo .book-list-container, .syn-duo .pod-card { height: 600px; display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 16px; padding: 16px 20px; background-color: var(--card-bg); backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,0.04); margin-bottom: 0; max-height: none; overflow: visible; }
+    .syn-duo .book-list-container, .syn-duo .pod-card { height: auto; display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 16px; padding: 16px 20px; background-color: var(--card-bg); backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,0.04); margin-bottom: 0; max-height: none; overflow: visible; }
     .syn-duo #book-list, .syn-duo .pod-list { flex: 1; min-height: 0; overflow-y: auto; }
     /* Expand/Collapse (2026-11-16): the Books and Podcasts
        page's component brought to the homepage duo — ONE state-aware
@@ -757,11 +759,17 @@
        both sections (the pair became a single button, the Jobs move);
        the toggle's styling is media.html's, verbatim.
        Homepage state model: collapsed is the resting presentation —
-       the heading row alone, the card hidden — and Expand all shows
-       the card with the full list in flow, the way the expanded list
-       lays out on media.html: no fixed 600px height, no internal
-       scroll. No persistence, same as media.html: every visit starts
-       collapsed. */
+       the card shows as a PREVIEW, its list scrolling inside a
+       window exactly four entries tall (the preview rules below) —
+       and Expand all removes the window's cap and shows the full
+       list in flow, the way the expanded list lays out on
+       media.html: no fixed height, no internal scroll. No
+       persistence, same as media.html: every visit starts
+       collapsed. (2026-11-20: the preview replaced a stretch where
+       collapsed hid the card outright and the two sections read as
+       bare headers — Johnny's call: "give a preview of both of
+       these, about three or four long, that you can start
+       scrolling through.") */
     .syn-duo .media-box-head {
         display: flex; align-items: flex-end;
         justify-content: space-between; gap: 8px 16px;
@@ -788,7 +796,22 @@
         outline: 2px solid var(--link-color);
         outline-offset: -2px;
     }
-    .syn-duo .book-list-container:not(.list-expanded), .syn-duo .pod-card:not(.list-expanded) { display: none; }
+    /* Preview window (2026-11-20): at rest each list scrolls inside
+       a window exactly four entries tall. 334px is the designed
+       window — the duo's rows are one uniform 76px, border included,
+       with a 10px margin under each row, and 4 × 76 + 3 × 10 = 334 —
+       and it is only the pre-script fallback: the fit script below
+       measures from the first visible row's top to the fourth
+       visible row's bottom and sets the window to that exact
+       height, so the window's bottom edge lands on an entry
+       boundary at every width and under every filter, never
+       mid-entry. While more entries wait below, the script marks
+       the list .pv-more and a soft shadow sits at the window's
+       bottom edge — the scroll affordance, carried by the design,
+       no words. Expanded, the cap comes off (the .list-expanded
+       rules) and the list flows in full. */
+    .syn-duo .book-list-container:not(.list-expanded) #book-list, .syn-duo .pod-card:not(.list-expanded) .pod-list { flex: none; height: 334px; overflow-y: auto; }
+    .syn-duo #book-list.pv-more, .syn-duo .pod-list.pv-more { box-shadow: inset 0 -18px 18px -18px rgba(0, 0, 0, 0.55); }
     .syn-duo .book-list-container.list-expanded, .syn-duo .pod-card.list-expanded { height: auto; }
     .syn-duo .list-expanded #book-list, .syn-duo .pod-card.list-expanded .pod-list { flex: none; overflow-y: visible; }
     /* In-card Filter & Sort (2026-11-16, one-row pass): the two
@@ -5181,7 +5204,8 @@
         // touch the items, never disturb it). Podcasts: toggles
         // .list-expanded on the podcast card the same way. Page load
         // changes nothing: both sections start collapsed and both
-        // buttons read "Expand all" — heading row shown, card hidden.
+        // buttons read "Expand all" — each card showing its
+        // four-entry preview window (see the fit script below).
         (function () {
             function wire(toggleId, apply) {
                 var btn = document.getElementById(toggleId);
@@ -5208,6 +5232,90 @@
                     podBox.parentElement.classList.toggle('lib-open', expand);
                 });
             }
+        })();
+    </script>
+    <script>
+        // Preview fit (2026-11-20): in the resting (collapsed) state,
+        // size each duo list's window to the exact distance from the
+        // first visible row's top to the fourth visible row's bottom
+        // — rows and the 10px margins between them — so the window's
+        // bottom edge lands on an entry boundary, never mid-entry,
+        // at any viewport width and under any filter or sort. The
+        // rows are one designed 76px, so the stylesheet's 334px
+        // fallback is already the boundary at most widths; this
+        // script makes it exact where a title wraps a row taller.
+        // Expanded, the inline height is cleared and the list flows
+        // in full. The script also keeps .pv-more on a list while
+        // entries wait below its window (the bottom-edge shadow in
+        // the CSS above). Recomputed when a card's expanded class
+        // flips, when a list's rows change (filter/sort touch only
+        // the rows), on resize, and once webfonts settle. A zero
+        // measurement (no layout available) leaves the stylesheet
+        // fallback standing.
+        (function () {
+            var CAP = 4;
+            function visibleHeight(list) {
+                var rows = list.children, first = null, last = null, n = 0;
+                for (var i = 0; i < rows.length && n < CAP; i++) {
+                    if (rows[i].offsetHeight > 0) {
+                        if (!first) first = rows[i];
+                        last = rows[i]; n++;
+                    }
+                }
+                if (!first || !last) return 0;
+                return (last.offsetTop - first.offsetTop) + last.offsetHeight;
+            }
+            function contentBottom(list) {
+                var rows = list.children, first = null, last = null;
+                for (var i = 0; i < rows.length; i++) {
+                    if (rows[i].offsetHeight > 0) {
+                        if (!first) first = rows[i];
+                        last = rows[i];
+                    }
+                }
+                if (!first || !last) return 0;
+                return (last.offsetTop - first.offsetTop) + last.offsetHeight;
+            }
+            function more(list) {
+                // Measured against the last row's bottom edge, not
+                // scrollHeight: the last row's own bottom margin
+                // extends the scrollable area by 10px and would
+                // fake a "more below" on a list that fits its window.
+                list.classList.toggle('pv-more',
+                    contentBottom(list) - list.scrollTop - list.clientHeight > 1);
+            }
+            function fit(card, list) {
+                if (!card || !list) return;
+                if (card.classList.contains('list-expanded')) {
+                    if (list.style.height) list.style.height = '';
+                    list.classList.remove('pv-more');
+                    return;
+                }
+                var h = visibleHeight(list);
+                if (h > 0) {
+                    var px = h + 'px';
+                    if (list.style.height !== px) list.style.height = px;
+                }
+                more(list);
+            }
+            function setup(cardSel, listSel) {
+                var card = document.querySelector(cardSel);
+                var list = document.querySelector(listSel);
+                if (!card || !list) return;
+                var run = function () { fit(card, list); };
+                run();
+                new MutationObserver(run).observe(card, { attributes: true, attributeFilter: ['class'] });
+                new MutationObserver(run).observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+                list.addEventListener('scroll', function () {
+                    if (!card.classList.contains('list-expanded')) more(list);
+                }, { passive: true });
+                if (window.ResizeObserver) new ResizeObserver(run).observe(card);
+                window.addEventListener('resize', run);
+                window.addEventListener('load', run);
+                if (document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+            }
+            setup('.syn-duo .book-list-container', '.syn-duo #book-list');
+            setup('.syn-duo .pod-card', '.syn-duo .pod-list');
         })();
     </script>
 
