@@ -491,6 +491,11 @@
         #tk-zoneL { left:calc(10px + env(safe-area-inset-left)); background:rgba(202,138,4,.50); }
         #tk-zoneL.on { background:rgba(234,179,8,.92); transform:scale(.985); }
         #tk-zoneL svg { width:clamp(28px,6vw,44px); height:auto; }
+        /* Before the race there is no lap, position or speed to show:
+           while the start panel is up (the stage carries .tk-title-up,
+           removed by startRace), the HUD and the thumb zones stay
+           hidden; they appear the moment the race starts. */
+        #tk-stage.tk-title-up #tk-hud, #tk-stage.tk-title-up .tk-zone { display:none; }
         .tk-overlay { position:absolute; inset:0; z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:18px; background:rgba(7,32,60,.55); color:#fff; overflow-y:auto; }
         .tk-overlay.tk-hidden { display:none; }
         .tk-overlay h2 { font-size:clamp(26px,6vw,46px); font-weight:900; letter-spacing:1px; text-shadow:0 3px 0 rgba(0,0,0,.35); margin-bottom:8px; }
@@ -502,13 +507,15 @@
         #tk-countNum { font-size:clamp(70px,18vw,150px); font-weight:900; color:#ffd94d; text-shadow:0 5px 0 #c96a00, 0 8px 22px rgba(0,0,0,.5); }
         #tk-portraitNotice { z-index:20; background:rgba(7,32,60,.88); }
         #tk-rotateIcon { font-size:54px; margin-bottom:6px; display:block; transform:rotate(90deg); }
-        #tk-titleScreen { justify-content:flex-start; overflow-y:auto; padding-top:12px; }
+        #tk-titleScreen { justify-content:center; padding:12px; background:rgba(7,32,60,.48); backdrop-filter:blur(5px) brightness(.8); -webkit-backdrop-filter:blur(5px) brightness(.8); }
+        .tk-panel { background:rgba(6,30,58,.94); border:2px solid rgba(255,255,255,.35); border-radius:22px; padding:18px 22px; width:100%; max-width:660px; max-height:100%; overflow-y:auto; display:flex; flex-direction:column; align-items:center; box-shadow:0 18px 50px rgba(0,0,0,.45); }
         #tk-test-results { position:absolute; left:8px; bottom:8px; z-index:50; background:#fff; color:#000; font:12px monospace; padding:8px; white-space:pre-wrap; max-width:90%; display:none; }
         @media (max-height:520px){
             #tk-titleScreen h2 { font-size:24px; margin-bottom:4px; }
             #tk-titleScreen p { font-size:13px; line-height:1.35; margin-bottom:5px; }
             #tk-titleScreen .tk-bigbtn { margin-top:4px; padding:9px 26px; }
             #tk-titleScreen .tk-kb-hint { display:none; }
+            #tk-titleScreen .tk-panel { padding:10px 14px; }
         }
         /* Thumb Kart: the game's own styles, scoped under .tk-shell /
            #tk-stage with tk- prefixed ids and classes so nothing leaks
@@ -563,7 +570,8 @@
         .tk-section:fullscreen .game-body, .tk-section.tk-section-fs .game-body { flex: 1 1 auto; min-height: 0; }
         .tk-section:fullscreen .tk-keys, .tk-section.tk-section-fs .tk-keys { display: none; }
         .tk-section:fullscreen .tk-shell, .tk-section.tk-section-fs .tk-shell { flex: 1 1 auto; min-height: 0; height: 100%; }
-        .tk-section:fullscreen #tk-stage, .tk-section.tk-section-fs #tk-stage { flex: 1 1 auto; min-height: 0; max-height: none; aspect-ratio: auto; }
+        .tk-section:fullscreen .game-body-inner, .tk-section.tk-section-fs .game-body-inner { height: 100%; }
+        .tk-section:fullscreen #tk-stage, .tk-section.tk-section-fs #tk-stage { flex: 1 1 auto; min-height: 0; height: 100%; max-height: none; aspect-ratio: auto; }
         html.tk-fs-lock { overflow: hidden; }
         .tk-keys { color: var(--subtext-color); font-size: 0.85rem; line-height: 1.55; margin: 10px 0 0; }
         .uv-panel {
@@ -899,7 +907,7 @@
         <div class="game-body game-collapsed" id="game-body-thumbkart" role="region" aria-labelledby="thumb-kart-heading" hidden>
         <div class="game-body-inner">
         <div class="tk-shell" id="tk-shell">
-      <div id="tk-stage">
+      <div id="tk-stage" class="tk-title-up">
           <canvas id="tk-game" aria-label="Thumb Kart race. On a touch screen, hold the right thumb zone to go and the left zone for the banana. On a keyboard, hold Space to go, slide with the arrow keys or A and D, B for the banana, W to throw."></canvas>
 
           <div id="tk-hud">
@@ -920,6 +928,7 @@
           </div>
 
           <div id="tk-titleScreen" class="tk-overlay">
+            <div class="tk-panel">
             <h2>THUMB KART</h2>
             <p>Your kart <span class="tk-key">steers itself</span> around the corners — your thumbs do the driving.</p>
             <p><span class="tk-key">RIGHT thumb — GO:</span> hold to speed up, let go to brake. While you hold, <span class="tk-key">slide ◀ ▶</span> to lean across the track. In a corner, let go and press again fast to <span class="tk-key">drift</span> — finish the move for a boost.</p>
@@ -927,6 +936,7 @@
             <p>3 laps · 3 rivals · don't slip on the bananas.</p>
             <button id="tk-startBtn" class="tk-bigbtn" type="button">START RACE</button>
             <p class="tk-kb-hint" style="font-size:.78em;opacity:.85;margin-top:10px">Desktop: hold Space to go · ◀ ▶ slide · B hold / release banana · W throw</p>
+            </div>
           </div>
 
           <div id="tk-countOverlay" class="tk-overlay tk-hidden"><div id="tk-countNum">3</div></div>
@@ -1658,6 +1668,8 @@ stage.addEventListener('touchmove', e=>e.preventDefault(), {passive:false});
 window.addEventListener('keydown', e=>{
   if(!tkKeysLive(e)) return;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  if(state==='title' && (e.code==='Enter' || e.code==='NumpadEnter')){ e.preventDefault(); beep(660,0.06,'square',0.04); startRace(); return; }
+  if(state==='title' && e.code==='Space'){ beep(660,0.06,'square',0.04); startRace(); }
   if(e.repeat) return; keysDown[e.code]=true;
   if(e.code==='Space'||e.code==='ArrowUp'){ goHeld=true; zoneR.classList.add('on'); onGoDown(); }
   if(e.code==='KeyB'){ leftHeld=true; zoneL.classList.add('on'); if(carry && state==='racing' && !paused) holding=true; }
@@ -1701,6 +1713,7 @@ let lastCount=4, goBeeped=false;
 function startRace(){
   resetRace(); state='countdown'; countT=3.4; lastCount=4; goBeeped=false; setPaused(false);
   $('tk-titleScreen').classList.add('tk-hidden');
+  stage.classList.remove('tk-title-up');
   $('tk-finishScreen').classList.add('tk-hidden');
   $('tk-countOverlay').classList.remove('tk-hidden'); $('tk-countNum').textContent='3';
   if(AC && AC.state==='suspended') AC.resume();
