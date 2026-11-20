@@ -135,24 +135,45 @@
         .btc-chart-title { margin-top: 0; }
         #btcPick { display: flex; align-items: center; gap: 0.5rem; }
         #btcPick .btc-pick-face { flex: 1 1 auto; width: auto; }
-        /* The overlay toggle joins the picker row (2026-11-19):
-           at phone widths the toggle and the dropdown cannot
-           share one line with both labels whole — the row
-           measures 508px and a 393px phone gives the card a
-           307px interior — so the row wraps: the toggle on
-           its own line directly above the dropdown, and the
-           dropdown at the full width the dropdown has today.
-           From 768px up the two share one line, the toggle at
-           the dropdown's left. */
-        @media (max-width: 767px) {
+        /* One line in the picker bar (2026-11-19): the switch
+           and the dropdown share one line wherever the measured
+           row fits the card's interior (the interior is the
+           viewport minus 86px at phone widths). With the full
+           'Johnny's overlay' label the row measures 328.9px at
+           the widest font measure, so the full label holds from
+           415px up; with the label stepped down to 'Overlay'
+           the row measures 273.2px, so one line holds from
+           360px up. Below 360px the two cannot share a line:
+           at 320px the interior is 234px and even the stepped
+           row needs 273.2px — so below 360px the row wraps,
+           the toggle on its own line with its full label
+           (154.8px, whole at 320px) and the dropdown at full
+           width below it (166.1px, whole at 320px). The face
+           is sized by the longest view name, 'Bitcoin power
+           law' at 134.4px of text at the widest measure, since
+           the score view was renamed 'Johnny's score'
+           (2026-11-19). Nothing truncates at any width, and
+           the breakpoints are set at the widest font measure
+           so no font environment can overflow the face. */
+        @media (max-width: 414px) {
+            #btcPick .btc-ovl-label-full { display: none; }
+            #btcPick .btc-ovl-label-short { display: inline; }
+        }
+        @media (max-width: 359px) {
             #btcPick { flex-wrap: wrap; }
             #btcPick .btc-pick-face { flex-basis: 100%; }
+            #btcPick .btc-ovl-label-full { display: inline; }
+            #btcPick .btc-ovl-label-short { display: none; }
         }
-        .btc-pick-face { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; min-height: 44px; padding: 0.3rem 0.8rem; background: color-mix(in srgb, var(--link-color) 7%, var(--bg-color)); border: 1px solid var(--link-color); border-radius: 12px; color: var(--text-color); font: inherit; font-size: 0.92rem; font-weight: 600; text-align: left; cursor: pointer; }
+        .btc-pick-face { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; min-height: 44px; padding: 0.3rem 0.5rem; background: color-mix(in srgb, var(--link-color) 7%, var(--bg-color)); border: 1px solid var(--link-color); border-radius: 12px; color: var(--text-color); font: inherit; font-size: 0.85rem; font-weight: 600; text-align: left; cursor: pointer; }
         .btc-pick-face:hover { background: color-mix(in srgb, var(--link-color) 13%, var(--bg-color)); }
         .btc-pick-face:focus-visible { outline: 2px solid var(--link-color); outline-offset: 1px; }
         .btc-pick-chev { flex: none; font-size: 0.85em; color: var(--link-color); }
         .btc-pick-label { flex: none; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--subtext-color); margin-right: 0.55rem; }
+        /* The face's 'Select chart' label as an accessible label
+           only (2026-11-19): part of the face's name for assistive
+           technology, never rendered. */
+        .btc-vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
         .btc-pick-panel { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; padding: 0.35rem; }
         .btc-pick-panel[hidden] { display: none; }
         .btc-pick-opt { display: block; width: 100%; min-height: 44px; padding: 0.55rem 0.6rem; border: none; border-radius: 8px; background: none; color: var(--text-color); font: inherit; font-size: 0.95rem; text-align: left; cursor: pointer; }
@@ -251,13 +272,25 @@
            picker, wrapping again on a 320px screen if the pills
            still cannot share the line. The pills are in the
            layout flow at every width — nothing overlaps, and
-           the labeled Exit is always on screen. The picker label
-           leaves the picker face; the row's side padding
-           tightens. */
+           the labeled Exit is always on screen. */
         .btc-chart-card:fullscreen, .btc-chart-card.btc-fs-fallback { padding-left: 10px; padding-right: 10px; column-gap: 6px; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr); grid-template-areas: "pick" "actions" "zones" "stage"; row-gap: 6px; }
-        .btc-chart-card:fullscreen .btc-pick-label, .btc-chart-card.btc-fs-fallback .btc-pick-label { display: none; }
         .btc-chart-card:fullscreen .btc-card-actions, .btc-chart-card.btc-fs-fallback .btc-card-actions { flex-wrap: wrap; row-gap: 6px; }
         .btc-chart-card:fullscreen .btc-action-pill, .btc-chart-card.btc-fs-fallback .btc-action-pill { padding: 0.35rem 0.6rem; font-size: 0.84rem; }
+    }
+    /* In fullscreen the bubble is wider than the card's
+       in-page interior (at 393px the pick row gets 351px
+       against the interior's 307px), and the stepped-label
+       one-line bar measures 273.2px at the widest font
+       measure. The bubble gives the row the viewport minus
+       42px, so the stepped row fits the bubble from 316px
+       up — at every width where the page below wraps
+       (359px and down, inside the site's 320px floor) the
+       bar still holds one line inside fullscreen. */
+    @media (max-width: 359px) {
+        .btc-chart-card:fullscreen #btcPick, .btc-chart-card.btc-fs-fallback #btcPick { flex-wrap: nowrap; }
+        .btc-chart-card:fullscreen #btcPick .btc-pick-face, .btc-chart-card.btc-fs-fallback #btcPick .btc-pick-face { flex-basis: auto; }
+        .btc-chart-card:fullscreen #btcPick .btc-ovl-label-full, .btc-chart-card.btc-fs-fallback #btcPick .btc-ovl-label-full { display: none; }
+        .btc-chart-card:fullscreen #btcPick .btc-ovl-label-short, .btc-chart-card.btc-fs-fallback #btcPick .btc-ovl-label-short { display: inline; }
     }
 
     /* Bitcoin Power Law chart (lifted from bitcoin.html, incl. zoom) */
@@ -340,7 +373,27 @@
         .btc-mini-dot { position: absolute; top: 50%; left: var(--pos, 50%); width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.95), 0 0 0 3px rgba(15, 23, 42, 0.45); }
         .btc-mini.seg-buy .btc-mini-dot { background: #22c55e; }
         .btc-mini.seg-sell .btc-mini-dot { background: #ef4444; }
-        .btc-ovl-btn { margin-right: auto; }
+        /* The overlay toggle as a switch (2026-11-19): the pill
+           spelled its state in words ('Johnny's overlay: On');
+           the switch SHOWS its state instead — while the overlay
+           is on, the knob sits right and the track takes the
+           bar's accent color; while it is off, the knob sits
+           left on the neutral track. The track and knob take the
+           theme slider's own geometry (a 44px track, an 18px
+           knob at a 2.5px inset, 21px of travel) and its neutral
+           track colors, so the site's two switches read as one
+           system. The label beside the switch is the bar's small
+           type; the button's accessible name is 'Johnny's
+           overlay' in full at every width. */
+        .btc-ovl-switch { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 44px; padding: 0; background: none; border: none; border-radius: 999px; color: var(--text-color); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .btc-ovl-switch:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+        .btc-ovl-label { font-size: 0.72rem; font-weight: 700; color: var(--subtext-color); white-space: nowrap; }
+        .btc-ovl-label-short { display: none; }
+        .btc-switch-track { position: relative; flex: none; width: 44px; height: 23px; border-radius: 999px; background: #3a4556; transition: background-color var(--dur-2) var(--ease-inout); }
+        body.light-mode .btc-switch-track { background: #d3d8de; }
+        .btc-ovl-switch[aria-checked="true"] .btc-switch-track { background: var(--link-color); }
+        .btc-switch-knob { position: absolute; left: 2.5px; top: 2.5px; width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); transition: transform var(--dur-2) var(--ease-inout); }
+        .btc-ovl-switch[aria-checked="true"] .btc-switch-knob { transform: translateX(21px); }
         /* The combined score as a gauge (2026-11-19): one scale bar
            whose three segments are the bands themselves — green the
            buy band (0 to 7.79 of the bar's width), yellow between
@@ -1180,9 +1233,9 @@
             </details>
         </div>
         <div class="btc-pick" id="btcPick">
-            <button type="button" class="btc-action-pill btc-ovl-btn" id="btcOvlBtn" aria-pressed="true" title="Turn Johnny's overlay on or off"><span class="btc-ovl-btn-text">Johnny's overlay: On</span></button>
+            <button type="button" class="btc-ovl-switch" id="btcOvlBtn" role="switch" aria-checked="true" aria-label="Johnny's overlay" title="Turn Johnny's overlay on or off"><span class="btc-ovl-label" aria-hidden="true"><span class="btc-ovl-label-full">Johnny's overlay</span><span class="btc-ovl-label-short">Overlay</span></span><span class="btc-switch-track" aria-hidden="true"><span class="btc-switch-knob"></span></span></button>
             <button type="button" class="btc-pick-face" id="btcPickFace" aria-haspopup="listbox" aria-expanded="false" aria-controls="btcPickPanel">
-                <span class="btc-pick-main"><span class="btc-pick-label" aria-hidden="true">Select chart</span><span class="btc-pick-face-text" id="btcPickFaceText">Bitcoin power law</span></span>
+                <span class="btc-pick-main"><span class="btc-pick-label btc-vh">Select chart</span><span class="btc-pick-face-text" id="btcPickFaceText">Bitcoin power law</span></span>
                 <span class="btc-pick-chev" aria-hidden="true">&#9662;</span>
             </button>
             <div class="btc-pick-panel glass-bubble" id="btcPickPanel" role="listbox" aria-label="Choose Bitcoin chart view" hidden>
@@ -1190,7 +1243,7 @@
                 <button type="button" class="btc-pick-opt" data-view="cost" role="option" aria-selected="false">Production cost</button>
                 <button type="button" class="btc-pick-opt" data-view="mayer" role="option" aria-selected="false">Mayer Multiple</button>
                 <button type="button" class="btc-pick-opt" data-view="mvrv" role="option" aria-selected="false">MVRV Z-Score</button>
-                <button type="button" class="btc-pick-opt" data-view="score" role="option" aria-selected="false">Johnny's combined score</button>
+                <button type="button" class="btc-pick-opt" data-view="score" role="option" aria-selected="false">Johnny's score</button>
             </div>
         </div>
         <script>
@@ -1213,8 +1266,7 @@
             var btn = document.getElementById('btcOvlBtn');
             if (!btn) return;
             function paint() {
-                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-                btn.querySelector('.btc-ovl-btn-text').textContent = "Johnny's overlay: " + (on ? 'On' : 'Off');
+                btn.setAttribute('aria-checked', on ? 'true' : 'false');
             }
             btn.addEventListener('click', function () {
                 on = !on;
@@ -1329,22 +1381,22 @@
         </div>
         <div id="btc-view-score" class="powerlaw-card" hidden>
         <div class="pl-readout" id="sc-readout" aria-live="polite">
-            <div class="pl-stat"><span class="pl-label">Johnny's combined score</span><span class="pl-value" id="sc-score">&mdash;</span><span class="pl-note" id="sc-date"></span></div>
+            <div class="pl-stat"><span class="pl-label">Johnny's score</span><span class="pl-value" id="sc-score">&mdash;</span><span class="pl-note" id="sc-date"></span></div>
             <div class="pl-stat"><span class="pl-label">Buy band</span><span class="pl-value">7.79</span><span class="pl-note">or lower — the rare buy</span></div>
             <div class="pl-stat"><span class="pl-label">Sell band</span><span class="pl-value">92.91</span><span class="pl-note">or higher — the rare sell</span></div>
         </div>
         <div class="pl-chart-wrap">
-            <canvas id="sc-chart" height="420" aria-label="Chart of Johnny's combined score, the average of the four models' 0-to-100 scalings, with the buy band at a score of 7.79 or lower and the sell band at a score of 92.91 or higher"></canvas>
+            <canvas id="sc-chart" height="420" aria-label="Chart of Johnny's score, the average of the four models' 0-to-100 scalings, with the buy band at a score of 7.79 or lower and the sell band at a score of 92.91 or higher"></canvas>
             <div class="pl-tip" id="sc-tip" hidden></div>
-            <div class="pl-zoom" role="group" aria-label="Johnny's combined score chart zoom controls">
+            <div class="pl-zoom" role="group" aria-label="Johnny's score chart zoom controls">
                 <button type="button" id="sc-zin" aria-label="Zoom in" title="Zoom in">+</button>
                 <button type="button" id="sc-zout" aria-label="Zoom out" title="Zoom out">&minus;</button>
                 <button type="button" id="sc-zreset" class="pl-zreset" aria-label="Reset view" title="Reset view">Reset</button>
             </div>
         </div>
-        <p class="pl-legend"><span class="pl-sw pl-sw-score"></span> Johnny's combined score &nbsp; <span class="pl-sq pl-sq-lo"></span> Buy band — 7.79 or lower &nbsp; <span class="pl-sq pl-sq-hi"></span> Sell band — 92.91 or higher &nbsp; <span class="pl-sw pl-sw-dotbuy"></span> In the buy band &nbsp; <span class="pl-sw pl-sw-below"></span> In the sell band &nbsp; <span class="pl-sw pl-sw-today"></span> Latest &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
+        <p class="pl-legend"><span class="pl-sw pl-sw-score"></span> Johnny's score &nbsp; <span class="pl-sq pl-sq-lo"></span> Buy band — 7.79 or lower &nbsp; <span class="pl-sq pl-sq-hi"></span> Sell band — 92.91 or higher &nbsp; <span class="pl-sw pl-sw-dotbuy"></span> In the buy band &nbsp; <span class="pl-sw pl-sw-below"></span> In the sell band &nbsp; <span class="pl-sw pl-sw-today"></span> Latest &nbsp;&middot;&nbsp; Scroll or pinch to zoom, drag to pan.</p>
         <p class="mm-state" id="sc-state"></p>
-        <h3>Johnny's combined score chart</h3>
+        <h3>Johnny's score chart</h3>
         <p class="pl-sub">Johnny&rsquo;s one number for the four models: each model scaled from 0 to 100 against fixed anchors, and the four scalings averaged. A combined score of 7.79 or lower is the buy band; a combined score of 92.91 or higher is the sell band.</p>
         <p class="pl-fine">Daily figures: the site&rsquo;s nightly update, from Feb 2, 2011. How the score is built is on the <a href="bitcoin.html">Bitcoin page</a>.</p>
         </div>
@@ -4561,7 +4613,7 @@
                 if (dd < best) { best = dd; idx = j; }
             }
             var d = PTS[idx][0], v = PTS[idx][1];
-            tip.innerHTML = '<strong>' + dateStr(d) + '</strong><br>Johnny&rsquo;s combined score ' + v.toFixed(2) +
+            tip.innerHTML = '<strong>' + dateStr(d) + '</strong><br>Johnny&rsquo;s score ' + v.toFixed(2) +
                 (v <= BUY ? '<br>In the buy band — the rare buy' : (v >= SELL ? '<br>In the sell band — the rare sell' : ''));
             tip.hidden = false;
             var tx = g.x(d), ty = g.y(v);
@@ -5580,7 +5632,7 @@
         var vMvrv = document.getElementById('btc-view-mvrv');
         var vScore = document.getElementById('btc-view-score');
         if (!root || !face || !panel || !anim || !vPl || !vCost || !vMayer || !vMvrv || !vScore) return;
-        var LABELS = { powerlaw: 'Bitcoin power law', cost: 'Production cost', mayer: 'Mayer Multiple', mvrv: 'MVRV Z-Score', score: "Johnny's combined score" };
+        var LABELS = { powerlaw: 'Bitcoin power law', cost: 'Production cost', mayer: 'Mayer Multiple', mvrv: 'MVRV Z-Score', score: "Johnny's score" };
         var current = 'powerlaw', plLoaded = false, costLoaded = false, mayerLoaded = false, mvrvLoaded = false, scoreLoaded = false, animating = false, finishAnim = null;
         var open = false;
 
