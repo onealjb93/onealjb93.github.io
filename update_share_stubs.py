@@ -14,6 +14,8 @@ page-cards — from the CURRENT sources of truth in the repo checkout:
     random.html         the POOLS data (photo entries + stage URLs)
     quotes-data.js      quote texts and authors
     engineering-data.js engineering entry names, overviews and photos
+    websites-data.js    website names, overviews and preview images
+    scifi-data.js       sci-fi entry names, overviews and photos
     finance-chart-data.json the 19 stocks' names and weekly bars
 
 ...and rewrites ONLY what changed:
@@ -41,7 +43,11 @@ previous value (or, for a new book, the JBO logo) is kept.
 
 Engineering doorways (s/engineering/<id>.html) carry the entry's own
 photo, derived exactly like the other photo pools (the entry's img run
-through the stage-URL rule). The retired Math pool's doorways and
+through the stage-URL rule). Websites and Sci-Fi doorways
+(s/websites/<id>.html, s/scifi/<id>.html) carry their entries' own
+names, overviews and images the same way, derived from
+websites-data.js and scifi-data.js — the two lazy pools the first
+version of this refresher missed. The retired Math pool's doorways and
 diagram PNGs (s/math/, s/img/math/) are no longer derived: they stay
 in the tree as orphans, logged by the orphan pass, never deleted —
 the same treatment the sea doorways got when Sea became Animals.
@@ -505,8 +511,9 @@ class Refresher:
             self.log('covers: re-checked %d, fresh og:image on %d'
                      % (checked, found))
 
-    # ---- random pools, quotes, engineering -----------------------------
-    def derive_random(self, random_src, quotes, eng_entries):
+    # ---- random pools, quotes, engineering, websites, sci-fi ---------
+    def derive_random(self, random_src, quotes, eng_entries,
+                      web_entries, scifi_entries):
         i = random_src.find('var POOLS = ')
         blob = random_src[i + len('var POOLS = '):
                           random_src.find('\n', i)].rstrip().rstrip(';')
@@ -550,6 +557,30 @@ class Refresher:
                           % (SITE, e['id']))
             except Exception as ex:
                 self.problems.append('engineering ?: %s' % ex)
+        for e in web_entries:
+            try:
+                desc = (e.get('overview') or e.get('sub')
+                        or e.get('name') or '')
+                desc = ' '.join(desc.split())
+                self.emit('websites',
+                          'websites/%s.html' % e['id'],
+                          e['name'], desc, stage_url(e['img']),
+                          '%s/random.html#share/websites/%s'
+                          % (SITE, e['id']))
+            except Exception as ex:
+                self.problems.append('websites ?: %s' % ex)
+        for e in scifi_entries:
+            try:
+                desc = (e.get('overview') or e.get('sub')
+                        or e.get('name') or '')
+                desc = ' '.join(desc.split())
+                self.emit('scifi',
+                          'scifi/%s.html' % e['id'],
+                          e['name'], desc, stage_url(e['img']),
+                          '%s/random.html#share/scifi/%s'
+                          % (SITE, e['id']))
+            except Exception as ex:
+                self.problems.append('scifi ?: %s' % ex)
         return carina_url
 
     # ---- finance stocks -------------------------------------------------
@@ -696,6 +727,22 @@ class Refresher:
         esrc = self.read_source('engineering-data.js')
         eng_entries = json.loads(esrc[esrc.index('['):
                                       esrc.rindex(']') + 1])
+        web_entries = []
+        try:
+            wsrc = self.read_source('websites-data.js')
+            web_entries = json.loads(wsrc[wsrc.index('['):
+                                          wsrc.rindex(']') + 1])
+        except Exception as e:
+            self.problems.append('websites: data unreadable (%s) '
+                                 '\u2014 websites doorways skipped' % e)
+        scifi_entries = []
+        try:
+            sfsrc = self.read_source('scifi-data.js')
+            scifi_entries = json.loads(sfsrc[sfsrc.index('['):
+                                             sfsrc.rindex(']') + 1])
+        except Exception as e:
+            self.problems.append('sci-fi: data unreadable (%s) '
+                                 '\u2014 sci-fi doorways skipped' % e)
 
         state_path = self.path(STATE_NAME)
         state = {}
@@ -712,7 +759,8 @@ class Refresher:
         monday = datetime.now(timezone.utc).weekday() == 0
         cover_check = self.force_covers or monday
         self.derive_books(media_doc, cover_check)
-        carina_url = self.derive_random(random_src, quotes, eng_entries)
+        carina_url = self.derive_random(random_src, quotes, eng_entries,
+                                        web_entries, scifi_entries)
         self.derive_finance()
         self.refresh_cards(photos, sust_doc, carina_url, state)
         self.log_orphans()
