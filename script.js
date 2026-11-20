@@ -92,11 +92,12 @@ async function loadFinancialData() {
     }
 }
 
-/* Golden star: the header's link to the Bitcoin indicator section.
-   Exactly one of its three anchors shows, chosen by the nightly
-   btc-state.json: a gold star while Johnny's combined score is in
-   its buy band (the golden state), a red star in its sell band
-   (the top state), an amber dot between the bands (Hold). Every
+/* Golden indicator: the header's link to the Bitcoin indicator
+   section. Exactly one of its three anchors shows, chosen by the
+   nightly btc-state.json: a green dot while Johnny's combined
+   score is in its buy band (the golden state), a red dot in its
+   sell band (the top state), an amber dot between the bands
+   (Hold). Every
    caption carries the published score itself (score.value, one
    decimal) — the same number the alert emails carry. The writer
    runs on weekdays, so freshness allows 96 hours — a long weekend
