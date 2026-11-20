@@ -1000,7 +1000,7 @@ const easeIn=(a,b,p)=>a+(b-a)*p*p, easeInOut=(a,b,p)=>a+(b-a)*(-Math.cos(p*Math.
 const overlap=(x1,w1,x2,w2,p)=>{ const h1=w1*p/2,h2=w2*p/2; return !(x1+h1<x2-h2||x1-h1>x2+h2); };
 
 /* ---------- engine constants ---------- */
-const SEG_LEN=200, RUMBLE=3, ROAD_W=2100, DRAW_DIST=150, CAM_H=1050;
+const SEG_LEN=200, RUMBLE=3, ROAD_W=2100, DRAW_DIST=150, CAM_H=1500;
 const BASE_DEPTH = 1/Math.tan((100/2)*Math.PI/180);   /* FOV 100 */
 const MAX_SPEED = SEG_LEN*62;                          /* 12,400 u/s */
 const BOOST_MAX = MAX_SPEED*1.18;
@@ -1202,6 +1202,7 @@ function updatePlayer(dt){
   }
   if(invulnT>0) invulnT-=dt;
   /* --- advance --- */
+  const prevIdx=playerSegIndex();   /* kart's segment before this frame's move (banana sweep) */
   const dz=speed*dt;
   position=(position+dz)%trackLength; playerTotal+=dz;
   hillFar  += seg.curve*sp*dt*7;  hillNear += seg.curve*sp*dt*15;
@@ -1216,9 +1217,15 @@ function updatePlayer(dt){
   }
   /* --- track banana collision --- */
   if(spinT<=0 && invulnT<=0 && speed>300){
+    /* swept test: every segment the kart crossed this frame, not only the one it
+       landed in — at full speed one frame covers more than a whole segment, so a
+       banana in a jumped-over segment was driven over without ever being tested */
+    const nSeg=segments.length, span=(pIdx-prevIdx+nSeg)%nSeg, crossed=[];
+    if(span>10) crossed.push(pIdx);
+    else for(let s=0;s<=span;s++) crossed.push((prevIdx+s)%nSeg);
     for(let i=0;i<trackBananas.length;i++){
       const b=trackBananas[i];
-      if(b.seg===pIdx && Math.abs(b.offset-playerX)<0.36){
+      if(crossed.includes(b.seg) && Math.abs(b.offset-playerX)<0.36){
         trackBananas.splice(i,1);
         if(holding && carry){            /* shield: held banana takes the hit */
           carry=0; holding=false; invulnT=1.2;
