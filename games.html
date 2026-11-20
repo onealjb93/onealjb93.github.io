@@ -902,7 +902,7 @@
         <div class="game-body-inner">
         <div class="tk-shell" id="tk-shell">
       <div id="tk-stage" class="tk-title-up">
-          <canvas id="tk-game" aria-label="Thumb Kart race. On a touch screen, hold the right thumb zone to go and the left zone for the banana. On a keyboard, hold Space to go, slide with the arrow keys or A and D, B for the banana, W to throw."></canvas>
+          <canvas id="tk-game" aria-label="Thumb Kart race. Touch: hold the right thumb zone to go and the left zone for the banana. Mouse: hold the button to go and move the mouse to steer. Space works the banana: press to hold it behind you, press again to drop it, double-tap to throw it ahead."></canvas>
 
           <div id="tk-hud">
             <div class="tk-hud-box"><small>LAP</small><span id="tk-hudLap">1 / 3</span></div>
@@ -924,9 +924,9 @@
           <div id="tk-titleScreen" class="tk-overlay">
             <div class="tk-panel">
             <h2>THUMB KART</h2>
-            <p>Your kart <span class="tk-key">steers itself</span> around the corners — your thumbs do the driving.</p>
-            <p><span class="tk-key">RIGHT thumb — GO:</span> hold to speed up, let go to brake. While you hold, <span class="tk-key">slide ◀ ▶</span> to lean across the track. In a corner, let go and press again fast to <span class="tk-key">drift</span> — finish the move for a boost.</p>
-            <p><span class="tk-key">LEFT thumb — BANANA:</span> drive over a bunch to pick one up. Hold to carry it behind you as a shield, let go to drop it, flick up to throw it ahead.</p>
+            <p id="tk-instLead">Your kart <span class="tk-key">steers itself</span> around the corners — your thumbs do the driving.</p>
+            <p id="tk-instGo"><span class="tk-key">RIGHT thumb — GO:</span> hold to speed up, let go to brake. While you hold, <span class="tk-key">slide ◀ ▶</span> to lean across the track. In a corner, let go and press again fast to <span class="tk-key">drift</span> — finish the move for a boost.</p>
+            <p id="tk-instBanana"><span class="tk-key">LEFT thumb — BANANA:</span> drive over a bunch to pick one up. Hold to carry it behind you as a shield, let go to drop it, flick up to throw it ahead.</p>
             <p>3 laps · 3 rivals · don't slip on the bananas.</p>
             <button id="tk-startBtn" class="tk-bigbtn" type="button">START RACE</button>
             <p class="tk-kb-hint" style="font-size:.78em;opacity:.85;margin-top:10px">Desktop: hold Space to go · ◀ ▶ slide · B hold / release banana · W throw</p>
@@ -1640,29 +1640,31 @@ function bindZone(zone, down, move, up){
   zone.addEventListener('contextmenu', e=>e.preventDefault());
 }
 function rDown(e){
+  if(e.pointerType==='mouse'){ mDown(e); return; }   /* desktop: the mouse scheme (mDown/mSteer/mUp, below) */
   if(state==='title') startRace();   /* a thumb on the GO pad starts the race; the same press keeps holding GO */
   rPointer=e.pointerId; rDownX=e.clientX; rWidth=zoneR.getBoundingClientRect().width||1;
   goHeld=true; zoneR.classList.add('on'); onGoDown();
 }
-function rMove(e){ if(e.pointerId!==rPointer) return;
+function rMove(e){ if(e.pointerType==='mouse'){ mSteer(e); return; } if(e.pointerId!==rPointer) return;
   slideTarget=clamp((e.clientX-rDownX)/(rWidth*0.40), -1, 1); }
-function rUp(e){ if(e.pointerId!==rPointer) return;
+function rUp(e){ if(e.pointerType==='mouse'){ mUp(e); return; } if(e.pointerId!==rPointer) return;
   rPointer=null; goHeld=false; slideTarget=0; zoneR.classList.remove('on'); onGoUp(); }
 bindZone(zoneR, rDown, rMove, rUp);
 
 let lPointer=null, lDownY=0, lDownT=0, lLastY=0, lLastT=0, lVelMax=0;
 function lDown(e){
+  if(e.pointerType==='mouse'){ mDown(e); return; }   /* a mouse press anywhere on the stage is GO */
   if(state==='title') startRace();   /* a thumb on the BANANA pad starts the race too */
   lPointer=e.pointerId; lDownY=e.clientY; lDownT=performance.now();
   lLastY=e.clientY; lLastT=lDownT; lVelMax=0;
   leftHeld=true; zoneL.classList.add('on');
   if(carry && state==='racing' && !paused) holding=true;
 }
-function lMove(e){ if(e.pointerId!==lPointer) return;
+function lMove(e){ if(e.pointerType==='mouse'){ mSteer(e); return; } if(e.pointerId!==lPointer) return;
   const now=performance.now(), dtm=Math.max(1, now-lLastT);
   const v=(lLastY-e.clientY)/dtm; if(v>0) lVelMax=Math.max(lVelMax, v);
   lLastY=e.clientY; lLastT=now; }
-function lUp(e){ if(e.pointerId!==lPointer) return;
+function lUp(e){ if(e.pointerType==='mouse'){ mUp(e); return; } if(e.pointerId!==lPointer) return;
   lPointer=null; leftHeld=false; zoneL.classList.remove('on');
   if(holding){
     const dur=performance.now()-lDownT, dy=lDownY-e.clientY;
@@ -1670,6 +1672,142 @@ function lUp(e){ if(e.pointerId!==lPointer) return;
   }
   holding=false; }
 bindZone(zoneL, lDown, lMove, lUp);
+
+/* ================= desktop controls (2026-11-20) =================
+   Mouse: hold the button anywhere on the stage to go (release
+   brakes, with the same drift feather as the thumb pad), and the
+   kart follows the mouse left/right across the whole stage — stage
+   centre is straight ahead. The mouse path never touches the touch
+   state (rPointer / slideTarget's touch maths), and stepFrame only
+   consults the mouse when no thumb and no slide key is active, so
+   touch play is bit-for-bit the old game. */
+let mPointer=null, mouseSteer=0, mouseSeen=false;
+function mSteer(e){
+  const r=stage.getBoundingClientRect(); if(!r.width) return;
+  mouseSteer=clamp(((e.clientX-r.left)/r.width)*2-1, -1, 1); mouseSeen=true;
+}
+function mDown(e){
+  if(e.button!==undefined && e.button!==0) return;   /* left button only */
+  if(state==='title') startRace();   /* a mouse press on the title screen starts the race, like a thumb */
+  mPointer=e.pointerId; mSteer(e);
+  goHeld=true; zoneR.classList.add('on'); onGoDown();
+}
+function mUp(e){
+  if(mPointer===null || e.pointerId!==mPointer) return;
+  mPointer=null; goHeld=false; zoneR.classList.remove('on'); onGoUp();
+}
+/* A press straight on the canvas (not on a pad) drives too; the pads
+   route their own mouse presses through the branches in the zone
+   handlers above, so they are skipped here to avoid a double press. */
+stage.addEventListener('pointerdown', e=>{
+  if(e.pointerType!=='mouse') return;
+  if(state!=='countdown' && state!=='racing') return;
+  if(e.target.closest && e.target.closest('button')) return;
+  if($('tk-portraitNotice').contains(e.target)) return;
+  if(zoneR.contains(e.target) || zoneL.contains(e.target)) return;
+  mDown(e);
+});
+stage.addEventListener('pointermove', e=>{ if(e.pointerType==='mouse') mSteer(e); });
+window.addEventListener('pointermove', e=>{
+  if(e.pointerType==='mouse' && mPointer!==null && e.pointerId===mPointer) mSteer(e);
+});
+window.addEventListener('pointerup', e=>{ if(e.pointerType==='mouse') mUp(e); });
+window.addEventListener('pointercancel', e=>{ if(e.pointerType==='mouse') mUp(e); });
+
+/* Title-screen mouse presses that land OUTSIDE the two thumb zones:
+   the stage's own press-to-start handler gives those a bare
+   startRace() — right for a thumb, which then moves onto a pad, but
+   a held mouse button IS the GO control, so this press must start
+   the race already holding GO, exactly as a press the handler routes
+   into a zone does through mDown. Presses inside a zone's rectangle
+   are left to that handler's routing, and a press on a zone itself
+   never reaches here (the zone's handler has already started the
+   race, so the state is no longer 'title'). */
+stage.addEventListener('pointerdown', e=>{
+  if(e.pointerType!=='mouse' || state!=='title') return;
+  if(e.target.closest && e.target.closest('button')) return;
+  if($('tk-portraitNotice').contains(e.target)) return;
+  const inRect=(el,x,y)=>{ const r=el.getBoundingClientRect();
+    return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom; };
+  if(inRect(zoneR, e.clientX, e.clientY) || inRect(zoneL, e.clientX, e.clientY)) return;
+  mDown(e);
+});
+
+/* Space is the banana key (it is no longer a go key on any platform):
+   one press carries the banana behind the kart, a second press drops
+   it on the track, and a quick double-tap throws it ahead instead.
+   The drop fires the moment the second press lands — no waiting to
+   see whether a third is coming — and a press within 300 ms of the
+   hold press is read as the double-tap's second half. */
+let lastSpaceT=-9;
+function spaceBanana(){
+  if(state!=='racing'||paused) return;
+  const now=performance.now();
+  if(carry && !holding){ holding=true; zoneL.classList.add('on'); lastSpaceT=now; return; }
+  if(carry && holding){
+    if(now-lastSpaceT<=300) throwBanana(); else dropBanana();
+    zoneL.classList.remove('on'); lastSpaceT=now; return;
+  }
+  lastSpaceT=now;
+}
+
+/* Platform instruction schemes: on a fine-pointer device (mouse /
+   trackpad) every instruction surface shows the desktop scheme —
+   mouse + space — and no thumb wording; on a coarse-pointer device
+   the thumb wording stays exactly as written in the markup. The two
+   keyboard lines are the exception: their old text called Space a
+   go key, which is no longer true on any platform, so both schemes
+   carry the corrected keyboard line. Detection is by pointer type,
+   never by screen width, and the swap re-runs if the pointer type
+   changes (a tablet gaining a mouse, a laptop losing one). */
+const tkOrig={
+  zrSub: zoneR.querySelector('.tk-zsub').innerHTML,
+  zlSub: zoneL.querySelector('.tk-zsub').innerHTML,
+  zrAria: zoneR.getAttribute('aria-label'),
+  zlAria: zoneL.getAttribute('aria-label'),
+  lead: $('tk-instLead').innerHTML,
+  go: $('tk-instGo').innerHTML,
+  banana: $('tk-instBanana').innerHTML,
+  noticeH: $('tk-portraitNotice').querySelector('h2').textContent,
+  noticeP: $('tk-portraitNotice').querySelector('p').textContent
+};
+function applyTkScheme(){
+  const fine = !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches);
+  const zrS=zoneR.querySelector('.tk-zsub'), zlS=zoneL.querySelector('.tk-zsub');
+  const kbHint=document.querySelector('.tk-kb-hint');
+  const keysLine=tkSection ? tkSection.querySelector('.tk-keys') : null;
+  const nH=$('tk-portraitNotice').querySelector('h2'), nP=$('tk-portraitNotice').querySelector('p');
+  if(fine){
+    zrS.innerHTML='HOLD mouse to go · let go to BRAKE<br>MOVE mouse ◀ ▶ to steer';
+    zlS.innerHTML='SPACE to carry · SPACE again to DROP<br>DOUBLE-TAP SPACE to THROW';
+    zoneR.setAttribute('aria-label','Go: hold the mouse button to go, release to brake, move the mouse to steer');
+    zoneL.setAttribute('aria-label','Banana: press Space to carry it behind you, Space again to drop it, double-tap Space to throw it ahead');
+    $('tk-instLead').innerHTML='Your kart <span class="tk-key">steers itself</span> around the corners — your mouse does the driving.';
+    $('tk-instGo').innerHTML='<span class="tk-key">MOUSE — GO:</span> hold the button to speed up, let go to brake. Your kart <span class="tk-key">follows your mouse ◀ ▶</span> across the track. In a corner, let go and press again fast to <span class="tk-key">drift</span> — finish the move for a boost.';
+    $('tk-instBanana').innerHTML='<span class="tk-key">SPACE — BANANA:</span> drive over a bunch to pick one up. Press Space to carry it behind you as a shield, press again to drop it, double-tap Space to throw it ahead.';
+    if(kbHint) kbHint.textContent='Desktop: mouse hold = go · mouse move = steer · Space = banana (press hold · press drop · double-tap throw)';
+    if(keysLine) keysLine.textContent='Mouse: hold the button to go · move the mouse to steer · Space works the banana: press to hold, again to drop, double-tap to throw.';
+    if(nH) nH.textContent='Widen the window';
+    if(nP) nP.textContent='Thumb Kart plays in landscape — hold the mouse button to go, move the mouse to steer, Space for the banana.';
+  } else {
+    zrS.innerHTML=tkOrig.zrSub; zlS.innerHTML=tkOrig.zlSub;
+    zoneR.setAttribute('aria-label', tkOrig.zrAria);
+    zoneL.setAttribute('aria-label', tkOrig.zlAria);
+    $('tk-instLead').innerHTML=tkOrig.lead;
+    $('tk-instGo').innerHTML=tkOrig.go;
+    $('tk-instBanana').innerHTML=tkOrig.banana;
+    if(kbHint) kbHint.textContent='Keyboard: ↑ hold = go · ← → = slide · Space = banana (press hold · press drop · double-tap throw)';
+    if(keysLine) keysLine.textContent='Keys: hold ↑ to go · ← → or A D to slide · Space works the banana: press to hold, again to drop, double-tap to throw.';
+    if(nH) nH.textContent=tkOrig.noticeH;
+    if(nP) nP.textContent=tkOrig.noticeP;
+  }
+}
+applyTkScheme();
+if(window.matchMedia){
+  const mqFine=window.matchMedia('(pointer: fine)'), mqCoarse=window.matchMedia('(pointer: coarse)');
+  if(mqFine.addEventListener){ mqFine.addEventListener('change', applyTkScheme); mqCoarse.addEventListener('change', applyTkScheme); }
+  else if(mqFine.addListener){ mqFine.addListener(applyTkScheme); mqCoarse.addListener(applyTkScheme); }
+}
 
 /* Press-to-start for the rest of the title screen: the start panel
    overlaps the inner halves of the two thumb zones, and the frosted
@@ -1733,16 +1871,17 @@ window.addEventListener('keydown', e=>{
   if(!tkKeysLive(e)) return;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
   if(state==='title' && (e.code==='Enter' || e.code==='NumpadEnter')){ e.preventDefault(); beep(660,0.06,'square',0.04); startRace(); return; }
-  if(state==='title' && e.code==='Space'){ beep(660,0.06,'square',0.04); startRace(); }
+  if(state==='title' && e.code==='Space'){ beep(660,0.06,'square',0.04); startRace(); return; }   /* title Space only starts the race — it no longer falls through to GO */
   if(e.repeat) return; keysDown[e.code]=true;
-  if(e.code==='Space'||e.code==='ArrowUp'){ goHeld=true; zoneR.classList.add('on'); onGoDown(); }
+  if(e.code==='ArrowUp'){ goHeld=true; zoneR.classList.add('on'); onGoDown(); }
+  if(e.code==='Space'){ spaceBanana(); }   /* Space works the banana now — it is not a go key */
   if(e.code==='KeyB'){ leftHeld=true; zoneL.classList.add('on'); if(carry && state==='racing' && !paused) holding=true; }
   if(e.code==='KeyW'){ if(holding) throwBanana(); }
   keySlide=(keysDown['ArrowRight']||keysDown['KeyD']?1:0)-(keysDown['ArrowLeft']||keysDown['KeyA']?1:0);
 });
 window.addEventListener('keyup', e=>{
   keysDown[e.code]=false;
-  if(e.code==='Space'||e.code==='ArrowUp'){ goHeld=false; zoneR.classList.remove('on'); onGoUp(); }
+  if(e.code==='ArrowUp'){ goHeld=false; zoneR.classList.remove('on'); onGoUp(); }
   if(e.code==='KeyB'){ leftHeld=false; zoneL.classList.remove('on'); if(holding) dropBanana(); holding=false; }
   keySlide=(keysDown['ArrowRight']||keysDown['KeyD']?1:0)-(keysDown['ArrowLeft']||keysDown['KeyA']?1:0);
 });
@@ -1816,7 +1955,7 @@ function animate(ts){
   stepFrame(dt);
 }
 function stepFrame(dt){
-  if(rPointer===null && !DEMO) slideTarget=keySlide;
+  if(rPointer===null && !DEMO) slideTarget = keySlide!==0 ? keySlide : (mouseSeen ? clamp((mouseSteer-playerX)*2, -1, 1) : 0);   /* slide keys win while held; otherwise the kart steers toward the mouse's position across the stage (desktop controls) */
   if(DEMO){
     if(state==='title') startRace();
     if(state==='countdown') countT=Math.min(countT, 0.5);
@@ -1853,7 +1992,8 @@ if(DEMO) setInterval(()=>stepFrame(1/60), 16);   /* demo keeps advancing even wh
 /* ================= test / debug hooks ================= */
 window.__thumbKart={
   state(){ return { state:state, paused:paused, pauseReason:pauseReason, countT:countT, vis:document.visibilityState, speed:speed, playerX:playerX, carry:carry, holding:holding,
-    thrown:!!thrown, trackBananas:trackBananas.length, stats:stats, raceTime:raceTime,
+    thrown:!!thrown, thrownTotal: thrown? thrown.total : null, bananaSegs: trackBananas.map(b=>b.seg), playerSeg: playerSegIndex(), playerTotal: playerTotal, segCount: segments.length,
+    trackBananas:trackBananas.length, stats:stats, raceTime:raceTime,
     rivalTarget:i=>rivals[i].lastTarget, rivalBase:i=>rivals[i].baseTarget, rivalRubber:i=>rivals[i].lastRubber||0 }; },
   debug:{
     giveBanana(){ carry=1; },

@@ -1,58 +1,36 @@
 // Sci-Fi pool data for random.html (split out 2026-11-19 so the page
-// stays lean): licence-clean science-fiction art — the 1970s NASA
-// Ames colony paintings, NASA and ESO artist impressions of real
-// exoplanets, and JPL's Visions of the Future travel posters. Every
-// image is public domain or CC BY 4.0, verified from its Wikimedia
-// Commons file page; the artist and licence ride in each entry's
-// credit line. Loaded lazily by ensureSciFi() in random.html the
-// first time the Sci-Fi tab, a #scifi link, or a Loved gallery
-// holding loved sci-fi entries needs it; window.SCIFI_DATA mirrors
-// the shape of the other pools' entries.
+// stays lean): cinematic science-fiction art made for this page —
+// alien-world vistas, near-future spaceflight, retro moon bases and
+// future machines on Earth. Every picture is an original AI-generated
+// image created for this pool in November 2026; no picture is taken
+// from any other artist or archive, and each entry's credit line says
+// so. (Phase 1 of the rebuild, 2026-11-20: this file replaced the
+// previous pool of public-domain NASA/ESO/JPL art at Johnny's
+// direction; the subjects and educational text of 21 entries carry
+// over, with wording adjusted wherever it described the old artwork.)
+// Loaded lazily by ensureSciFi() in random.html the first time the
+// Sci-Fi tab, a #scifi link, or a Loved gallery holding loved sci-fi
+// entries needs it; window.SCIFI_DATA mirrors the shape of the other
+// pools' entries.
+// Phase 1b (2026-11-20): 14 entries that re-rendered old-pool subjects
+// (cutaways, renders, bare exoplanet surfaces) were cut and replaced with
+// original scenes in the reference style Johnny approved — working ships,
+// habitat interiors, monumental ruins, harbours, quiet human moments.
 window.SCIFI_DATA = [
   {
     "id": "stanford-torus-interior",
     "name": "Inside the Stanford Torus",
     "sub": "A valley, a river and a suburb inside a spinning wheel",
-    "overview": "A suburb inside a spinning wheel. This is the inside of the Stanford torus, a ring-shaped space colony drawn for NASA's settlement studies: a river, a lake, pine forest and houses curve away overhead, lit by sunlight bounced in through mirrors.",
+    "overview": "A suburb inside a spinning wheel. This is the inside of the Stanford torus, a ring-shaped space colony designed for NASA's settlement studies: a river, a lake, pine forest and houses curve away overhead, lit by sunlight bounced in through mirrors.",
     "details": [
       "The ring spins, and the spin feels like gravity — strongest at the rim, where the houses stand.",
       "In the foreground, colonists swim and stroll on a recreation deck; above them the far side of their world crosses the sky.",
       "The blue ceiling is the inside of the wheel itself, panelled with glass and mirrors."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/24/Stanford_Torus_interior.jpg/1280px-Stanford_Torus_interior.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Stanford_Torus_interior.jpg",
-    "credit": "Art: Don Davis for NASA Ames · Public domain",
-    "deep": "<p>The painting is by Don Davis, made for a ten-week study in the summer of 1975 when NASA and Stanford University asked engineers to design real space settlements. Their wheel measured about 1.8 kilometres across, turned once a minute, and was drawn for 10,000 residents. Davis signed and dated the canvas in the corner: 25 November 1975.</p>"
-  },
-  {
-    "id": "stanford-torus-cutaway",
-    "name": "The Torus, Cut Open",
-    "sub": "Sunlight pours through the mirror into the town inside",
-    "overview": "The same wheel, sliced open. Rick Guidice cut the Stanford torus in half so you can see the town inside its tube — white houses, farms and gardens — while a giant mirror pours sunlight in through the open rim.",
-    "details": [
-      "From a terrace in the foreground, residents look across their whole world at once.",
-      "Outside the rim, a small ship drifts past the spokes that carry sunlight into the tube.",
-      "Every house sits on the inside of the ring; the spin of the ring holds everyone to the ground."
-    ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Stanford_Torus_cutaway.jpg/1280px-Stanford_Torus_cutaway.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Stanford_Torus_cutaway.jpg",
-    "credit": "Art: Rick Guidice for NASA Ames · Public domain",
-    "deep": "<p>Guidice painted this for the same NASA settlement study as the other colony pictures in this pool. The wheel was designed to be built mostly from lunar soil: the study planned to mine the Moon and fling the material to the construction site with an electromagnetic catapult called a mass driver, so almost nothing heavy would have to be lifted off the Earth.</p>"
-  },
-  {
-    "id": "torus-construction",
-    "name": "Building the Torus",
-    "sub": "Workers fit the shielding while the valley already grows",
-    "overview": "The wheel half-built. Don Davis shows the Stanford torus during construction: work pods and astronauts float outside the rim while fitters bolt on the slanted shielding panels — and through the finished glass, the valley inside is already green.",
-    "details": [
-      "The slanted panels are chevrons of shielding, angled to soak up radiation from space.",
-      "The colony is pressurised only where the glass is complete; the rest is open to the vacuum.",
-      "Ships gather near the hub, the still centre of the turning wheel."
-    ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Stanford_torus_under_construction.jpg/1280px-Stanford_torus_under_construction.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Stanford_torus_under_construction.jpg",
-    "credit": "Art: Don Davis · Public domain",
-    "deep": "<p>Don Davis painted this in August 1975, while the design study it illustrates was still running, and signed it in the corner. The colony paintings were working documents: the engineers used them to explain the settlements in briefings, and NASA later put the whole set on the web, free for anyone to use.</p>"
+    "img": "https://johnny-oneal.com/scifi-stanford-torus-interior.webp",
+    "source": "https://johnny-oneal.com/scifi-stanford-torus-interior.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>The Stanford torus was designed in a ten-week study in the summer of 1975, when NASA and Stanford University asked engineers to design real space settlements. Their wheel measured about 1.8 kilometres across, turned once a minute, and was drawn for 10,000 residents. The study's artists — Don Davis and Rick Guidice among them — painted the settlements as they went, and their pictures remain the most famous space colonies ever imagined.</p>"
   },
   {
     "id": "bernal-interior",
@@ -64,115 +42,70 @@ window.SCIFI_DATA = [
       "The sphere spins slowly, so the land around the equator feels like solid ground.",
       "Sunlight enters through the hub and is spread over the land by mirrors."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/02/Bernal_sphere_interior.jpg/1280px-Bernal_sphere_interior.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Bernal_sphere_interior.jpg",
-    "credit": "Art: Rick Guidice for NASA Ames · Public domain",
-    "deep": "<p>The idea is older than spaceflight: the physicist J. D. Bernal described a hollow, spinning sphere as a permanent home for humanity in 1929, decades before any rocket reached orbit. Rick Guidice painted this interior for NASA in the 1970s, updating Bernal's sketch into a place with garden parties and human-powered flight.</p>"
+    "img": "https://johnny-oneal.com/scifi-bernal-interior.webp",
+    "source": "https://johnny-oneal.com/scifi-bernal-interior.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>The idea is older than spaceflight: the physicist J. D. Bernal described a hollow, spinning sphere as a permanent home for humanity in 1929, decades before any rocket reached orbit. NASA's settlement studies of the 1970s filled in Bernal's sketch — a place with garden parties and human-powered flight.</p>"
   },
   {
-    "id": "bernal-exterior",
-    "name": "The Bernal Sphere from Outside",
-    "sub": "A ribbed metal world ringed by mirrors",
-    "overview": "The same sphere from outside: a ribbed metal ball wrapped in a ring of flat mirrors, with docks and solar panels strung along its axis and the Earth hanging small and blue in the dark.",
+    "id": "quiet-fleet",
+    "name": "The Quiet Fleet",
+    "sub": "Stealth warships at rest in an old harbour",
+    "overview": "Three angular stealth warships of the near future lie moored in a Mediterranean harbour — matte grey faceted hulls and towering masts — while the old town climbs the hill behind them and a pleasure yacht putters past, absurdly small.",
     "details": [
-      "The mirrors catch sunlight and aim the light through windows into the hollow inside.",
-      "The ribbed collar is industry — factories and docks kept outside the living sphere.",
-      "Nothing about the outside hints at the countryside hidden within."
+      "The faceted hulls are shaped to scatter radar — the future warship hides by geometry, not paint.",
+      "Nothing on deck moves: sensors and weapons sit behind the smooth skin, so the ships look asleep.",
+      "The town behind them is centuries old — the fleet is the newest thing in the harbour by about 800 years."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/Bernal_sphere_exterior.jpg/1280px-Bernal_sphere_exterior.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Bernal_sphere_exterior.jpg",
-    "credit": "Art: Rick Guidice for NASA Ames · Public domain",
-    "deep": "<p>Guidice painted the exterior for the same NASA settlement studies as the interiors in this pool. The design keeps the noisy, dangerous machinery — power stations, factories, the spaceport — outside the sphere or along its axis, so the ball itself stays a quiet place to live.</p>"
-  },
-  {
-    "id": "bernal-cutaway",
-    "name": "The Sphere, Sliced Open",
-    "sub": "Green hills curve up and over the sky",
-    "overview": "Guidice again, with a knife: the Bernal sphere sliced open so the countryside inside shows — green hills and villages curving all the way around the central hub, lit by a sunbeam fired through the middle.",
-    "details": [
-      "The bright disc at the centre is the hub, where ships dock and the sunlight enters.",
-      "Villages ring the inside; every garden looks across at the neighbours' sky.",
-      "Outside, the dark shell carries the mirrors and machinery the inside never sees."
-    ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b8/Bernal_sphere_cutaway.jpg/1280px-Bernal_sphere_cutaway.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Bernal_sphere_cutaway.jpg",
-    "credit": "Art: Rick Guidice for NASA Ames · Public domain",
-    "deep": "<p>The cutaway was the study team's favourite teaching tool: one picture shows the whole machine — shell, mirrors, hub and farmland — at once. Guidice signed this canvas in the corner, as he did on most of the settlement paintings; NASA Ames still publishes the whole set online.</p>"
-  },
-  {
-    "id": "bernal-agriculture",
-    "name": "The Colony's Farm",
-    "sub": "Crops grow in glass tubes bolted to the hull",
-    "overview": "Dinner, grown in tubes. Bolted to the colony's hull are glass farm modules: rows of crops under curved windows, with pens for animals on the deck below — a whole farm folded around the outside of the world.",
-    "details": [
-      "Farming sits outside the living space, so smells, pests and accidents stay out of the towns.",
-      "Each tube can run its own season — different light, different air, different crop.",
-      "The curved glass follows the hull; the stars are the farm's ceiling."
-    ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/83/Bernal_Agriculture.jpg/1280px-Bernal_Agriculture.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Bernal_Agriculture.jpg",
-    "credit": "Art: Rick Guidice for NASA Ames · Public domain",
-    "deep": "<p>The settlement studies treated food as an engineering problem: a closed world must recycle nearly everything, so the farms were drawn as sealed modules where water, air and waste could be metered precisely. The paintings show grain and greens under glass — and, tucked into the lower decks, pens for the animals the menus required.</p>"
+    "img": "https://johnny-oneal.com/scifi-quiet-fleet.webp",
+    "source": "https://johnny-oneal.com/scifi-quiet-fleet.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Warships have always been the future arriving early: ironclads, dreadnoughts, carriers — each generation looked impossible beside the harbour it tied up in. The stealth generation hides its power entirely, all smooth faces and sealed decks, which makes the contrast stranger: a medieval waterfront, a fishing fleet, and three grey wedges that could be sculpture until they move.</p>"
   },
   {
     "id": "cylinder-endcap",
     "name": "Island Three: The End Cap",
     "sub": "A suspension bridge across the bay, inside a cylinder",
-    "overview": "The view from the end of the world. Inside an O'Neill cylinder — a hollow tube kilometres long — Davis stands you on a stream bank: a bay, a suspension bridge and towns stretch ahead, and the far side of the cylinder curves overhead as sky.",
+    "overview": "The view from the end of the world. Inside an O'Neill cylinder — a hollow tube kilometres long — a bay, a suspension bridge and towns stretch ahead from a stream bank, and the far side of the cylinder curves overhead as sky.",
     "details": [
       "The land overhead is real land: people live on it, upside down from where you stand.",
       "Clouds form inside the cylinder, drifting between the two shores.",
       "High above, the far end of the cylinder closes the world like a lid."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bc/Island_three_view_from_endcap.jpg/1280px-Island_three_view_from_endcap.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Island_three_view_from_endcap.jpg",
-    "credit": "Art: Don Davis for NASA Ames · Public domain",
-    "deep": "<p>Gerard K. O'Neill, a Princeton physics professor, proposed the cylinder in 1974 and called the biggest version Island Three: about 8 kilometres wide and 32 long, turning slowly so its inner wall feels like Earth. Davis painted this view in August 1975 for the NASA study that followed.</p>"
-  },
-  {
-    "id": "cylinder-exterior",
-    "name": "A Pair of O'Neill Cylinders",
-    "sub": "Two flying worlds, mirrors spread to catch the sun",
-    "overview": "Two cylinders flying in formation. From outside, an O'Neill cylinder is a white tube banded with mirrors: three long mirror panels angle sunlight through three window strips, and a ring of small farm modules circles the hub.",
-    "details": [
-      "The mirrors open and close like blinds to make day and night inside.",
-      "At the near end, the docking hub carries dishes, tanks and arriving ships.",
-      "The Moon and Earth hang below — the colonies were drawn to sit far from both, at a stable point in space."
-    ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/16/Spacecolony1.jpg/1280px-Spacecolony1.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Spacecolony1.jpg",
-    "credit": "Art: Rick Guidice for NASA Ames · Public domain",
-    "deep": "<p>O'Neill founded the Space Studies Institute to keep developing the idea after NASA's funding faded, and the cylinder became the template later storytellers borrowed: the Rama of Arthur C. Clarke's novel is a cousin, and the Cooper Station in the film Interstellar is a direct descendant.</p>"
+    "img": "https://johnny-oneal.com/scifi-cylinder-endcap.webp",
+    "source": "https://johnny-oneal.com/scifi-cylinder-endcap.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Gerard K. O'Neill, a Princeton physics professor, proposed the cylinder in 1974 and called the biggest version Island Three: about 8 kilometres wide and 32 long, turning slowly so its inner wall feels like Earth. The NASA study that followed in 1975 worked out how such a world could actually be built.</p>"
   },
   {
     "id": "cylinder-eclipse",
     "name": "Eclipse Inside a Cylinder",
     "sub": "The sun goes dark over a golden savanna in space",
-    "overview": "An eclipse, indoors. Davis paints the moment the light dies inside an O'Neill cylinder: the dark disc of the hub crosses the sun, the clouds overhead turn to copper, and two walkers cross a golden savanna far below.",
+    "overview": "An eclipse, indoors. The moment the light dies inside an O'Neill cylinder: the dark disc of the hub crosses the sun, the clouds overhead turn to copper, and two walking machines cross a golden savanna far below.",
     "details": [
       "The 'sun' here is sunlight reflected down the cylinder's length by its great mirrors.",
       "When the hub passes in front of the mirror, the whole world gets a sunset at once.",
       "The land above your head is the cylinder's other side, with its own weather."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fc/Island_three_eclipse.jpg/1280px-Island_three_eclipse.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Island_three_eclipse.jpg",
-    "credit": "Art: Don Davis · Public domain",
-    "deep": "<p>Davis painted the eclipse for NASA's 1975 settlement study. The cylinder's weather is manufactured — clouds, wind and daylight all follow from the mirrors and the spin — so the painting doubles as a diagram of how the artificial sky was supposed to behave.</p>"
+    "img": "https://johnny-oneal.com/scifi-cylinder-eclipse.webp",
+    "source": "https://johnny-oneal.com/scifi-cylinder-eclipse.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>The cylinder's weather is manufactured — clouds, wind and daylight all follow from the mirrors and the spin — so even an eclipse here is an engineering event: a shadow the designers could schedule, crossing a sky they built.</p>"
   },
   {
     "id": "mars-colony-ames",
     "name": "A Mars Settlement",
     "sub": "Dinner grows underground, safe from the radiation",
-    "overview": "A settlement on Mars, drawn by NASA Ames: red dunes under a pink sky, a rocket and a dome on the horizon — and a cutaway in the foreground showing the colony's heart, a glowing underground room where greens grow in stacked trays.",
+    "overview": "A settlement on Mars: red dunes under a pink sky, a rocket and a dome on the horizon — and a cutaway in the foreground showing the colony's heart, a glowing underground room where greens grow in stacked trays.",
     "details": [
       "The farm is buried on purpose: metres of Martian soil block the radiation that falls on the surface.",
-      "An astronaut kneels outside with a laptop and a probe, testing the ground the colony depends on.",
+      "An astronaut kneels outside with a probe, testing the ground the colony depends on.",
       "Everything the settlement needs — power, water, air — has to be made or mined on the spot."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ad/Concept_Mars_colony.jpg/1280px-Concept_Mars_colony.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Concept_Mars_colony.jpg",
-    "credit": "Art: NASA Ames Research Center · Public domain",
-    "deep": "<p>The buried greenhouse is the painting's argument: on Mars the safest building material is Mars itself, piled over the roof. NASA's Ames Research Center in California, which commissioned the picture, still works on exactly this problem — growing food for crews in sealed, soil-shielded rooms.</p>"
+    "img": "https://johnny-oneal.com/scifi-mars-colony-ames.webp",
+    "source": "https://johnny-oneal.com/scifi-mars-colony-ames.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>The buried greenhouse is the design's argument: on Mars the safest building material is Mars itself, piled over the roof. NASA's Ames Research Center in California still works on exactly this problem — growing food for crews in sealed, soil-shielded rooms.</p>"
   },
   {
     "id": "moon-colony-rover",
@@ -184,10 +117,10 @@ window.SCIFI_DATA = [
       "Habitats lie under the soil for shielding, with only their ends and airlocks showing.",
       "There is no sky-blue here: on the Moon the daytime sky stays black."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/07/Moon_colony_with_rover.jpeg/1280px-Moon_colony_with_rover.jpeg",
-    "source": "https://commons.wikimedia.org/wiki/File:Moon_colony_with_rover.jpeg",
-    "credit": "Art: Dennis Davidson for NASA · Public domain",
-    "deep": "<p>The artist, Dennis Davidson, painted the scene for a NASA summer study in 1986 that asked what astronauts might do next on the Moon. His signature sits in the corner of the canvas; the study's base — rovers, buried modules, a small spaceport — became the standard picture of a lunar outpost for years afterward.</p>"
+    "img": "https://johnny-oneal.com/scifi-moon-colony-rover.webp",
+    "source": "https://johnny-oneal.com/scifi-moon-colony-rover.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>A NASA summer study in 1986 asked what astronauts might do next on the Moon. The base it pictured — rovers, buried modules, a small spaceport — became the standard picture of a lunar outpost for years afterward.</p>"
   },
   {
     "id": "first-humans-mars",
@@ -199,264 +132,339 @@ window.SCIFI_DATA = [
       "Long shadows: the picture is set near sunset, when the thin air turns the whole sky amber.",
       "The crew's footprints and wheel tracks are the only marks on an untouched plain."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ef/PIA23302-FirstHumansOnMars-ArtistConcept.jpg/1280px-PIA23302-FirstHumansOnMars-ArtistConcept.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:PIA23302-FirstHumansOnMars-ArtistConcept.jpg",
-    "credit": "Art: NASA/JPL-Caltech · Public domain",
+    "img": "https://johnny-oneal.com/scifi-first-humans-mars.webp",
+    "source": "https://johnny-oneal.com/scifi-first-humans-mars.webp",
+    "credit": "Art: AI-generated · created for this page",
     "deep": "<p>NASA released the picture with its Mars 2020 mission, whose Perseverance rover carried rehearsals for this camp: an instrument that made oxygen from the Martian air, and a small helicopter that proved flight in it. Both worked — the oxygen maker produced about 122 grams of oxygen in total.</p>"
   },
   {
-    "id": "lunar-base-artistic",
-    "name": "The Inflatable Moon Base",
-    "sub": "Blow-up domes and habitats on the grey plain",
-    "overview": "A Moon base you inflate like a balloon. This NASA concept puts an orange fabric dome and a sausage-shaped habitat on the grey plain, ringed by solar panels, antennas and astronauts in orange suits.",
+    "id": "crater-base",
+    "name": "The Crater Base",
+    "sub": "A shuttle port on the rim of a snowy crater",
+    "overview": "In the painted style of the old space books: a shuttle stands on a launch complex built into the rim of a vast snowy crater on an icy moon, while a huge banded planet hangs in a black, starry sky.",
     "details": [
-      "Inflatables launch folded small, then blow up into rooms no rigid rocket could carry.",
-      "The dome sits in a shallow pit, ready to be buried under soil for shielding.",
-      "A flag and a NASA logo mark the habitat — the base is drawn as an American outpost of the shuttle era."
+      "The crater is the harbour — its rim gives the base a horizon, shelter and a view in every direction.",
+      "Snow on a moon with no weather means the cold is ancient: nothing has melted here in eons.",
+      "The planet is this moon's whole sky — the base was built facing it, the way ports face the sea."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/66/Artistic_depiction_of_a_NASA_lunar_base.jpg/1280px-Artistic_depiction_of_a_NASA_lunar_base.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Artistic_depiction_of_a_NASA_lunar_base.jpg",
-    "credit": "Art: NASA · Public domain",
-    "deep": "<p>The picture is catalogued S89-26097, drawn at the Johnson Space Center in March 1989 — twenty years after Apollo 11 — when engineers there were planning a return to the Moon to stay. The inflatable idea survived: a fabric habitat module, BEAM, has been attached to the International Space Station since 2016.</p>"
+    "img": "https://johnny-oneal.com/scifi-crater-base.webp",
+    "source": "https://johnny-oneal.com/scifi-crater-base.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Before space photography, the future was painted: artists with gouache and airbrush built the first space age out of crater rims and looming planets, and their pictures taught two generations what a moon base should look like. The style is deliberately kept here — warm paint, impossible clarity, everything golden at the edges — because the dream came first, and the engineering is still catching up with it.</p>"
   },
   {
-    "id": "solar-sail-acs3",
-    "name": "Sailing on Sunlight",
-    "sub": "NASA's ACS3 solar sail, riding light itself",
-    "overview": "A sail made of light. NASA's Advanced Composite Solar Sail System spreads a silvery diamond above the Earth — a spacecraft with no engine and no fuel, pushed purely by sunlight pressing on the sail.",
+    "id": "domed-city",
+    "name": "The Domed City",
+    "sub": "A walker's dawn approach to a city under glass",
+    "overview": "An astronaut crosses a foggy plain at dawn toward a domed city: a great glass hemisphere glowing gold and teal from inside, the only shelter for miles on a silent, mist-covered world.",
     "details": [
-      "The sail is a square of plastic film thinner than a human hair, held flat by four booms.",
-      "Sunlight pushes gently but never stops, so the craft keeps gaining speed for years.",
-      "From the ground, the sail can flash as bright as Sirius, the brightest star in the night sky, when it catches the sun."
+      "The dome is one bubble of air — inside it, weather is a choice; outside, the plain is cold and silent.",
+      "The walker's track is a single line across the mist — out here, the city's road is a footpath.",
+      "Dawn light and dome light meet in the fog, so the city seems to float on its own glow."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0c/Advanced_Composite_Solar_Sail_System_Artist%E2%80%99s_Concept_4_%28ACS3_SolarSailTurntable_right%29.png/1280px-Advanced_Composite_Solar_Sail_System_Artist%E2%80%99s_Concept_4_%28ACS3_SolarSailTurntable_right%29.png",
-    "source": "https://commons.wikimedia.org/wiki/File:Advanced_Composite_Solar_Sail_System_Artist%E2%80%99s_Concept_4_(ACS3_SolarSailTurntable_right).png",
-    "credit": "Art: NASA Ames / Aero Animation · Public domain",
-    "deep": "<p>The spacecraft is real and flying: it launched from New Zealand in April 2024 aboard a Rocket Lab Electron rocket, and its sail — about 80 square metres, the size of a small apartment — unfurled a few months later, 1,000 kilometres above the Earth.</p>"
+    "img": "https://johnny-oneal.com/scifi-domed-city.webp",
+    "source": "https://johnny-oneal.com/scifi-domed-city.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>The dome is the oldest shelter in science fiction: a bubble of Earth — air, warmth, weather — held against a world that offers none of them. Engineers still draw it because the physics is honest: a hemisphere is the strongest shape pressure can push against, and glass lets the one free resource, sunlight, do the lighting. Everything inside the line is home; everything outside is expedition.</p>"
   },
   {
-    "id": "dragonfly-titan",
-    "name": "Dragonfly over Titan",
-    "sub": "A car-sized drone for Saturn's biggest moon",
-    "overview": "A drone the size of a car, flying over the dunes of Titan. Dragonfly is a real NASA mission: an eight-rotor aircraft that will hop across Saturn's biggest moon, landing to sniff and drill its orange soil.",
+    "id": "sky-harbour",
+    "name": "The Sky Harbour",
+    "sub": "Cargo airships over a working port",
+    "overview": "Colossal cargo airships hang moored to docking masts above a coastal port city at morning: cranes and container ships work below, gulls wheel in the bright light, and the great hulls drift almost imperceptibly against their tethers.",
     "details": [
-      "Titan's air is thicker than Earth's and its gravity weaker, so flying there is easy — easier than driving.",
-      "The rotors fold into a silver body built by the Johns Hopkins Applied Physics Laboratory.",
-      "It runs on a nuclear battery, since sunlight at Saturn is about a hundred times too weak for solar panels."
+      "An airship lifts by volume, not speed — the harbour's giants carry freight the slow, cheap, quiet way.",
+      "The docking masts are the port's towers: ships arrive from the sky and are winched down to the cargo floor.",
+      "Below them the old port still works — the future layers over the past instead of replacing it."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/31/Dragonfly_Concept_Art_2024.webp/1280px-Dragonfly_Concept_Art_2024.webp",
-    "source": "https://commons.wikimedia.org/wiki/File:Dragonfly_Concept_Art_2024.webp",
-    "credit": "Art: Steve Gribben / NASA / Johns Hopkins APL · Public domain",
-    "deep": "<p>Dragonfly is scheduled to launch in 2028 and reach Titan in 2034. Each flight can cover up to 8 kilometres in under an hour; between flights it recharges and radios its results home. Its target is an impact crater where melted ice once mixed with the moon's organic chemistry — a natural experiment in the ingredients of life.</p>"
+    "img": "https://johnny-oneal.com/scifi-sky-harbour.webp",
+    "source": "https://johnny-oneal.com/scifi-sky-harbour.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>The airship is the future that keeps being postponed: quieter than aircraft, cheaper than rockets, able to lift a factory's worth of cargo and set it down anywhere flat. Every generation rediscovers it. If freight ever does move this way, the sky harbour will look like this — part port, part airport, part weather station — with the giants riding at their masts over the morning traffic.</p>"
   },
   {
-    "id": "proxima-b",
-    "name": "Proxima b",
-    "sub": "The nearest exoplanet, around the nearest star",
-    "overview": "The nearest world beyond our solar system. Proxima b is a rocky planet a little bigger than Earth, circling the red dwarf Proxima Centauri — the closest star to the Sun — in the zone where liquid water could pool on its surface.",
+    "id": "starbase-dusk",
+    "name": "The Starbase at Dusk",
+    "sub": "A row of rockets on the shore, waiting for morning",
+    "overview": "An aerial view at dusk of a coastal launch base: a row of tall stainless rockets standing on their mounts along the shoreline, ocean on one side and winding wetlands on the other, the whole base lit amber as the sun goes down.",
     "details": [
-      "The bright orange star beside the planet is Proxima itself; the double star Alpha Centauri glitters nearby.",
-      "Half the planet is in darkness here: so close to its star, the planet may keep one face always turned to the light.",
-      "Nothing has photographed the planet itself — this is an artist's impression from the discovery announcement."
+      "The rockets stand in a line because the coast is the pad: launches head out over empty water.",
+      "At dusk the base is mostly lights — floodlit towers, lit roads, and the glow of the pads.",
+      "Stainless steel takes the sunset the way the rockets are built to take the sky: without paint, without hiding."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ca/Artist%27s_impression_of_the_planet_orbiting_Proxima_Centauri_%28eso1629e%29.jpg/1280px-Artist%27s_impression_of_the_planet_orbiting_Proxima_Centauri_%28eso1629e%29.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Artist%27s_impression_of_the_planet_orbiting_Proxima_Centauri_(eso1629e).jpg",
-    "credit": "Art: ESO/M. Kornmesser · CC BY 4.0",
-    "deep": "<p>Astronomers at the European Southern Observatory found the planet in 2016 by watching its star wobble — the planet's gravity tugs Proxima back and forth as it orbits. The wobble is tiny, about a walking pace, yet it was enough to weigh the world: a little more than one Earth.</p>"
+    "img": "https://johnny-oneal.com/scifi-starbase-dusk.webp",
+    "source": "https://johnny-oneal.com/scifi-starbase-dusk.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>This is the space age rendered as infrastructure: not one heroic rocket but a row of them, serviced like airliners at a shoreline airport. The first launch sites were chosen for empty ocean downrange and clear weather; the mature ones will look like this — a working port at the edge of a continent, busiest at dawn and dusk, when the light makes even industry look like a promise.</p>"
   },
   {
-    "id": "proxima-d",
-    "name": "Proxima d",
-    "sub": "A featherweight world skimming its red sun",
-    "overview": "A featherweight world. Proxima d is a rocky planet about a quarter of Earth's mass, drawn here sweeping past its red dwarf sun — so light that its gravity would feel like standing on the Moon.",
+    "id": "cliff-city",
+    "name": "The Cliff City",
+    "sub": "An astronaut above a megacity of another world",
+    "overview": "A lone astronaut stands on a cliff at dusk, looking down on a vast alien megacity: towers of warm light in a fog-filled valley, cargo ships drifting overhead, and twin crescent moons in a violet sky.",
     "details": [
-      "The planet hugs its star, completing a full circle in about five days.",
-      "The star looms huge because the planet orbits far closer than Mercury is to our Sun.",
-      "The rusty limb is an artist's guess: no telescope can yet see the planet's surface."
+      "The city fills the valley to the horizon — a million windows lit against the fog.",
+      "Twin moons hang over the towers; on this world, the night sky is never empty.",
+      "From the cliff, the astronaut is the only still thing in it — everything else drifts, glows or sails past."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Artist%E2%80%99s_impression_of_Proxima_d_%28close-up%29.jpg/1280px-Artist%E2%80%99s_impression_of_Proxima_d_%28close-up%29.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Artist%E2%80%99s_impression_of_Proxima_d_(close-up).jpg",
-    "credit": "Art: ESO/L. Calçada · CC BY 4.0",
-    "deep": "<p>Proxima d was announced in 2022 by a team using the ESPRESSO instrument in Chile, which tracks a star's wobble to within a few centimetres a second. At the time it was one of the lightest planets ever found — a reminder that the nearest star system is still being explored.</p>"
+    "img": "https://johnny-oneal.com/scifi-cliff-city.webp",
+    "source": "https://johnny-oneal.com/scifi-cliff-city.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Cities are where most science fiction actually happens: not on the bridge of a ship but down in the streets, where the future has to be lived in. A megacity on another world would still run on the old rules — height for prestige, light for safety, fog for weather — with the differences piled on top: moons in pairs, cargo moving through the sky, and a traveller in a pressure suit standing at the edge of town, looking in.</p>"
   },
   {
-    "id": "barnards-planet",
-    "name": "Barnard b",
-    "sub": "A planet lighter than Venus, found in 2024",
-    "overview": "A planet lighter than Venus. Barnard b circles Barnard's star — a dim red dwarf — so closely that its year lasts about three days and its rocks bake; here its cratered face glows under the small orange sun.",
+    "id": "ocean-city",
+    "name": "The Ocean City",
+    "sub": "A ringed giant rises over a shore city of another world",
+    "overview": "A lone figure on a twilight ridge watches a huge ringed planet rise over an alien ocean, where a glowing city lines the shore — its lights doubling in the still water under a sky dominated by the giant.",
     "details": [
-      "Barnard's star is the closest single star to the Sun, and one of the oldest in the galaxy.",
-      "The planet is far too hot for liquid water; its interest is its size — smaller than Earth.",
-      "The picture is an artist's impression released with the discovery."
+      "The ringed planet is not this world's sun — it is a neighbour, close enough to fill the evening sky.",
+      "The city hugs the shore, as cities at home do: harbours first, towers behind.",
+      "At twilight the planet's light and the city's light are the same colour — the whole scene is lit twice."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Artist%E2%80%99s_impression_of_a_sub-Earth-mass_planet_orbiting_Barnard%E2%80%99s_star_%28eso2414a%29.jpg/1280px-Artist%E2%80%99s_impression_of_a_sub-Earth-mass_planet_orbiting_Barnard%E2%80%99s_star_%28eso2414a%29.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Artist%E2%80%99s_impression_of_a_sub-Earth-mass_planet_orbiting_Barnard%E2%80%99s_star_(eso2414a).jpg",
-    "credit": "Art: ESO/M. Kornmesser · CC BY 4.0",
-    "deep": "<p>The discovery, announced in October 2024, closed a long story: a famous 2018 claim of a bigger planet around the same star dissolved under re-examination into the star's own activity. This time the team confirmed the signal with four separate instruments before believing it.</p>"
+    "img": "https://johnny-oneal.com/scifi-ocean-city.webp",
+    "source": "https://johnny-oneal.com/scifi-ocean-city.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Most habitable worlds, if they have company at all, will have it closer than ours: moons and sister planets looming large enough to steer tides, calendars and religions. A city under a giant planet would grow up the way harbour towns at home grow up under a mountain — orienting by it, naming streets after it, and treating its rising as the start of the evening.</p>"
   },
   {
-    "id": "k2-18b",
-    "name": "K2-18 b, the Water World",
-    "sub": "An ocean planet around a small red star",
-    "overview": "An ocean world around a red star. K2-18 b is a planet bigger than Earth but smaller than Neptune, wrapped in a deep atmosphere over what may be a global ocean — drawn here with its small red sun and a sister planet in the distance.",
+    "id": "first-light-pad",
+    "name": "First Light on the Pad",
+    "sub": "One rocket, floodlit in the dawn fog",
+    "overview": "Ground level at dawn: one towering stainless rocket on its launch mount, wrapped in low fog and floodlights, with a single small service vehicle at its base giving away the true size of the machine.",
     "details": [
-      "The planet sits in its star's habitable zone, where temperatures could let an ocean stay liquid.",
-      "Its size class — between Earth and Neptune — has no example in our solar system.",
-      "The swirling blue is an artist's rendering; the planet is far too distant to photograph."
+      "The fog is the pad's own weather — cold propellant sweats vapour off the rocket all night.",
+      "Floodlights make the rocket the only solid thing in a grey world until the sun arrives.",
+      "The service vehicle is the scale cue: the rocket is a building that flies."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Artist%27s_Impression_of_Exoplanet_K2-18b_%282019-50-4569%29.png/1280px-Artist%27s_Impression_of_Exoplanet_K2-18b_%282019-50-4569%29.png",
-    "source": "https://commons.wikimedia.org/wiki/File:Artist%27s_Impression_of_Exoplanet_K2-18b_(2019-50-4569).png",
-    "credit": "Art: ESA/Hubble, M. Kornmesser · Public domain",
-    "deep": "<p>The Hubble Space Telescope found water vapour in the planet's air in 2019, the first such detection for a habitable-zone world of its size. The James Webb telescope later read methane and carbon dioxide in the same air — and a possible trace of a gas that, on Earth, only ocean plankton makes. That last claim is still argued over.</p>"
+    "img": "https://johnny-oneal.com/scifi-first-light-pad.webp",
+    "source": "https://johnny-oneal.com/scifi-first-light-pad.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Before a rocket is a spectacle it is a shift: crews in the fog at 5 a.m., checklists, vapour, floodlights. Photographs of launches are famous; photographs of the hour before are rarer and truer. Every spacecraft that ever left Earth spent its last night on the ground like this — lit, tended, and very quiet — with a handful of people and one small truck for company.</p>"
   },
   {
-    "id": "trappist-surface",
-    "name": "Under the Red Sun of TRAPPIST-1",
-    "sub": "Ice, pink snow and sister planets overhead",
-    "overview": "Standing on a world of the TRAPPIST-1 system: pink snow and black rock under an enormous red sun, with a sister planet crossing its face and another hanging in a crimson sky.",
+    "id": "night-port",
+    "name": "The Night Port",
+    "sub": "A spaceport in the rain, after midnight",
+    "overview": "A vast spaceport at night in the rain: neon signs and landing lights doubled in wet concrete, ships coming and going through the drizzle, and one small figure crossing the apron under an umbrella of light.",
     "details": [
-      "The star is an ultracool dwarf — a sun so small and dim that its planets huddle close for warmth.",
-      "The ice in the streambed glints pink because all the light here is red.",
-      "A family of planets circles this star; from any one of them, the others can loom large in the sky."
+      "Rain is the same on every world with weather — ports are wet, loud and bright at 3 a.m. everywhere.",
+      "The figure's umbrella sheds light as well as rain — a personal lamp against the port's glare.",
+      "Reflections do half the lighting: in a port at night, the ground is a second sky."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/71/Artist%E2%80%99s_impression_of_the_ultracool_dwarf_star_TRAPPIST-1_from_the_surface_of_one_of_its_planets.jpg/1280px-Artist%E2%80%99s_impression_of_the_ultracool_dwarf_star_TRAPPIST-1_from_the_surface_of_one_of_its_planets.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Artist%E2%80%99s_impression_of_the_ultracool_dwarf_star_TRAPPIST-1_from_the_surface_of_one_of_its_planets.jpg",
-    "credit": "Art: ESO/M. Kornmesser · CC BY 4.0",
-    "deep": "<p>The picture was released in 2016, when a small Belgian telescope in Chile — TRAPPIST, at La Silla Observatory — found the first three planets around the star, just 40 light-years from Earth. A year later the family grew to seven Earth-sized worlds, the largest known set of its kind around one star.</p>"
+    "img": "https://johnny-oneal.com/scifi-night-port.webp",
+    "source": "https://johnny-oneal.com/scifi-night-port.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Every age gets the port it deserves: sail, steam, jet — and then this, the spaceport as a rainy city district that happens to have rockets. The romance of departure survives the technology. People will still cross wet tarmac at night with a bag in one hand, hurrying toward a lighted doorway, while something enormous waits in the drizzle to take them off the world.</p>"
   },
   {
-    "id": "trappist-view",
-    "name": "Above a TRAPPIST-1 Planet",
-    "sub": "A family of Earth-sized worlds around one small sun",
-    "overview": "Just above the clouds of a TRAPPIST-1 planet, looking back at the family: the little red sun blazes, one sister world crosses its disc, and the other planets shine as bright orange stars.",
+    "id": "dry-dock",
+    "name": "The Dry Dock",
+    "sub": "A giant ship in for repairs, and the crew small enough to fix it",
+    "overview": "The scorched, patched underside of a very large spaceship fills the frame, standing on its landing legs in an open-air dry dock while scaffolding towers, cranes and a crew of tiny humans go over it in the last of the sun.",
     "details": [
-      "The planets are packed so tightly that several fit inside the orbit of Mercury.",
-      "Every planet in the family is roughly Earth-sized — rocky world after rocky world around one small star.",
-      "This view was built with a program called Space Engine, which models real star data."
+      "The scissor lift under the hull carries one mechanic up to a service doorway — the people are the size of the ship’s fittings.",
+      "Everything in the yard is ordinary — forklifts, cable reels, trucks, dust — except the thing being repaired.",
+      "A ship that works for a living comes home dirty: streaked, patched and scorched is what honest mileage looks like."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/81/Artist%E2%80%99s_impression_of_view_from_distant_planet_in_the_TRAPPIST-1_planetary_system_%28eso1706q%29.jpg/1280px-Artist%E2%80%99s_impression_of_view_from_distant_planet_in_the_TRAPPIST-1_planetary_system_%28eso1706q%29.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Artist%E2%80%99s_impression_of_view_from_distant_planet_in_the_TRAPPIST-1_planetary_system_(eso1706q).jpg",
-    "credit": "Art: ESO/N. Bartmann / spaceengine.org · CC BY 4.0",
-    "deep": "<p>The system's discoverers named its star for the telescope that found the planets — TRAPPIST — itself named in honour of Belgium's Trappist beers. The planets were announced together in February 2017, three of them in the zone where oceans could exist.</p>"
+    "img": "https://johnny-oneal.com/scifi-dry-dock.webp",
+    "source": "https://johnny-oneal.com/scifi-dry-dock.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>The glamorous end of spaceflight is the launch; the real end is the yard. Working ships live most of their lives like this — legs down in the dust, panels open, crews swarming with lifts and cables while the light goes. A dry dock is where the future gets its maintenance done, and there is a particular dignity in it: the largest machine humans ever built, held up by scaffolding and looked after by hand.</p>"
   },
   {
-    "id": "three-suns",
-    "name": "The Land of Three Suns",
-    "sub": "A giant planet's moon, with three sunsets a day",
-    "overview": "A moon with three suns. From the rocky surface of a hypothetical moon, a giant planet fills half the sky while its three suns set together — two close together, one rising behind the ridge.",
+    "id": "transport-apron",
+    "name": "The Loading Apron",
+    "sub": "A winged freighter takes on cargo the old way",
+    "overview": "A huge grey winged freighter sits on a concrete apron in the desert hills, its nose cargo door swung open and the ramp down, while a crew in hard hats and orange vests loads netted crates with a forklift in the late sun.",
     "details": [
-      "The giant planet is a gas world about as heavy as Jupiter, circling one star of a triple system.",
-      "With three suns, shadows come in threes and true darkness is rare.",
-      "NASA released the picture to show what the discovery might look like from nearby."
+      "The ramp, the forklift and the crates are this century’s tools — the future still moves boxes one at a time.",
+      "Scorch streaks run down the hull behind the wing: this aircraft has been up and come back, more than once.",
+      "Heat shimmers off the concrete and dust hangs in the light — an airfield is an airfield, whatever flies from it."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Land_of_Three_Suns_%28Artist%27s_Concept%29.tif/lossy-page1-1280px-Land_of_Three_Suns_%28Artist%27s_Concept%29.tif.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Land_of_Three_Suns_(Artist%27s_Concept).tif",
-    "credit": "Art: NASA/JPL-Caltech · Public domain",
-    "deep": "<p>The planet, HD 188753 Ab, was announced in 2005 from the Keck telescope in Hawaii — the first planet claimed in a tight triple-star system. Two years later a more sensitive search found no trace of it, and the claim is now doubted: the triple sunset may shine on an empty sky.</p>"
+    "img": "https://johnny-oneal.com/scifi-transport-apron.webp",
+    "source": "https://johnny-oneal.com/scifi-transport-apron.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Freight is the unglamorous engine of every age, and it never changes its shape: a vehicle, a ramp, a crew, a pile of boxes that all have to be somewhere else by morning. The freighter on the apron could cross to orbit before lunch, but on the ground it is loaded exactly the way cargo has always been loaded — by people, in vests, arguing with a forklift.</p>"
   },
   {
-    "id": "corot-7b",
-    "name": "CoRoT-7b, the Lava World",
-    "sub": "Rock melts on the day side; the night side freezes",
-    "overview": "The lava world. CoRoT-7b races around its star so closely that its day side is an ocean of molten rock under a huge, blazing sun — while its night side, turned forever away, freezes.",
+    "id": "ring-gate",
+    "name": "The Ring Gate",
+    "sub": "A doorway between worlds, at the end of the causeway",
+    "overview": "A ring the size of a mountain stands in the water at a city’s edge, its heart a slow whirlpool of golden light; the evening traffic crosses the long causeway toward it in two calm streams, and a banded giant planet hangs low over the rooftops.",
     "details": [
-      "A year here lasts less than a single Earth day; the planet is among the fastest known.",
-      "The star fills the sky because the planet orbits nearer than any rocky world then known.",
-      "The mottled ground is cooling lava, drawn from temperature estimates, not photographs."
+      "The ring is old — moss on its rim, rust in its joints, scaffolding on its flanks. Even a gate between worlds needs scaffolding sometimes.",
+      "The causeway is the tell: this is infrastructure, not magic. People commute through it.",
+      "The planet in the sky is banded like Jupiter — wherever this city is, it is not Earth, and the gate is how its people leave."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cb/Artist%E2%80%99s_impression_of_Corot-7b_%28alternative%29.jpg/1280px-Artist%E2%80%99s_impression_of_Corot-7b_%28alternative%29.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Artist%E2%80%99s_impression_of_Corot-7b_(alternative).jpg",
-    "credit": "Art: ESO/L. Calçada · CC BY 4.0",
-    "deep": "<p>Found in 2009 by the French-led CoRoT space telescope, it was the first rocky planet outside our solar system to have its size and mass measured — about five Earths packed into a ball less than twice Earth's width. Its discoverers calculated a day-side temperature above 2,000 degrees Celsius.</p>"
+    "img": "https://johnny-oneal.com/scifi-ring-gate.webp",
+    "source": "https://johnny-oneal.com/scifi-ring-gate.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Every great machine ends up as furniture. A gate that can throw a ship across the dark becomes, within a generation, the thing the traffic queues for at rush hour — miraculous for exactly as long as it takes to build a road up to it. That is not the miracle failing; it is the miracle working. A civilisation is measured by what it finds ordinary.</p>"
   },
   {
-    "id": "gj1214b",
-    "name": "GJ 1214 b Crosses Its Star",
-    "sub": "A super-Earth whose air was tasted by starlight",
-    "overview": "A small black circle on a huge red sun: the planet GJ 1214 b crossing its star. Each crossing dims the starlight a little — and lets astronomers taste the planet's air as the light filters through it.",
+    "id": "moss-tower",
+    "name": "The Moss Tower",
+    "sub": "A skyscraper of the far future, given back to the valley",
+    "overview": "A pale tower of the far future — docking arms jutting from its sides, a broken ring near its top — stands abandoned above a green valley, every ledge furred with moss and small trees, morning mist lying in the river bottom far below.",
     "details": [
-      "The planet is a super-Earth, about six times Earth's mass, circling a faint red dwarf.",
-      "Its air is either mostly steam or hidden under thick cloud — telescopes still cannot tell which.",
-      "Crossings like this are how most small planets are found and studied."
+      "The trees growing from its platforms are fully grown. Whatever emptied this tower, it happened a long time ago.",
+      "Its scale is the future’s signature: the docking arms are the size of office blocks, and the valley’s whole river passes beneath notice.",
+      "The valley kept no scar of the builders. The river runs as it always ran, and the mist does not care."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/93/Artist%E2%80%99s_impression_of_GJ_1214b_in_transit.jpg/1280px-Artist%E2%80%99s_impression_of_GJ_1214b_in_transit.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Artist%E2%80%99s_impression_of_GJ_1214b_in_transit.jpg",
-    "credit": "Art: ESO/L. Calçada · CC BY 4.0",
-    "deep": "<p>When the planet was announced in 2009, it was the first super-Earth whose atmosphere astronomers had analysed at all. The James Webb telescope has since watched it cross many times; its readings suggest high, reflective clouds — a world wrapped in shining haze.</p>"
+    "img": "https://johnny-oneal.com/scifi-moss-tower.webp",
+    "source": "https://johnny-oneal.com/scifi-moss-tower.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Every age builds one thing it is sure will outlast it, and every age is right — the building outlasts the purpose. The tower was somebody’s triumph of engineering, a port and a city in one vertical mile; now it is a cliff that trees grow on, and the valley treats it exactly the way it treats the hills. Given enough time, the future becomes geology.</p>"
   },
   {
-    "id": "poster-mars",
-    "name": "Mars: Multiple Tours Available",
-    "sub": "JPL's travel poster for the historic sites of Mars",
-    "overview": "A travel poster for a holiday that doesn't exist yet. NASA's Jet Propulsion Laboratory imagines the day Mars has historic sites: the landing places of its robot explorers, open for tours, with farms and cities around them.",
+    "id": "savanna-ruins",
+    "name": "The Savanna Ruins",
+    "sub": "Rhinos grazing where the great domes fell silent",
+    "overview": "Two enormous ruined shells of the far future — cracked, rust-streaked, their crowns broken rings — stand empty on a golden savanna, while three white rhinos graze the grass in front of them and a cracked service road runs away to nowhere.",
     "details": [
-      "The collage packs in a rover, a lander, wheat and water — the poster's list reads 'Robotic Pioneers / Arts & Culture / Architecture & Agriculture'.",
-      "It is drawn in the flat, bold style of railway posters from a century ago.",
-      "The poster is one of a series JPL gives away as free downloads."
+      "The rhinos are the point of the picture: to them the mightiest structures ever raised are just shade and skyline.",
+      "Rusted pipes lie in the grass where they fell — infrastructure becomes litter, given a century or two.",
+      "Nobody maintains these ruins and nobody visits them. They are not monuments. They are weather."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/57/JPL_Visions_of_the_Future%2C_Mars.jpg/1280px-JPL_Visions_of_the_Future%2C_Mars.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:JPL_Visions_of_the_Future,_Mars.jpg",
-    "credit": "Art: NASA/JPL-Caltech · Public domain",
-    "deep": "<p>The series is called Visions of the Future, made by the design studio at JPL and released in 2016. The Mars poster's joke is a serious plan in disguise: every 'historic site' it advertises is a real landing site, from Viking to Curiosity, that mission planners already treat as heritage.</p>"
+    "img": "https://johnny-oneal.com/scifi-savanna-ruins.webp",
+    "source": "https://johnny-oneal.com/scifi-savanna-ruins.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>There is a special silence to a ruin the animals have taken back. The domes were built by people who expected to be remembered by them; instead they are remembered, if at all, by rhinos, who find the grass at their feet good. Deep time is the one critic no architect can argue with — and there is something hopeful in it, too: the world goes on, grazing, unbothered, green.</p>"
   },
   {
-    "id": "poster-europa",
-    "name": "Europa: Discover Life Under the Ice",
-    "sub": "JPL's travel poster for Jupiter's ocean moon",
-    "overview": "A travel poster for Jupiter's moon Europa: silhouetted tourists watch through a great window as a diver swims toward a tentacled underwater station, in the ocean hidden beneath Europa's ice.",
+    "id": "canyon-bridge",
+    "name": "The Canyon Bridge",
+    "sub": "One dark building across a green gorge, a waterfall through its heart",
+    "overview": "A black angular megastructure bridges a misty green canyon from cliff to cliff, and a waterfall pours out of an opening in its middle, falling the whole depth of the gorge into the cloud below.",
     "details": [
-      "The poster's promise — 'Discover life under the ice' — is a hope, not a finding: no life has been found there.",
-      "Europa really does hide a salty ocean under its ice crust, with about twice the water of all Earth's oceans.",
-      "The tentacled station is pure invention; the ocean is not."
+      "The building is three machines in one: a bridge across the gorge, a dam across the river, and a fortress against the weather.",
+      "There is nothing else human in sight — one structure, alone, doing its work in wild country.",
+      "The rust-orange shrubs in the foreground say autumn. The machine keeps a different calendar."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/JPL_Visions_of_the_Future%2C_Europa.jpg/1280px-JPL_Visions_of_the_Future%2C_Europa.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:JPL_Visions_of_the_Future,_Europa.jpg",
-    "credit": "Art: NASA/JPL-Caltech · Public domain",
-    "deep": "<p>JPL's poster anticipated a real mission: NASA's Europa Clipper spacecraft launched in October 2024 and will reach Jupiter in 2030, flying past Europa dozens of times to map its ocean through the ice. It carries a plaque with a poem and the names of millions of Earthlings.</p>"
+    "img": "https://johnny-oneal.com/scifi-canyon-bridge.webp",
+    "source": "https://johnny-oneal.com/scifi-canyon-bridge.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Some buildings are architecture and some are arguments with geography. This one argues with a canyon: it takes a gorge that split the land in two and answers with a single black span that carries the road, holds the river, and lets the excess fall through its heart in one white thread. Engineering at this scale stops looking like construction and starts looking like a feature of the planet.</p>"
   },
   {
-    "id": "poster-enceladus",
-    "name": "Visit Beautiful Southern Enceladus",
-    "sub": "JPL's travel poster for the geyser moon",
-    "overview": "A travel poster for Enceladus, Saturn's geyser moon: a couple and their dog ride a glass-domed ship past jets of ice water erupting into space, under the slogan 'More than 100 breathtaking geysers'.",
+    "id": "habitat-market",
+    "name": "Market Day in the Cylinder",
+    "sub": "Grocery shopping on ground that curves into the sky",
+    "overview": "A busy market street — vegetable stalls, canvas awnings, shoppers with baskets and a pushchair — runs between sleek apartment blocks furred with ivy; and overhead, where the sky should be, the ground itself curves up and away, banded with glass.",
     "details": [
-      "The geysers are real: the Cassini spacecraft found them spraying from cracks at the moon's south pole.",
-      "The spray feeds one of Saturn's rings — the wide, faint E ring is made of Enceladus water.",
-      "The poster calls the biggest geyser 'Cold Faithful', after Yellowstone's Old Faithful."
+      "Everything ordinary is here: tomatoes, bread, flowers, a child in a pushchair. That ordinariness is the achievement.",
+      "The curve is the tell — this street is inside a rotating colony, and ‘down’ is a direction the engineers chose.",
+      "The banded glass overhead is the sun’s deputy: a light strip doing daylight’s job for a town that has no outside."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/59/JPL_Visions_of_the_Future%2C_Enceladus.jpg/1280px-JPL_Visions_of_the_Future%2C_Enceladus.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:JPL_Visions_of_the_Future,_Enceladus.jpg",
-    "credit": "Art: NASA/JPL-Caltech · Public domain",
-    "deep": "<p>Cassini discovered the plumes in 2005 and later flew through them, tasting salt and silica that point to hot rock beneath the ocean floor — the same chemistry that feeds life around Earth's deep-sea vents. Enceladus is now near the top of the list of places to search for life.</p>"
+    "img": "https://johnny-oneal.com/scifi-habitat-market.webp",
+    "source": "https://johnny-oneal.com/scifi-habitat-market.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>The endgame of space settlement is not adventure. It is errands. A habitat has truly worked when the most remarkable thing about it — that its ground curves into its sky — ranks below the price of tomatoes in the minds of the people shopping under it. The cylinder’s engineers did not build a wonder; they built a Tuesday, and the wonder is that they could.</p>"
   },
   {
-    "id": "poster-grand-tour",
-    "name": "The Grand Tour",
-    "sub": "JPL's travel poster for the Voyager route",
-    "overview": "A travel poster for the greatest road trip in the solar system: five retro rockets streak past the giant planets on 'The Grand Tour — Jupiter, Saturn, Uranus, Neptune — every 175 years'.",
+    "id": "cloud-pagodas",
+    "name": "The City Above the Clouds",
+    "sub": "Pagodas, torii gates and airships, moored in the sky",
+    "overview": "Above an endless sea of cloud at dusk, a Japanese sky city stacks pagoda roofs and red torii gates between brass pipes and steam vents, its lanterns lit against the violet sky, airships drifting in to moor for the night.",
     "details": [
-      "The tour needs the four giant planets lined up on the same side of the Sun.",
-      "A spacecraft can steal speed from each planet's gravity and coast to the next — the poster calls it 'the charm of gravity assists'.",
-      "The design copies mid-century railway posters, all flat colour and speed lines."
+      "The old forms are load-bearing: a thousand years of rooflines, carried up into the sky unchanged.",
+      "Steam vents and pipework lace the temples together — the city is a machine as much as a shrine town, and makes no apology for either.",
+      "Even the balloon is painted, with the great wave. Art survives the move to altitude."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/JPL_Visions_of_the_Future%2C_Grand_Tour.jpg/1280px-JPL_Visions_of_the_Future%2C_Grand_Tour.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:JPL_Visions_of_the_Future,_Grand_Tour.jpg",
-    "credit": "Art: NASA/JPL-Caltech · Public domain",
-    "deep": "<p>The alignment was spotted in 1965 by a graduate student, Gary Flandro, and NASA's twin Voyager spacecraft used it in 1977. Voyager 2 remains the only spacecraft ever to visit Uranus and Neptune; both Voyagers are now in interstellar space, still calling home.</p>"
+    "img": "https://johnny-oneal.com/scifi-cloud-pagodas.webp",
+    "source": "https://johnny-oneal.com/scifi-cloud-pagodas.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>The future will not look the same everywhere. A people who move to the sky will take their skyline with them — the curved roofs, the vermilion gates, the lanterns — because a city is not shelter, it is memory made solid. The sky city’s technology is in its pipes and moorings; its soul is in its silhouettes, and it kept both.</p>"
   },
   {
-    "id": "poster-hd40307g",
-    "name": "Experience the Gravity of HD 40307 g",
-    "sub": "JPL's travel poster for a super-Earth",
-    "overview": "A travel poster for a super-Earth: a skydiver falls in slow motion through golden light toward HD 40307 g, a planet where gravity pulls far harder than at home. 'Experience the gravity', the poster invites.",
+    "id": "night-balcony",
+    "name": "One Chair Above the City",
+    "sub": "A quiet minute over a loud century",
+    "overview": "A lone figure in a hooded coat sits in a chair on a rain-wet balcony, a drink waiting on the small table, looking out over a megacity that fills the night to the horizon — towers standing in blue haze, threaded with thin lines of red neon.",
     "details": [
-      "The planet is real, found by telescope in 2012 — but no one knows whether it has a surface to land on.",
-      "The poster's fine print says the planet has eight times Earth's mass in twice Earth's volume.",
-      "It belongs to JPL's Exoplanet Travel Bureau, a fictional agency with real destinations."
+      "The city is enormous and the moment is small: one chair, one drink, one person, and no errand at all.",
+      "Rain beads on the glass railing and smears the lights — the oldest special effect there is, still working.",
+      "Nothing up here is for sale and nobody is expected. The future, for all its noise, still has quiet in it."
     ],
-    "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/45/JPL_Visions_of_the_Future%2C_HD_40307g.jpg/1280px-JPL_Visions_of_the_Future%2C_HD_40307g.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:JPL_Visions_of_the_Future,_HD_40307g.jpg",
-    "credit": "Art: NASA/JPL-Caltech · Public domain",
-    "deep": "<p>The poster is one of three the Travel Bureau issued for real exoplanets, drawn before any of them could be pictured. The planet sits in its star's habitable zone about 42 light-years away — close enough that its discoverers could joke about visiting, far enough that the poster remains the only ticket.</p>"
+    "img": "https://johnny-oneal.com/scifi-night-balcony.webp",
+    "source": "https://johnny-oneal.com/scifi-night-balcony.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Every picture of the future is loud except this one. The megacity does everything at full volume — towers, traffic, neon, weather — and one person sits above all of it doing nothing, on purpose. It may be the most futuristic thing in the pool: not the skyline, but the idea that in a century of infinite stimulation, a chair, a drink and a view are still enough.</p>"
+  },
+  {
+    "id": "ring-arrival",
+    "name": "Arrival in the Ring",
+    "sub": "A red car, a white dress, and home overhead",
+    "overview": "On a polished plaza inside a colossal ring habitat, a woman in a white gown stands beside a gleaming red supercar, looking up — past the pagoda-roofed towers that climb the ring’s inner wall — at Earth, hanging huge and blue in the ring’s open heart.",
+    "details": [
+      "The supercar is jewellery, not transport: inside a habitat, a machine like that exists to be looked at, and it knows it.",
+      "The towers wear the rooflines of home. The ring is a machine, but the town inside it is a culture.",
+      "Everyone else in the plaza is strolling, shopping or pushing a pram. An arrival under a hanging Earth is an everyday event here."
+    ],
+    "img": "https://johnny-oneal.com/scifi-ring-arrival.webp",
+    "source": "https://johnny-oneal.com/scifi-ring-arrival.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Old and new strike their favourite bargain in this picture: a gown and a supercar — two antiques of style — set down in the newest place humans have ever lived, beneath the oldest view there is. The ring’s residents did not leave Earth behind; they arranged to keep it in sight, framed in the middle of their sky, while life at its feet got on with being life.</p>"
+  },
+  {
+    "id": "sail-harbour",
+    "name": "The Sail Harbour",
+    "sub": "Wooden boats, under towers shaped like sails",
+    "overview": "At blue dusk, three sailboats with dark canvas cross still water before a forested shore — and behind the trees, in the mist, rise the colossal crescent towers of a far-future city, curved like the sails below them, a few small lights burning in their heights.",
+    "details": [
+      "The boats are technology a thousand years old, and they are still working — wind is the one fuel that never runs out or sends a bill.",
+      "The towers took the hint: the city’s architects copied the oldest machine on the water and built it a mile high.",
+      "The shore in the foreground is littered with the harbour’s old iron — a winch, a rusted anchor, rope. Every age leaves its tools behind."
+    ],
+    "img": "https://johnny-oneal.com/scifi-sail-harbour.webp",
+    "source": "https://johnny-oneal.com/scifi-sail-harbour.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Technology does not replace; it layers. The sail was supposed to die with steam, then with diesel, then with the rocket — and here it is, crossing in front of a city that could unmake the weather, because a hull and a canvas remain the cheapest way across calm water ever found. The future in this picture is not the towers. It is that the towers’ builders still kept boats.</p>"
+  },
+  {
+    "id": "canal-valley",
+    "name": "The Canal Valley",
+    "sub": "A green world, farmed between cliffs and giants",
+    "overview": "A valley of impossible scale — cliffs streaked with waterfalls, trees the height of towers — carries a dead-straight canal to the horizon, boats moving on it between patchwork fields and a small farming town, under clouds piled up like a second range of mountains.",
+    "details": [
+      "The canal is the giveaway: nature does not draw a line that straight for that long. However green it looks, this valley is a built place.",
+      "The great trees are older than the town and taller than its roofs will ever be — the farmers work in the shade of giants.",
+      "Everything in the frame is food or the moving of it: fields, orchards, water, boats. This is the future, fed."
+    ],
+    "img": "https://johnny-oneal.com/scifi-canal-valley.webp",
+    "source": "https://johnny-oneal.com/scifi-canal-valley.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Most futures are drawn in metal. This one is drawn in chlorophyll — a world engineered at the scale of cliffs and centuries, then handed to farmers. The canal, the field pattern and the harbour town are technology as surely as any starship; they are just technology that has finished arguing and settled down to feed people under enormous trees.</p>"
+  },
+  {
+    "id": "snow-fortress",
+    "name": "The Orange Slit",
+    "sub": "A fortress-city in the snow, with one warm wound of light",
+    "overview": "In a snowbound mountain valley, a colossal ring-shaped citadel of black stone stands split by a single vertical slit of orange light; a frozen road runs to its small domed gatehouse between colonnades crusted with icicles, and one small tracked vehicle waits in the cold.",
+    "details": [
+      "One slit of warmth in all that stone and snow. Whoever lives in the citadel is home, and the light is how the valley knows.",
+      "The colonnades make the road a ceremony — you approach this place the way you approach a temple, slowly and in single file.",
+      "The little tracked vehicle gives away the scale: the citadel’s ring could swallow the town it guards."
+    ],
+    "img": "https://johnny-oneal.com/scifi-snow-fortress.webp",
+    "source": "https://johnny-oneal.com/scifi-snow-fortress.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>Shelter is the oldest technology, and at sufficient scale it becomes drama. The citadel does not negotiate with its winter; it out-masses it, walling a city’s warmth inside a ring of black stone and letting exactly one seam of light escape — part window, part signal, part boast. Every traveller on that frozen road steers by it.</p>"
+  },
+  {
+    "id": "hangar-deck",
+    "name": "End of the Shift",
+    "sub": "A pilot, a spider-bot, and a fighter warming up",
+    "overview": "On a hangar deck so large that its roof is the curved belly of a starship, a pilot kneels beside a small spider-legged robot, the two of them watching a fighter idle nearby with its round engines glowing orange in the sunset haze.",
+    "details": [
+      "The bot is treated as a colleague, not a tool — the pilot has knelt down to its level to watch the engines with it.",
+      "The fighter’s engines burn steady, not flaring. This is a warm-up, a routine — a Tuesday, not a battle.",
+      "The deck is littered with the ordinary clutter of work: cables, crates, a dropped wrench. Even here. Especially here."
+    ],
+    "img": "https://johnny-oneal.com/scifi-hangar-deck.webp",
+    "source": "https://johnny-oneal.com/scifi-hangar-deck.webp",
+    "credit": "Art: AI-generated · created for this page",
+    "deep": "<p>The hangar is where the future clocks in. Between the pilot and the little spider-bot there is an entire philosophy: that the machines we send to the stars will be maintained by mixed crews of humans and robots who know each other’s habits, and that the most advanced workplace ever built will still end its day the way every workplace does — with two colleagues watching the light go, in no hurry to leave.</p>"
   }
 ];
