@@ -318,16 +318,31 @@
            case) has scrolled away and hides again above it. The
            category level joins the label at 481px and up: below that,
            one line cannot hold category + name + the Jump button
-           without cutting a word, so the specific name stands alone. */
+           without cutting a word, so the specific name stands alone.
+           The bar is 40px: the site's 32px pill module (the header's
+           Explore pill) with 4px above and below, the label in the
+           same 0.85rem as the header's pills. Its insets mirror the
+           page edge, so its two ends align with the header's. */
         .sus-nav-bar {
             position: fixed; top: 55px; left: 0; right: 0; z-index: 900;
-            height: 36px; box-sizing: border-box;
+            height: 40px; box-sizing: border-box;
             display: flex; align-items: center; gap: 0.5rem;
-            padding: 0 0.65rem;
+            padding: 0 40px;
             background: var(--bg-color);
             border-bottom: 1px solid var(--border-color);
             opacity: 0; visibility: hidden; transform: translateY(-4px);
             transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+        }
+        /* The bar's insets mirror the page edge at every width, so the
+           label's left edge and the Jump button's right edge sit on the
+           same line as the header's logo and toggle and the headings
+           below: the body's own 40px, its 18px at <=768px, and the
+           centred column's content edge on wide screens. */
+        @media (max-width: 768px) {
+            .sus-nav-bar { padding: 0 18px; }
+        }
+        @media (min-width: 1141px) {
+            .sus-nav-bar { padding: 0 calc((100vw - 1140px) / 2 + 40px); }
         }
         .sus-nav-bar.is-on { opacity: 1; visibility: visible; transform: none; }
         .sus-nav-label {
@@ -341,29 +356,36 @@
         }
         @media (max-width: 380px) {
             .sus-nav-label { font-size: 0.8rem; }
+            /* Small-screen tightening, inside the bar only: the outer
+               edges stay on the page edge, and the longest name keeps
+               its full word at 320px. */
+            .sus-nav-bar { padding: 0 14px; gap: 0.4rem; }
+            .sus-nav-jump { padding: 0 0.5rem; }
         }
         @media (prefers-reduced-motion: reduce) {
             .sus-nav-bar { transition: none; }
         }
         .sus-nav-jump {
-            flex: none; font: inherit; font-size: 0.82rem; font-weight: 600;
-            height: 28px; box-sizing: border-box; padding: 0 0.6rem; border-radius: 999px;
+            flex: none; font: inherit; font-size: 0.85rem; font-weight: 600;
+            height: 32px; box-sizing: border-box; padding: 0 14px; border-radius: 999px;
             border: 1px solid var(--border-color);
             background: var(--card-bg); color: var(--text-color);
             cursor: pointer; -webkit-tap-highlight-color: transparent;
         }
+        .sus-nav-jump:hover { border-color: var(--link-color); }
         .sus-nav-jump:active { background: var(--hover-bg); }
         .sus-nav-jump:focus-visible, .sus-nav-close:focus-visible,
         .sus-nav-item:focus-visible, .sus-index-pill:focus-visible {
             outline: 2px solid var(--link-color); outline-offset: 2px;
         }
-        /* Jump targets land clear of the 55px header + this 36px bar. */
+        /* Jump targets land clear of the 55px header + this 40px bar,
+           with a 10px gap: the heading rests at 105px. */
         #from-a-line-to-a-loop, #two-more-stories, #more-loops-at-work,
         #go-deeper-frameworks, #three-ees, #regenerative-agriculture,
         #controlled-environment-agriculture, #bitcoin-mining, #biomimicry,
         #circular-economy, #building-certifications-standards, #leed,
         #passive-house, #living-building-challenge, #cradle-to-cradle,
-        #trusted-networks { scroll-margin-top: 101px; }
+        #trusted-networks { scroll-margin-top: 105px; }
 
         /* The top index: the page's map, in the page's pill grammar. */
         .sus-index {
@@ -2108,9 +2130,14 @@
     // Sustainability navigation: the pinned context bar and Jump panel.
     // A region runs from its heading or framework box to the next
     // region's start, so the case grids the grid runtime moves into the
-    // flow below each box belong to that box's region. The bar shows
-    // once the first region reaches the reading line under the header
-    // (the opening block — title + featured case — has scrolled away)
+    // flow below each box belong to that box's region. The spy reads
+    // each region's HEADING (the section's h2, or the framework box's
+    // toggle row) against the landing line — the bar's bottom edge
+    // plus the 10px landing gap — so the bar names a section only once
+    // its heading has arrived at the reading position under the bar,
+    // and a jump's destination is named the moment the jump lands.
+    // The bar shows once the first heading reaches that line (the
+    // opening block — title + featured case — has scrolled away)
     // and hides again above it.
     (function () {
         var bar = document.getElementById('susNavBar');
@@ -2121,7 +2148,7 @@
         var panel = document.getElementById('susNavPanel');
         if (!bar || !catEl || !sepEl || !nameEl || !jumpBtn || !panel) return;
         var closeBtn = document.getElementById('susNavClose');
-        var OFFSET = 101; // 55px header + 36px bar + 10px gap
+        var OFFSET = 105; // 55px header + 40px bar + 10px gap: the landing line
         var REGIONS = [
             { id: 'from-a-line-to-a-loop', name: 'From a Line to a Loop' },
             { id: 'two-more-stories', name: 'Two more stories' },
@@ -2143,7 +2170,15 @@
         var els = [];
         REGIONS.forEach(function (r) {
             var el = document.getElementById(r.id);
-            if (el) els.push({ region: r, el: el });
+            if (!el) return;
+            // The region's heading: the element itself when it is a
+            // heading; for a framework box, its toggle row — the first
+            // child, 1px (the box's top border) below the box's top.
+            var head = el;
+            for (var c = 0; c < el.children.length; c++) {
+                if (el.children[c].classList.contains('info-toggle')) { head = el.children[c]; break; }
+            }
+            els.push({ region: r, el: el, head: head });
         });
         var current = null;
         function render(region) {
@@ -2166,10 +2201,10 @@
             nameEl.textContent = region.name;
         }
         function update() {
-            var probe = window.scrollY + OFFSET + 24;
+            var probe = window.scrollY + OFFSET;
             var found = null;
             for (var i = 0; i < els.length; i++) {
-                var top = els[i].el.getBoundingClientRect().top + window.scrollY;
+                var top = els[i].head.getBoundingClientRect().top + window.scrollY;
                 if (top <= probe) { found = els[i].region; } else { break; }
             }
             render(found);
@@ -2188,6 +2223,9 @@
         function scrollToId(id) {
             var el = document.getElementById(id);
             if (!el) return;
+            for (var i = 0; i < els.length; i++) {
+                if (els[i].region.id === id) { el = els[i].head; break; }
+            }
             var y = el.getBoundingClientRect().top + window.scrollY - OFFSET;
             window.scrollTo({ top: Math.max(0, y), behavior: (reduceMotion && reduceMotion.matches) ? 'auto' : 'smooth' });
             try { history.pushState(null, '', '#' + id); } catch (e) { }
