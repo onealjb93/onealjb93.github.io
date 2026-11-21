@@ -328,6 +328,63 @@
         @media (prefers-reduced-motion: reduce) {
             .rg-swipe-fly, .rg-swipe-settle { transition: none !important; }
         }
+        /* FIXED FRAME + SEALED DECK (2026-11-21, Johnny's two
+           catches on the shipped swipe): (1) at rest the waiting
+           card showed beside the dealt picture — the dealt img's
+           box hugged its own photo while the behind img filled
+           the stage, so a wider waiting photo peeked out at the
+           sides. (2) The frame itself moved — the stage hugged
+           each photo, so its size changed with every draw. Now
+           the stage is ONE fixed frame and both deck layers fill
+           that frame exactly. The frame is 3:2 in the stacked
+           layout — the pools' measured median photo aspect (all
+           seven photo pools sampled; the biggest pools sit at
+           1.50) and the size the stage already rendered most
+           often — and the grid cell itself in the rail layouts,
+           made definite by stretching the stage to its cell. The
+           dealt card is opaque: its letterbox bands paint the
+           section's own tone as an opaque composite — the card
+           token is translucent, so it is layered over the page
+           background token (through the translucent token alone
+           the waiting picture ghosted at quarter strength,
+           measured) — and the fullscreen card paints its black
+           matte, so at rest nothing of the waiting card can
+           show, in either view, for any pairing of orientations.
+           A drag still uncovers the waiting card
+           inside the same still frame. Photos fit whole
+           (contain): cover-cropping would cut more than a tenth
+           of the picture on most entries (measured) — the
+           letterbox is the frame's own background instead. The
+           legacy per-photo yields (capStageImg's cap, fitInfo's
+           last-resort shrink) stand down with this block: the
+           frame no longer yields to a photo. */
+        @media (max-width: 899.98px) and (min-height: 560.98px), (max-width: 639.98px) {
+            .gen-section:not(.deep-open) .gen-stage { aspect-ratio: 3 / 2; }
+        }
+        .gen-section:not(.deep-open) .gen-img { width: 100%; height: 100%; background-color: var(--bg-color); background-image: linear-gradient(var(--card-bg), var(--card-bg)); }
+        .gen-img-behind { border-radius: 0; }
+        .gen-section:not(.deep-open) .gen-quote { width: 100%; height: 100%; max-width: none; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: var(--bg-color); background-image: linear-gradient(var(--card-bg), var(--card-bg)); }
+        .gen-section.deep-open .gen-quote { width: 100%; max-width: none; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; background-color: var(--bg-color); background-image: linear-gradient(var(--card-bg), var(--card-bg)); }
+        .gen-quote-text, .gen-quote-attrib { max-width: 62ch; }
+        .gen-quote-behind { inset: 0; width: auto; height: auto; transform: none; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+        .gen-stage:has(> .gen-img-error:not([hidden])) .gen-img-behind,
+        .gen-stage:has(> .gen-img-error:not([hidden])) .gen-quote-behind { display: none !important; }
+        @media (min-width: 900px), (max-height: 560px) and (min-width: 640px) {
+            .gen-section:not(.deep-open) > .gen-body > .gen-stage { align-self: stretch; }
+            #gen-quotes:not(.deep-open) > .gen-body > .gen-stage { align-self: stretch; }
+        }
+        .gen-fs-img-behind { left: 12px; top: calc(12px + env(safe-area-inset-top)); right: auto; bottom: auto; width: calc(100% - 24px); height: calc(100% - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+        .gen-fs .gen-fs-quote { width: 100%; height: 100%; max-width: none; box-sizing: border-box; margin: 0; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; border-radius: 20px; box-shadow: var(--glass-shadow); }
+        .gen-fs [hidden] { display: none !important; }
+        .gen-fs .gen-fs-quotetext, .gen-fs .gen-fs-quoteattrib { max-width: 48ch; }
+        .gen-fs .gen-fs-quote-behind { left: 12px; top: calc(12px + env(safe-area-inset-top)); right: auto; bottom: auto; width: calc(100% - 24px); height: calc(100% - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); transform: none; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+        /* Deep-open is the reading state: its stage sizes to the
+           photo by design (no fixed frame there), so the deck
+           rests hidden in that state — the waiting card would
+           otherwise peek beside a height-capped photo. A swipe
+           in deep-open still deals through the same path. */
+        .gen-section.deep-open .gen-img-behind,
+        .gen-section.deep-open .gen-quote-behind { display: none; }
         .gen-img-error {
             display: block;
             max-width: 640px;
@@ -1919,6 +1976,10 @@
         // stage's own max-height), so the script stands down
         // there, and it clears the cap whenever the Deep Overview
         // opens (that layout sizes the photo by its own rule).
+        // SUPERSEDED in the stacked layout by the FIXED FRAME
+        // (2026-11-21): the stage no longer hugs the photo, so
+        // there is no per-photo box left to cap — see the stand-
+        // down inside capStageImg itself.
         function rgRailLayout() {
             try {
                 return window.matchMedia('(min-width: 900px)').matches ||
@@ -1935,17 +1996,15 @@
                 img.style.height = '';
                 return;
             }
-            var body = sec.querySelector('.gen-body');
-            var top = document.getElementById(prefix + '-topbar');
-            var info = document.getElementById(prefix + '-info');
-            var stage = img.parentNode;
-            if (!body || !top || !info || !stage) { return; }
-            var natural = stage.clientWidth * h / w;
-            var cap = Math.round(window.innerHeight * 0.8);
-            if (prefix === 'websites') {
-                cap = body.clientHeight - top.offsetHeight - (info.hidden ? 0 : info.offsetHeight);
-            }
-            img.style.height = (natural > cap && cap > 0) ? cap + 'px' : '';
+            // FIXED FRAME (2026-11-21): the stage is one fixed
+            // frame now (see the FIXED FRAME + SEALED DECK CSS
+            // block) and the img fills it — the per-photo cap this
+            // function used to set would resize the frame to the
+            // photo, so it stands down: it only clears any inline
+            // height an older state left behind. fitInfo still
+            // runs (via markCapped) and reads the frame's constant
+            // height as the photo's height.
+            img.style.height = '';
             if (window.__rgMarkCapped) { setTimeout(window.__rgMarkCapped, 0); }
         }
         window.addEventListener('resize', function () {
@@ -2768,16 +2827,15 @@
                 if (info.offsetHeight <= infoMax) { return; }
                 ov.classList.add('rg-tucked');
                 if (info.offsetHeight <= infoMax) { return; }
-                // Even the bare brief (the Deep Overview bar and the
-                // credit line) cannot fit beside the photo: the photo
-                // yields last, down to the height the frame leaves.
-                // This is the only case a photo renders below full
-                // stage width — a photo too tall for the frame even
-                // at the 80vh cap — and the frame stays whole.
-                if (img && !img.hidden) {
-                    var room = body.clientHeight - top.offsetHeight - info.offsetHeight;
-                    if (room > 0 && img.offsetHeight > room) { img.style.height = room + 'px'; }
-                }
+                // Even the bare brief (the Deep Overview bar and
+                // the credit line) cannot fit beside the photo: the
+                // photo used to yield last, down to the height the
+                // frame leaves. It no longer does — since the FIXED
+                // FRAME (2026-11-21) the stage is one fixed size
+                // that never yields to a photo or a brief, so the
+                // tucking above is the only yield left; the bare
+                // brief overflowing needs a viewport shorter than
+                // any of Johnny's devices.
             });
         }
         var markCappedBase = markCapped;
