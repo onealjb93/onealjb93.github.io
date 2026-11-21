@@ -1,127 +1,17 @@
 // Sci-Fi pool data for random.html (split out 2026-11-19 so the page
-// stays lean): cinematic science-fiction art made for this page —
-// alien-world vistas, near-future spaceflight, retro moon bases and
-// future machines on Earth. Every picture is an original AI-generated
-// image created for this pool in November 2026; no picture is taken
-// from any other artist or archive, and each entry's credit line says
-// so. (Phase 1 of the rebuild, 2026-11-20: this file replaced the
-// previous pool of public-domain NASA/ESO/JPL art at Johnny's
-// direction; the subjects and educational text of 21 entries carry
-// over, with wording adjusted wherever it described the old artwork.)
+// stays lean): cinematic science-fiction scenes made for this page.
+// Every picture is an original image created for this pool in
+// November 2026; no picture is taken from any other artist or
+// archive, and the pool's disclosure lives on the credits page.
 // Loaded lazily by ensureSciFi() in random.html the first time the
 // Sci-Fi tab, a #scifi link, or a Loved gallery holding loved sci-fi
 // entries needs it; window.SCIFI_DATA mirrors the shape of the other
 // pools' entries.
-// Phase 1b (2026-11-20): 14 entries that re-rendered old-pool subjects
-// (cutaways, renders, bare exoplanet surfaces) were cut and replaced with
-// original scenes in the reference style Johnny approved — working ships,
-// habitat interiors, monumental ruins, harbours, quiet human moments.
+// Final pool (2026-11-21): after two strict re-audits against the
+// reference pictures Johnny sent, and his own thumbs-up verdicts on
+// the presented survivors, the pool is these six entries. Entries
+// carry no credit field: the page shows no credit line for this pool.
 window.SCIFI_DATA = [
-  {
-    "id": "quiet-fleet",
-    "name": "The Quiet Fleet",
-    "sub": "Stealth warships at rest in an old harbour",
-    "overview": "Three angular stealth warships of the near future lie moored in a Mediterranean harbour — matte grey faceted hulls and towering masts — while the old town climbs the hill behind them and a pleasure yacht putters past, absurdly small.",
-    "details": [
-      "The faceted hulls are shaped to scatter radar — the future warship hides by geometry, not paint.",
-      "Nothing on deck moves: sensors and weapons sit behind the smooth skin, so the ships look asleep.",
-      "The town behind them is centuries old — the fleet is the newest thing in the harbour by about 800 years."
-    ],
-    "img": "https://johnny-oneal.com/scifi-quiet-fleet.webp",
-    "source": "https://johnny-oneal.com/scifi-quiet-fleet.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Warships have always been the future arriving early: ironclads, dreadnoughts, carriers — each generation looked impossible beside the harbour it tied up in. The stealth generation hides its power entirely, all smooth faces and sealed decks, which makes the contrast stranger: a medieval waterfront, a fishing fleet, and three grey wedges that could be sculpture until they move.</p>"
-  },
-  {
-    "id": "moon-colony-rover",
-    "name": "A Base on the Moon",
-    "sub": "Rovers, buried bedrooms and Earth in a black sky",
-    "overview": "A working Moon base, as NASA imagined it: a big-wheeled rover in the foreground, two astronauts strolling toward habitats half-buried in grey soil, a lander lifting off in the distance and the Earth small in a black sky.",
-    "details": [
-      "The rover's fat orange fenders keep dust off the machinery; its design borrows from the Apollo Moon buggies.",
-      "Habitats lie under the soil for shielding, with only their ends and airlocks showing.",
-      "There is no sky-blue here: on the Moon the daytime sky stays black."
-    ],
-    "img": "https://johnny-oneal.com/scifi-moon-colony-rover.webp",
-    "source": "https://johnny-oneal.com/scifi-moon-colony-rover.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>A NASA summer study in 1986 asked what astronauts might do next on the Moon. The base it pictured — rovers, buried modules, a small spaceport — became the standard picture of a lunar outpost for years afterward.</p>"
-  },
-  {
-    "id": "sky-harbour",
-    "name": "The Sky Harbour",
-    "sub": "Cargo airships over a working port",
-    "overview": "Colossal cargo airships hang moored to docking masts above a coastal port city at morning: cranes and container ships work below, gulls wheel in the bright light, and the great hulls drift almost imperceptibly against their tethers.",
-    "details": [
-      "An airship lifts by volume, not speed — the harbour's giants carry freight the slow, cheap, quiet way.",
-      "The docking masts are the port's towers: ships arrive from the sky and are winched down to the cargo floor.",
-      "Below them the old port still works — the future layers over the past instead of replacing it."
-    ],
-    "img": "https://johnny-oneal.com/scifi-sky-harbour.webp",
-    "source": "https://johnny-oneal.com/scifi-sky-harbour.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>The airship is the future that keeps being postponed: quieter than aircraft, cheaper than rockets, able to lift a factory's worth of cargo and set it down anywhere flat. Every generation rediscovers it. If freight ever does move this way, the sky harbour will look like this — part port, part airport, part weather station — with the giants riding at their masts over the morning traffic.</p>"
-  },
-  {
-    "id": "starbase-dusk",
-    "name": "The Starbase at Dusk",
-    "sub": "A row of rockets on the shore, waiting for morning",
-    "overview": "An aerial view at dusk of a coastal launch base: a row of tall stainless rockets standing on their mounts along the shoreline, ocean on one side and winding wetlands on the other, the whole base lit amber as the sun goes down.",
-    "details": [
-      "The rockets stand in a line because the coast is the pad: launches head out over empty water.",
-      "At dusk the base is mostly lights — floodlit towers, lit roads, and the glow of the pads.",
-      "Stainless steel takes the sunset the way the rockets are built to take the sky: without paint, without hiding."
-    ],
-    "img": "https://johnny-oneal.com/scifi-starbase-dusk.webp",
-    "source": "https://johnny-oneal.com/scifi-starbase-dusk.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>This is the space age rendered as infrastructure: not one heroic rocket but a row of them, serviced like airliners at a shoreline airport. The first launch sites were chosen for empty ocean downrange and clear weather; the mature ones will look like this — a working port at the edge of a continent, busiest at dawn and dusk, when the light makes even industry look like a promise.</p>"
-  },
-  {
-    "id": "first-light-pad",
-    "name": "First Light on the Pad",
-    "sub": "One rocket, floodlit in the dawn fog",
-    "overview": "Ground level at dawn: one towering stainless rocket on its launch mount, wrapped in low fog and floodlights, with a single small service vehicle at its base giving away the true size of the machine.",
-    "details": [
-      "The fog is the pad's own weather — cold propellant sweats vapour off the rocket all night.",
-      "Floodlights make the rocket the only solid thing in a grey world until the sun arrives.",
-      "The service vehicle is the scale cue: the rocket is a building that flies."
-    ],
-    "img": "https://johnny-oneal.com/scifi-first-light-pad.webp",
-    "source": "https://johnny-oneal.com/scifi-first-light-pad.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Before a rocket is a spectacle it is a shift: crews in the fog at 5 a.m., checklists, vapour, floodlights. Photographs of launches are famous; photographs of the hour before are rarer and truer. Every spacecraft that ever left Earth spent its last night on the ground like this — lit, tended, and very quiet — with a handful of people and one small truck for company.</p>"
-  },
-  {
-    "id": "canyon-bridge",
-    "name": "The Canyon Bridge",
-    "sub": "One dark building across a green gorge, a waterfall through its heart",
-    "overview": "A black angular megastructure bridges a misty green canyon from cliff to cliff, and a waterfall pours out of an opening in its middle, falling the whole depth of the gorge into the cloud below.",
-    "details": [
-      "The building is three machines in one: a bridge across the gorge, a dam across the river, and a fortress against the weather.",
-      "There is nothing else human in sight — one structure, alone, doing its work in wild country.",
-      "The rust-orange shrubs in the foreground say autumn. The machine keeps a different calendar."
-    ],
-    "img": "https://johnny-oneal.com/scifi-canyon-bridge.webp",
-    "source": "https://johnny-oneal.com/scifi-canyon-bridge.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Some buildings are architecture and some are arguments with geography. This one argues with a canyon: it takes a gorge that split the land in two and answers with a single black span that carries the road, holds the river, and lets the excess fall through its heart in one white thread. Engineering at this scale stops looking like construction and starts looking like a feature of the planet.</p>"
-  },
-  {
-    "id": "cloudsea-vessel",
-    "name": "The Cloud-Sea Vessel",
-    "sub": "A habitat ship sailing on a sea of cloud",
-    "overview": "A city that flies. One vast habitat ship rides the top of the clouds at sunset, its glass domes lit from within and green with growing things, engines glowing at the stern, the whole vessel strung with masts and rigging like a ship at sea.",
-    "details": [
-      "The domes are greenhouses: from outside you can see the green of growing things under glass.",
-      "A ship this big would never land. Everything — fuel, food, people — would come and go by smaller craft.",
-      "The light is all accounted for: low sun ahead, and windows and engine glow from the ship itself."
-    ],
-    "img": "https://johnny-oneal.com/scifi-cloudsea-vessel.webp",
-    "source": "https://johnny-oneal.com/scifi-cloudsea-vessel.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Keeping a city in the sky is an old engineering dream with a hard physics problem: lift. The airships of the 1930s lifted their hulls with hydrogen or helium; a vessel this size would need lift measured in millions of cubic metres, which is why every serious design since — from NASA's high-altitude airship studies to modern cargo-airship prototypes — treats the envelope itself as the structure. What has changed is materials: carbon-fibre frames and films stronger than steel by weight make hulls plausible now that were fantasy in 1930.</p>"
-  },
   {
     "id": "snow-approach",
     "name": "The Walk to the Ship",
@@ -134,97 +24,76 @@ window.SCIFI_DATA = [
     ],
     "img": "https://johnny-oneal.com/scifi-snow-approach.webp",
     "source": "https://johnny-oneal.com/scifi-snow-approach.webp",
-    "credit": "Art: AI-generated · created for this page",
     "deep": "<p>Real spaceports already work in this register: Esrange in Arctic Sweden and the pads of Plesetsk in northern Russia launch through snow seasons, and crews at modern pads have fuelled rockets in freezing rain. Cold is not just discomfort for a spacecraft — propellants thicken, seals shrink, and ice shed at liftoff can strike the vehicle, which is why a winter ship is kept warm, lit and venting long before its crew walks out to it.</p>"
   },
   {
-    "id": "dusk-megacity",
-    "name": "Dusk Over the Megacity",
-    "sub": "A dense future city at the blue hour",
-    "overview": "The blue hour over a city that never thins out. Towers crowd both banks of the harbour, bridges stitch them together at height, and the first traffic of the evening threads the canyons between them as the fog comes in.",
+    "id": "gorge-habitats",
+    "name": "The Gorge Habitats",
+    "sub": "Homes cantilevered over a river gorge, joined by glass walkways",
+    "overview": "The gorge is the street. Bronze habitat modules hang from both cliffs of a river gorge, joined by enclosed glass walkways, their windows lit against the fog — a settlement that took the one flat thing the mountains offered: the air above the river.",
     "details": [
-      "Every light in the frame belongs to a building, a bridge or a craft — the city lights itself.",
-      "The towers share one architectural language: this is one city built in one era, not a collage of futures.",
-      "Fog at street level and clear air at the rooftops is what real harbour cities do at dusk."
+      "Each module is cantilevered: anchored deep into the cliff and balanced out over the drop, the way a diving board is fixed at one end.",
+      "The glass walkways are the settlement's roads — enclosed against gorge weather that can turn in minutes.",
+      "Cliff building is an old human answer to steep country: the monasteries of Meteora in Greece and the villages of Italy's Cinque Terre grew the same way, one anchored platform at a time."
     ],
-    "img": "https://johnny-oneal.com/scifi-dusk-megacity.webp",
-    "source": "https://johnny-oneal.com/scifi-dusk-megacity.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Cities this dense are an extrapolation, not an invention: Hong Kong already stacks homes, offices, a port and an airport into the same few square kilometres of harbour, and its towers carry malls and walkways between them at height. What the picture adds is degree — the same pressures of land price and population, run further forward.</p>"
+    "img": "https://johnny-oneal.com/scifi-gorge-habitats.webp",
+    "source": "https://johnny-oneal.com/scifi-gorge-habitats.webp",
+    "deep": "<p>A cantilever carries its load from one fixed end, which is why these homes can hang over empty air: the cliff itself is the foundation, and the module's weight is answered by rock. Frank Lloyd Wright's Fallingwater made the technique famous with its trays over a waterfall. A gorge settlement grows this way for practical reasons — the river below is its road and its water supply, the cliffs shelter it from the worst wind, and every module added is one more anchor, one more walkway, one more lit window in the fog.</p>"
   },
   {
-    "id": "arch-city-night",
-    "name": "The Arch City",
-    "sub": "One great arch spanning a city at night",
-    "overview": "The city lives under one piece of engineering. A colossal inhabited arch strides over the rooftops, its own windows lit along the curve, while the streets below run their ordinary night traffic in its shadow.",
+    "id": "golden-arch",
+    "name": "The Golden Arch",
+    "sub": "One arch of ten thousand lit windows over a rainy plaza",
+    "overview": "The whole district lives in one building. A single golden arch — its underside a field of ten thousand irregular lit windows — spans the plaza where four robed figures cross the wet stone at dusk, the rain coming down and the city glowing through it.",
     "details": [
-      "The arch is not a monument: it is trussed, railed and windowed — a building bent into a bridge.",
-      "Its lights and the city's lights are the same kind of light: windows and streetlamps, nothing sourceless.",
-      "Fog gathers at street level; the top of the arch stands clear of it."
+      "Every window is a room: an arch this size is not a monument with flats inside it, it is a vertical city folded into a curve.",
+      "The wet plaza is part of the design — a hard, reflective public floor that doubles the arch's light on rainy nights.",
+      "The idea has a real name: arcology, architect Paolo Soleri's word for a single building that holds a whole city's life."
     ],
-    "img": "https://johnny-oneal.com/scifi-arch-city-night.webp",
-    "source": "https://johnny-oneal.com/scifi-arch-city-night.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>An arch is the oldest long-span structure humans have — Roman aqueducts still stand on the principle that a curve turns downward weight into sideways thrust the ground can absorb. Building one at this scale is a materials problem, not a shape problem: the span-to-weight ratio only closes with steel and composites far beyond Roman stone, which is why inhabited mega-arches appear in serious arcology studies and almost nowhere else.</p>"
+    "img": "https://johnny-oneal.com/scifi-golden-arch.webp",
+    "source": "https://johnny-oneal.com/scifi-golden-arch.webp",
+    "deep": "<p>Paolo Soleri spent fifty years building Arcosanti in the Arizona desert to prove that a city could be one structure — dense, walkable, and leaving the land around it untouched. Real inhabited arches exist at smaller scales: Paris's Grande Arche de la Défense is a hollow cube-arch of offices you can see through from one side of the city to the other. The arch in this picture takes the idea to its limit — the monument and the neighbourhood are the same thing, and its ten thousand windows are ten thousand evenings happening at once.</p>"
   },
   {
-    "id": "canyon-dam",
-    "name": "The Canyon Dam",
-    "sub": "A river, a road and a power station in one structure",
-    "overview": "One structure does three jobs. A dam-bridge crosses a misty canyon: the river arrives along the canyon floor, passes through the gates, and falls away below, while traffic crosses on the roadway overhead and the powerhouse windows glow in the dawn.",
+    "id": "celestial-plaza",
+    "name": "The Plaza of Braziers",
+    "sub": "A marble plaza at dusk, colonnades on both sides, towers in the haze",
+    "overview": "At dusk the plaza empties slowly. Braziers burn along both colonnades of a marble square big enough to hold a town, robed figures cross the patterned stone in twos and threes, and the white towers at its far end go blue with the evening.",
     "details": [
-      "The water's whole journey is visible — in along the canyon, through the gates, out below. Nothing falls from nowhere.",
-      "Dams that carry roads are real engineering: the Hoover Dam carried a highway on its crest for 75 years.",
-      "The mist is river weather — cold water and cool morning air in a deep canyon."
+      "The braziers are the plaza's lighting — open flame at human height, warm against cold stone, the way public squares were lit for most of human history.",
+      "The patterned floor is inlaid stone: different marbles cut and set in geometric designs, a technique Italian craftsmen have practised for a thousand years.",
+      "A plaza this size is a machine for gathering: markets, ceremonies and announcements all need one flat place that everyone in the city can reach."
     ],
-    "img": "https://johnny-oneal.com/scifi-canyon-dam.webp",
-    "source": "https://johnny-oneal.com/scifi-canyon-dam.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Combining a dam, a bridge and a power station in one structure is an old economy: the same concrete that holds back the reservoir can carry the road, and the same fall of water can turn the turbines. The largest example, Three Gorges in China, spans a river more than two kilometres wide; canyon dams like this one trade width for height, taking their strength from the rock walls themselves.</p>"
+    "img": "https://johnny-oneal.com/scifi-celestial-plaza.webp",
+    "source": "https://johnny-oneal.com/scifi-celestial-plaza.webp",
+    "deep": "<p>The great plazas of the old world were engineered as carefully as any machine. Bernini's colonnades at St Peter's Square in Rome curve like arms to gather a crowd inward; the Piazza del Campo in Siena is sloped like a shallow bowl so every citizen can see the palace. The city in this picture builds the same way at a larger scale: one immense ceremonial floor, flame for light, stone for permanence — a civilisation that expects its gathering places to outlast everyone who crosses them.</p>"
   },
   {
-    "id": "orbital-shipyard",
-    "name": "The Ring Shipyard",
-    "sub": "A capital ship in dock above the Earth",
-    "overview": "Shipbuilding, moved upstairs. A ring dock hangs over the Earth's limb in hard sunlight, floodlights blazing along its gantries, and a capital ship sits at its centre with tugs and work crews attending her.",
+    "id": "storm-barrier",
+    "name": "The Storm Barrier",
+    "sub": "Twin barrier towers hold the fjord mouth against the weather",
+    "overview": "The gate is the harbour. Two concrete towers stand in the mouth of the fjord where the sea is roughest, built to close against the worst storm of the century — and on an ordinary bad day a working ship simply threads between them and goes about its business.",
     "details": [
-      "Every floodlight is a fixture on a gantry — in orbit there is no sky to borrow light from.",
-      "The ship is held, not parked: dock arms and scaffolding reach her from the ring on all sides.",
-      "Ships built in orbit never have to survive launch — they can be shaped for space alone."
+      "Storm barriers are real engineering: the Thames Barrier's steel gates rise between concrete piers in London, and the Netherlands' Maeslantkering guards Rotterdam with two swinging arms among the largest moving structures on Earth.",
+      "The spray at the towers' feet is the sea testing them — a barrier spends almost its whole life doing nothing, in the worst weather there is, so that it works on the one day it is needed.",
+      "The gantries on top house the machinery: a gate this size is opened and closed by motors and hinges kept above the reach of the waves."
     ],
-    "img": "https://johnny-oneal.com/scifi-orbital-shipyard.webp",
-    "source": "https://johnny-oneal.com/scifi-orbital-shipyard.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Nothing this size has been built in orbit yet, but the practice has begun: the International Space Station was assembled module by module over more than a decade, and every serious plan for a large interplanetary ship starts from the same logic — launch the pieces, build where the ship will live. A vessel assembled in a dock never needs a nose cone, wings or launch-proof strength, which is why dock-built ships in engineering studies look like this one: all function, no aerodynamics.</p>"
+    "img": "https://johnny-oneal.com/scifi-storm-barrier.webp",
+    "source": "https://johnny-oneal.com/scifi-storm-barrier.webp",
+    "deep": "<p>The Dutch built the Maeslantkering after the flood of 1953 drowned more than 1,800 people; it has closed in earnest only a handful of times, and it is tested constantly because a barrier that fails once fails completely. That is the bargain every storm gate makes: decades of standing in spray and storm, maintained like a ship that never sails, against a few hours of holding back the sea. The towers in this picture are that bargain at fjord scale — most days a landmark ships steer by, one day a wall.</p>"
   },
   {
-    "id": "storm-launch",
-    "name": "Launch in the Rain",
-    "sub": "A rocket leaves a coastal pad in storm weather",
-    "overview": "Weather does not always get a vote. A great rocket climbs out of a coastal pad in driving rain, its engines lighting the wet concrete, and the floodlight towers stand in the murk around the flame trench.",
+    "id": "glass-dam",
+    "name": "The Glass Dam",
+    "sub": "A dam whose crest is a lit glass gallery, traffic crossing in the mist",
+    "overview": "The dam is also the bridge, and the bridge is a building. A glass gallery runs the length of this gorge dam's crest — cars crossing inside it, people walking its warm length above the mist — while the river it holds back pours white through the gates below.",
     "details": [
-      "The brightest light in the picture is the rocket's own exhaust — everything else is floodlights and grey sky.",
-      "Rain at a launch is a studied risk: real launch rules set hard limits for lightning, wind and cloud.",
-      "The sea beside the pad is not scenery — coasts are chosen so a failing rocket falls into water, not towns."
+      "Dam crests have carried roads for a century — traffic crossed the top of Hoover Dam until 2010 — but enclosing the crossing turns a piece of infrastructure into a place.",
+      "The white water below the gates is the river's share: dams release a measured flow so the valley downstream stays a living river, not a ditch.",
+      "The lit rooms at the dam's foot are the powerhouse, set where the falling water's energy is greatest."
     ],
-    "img": "https://johnny-oneal.com/scifi-storm-launch.webp",
-    "source": "https://johnny-oneal.com/scifi-storm-launch.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Real rockets launch in weather that would ground airliners, but the limits are precise: NASA and SpaceX flight rules forbid launch through certain cloud types, within set distances of lightning, and above strict wind speeds at each altitude. What those rules protect against is not the rain itself but what rides with it — a rocket's exhaust plume can help trigger lightning, which is why the floodlit, rain-swept pad is a scene engineers plan for rather than a surprise.</p>"
-  },
-  {
-    "id": "sea-gate",
-    "name": "The Sea Gate",
-    "sub": "A gate that holds back the ocean",
-    "overview": "The harbour mouth, fortified. Two monumental gate towers rise out of a storm sea, their fixtures lit against the grey, while a laden container ship threads the opening between them on its way in from the weather.",
-    "details": [
-      "The towers are working structures — gantries, rails and gate machinery, not decoration.",
-      "The ship's red and green navigation lights mark its port and starboard sides, the oldest signalling system at sea.",
-      "Waves break where the structure meets the water: the sea does the same work it does on any pier, at larger scale."
-    ],
-    "img": "https://johnny-oneal.com/scifi-sea-gate.webp",
-    "source": "https://johnny-oneal.com/scifi-sea-gate.webp",
-    "credit": "Art: AI-generated · created for this page",
-    "deep": "<p>Sea gates are real, and the largest are among the biggest moving structures on Earth: the Netherlands' Maeslantkering storm-surge barrier has arms as long as the Eiffel Tower is tall, and it closes automatically when a surge threatens Rotterdam. Venice's MOSE barriers rise from the seabed to hold back the Adriatic. A gate at this scale is the same idea extended — a harbour that can be shut like a door.</p>"
+    "img": "https://johnny-oneal.com/scifi-glass-dam.webp",
+    "source": "https://johnny-oneal.com/scifi-glass-dam.webp",
+    "deep": "<p>A hydroelectric dam is three machines in one body: a wall that stores a river, a powerhouse that turns falling water into electricity, and — very often — the only bridge for miles. Hoover Dam still carries sightseers across its crest, and the Three Gorges Dam in China holds back enough water to measure its effect on the Earth's rotation. The glass gallery in this picture simply admits what dams already are: public buildings. It gives the crossing a roof, a view down the gorge, and a reason to slow down in the middle.</p>"
   }
 ];
