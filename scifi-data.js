@@ -9,7 +9,7 @@
 // pools' entries.
 // Final pool (2026-11-21): after two strict re-audits against the
 // reference pictures Johnny sent, and his own thumbs-up verdicts on
-// the presented survivors, the pool is these six entries. Entries
+// the presented survivors, the pool is these seven entries. Entries
 // carry no credit field: the page shows no credit line for this pool.
 window.SCIFI_DATA = [
   {
@@ -95,5 +95,19 @@ window.SCIFI_DATA = [
     "img": "https://johnny-oneal.com/scifi-glass-dam.webp",
     "source": "https://johnny-oneal.com/scifi-glass-dam.webp",
     "deep": "<p>A hydroelectric dam is three machines in one body: a wall that stores a river, a powerhouse that turns falling water into electricity, and — very often — the only bridge for miles. Hoover Dam still carries sightseers across its crest, and the Three Gorges Dam in China holds back enough water to measure its effect on the Earth's rotation. The glass gallery in this picture simply admits what dams already are: public buildings. It gives the crossing a roof, a view down the gorge, and a reason to slow down in the middle.</p>"
+  },
+  {
+    "id": "sky-bridge-towers",
+    "name": "The Sky-Bridge Towers",
+    "sub": "Twin towers on opposite gorge walls, joined by an inhabited glass sky-bridge",
+    "overview": "Neither tower could stand alone in the story. Two pale-stone towers rise from opposite walls of a green gorge, and high above the river an inhabited sky-bridge of glass and bronze joins them — one town, split by a canyon, sewn together in the air in bright morning light.",
+    "details": [
+      "A sky-bridge between towers has to flex: wind and temperature move each tower separately, so the bridge rests on sliding bearings that let it breathe — the same engineering as Kuala Lumpur's Petronas skybridge, the world's most famous.",
+      "Building on both walls doubles the town's sun: one tower takes the morning, the other the evening, and the bridge between them is in light all day.",
+      "The mist in the gorge is the river's weather — cold water under warm air — and the towers are founded on the cliff rock above the flood line, not in the valley that floods."
+    ],
+    "img": "https://johnny-oneal.com/scifi-sky-bridge-towers.webp",
+    "source": "https://johnny-oneal.com/scifi-sky-bridge-towers.webp",
+    "deep": "<p>Gorges divide everything they touch — roads, farms, families. The usual answer is a bridge at the bottom or a long road around; this town's answer is to live at the height where the crossing is shortest and make the crossing itself a neighbourhood, with homes and a hall inside the span. Sky-bridges have been creeping up the world's towers for thirty years, from meeting rooms to swimming pools hung between buildings in London. Here the idea reaches its logical end: the bridge is not an amenity between two buildings. It is the main street, and the towers are its two ends.</p>"
   }
 ];
