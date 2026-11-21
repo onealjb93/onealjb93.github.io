@@ -393,10 +393,19 @@
            slows to 3s and the peak dwells from 25% to 70% of it, so
            the eye catches a held glow, not a passing fade. Shadow
            only: no layout shift, no transform, button unchanged. */
+        /* Colour recipe repaired (2026-11-20): the flat three-part
+           color-mix(…, transparent) computes to a transparent colour
+           in Chromium, so the glow above fired invisibly. The same
+           blend is now mixed in two nested two-part steps — the inner
+           mix is the glow colour itself (link 85 / text 15), the
+           outer step fades that colour toward transparent (70% for
+           the ring, 28% for the halo) — the exact recipe proven on
+           the Sustainability page. The computed colours are the ones
+           the design above specifies; only the mixing route changed. */
         @keyframes gen-btn-pulse {
             0% { box-shadow: 0 0 3px 2px transparent, 0 0 12px 2px transparent; }
-            25% { box-shadow: 0 0 3px 6px color-mix(in srgb, var(--link-color) 59.5%, var(--text-color) 10.5%, transparent), 0 0 24px 10px color-mix(in srgb, var(--link-color) 23.8%, var(--text-color) 4.2%, transparent); }
-            70% { box-shadow: 0 0 3px 6px color-mix(in srgb, var(--link-color) 59.5%, var(--text-color) 10.5%, transparent), 0 0 24px 10px color-mix(in srgb, var(--link-color) 23.8%, var(--text-color) 4.2%, transparent); }
+            25% { box-shadow: 0 0 3px 6px color-mix(in srgb, color-mix(in srgb, var(--link-color) 85%, var(--text-color) 15%) 70%, transparent 30%), 0 0 24px 10px color-mix(in srgb, color-mix(in srgb, var(--link-color) 85%, var(--text-color) 15%) 28%, transparent 72%); }
+            70% { box-shadow: 0 0 3px 6px color-mix(in srgb, color-mix(in srgb, var(--link-color) 85%, var(--text-color) 15%) 70%, transparent 30%), 0 0 24px 10px color-mix(in srgb, color-mix(in srgb, var(--link-color) 85%, var(--text-color) 15%) 28%, transparent 72%); }
             100% { box-shadow: 0 0 3px 10px transparent, 0 0 28px 14px transparent; }
         }
         .gen-split.rg-pulse { animation: gen-btn-pulse 3s var(--ease-inout) infinite; }
@@ -448,22 +457,36 @@
         .gen-pick:focus-visible, .gen-split .gen-btn:focus-visible { outline: 2px solid var(--text-color); outline-offset: 2px; }
         .gen-cat-scrim { position: fixed; inset: 0; z-index: 2599; background: transparent; }
         .gen-cat-scrim[hidden] { display: none; }
+        /* The menu wears the site's glass popup standard exactly
+           (2026-11-20): the same material as .glass-bubble — glass
+           background, the shared blur and saturate, the shared
+           radius and shadow, the same opaque fallback where
+           backdrop-filter is unavailable — never a one-off variant.
+           It is sized to its contents, and the rows are compact
+           enough that All + the eight categories + the divider +
+           Loved fit on one phone screen with nothing left to
+           scroll; the max-height below is only a guard for
+           viewports shorter than the list itself. */
         .gen-cat-menu {
             position: fixed;
             z-index: 2600;
-            width: min(320px, calc(100vw - 24px));
-            max-height: min(70vh, 560px);
+            width: max-content;
+            max-width: calc(100vw - 16px);
+            max-height: calc(100vh - 16px);
             overflow-y: auto;
             background: var(--glass-bg);
-            -webkit-backdrop-filter: blur(14px);
-            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25);
+            backdrop-filter: blur(var(--glass-blur)) saturate(1.25);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+            border-radius: var(--glass-radius);
+            box-shadow: var(--glass-shadow);
             padding: 0.4rem;
         }
+        @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+            .gen-cat-menu { background: var(--glass-bg-solid); }
+        }
         .gen-cat-menu[hidden] { display: none; }
-        .gen-cat-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.35rem 0.5rem 0.45rem; }
+        .gen-cat-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.25rem 0.5rem 0.35rem; }
         .gen-cat-title { font-size: 0.95rem; font-weight: 700; margin: 0; color: var(--text-color); }
         .gen-cat-close {
             flex: none;
@@ -482,12 +505,12 @@
             align-items: center;
             gap: 0.6rem;
             width: 100%;
-            min-height: 44px;
+            min-height: 40px;
             text-align: left;
             background: none;
             border: none;
             border-radius: 8px;
-            padding: 0.65rem 0.5rem;
+            padding: 0.45rem 0.5rem;
             font: inherit;
             font-size: 1rem;
             color: var(--text-color);
@@ -518,7 +541,14 @@
         .gen-nav-btn:hover:not(:disabled) { opacity: 0.85; }
         .gen-nav-btn:active:not(:disabled) { transform: scale(0.96); }
         .gen-nav-btn:disabled { opacity: 0.35; cursor: default; }
-        .gen-topbar .gen-nav-btn { order: 1; }
+        /* Control row (2026-11-20): the split control takes the
+           row's left end and the back and forward buttons sit
+           together as a pair at the right end, the entry name
+           between them — one arrangement on every screen, set by
+           explicit order so the DOM order never decides it. */
+        .gen-topbar .gen-split { order: 1; }
+        .gen-topbar-text { order: 2; }
+        .gen-topbar .gen-nav-btn { order: 3; }
         .gen-empty { color: var(--subtext-color); font-size: 0.95rem; margin: 0; }
         .gen-retry { font: inherit; color: var(--link-color); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; }
         .gen-section[hidden] { display: none !important; }
@@ -601,7 +631,8 @@
                not out of any text. */
             .gen-topbar { gap: 0.5rem; row-gap: 0.3rem; padding: 0.25rem 0; flex-wrap: wrap; }
             .gen-topbar .gen-split { order: 1; }
-            .gen-topbar-text { order: 2; flex: 1 1 100%; }
+            .gen-topbar .gen-nav-btn { order: 2; }
+            .gen-topbar-text { order: 3; flex: 1 1 100%; }
             .gen-topbar .gen-name { font-size: 1rem; }
             .gen-topbar .gen-sub { font-size: 0.8rem; }
             .gen-btn { padding: 0.7rem 0.9rem; font-size: 1.02rem; }
@@ -735,11 +766,13 @@
            frame's leftover collects in the empty row, below the
            credit line, where a card's bottom breathing room
            belongs — never between the controls and the photo. The
-           one case CSS cannot bound alone is a portrait photo
-           taller than the frame leaves room for: the stage-cap
-           script in renderEntry measures that room and caps the
-           img's box to it (object-fit: contain fits the photo
-           whole inside, height-bound). The rail layouts keep
+           one case CSS cannot bound alone is a photo taller
+           than 80vh: the stage-cap script in renderEntry caps
+           the img's box at 80vh (object-fit: contain fits the
+           photo whole inside, height-bound); below that cap the
+           photo renders at full stage width and the brief yields
+           instead, tucking whole blocks behind the Deep Overview
+           (fitInfo measures the photo's real height). The rail layouts keep
            their two-row template (their rules below override this
            one): there the stage tops its row at the photo's own
            height, capped by the row itself (max-height below). */
@@ -1660,18 +1693,25 @@
         }
 
 
-        // Stage sizing (2026-11-19): the stage hugs the photo — pure
-        // CSS (full stage width, natural aspect, no letterbox). The
-        // one case CSS cannot bound alone is a portrait photo in the
-        // stacked layout, whose stage row is content-sized: left to
-        // itself the photo would push the brief out of the fixed
-        // frame. capStageImg measures the height the frame actually
-        // leaves (body minus topbar minus brief) and, only when the
-        // photo's natural height at full width exceeds it, gives the
-        // img that height as its box — object-fit: contain then fits
-        // the photo whole inside it, height-bound, still with no
-        // band above or below. The rail layouts cap by CSS instead
-        // (the stage's own max-height), so the script stands down
+        // Stage sizing (2026-11-19; cap rule changed 2026-11-20):
+        // the stage hugs the photo — pure CSS (full stage width,
+        // natural aspect, no letterbox). The one case CSS cannot
+        // bound alone is a very tall photo in the stacked layout,
+        // whose stage row is content-sized: capStageImg gives the
+        // img a box height only when the photo's natural height at
+        // full width exceeds 80vh — the same cap the Deep Overview
+        // layout's own rule uses — and object-fit: contain then
+        // fits the photo whole inside it, height-bound. An earlier
+        // rule capped the box to the frame's leftover height (body
+        // minus topbar minus brief), which shrank ordinary photos
+        // below full stage width whenever the viewport ran short;
+        // now the brief yields instead — fitInfo measures the
+        // photo's real height and tucks brief blocks whole behind
+        // the Deep Overview, the trade the photo-hero layout
+        // already makes. The Websites pool keeps the old yield
+        // (its brief never tucks, so its room still comes from
+        // the stage). The rail layouts cap by CSS instead (the
+        // stage's own max-height), so the script stands down
         // there, and it clears the cap whenever the Deep Overview
         // opens (that layout sizes the photo by its own rule).
         function rgRailLayout() {
@@ -1695,9 +1735,13 @@
             var info = document.getElementById(prefix + '-info');
             var stage = img.parentNode;
             if (!body || !top || !info || !stage) { return; }
-            var avail = body.clientHeight - top.offsetHeight - (info.hidden ? 0 : info.offsetHeight);
             var natural = stage.clientWidth * h / w;
-            img.style.height = (natural > avail && avail > 0) ? avail + 'px' : '';
+            var cap = Math.round(window.innerHeight * 0.8);
+            if (prefix === 'websites') {
+                cap = body.clientHeight - top.offsetHeight - (info.hidden ? 0 : info.offsetHeight);
+            }
+            img.style.height = (natural > cap && cap > 0) ? cap + 'px' : '';
+            if (window.__rgMarkCapped) { setTimeout(window.__rgMarkCapped, 0); }
         }
         window.addEventListener('resize', function () {
             ['animals', 'art', 'arch', 'space', 'quotes', 'engineering', 'websites', 'scifi'].forEach(function (p) { capStageImg(p); });
@@ -2334,13 +2378,24 @@
         }
         function openCatMenu(invoker) {
             rgMenuInvoker = invoker;
-            var r = invoker.getBoundingClientRect();
+            // The menu drops from the split control itself
+            // (2026-11-20): its top edge at the control's bottom
+            // edge, its left edge on the control's left edge. It is
+            // sized to its contents and the compact rows keep the
+            // whole list on one phone screen, so it is never flipped
+            // to the top of the screen — the only adjustment is a
+            // small clamp at the viewport's edges. The control is
+            // inside #gen-block, so the same anchoring holds in
+            // fullscreen.
+            var split = invoker.closest ? invoker.closest('.gen-split') : null;
+            var r = (split || invoker).getBoundingClientRect();
             rgMenu.hidden = false;
             rgScrim.hidden = false;
             var w = rgMenu.offsetWidth;
-            var left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12));
-            var top = r.bottom + 6;
-            if (top + rgMenu.offsetHeight > window.innerHeight - 8) { top = Math.max(8, r.top - rgMenu.offsetHeight - 6); }
+            var h = rgMenu.offsetHeight;
+            var left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+            var top = r.bottom + 2;
+            if (top + h > window.innerHeight - 8) { top = Math.max(8, window.innerHeight - h - 8); }
             rgMenu.style.left = left + 'px';
             rgMenu.style.top = top + 'px';
             document.querySelectorAll('.gen-pick').forEach(function (pk) { pk.setAttribute('aria-expanded', pk === invoker ? 'true' : 'false'); });
@@ -2377,15 +2432,34 @@
         });
         window.addEventListener('resize', closeCatMenu);
         // First paint: a #pool deep link still lands on its pool with
-        // the selection set to match; with no hash the page opens in
-        // All mode and deals one surprise as its opener, the way the
-        // tabbed page dealt a first card.
+        // the selection set to match. With no hash the page opens on
+        // Animals and deals an animal (2026-11-20; "All" stays in the
+        // menu, one tap away). A #share/… doorway is left to the
+        // share block below: the opener sets the shared pool's
+        // selection and shows its section WITHOUT dealing and
+        // without touching the hash, so the share block's own read
+        // of location.hash still finds #share/… and presents the
+        // shared entry exactly as the doorway intends. (The All
+        // opener this replaces rewrote the hash to the dealt pool
+        // before the share block ran, so doorway links never
+        // presented anything.) If the doorway's entry never lands —
+        // an unknown id — the share block calls the fallback and
+        // the page degrades to this same Animals opener.
+        window.__rgOpenerFallback = function () {
+            rgSel = 'animals';
+            showGen('animals', false);
+            draw('animals');
+        };
         (function () {
+            var sm = (location.hash || '').match(/^#share\/(sea|animals|art|arch|space|quotes|engineering|websites|scifi)\/(.+)$/);
+            if (sm) {
+                rgSel = sm[1] === 'sea' ? 'animals' : sm[1];
+                showGen(rgSel, false);
+                return;
+            }
             var fromHash = GEN_FROM_HASH[(location.hash || '').slice(1)];
             if (fromHash) { rgSel = fromHash; showGen(fromHash, false); return; }
-            rgSel = 'all';
-            showGen('animals', false);
-            rgDraw('animals');
+            window.__rgOpenerFallback();
         })();
 
         // Sections are plain elements now (the pinned tab bar is the only
@@ -2477,11 +2551,27 @@
                 var body = sec.querySelector('.gen-body');
                 var top = document.getElementById(p + '-topbar');
                 if (!body || !top) { return; }
-                var infoMax = body.clientHeight - top.offsetHeight - Math.round(body.clientHeight * 0.52);
+                // The stage reservation is the photo's real rendered
+                // height (2026-11-20; it was a flat 52% of the frame):
+                // the brief gets exactly the height the photo leaves.
+                var img = document.getElementById(p + '-img');
+                var photoH = (img && !img.hidden) ? img.offsetHeight : 0;
+                var infoMax = body.clientHeight - top.offsetHeight - photoH;
                 if (info.offsetHeight <= infoMax) { return; }
                 det.classList.add('rg-tucked');
                 if (info.offsetHeight <= infoMax) { return; }
                 ov.classList.add('rg-tucked');
+                if (info.offsetHeight <= infoMax) { return; }
+                // Even the bare brief (the Deep Overview bar and the
+                // credit line) cannot fit beside the photo: the photo
+                // yields last, down to the height the frame leaves.
+                // This is the only case a photo renders below full
+                // stage width — a photo too tall for the frame even
+                // at the 80vh cap — and the frame stays whole.
+                if (img && !img.hidden) {
+                    var room = body.clientHeight - top.offsetHeight - info.offsetHeight;
+                    if (room > 0 && img.offsetHeight > room) { img.style.height = room + 'px'; }
+                }
             });
         }
         var markCappedBase = markCapped;
@@ -3615,8 +3705,13 @@
             var sPrefix = m[1] === 'sea' ? 'animals' : m[1], sId = decodeURIComponent(m[2]), tries = 0;
             var iv = setInterval(function () {
                 tries++;
-                if ((window.__rgSharePresent && window.__rgSharePresent(sPrefix, sId)) || tries > 40) {
+                if (window.__rgSharePresent && window.__rgSharePresent(sPrefix, sId)) {
                     clearInterval(iv);
+                } else if (tries > 40) {
+                    // The entry never landed (an unknown id): the
+                    // page degrades to its normal opener.
+                    clearInterval(iv);
+                    if (window.__rgOpenerFallback) { window.__rgOpenerFallback(); }
                 }
             }, 250);
         }
