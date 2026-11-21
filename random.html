@@ -678,6 +678,42 @@
         .gen-fs-img { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; background: #000; border-radius: 20px; box-shadow: var(--glass-shadow); }
         .gen-fs-credit { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); margin: 0; padding: 1.6rem 1rem 0.7rem; font-size: 0.78rem; line-height: 1.35; text-align: center; color: rgba(255, 255, 255, 0.8); background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent); border-radius: 0 0 20px 20px; }
         .gen-fs-credit a { color: rgba(255, 255, 255, 0.9); }
+        /* Draw button inside the photo fullscreen (2026-11-20): the
+           stage's draw, carried into the viewer — ONE glass pill,
+           bottom-centre, floating above the credit strip in the
+           viewer's own glass chrome (the .gen-love chips' material:
+           card background, blur, hairline border, soft shadow),
+           wearing the draw segment's type (1.08rem, weight 700) at
+           the segment's full 52px height. Its label is the draw
+           segment's own label for the current selection, kept in
+           step by the script below; it never covers the chips at
+           the bottom-left or the credit line under it. */
+        .gen-fs-draw {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(12px + env(safe-area-inset-bottom) + 4.9rem);
+            z-index: 2;
+            min-height: 52px;
+            padding: 0 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            background: var(--card-bg);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            color: var(--text-color);
+            font-size: 1.08rem;
+            line-height: 1.2;
+            font-weight: 700;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .gen-fs-draw:hover { border-color: var(--link-color); }
+        .gen-fs-draw:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         /* The fullscreen twin of the stage heart chip: same corner,
            same state — bottom-left, beside the credit line. */
         .gen-love-fs { position: absolute; left: calc(12px + 0.55rem); bottom: calc(12px + env(safe-area-inset-bottom) + 0.55rem); z-index: 2; }
@@ -1297,6 +1333,7 @@
         <button class="gen-love gen-love-fs" id="gen-fs-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry">♡</button>
         <button class="gen-love gen-share-fs" id="gen-fs-share" type="button" aria-label="Share this entry" title="Share this entry"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
         <button class="gen-love gen-notes-fs" id="gen-fs-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
+        <button class="gen-fs-draw" id="gen-fs-draw" type="button">&#127922; New animal</button>
         <p class="gen-fs-credit" id="gen-fs-pcredit">Photo: <a id="gen-fs-credit" href="#" target="_blank" rel="noopener"></a></p>
         <p class="gen-fs-credit" id="gen-fs-qcredit" hidden>Source: <a id="gen-fs-qsource" href="#" target="_blank" rel="noopener"></a></p>
     </div>
@@ -2662,11 +2699,16 @@
         var fsCredit = document.getElementById('gen-fs-credit');
         var fsOpen = false;
         var fsSeq = 0;
+        var fsDrawBtn = document.getElementById('gen-fs-draw');
+        var fsCur = null;
+        var fsDrawWatch = null;
         function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
         function cleanupFS() {
             fsSeq++;
             overlay.hidden = true;
             fsOpen = false;
+            fsCur = null;
+            stopFsDrawWatch();
             document.body.style.overflow = '';
             fsImg.removeAttribute('src');
             fsImg.hidden = false;
@@ -2678,9 +2720,18 @@
             if (qc) { qc.hidden = true; }
         }
         function fallbackFS() { document.body.style.overflow = 'hidden'; }
+        function enterFs() {
+            var req = overlay.requestFullscreen || overlay.webkitRequestFullscreen;
+            if (req) {
+                try {
+                    var r = req.call(overlay);
+                    if (r && r.catch) { r.catch(fallbackFS); }
+                } catch (e) { fallbackFS(); }
+            } else { fallbackFS(); }
+        }
         // Quotes pool: the overlay shows the quote large instead of
         // a photo — same overlay, same love twin, same exit gestures.
-        function openQuoteFS(prefix, entry) {
+        function openQuoteFS(prefix, entry, soft) {
             ++fsSeq;
             fsImg.removeAttribute('src');
             fsImg.hidden = true;
@@ -2698,20 +2749,17 @@
             if (qc) { qc.hidden = false; }
             overlay.hidden = false;
             fsOpen = true;
-            var req = overlay.requestFullscreen || overlay.webkitRequestFullscreen;
-            if (req) {
-                try {
-                    var r = req.call(overlay);
-                    if (r && r.catch) { r.catch(fallbackFS); }
-                } catch (e) { fallbackFS(); }
-            } else { fallbackFS(); }
+            fsCur = prefix;
+            syncFsDrawLabel();
+            if (!soft) { enterFs(); }
+            return true;
         }
-        function openFS(prefix) {
+        function openFS(prefix, soft) {
             var qst = GEN[prefix];
             var qe = qst && qst.shownId ? qst.byId[qst.shownId] : null;
-            if (qe && qe.quote) { openQuoteFS(prefix, qe); return; }
+            if (qe && qe.quote) { return openQuoteFS(prefix, qe, soft); }
             var img = document.getElementById(prefix + '-img');
-            if (!img || img.hidden || !img.getAttribute('src')) { return; }
+            if (!img || img.hidden || !img.getAttribute('src')) { return false; }
             var mySeq = ++fsSeq;
             fsImg.src = img.currentSrc || img.src;
             fsImg.alt = img.alt || '';
@@ -2733,13 +2781,10 @@
             fsCredit.href = src ? src.href : '#';
             overlay.hidden = false;
             fsOpen = true;
-            var req = overlay.requestFullscreen || overlay.webkitRequestFullscreen;
-            if (req) {
-                try {
-                    var r = req.call(overlay);
-                    if (r && r.catch) { r.catch(fallbackFS); }
-                } catch (e) { fallbackFS(); }
-            } else { fallbackFS(); }
+            fsCur = prefix;
+            syncFsDrawLabel();
+            if (!soft) { enterFs(); }
+            return true;
         }
         function closeFS() {
             if (!fsOpen) { return; }
@@ -2757,6 +2802,72 @@
         document.addEventListener('keydown', function (e) {
             if (fsOpen && !fsElement() && (e.key === 'Escape' || e.key === 'Esc')) { closeFS(); }
         });
+        // DRAW INSIDE THE VIEWER (2026-11-20): the pill at the
+        // viewer's bottom-centre is the stage's own draw, carried
+        // in. Its label is copied from the visible pool's draw
+        // segment, so it always names the current selection — the
+        // pool's own label, or "🎲 New surprise" in All mode — and
+        // pressing it literally presses that segment: the draw, the
+        // deck, the session history and the first-visit pulse all
+        // behave exactly as a stage press. The viewer then re-reads
+        // the stage in place (a soft open: no fullscreen request),
+        // so the photo and credit update and fullscreen never
+        // exits; leaving the viewer shows the same entry the stage
+        // was left on. The love twin is re-pointed through its hook
+        // so it keeps loving the entry on screen.
+        function fsVisiblePrefix() {
+            var sec = document.querySelector('.gen-section:not([hidden])');
+            return sec ? sec.id.replace('gen-', '') : null;
+        }
+        function syncFsDrawLabel() {
+            if (!fsDrawBtn) { return; }
+            var p = fsVisiblePrefix() || fsCur;
+            var b = p ? document.getElementById(p + '-btn') : null;
+            if (b) { fsDrawBtn.textContent = b.textContent; }
+        }
+        function stopFsDrawWatch() {
+            if (fsDrawWatch) { clearInterval(fsDrawWatch); fsDrawWatch = null; }
+        }
+        // The stage swaps a dealt photo in only once it has decoded
+        // (until then the previous photo stays up), and an All-mode
+        // draw from a lazy pool lands later still — so the viewer
+        // refreshes only once the stage has settled on the dealt
+        // entry, and never re-reads a stale photo mid-swap. Quotes
+        // render synchronously and settle at once.
+        function fsStageSettled(np) {
+            var st = GEN[np];
+            if (!st || !st.shownId) { return false; }
+            var e = st.byId[st.shownId];
+            if (!e) { return false; }
+            if (e.quote) { return true; }
+            var img = document.getElementById(np + '-img');
+            if (!img || img.hidden) { return false; }
+            return st.shownStage === img.getAttribute('data-stage');
+        }
+        function fsRefresh() {
+            var np = fsVisiblePrefix();
+            if (!np || !fsStageSettled(np)) { return false; }
+            if (!openFS(np, true)) { return false; }
+            if (window.__rgFsSetPrefix) { window.__rgFsSetPrefix(np); }
+            return true;
+        }
+        if (fsDrawBtn) {
+            fsDrawBtn.addEventListener('click', function (e) {
+                e.stopPropagation(); // drawing must not leave fullscreen
+                if (!fsOpen || !fsCur) { return; }
+                var btn = document.getElementById(fsCur + '-btn');
+                if (!btn) { return; }
+                stopFsDrawWatch();
+                btn.click();
+                if (fsRefresh()) { return; }
+                var tries = 0;
+                fsDrawWatch = setInterval(function () {
+                    tries++;
+                    if (!fsOpen || tries > 80) { stopFsDrawWatch(); return; }
+                    if (fsRefresh()) { stopFsDrawWatch(); }
+                }, 100);
+            });
+        }
         PREFIXES.forEach(function (p) {
             var img = document.getElementById(p + '-img');
             if (!img) { return; }
@@ -2837,6 +2948,11 @@
             fsBtn.classList.toggle('loved', on);
             fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
         }
+
+        // The fullscreen draw (block 2) re-points this twin when a
+        // draw inside the viewer deals a new entry — possibly from
+        // another pool in All mode.
+        window.__rgFsSetPrefix = function (p) { fsPrefix = p; syncFsHeart(); };
 
         PREFIXES.forEach(function (p) {
             var chip = document.getElementById(p + '-love');
