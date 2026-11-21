@@ -196,6 +196,12 @@
             var pending = null; // switch requested before the widget is ready
             var frameReady = false;
 
+            function siteTheme() {
+                try {
+                    if (document.body && document.body.classList.contains('light-mode')) return 'light';
+                    return localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
+                } catch (e) { return 'dark'; }
+            }
             function getFrame() { return document.querySelector('iframe.giscus-frame'); }
             function boardConfig(board) {
                 var cat = CATEGORIES[board];
@@ -290,7 +296,7 @@
             s.setAttribute('data-mapping', 'specific');
             s.setAttribute('data-term', CATEGORIES[initial].term);
             s.setAttribute('data-strict', '1');
-            s.setAttribute('data-theme', 'preferred_color_scheme');
+            s.setAttribute('data-theme', siteTheme());
             s.setAttribute('data-reactions-enabled', '1');
             s.setAttribute('data-emit-metadata', '0');
             s.setAttribute('data-input-position', 'top');
@@ -299,6 +305,21 @@
             s.setAttribute('crossorigin', 'anonymous');
             s.async = true;
             embed.appendChild(s);
+            // Keep the widget on the site's theme when the toggle
+            // flips — the same setConfig channel the tabs use, and
+            // the same pattern as the Recipes and Random notes.
+            var lastTheme = siteTheme();
+            if ('MutationObserver' in window && document.body) {
+                new MutationObserver(function () {
+                    var t = siteTheme();
+                    if (t === lastTheme) return;
+                    lastTheme = t;
+                    var f = getFrame();
+                    if (f && f.contentWindow) {
+                        f.contentWindow.postMessage({ giscus: { setConfig: { theme: t } } }, 'https://giscus.app');
+                    }
+                }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+            }
         })();
     </script>
 

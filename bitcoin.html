@@ -194,6 +194,7 @@
         .btc-cpi-title { font-weight: 600; margin: 0 0 12px; }
         .btc-cpi-intro { line-height: 1.55; margin: 0 0 12px; font-size: 1rem; color: var(--text-color); }
         .btc-cpi-wrap { background: #0b1220; border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }
+        body.light-mode .btc-cpi-wrap { background: #F3EEDF; }
         .btc-cpi-wrap canvas { display: block; width: 100%; height: 240px; }
         .btc-cpi-src { color: var(--subtext-color); font-size: 0.8rem; line-height: 1.45; margin: 10px 0 0; }
         .btc-why-open { line-height: 1.55; margin: 0 0 16px; font-size: 1rem; color: var(--text-color); }
@@ -391,6 +392,11 @@
         .pl-value { font-size: 1.25rem; font-weight: 700; line-height: 1.3; }
         .pl-note { font-size: 0.78rem; color: var(--text-muted, #94a3b8); }
         .pl-chart-wrap { position: relative; background: #0b1220; border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }
+        /* Cream round (2026-11-20): the light stage is the cream family's
+           deeper step — the badge tone #F3EEDF — never white, never dark. */
+        body.light-mode .pl-chart-wrap { background: #F3EEDF; }
+        body.light-mode .pl-tip { background: rgba(251, 246, 234, 0.96); color: #1e293b; border-color: rgba(0, 0, 0, 0.12); }
+        body.light-mode .pl-zoom button { background: rgba(251, 246, 234, 0.92); color: #1e293b; border-color: rgba(0, 0, 0, 0.12); }
         .pl-chart-wrap canvas { display: block; width: 100%; height: 420px; touch-action: none; cursor: grab; }
         .pl-tip { position: absolute; pointer-events: none; background: rgba(2, 6, 23, 0.94); color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; font-size: 0.82rem; line-height: 1.45; white-space: nowrap; z-index: 5; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
         .pl-tip strong { color: #fbbf24; }
@@ -2482,6 +2488,29 @@
             ctx.clearRect(0, 0, w, h);
             var g = geom(w, h);
             var small = w < 520;
+
+            /* Cream round (2026-11-20): the light stage's palette.
+               Each colour is the dark stage's own hue in the value
+               the page already uses for that job in light mode —
+               axis labels take the light subtext #5F6E83, the price
+               line takes the header price's light orange #a35c06,
+               the zone colours take the indicator card's light
+               variants, rims take the stage colour itself. Dark mode
+               draws exactly the colours it drew before. */
+            var L = document.body.classList.contains('light-mode');
+            var cAxis = L ? '#5F6E83' : '#94a3b8',
+                cGridY = L ? 'rgba(71,60,40,0.20)' : 'rgba(148,163,184,0.16)',
+                cGridY2 = L ? 'rgba(71,60,40,0.09)' : 'rgba(148,163,184,0.07)',
+                cGridX = L ? 'rgba(71,60,40,0.15)' : 'rgba(148,163,184,0.12)',
+                cGridX2 = L ? 'rgba(71,60,40,0.07)' : 'rgba(148,163,184,0.06)',
+                cInk = L ? '#1e293b' : '#f1f5f9',
+                cPrice = L ? '#a35c06' : '#f7931a',
+                cBuy = L ? '#16a34a' : '#22c55e',
+                cSell = L ? '#dc2626' : '#ef4444',
+                cMid = L ? '#d97706' : '#f59e0b',
+                cRim = L ? '#F3EEDF' : '#fff',
+                cGuide = L ? 'rgba(30,41,59,0.35)' : 'rgba(226,232,240,0.35)',
+                cCorridor = L ? 'rgba(163,92,6,0.08)' : 'rgba(247,147,26,0.05)';
             ctx.font = (small ? 10 : 11) + 'px system-ui, -apple-system, sans-serif';
             ctx.textBaseline = 'middle';
             var dMin = Math.pow(10, VX0), dMax = Math.pow(10, VX1);
@@ -2492,10 +2521,10 @@
             for (var k = Math.ceil(VY0 / step - 1e-9); k * step <= VY1 + 1e-9; k++) {
                 var t = k * step, yv = Math.pow(10, t), y = g.y(yv);
                 var major = Math.abs(t - Math.round(t)) < 1e-9;
-                ctx.strokeStyle = major ? 'rgba(148,163,184,0.16)' : 'rgba(148,163,184,0.07)';
+                ctx.strokeStyle = major ? cGridY : cGridY2;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
-                ctx.fillStyle = '#94a3b8';
+                ctx.fillStyle = cAxis;
                 ctx.fillText(tickLabel(yv), g.padL - 8, y);
             }
             /* grid + x labels: years zoomed out, months zoomed in; a label is
@@ -2504,11 +2533,11 @@
             var minGap = small ? 42 : 56, lastLabelX = -1e9;
             xTicks(dMin, dMax).forEach(function (tk) {
                 var x = g.x(tk.days);
-                ctx.strokeStyle = tk.major ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.06)';
+                ctx.strokeStyle = tk.major ? cGridX : cGridX2;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
                 if (x - lastLabelX >= minGap) {
-                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillStyle = cAxis;
                     ctx.fillText(tk.label, x, h - g.padB + 14);
                     lastLabelX = x;
                 }
@@ -2524,7 +2553,7 @@
             samples(dMin, dMax, 120).forEach(function (d, i) { var px = g.x(d), py = g.y(fair(d) * HI); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
             samples(dMax, dMin, 120).forEach(function (d) { ctx.lineTo(g.x(d), g.y(fair(d) * LO)); });
             ctx.closePath();
-            ctx.fillStyle = 'rgba(247,147,26,0.05)';
+            ctx.fillStyle = cCorridor;
             ctx.fill();
 
             function bandLine(mult, color) {
@@ -2533,25 +2562,25 @@
                 samples(dMin, dMax, 240).forEach(function (d, i) { var px = g.x(d), py = g.y(fair(d) * mult); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
                 ctx.stroke(); ctx.setLineDash([]);
             }
-            bandLine(HI, '#ef4444');   /* ceiling */
-            bandLine(LO, '#22c55e');   /* support */
+            bandLine(HI, cSell);   /* ceiling */
+            bandLine(LO, cBuy);   /* support */
 
             /* trend: solid to today, dashed projection after */
             if (dMax > dMin && SPOT.days > dMin) {
-                ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 2;
+                ctx.strokeStyle = cInk; ctx.lineWidth = 2;
                 ctx.beginPath();
                 samples(dMin, Math.min(dMax, SPOT.days), 240).forEach(function (d, i) { var px = g.x(d), py = g.y(fair(d)); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
                 ctx.stroke();
             }
             if (dMax > SPOT.days) {
-                ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+                ctx.strokeStyle = cInk; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
                 ctx.beginPath();
                 samples(Math.max(dMin, SPOT.days), dMax, 240).forEach(function (d, i) { var px = g.x(d), py = g.y(fair(d)); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
                 ctx.stroke(); ctx.setLineDash([]);
             }
 
             /* actual price */
-            ctx.strokeStyle = '#f7931a'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+            ctx.strokeStyle = cPrice; ctx.lineWidth = 2; ctx.lineJoin = 'round';
             ctx.beginPath();
             for (var i = 0; i < PTS.length; i++) {
                 var pd = PTS[i][0], px2 = g.x(pd), py2 = g.y(PTS[i][1]);
@@ -2566,7 +2595,7 @@
                indicator card's dot for this model uses */
             function zoneColor(price, d) {
                 var p = (Math.log10(price) - Math.log10(fair(d) * LO)) / (Math.log10(fair(d) * HI) - Math.log10(fair(d) * LO)) * 100;
-                return p <= 5 ? '#22c55e' : p <= 50 ? '#f59e0b' : '#ef4444';
+                return p <= 5 ? cBuy : p <= 50 ? cMid : cSell;
             }
             /* the overlay's dots (2026-11-20): Johnny's ₿ Indicator's
                band days — a green dot on every day the combined score
@@ -2593,9 +2622,9 @@
                 for (var bi = 0; bi < bd.length; bi++) {
                     var bp = bandPos(bd[bi].day);
                     if (!bp) continue;
-                    ctx.fillStyle = bd[bi].band === 'buy' ? '#22c55e' : '#ef4444';
+                    ctx.fillStyle = bd[bi].band === 'buy' ? cBuy : cSell;
                     ctx.beginPath(); ctx.arc(bp[0], bp[1], 3.5, 0, Math.PI * 2); ctx.fill();
-                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                    ctx.strokeStyle = cRim; ctx.lineWidth = 1.5;
                     ctx.beginPath(); ctx.arc(bp[0], bp[1], 3.5, 0, Math.PI * 2); ctx.stroke();
                 }
             }
@@ -2609,18 +2638,18 @@
                marker is the band's own dot, enlarged */
             if (hover >= 0 && hover < PTS.length) {
                 var hd = PTS[hover][0], hx = g.x(hd), hy = g.y(PTS[hover][1]);
-                ctx.strokeStyle = 'rgba(226,232,240,0.35)'; ctx.lineWidth = 1;
+                ctx.strokeStyle = cGuide; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(hx, g.padT); ctx.lineTo(hx, g.padT + g.ih); ctx.stroke();
                 var hb = window.BTC_OVERLAY !== false && window.BTC_BANDS ? window.BTC_BANDS.bandOf(hd) : null;
                 if (hb) {
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = cRim;
                     ctx.beginPath(); ctx.arc(hx, hy, 6.5, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = hb.band === 'buy' ? '#22c55e' : '#ef4444';
+                    ctx.fillStyle = hb.band === 'buy' ? cBuy : cSell;
                     ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill();
                 } else {
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = cRim;
                     ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(PTS[hover][1], hd) : '#f7931a';
+                    ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(PTS[hover][1], hd) : cPrice;
                     ctx.beginPath(); ctx.arc(hx, hy, 2.5, 0, Math.PI * 2); ctx.fill();
                 }
             }
@@ -2630,16 +2659,16 @@
                chart keeps its original form, the price line's own
                color */
             var tx = g.x(SPOT.days), ty = g.y(SPOT.price);
-            ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(SPOT.price, SPOT.days) : '#f7931a';
+            ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(SPOT.price, SPOT.days) : cPrice;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.strokeStyle = cRim; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
 
             ctx.restore();
 
             /* today label, only while the point itself is in view */
             if (tx >= g.padL && tx <= w - g.padR && ty >= g.padT && ty <= h - g.padB) {
-                ctx.fillStyle = '#f1f5f9';
+                ctx.fillStyle = cInk;
                 ctx.textAlign = tx > w - 170 ? 'right' : 'left';
                 ctx.fillText('Today ' + money(SPOT.price), tx > w - 170 ? tx - 12 : tx + 12, ty - 14);
             }
@@ -2683,11 +2712,11 @@
                 aDays = SPOT.days; aPrice = SPOT.price;
             } else if (days < START_DAY) {
                 html = '<strong>' + dateStr(days) + '</strong><br>Typical price ' + money(Math.round(f)) +
-                    '<br><span style="color:#94a3b8">before the price record</span>';
+                    '<br><span style="color:' + (document.body.classList.contains('light-mode') ? '#5F6E83' : '#94a3b8') + '">before the price record</span>';
                 aDays = days; aPrice = f;
             } else if (days > LAST_DAY) {
                 html = '<strong>' + dateStr(days) + '</strong><br>Typical price ' + money(Math.round(f)) +
-                    '<br><span style="color:#94a3b8">model projection — no price yet</span>';
+                    '<br><span style="color:' + (document.body.classList.contains('light-mode') ? '#5F6E83' : '#94a3b8') + '">model projection — no price yet</span>';
                 aDays = days; aPrice = f;
             } else {
                 var idx = 0, best = Infinity;
@@ -2873,6 +2902,18 @@
         /* repaint when the band-day record refreshes (the nightly
            series landing, or the current day joining a band) */
         if (window.BTC_BANDS) window.BTC_BANDS.onChange(function () { draw(); });
+        /* Cream round (2026-11-20): the stage restyles with the
+           theme (CSS); on a flip the canvas repaints in the new
+           palette — the scoreboard's own pattern on finance.html. */
+        if (window.MutationObserver && document.body) {
+            var wasLight = document.body.classList.contains('light-mode');
+            new MutationObserver(function () {
+                var nowLight = document.body.classList.contains('light-mode');
+                if (nowLight === wasLight) return;
+                wasLight = nowLight;
+                draw();
+            }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
 
         var zin = document.getElementById('pl-zin');
         var zout = document.getElementById('pl-zout');
@@ -3174,6 +3215,29 @@
             ctx.clearRect(0, 0, w, h);
             var g = geom(w, h);
             var small = w < 520;
+
+            /* Cream round (2026-11-20): the light stage's palette.
+               Each colour is the dark stage's own hue in the value
+               the page already uses for that job in light mode —
+               axis labels take the light subtext #5F6E83, the price
+               line takes the header price's light orange #a35c06,
+               the zone colours take the indicator card's light
+               variants, rims take the stage colour itself. Dark mode
+               draws exactly the colours it drew before. */
+            var L = document.body.classList.contains('light-mode');
+            var cAxis = L ? '#5F6E83' : '#94a3b8',
+                cGridY = L ? 'rgba(71,60,40,0.20)' : 'rgba(148,163,184,0.16)',
+                cGridY2 = L ? 'rgba(71,60,40,0.09)' : 'rgba(148,163,184,0.07)',
+                cGridX = L ? 'rgba(71,60,40,0.15)' : 'rgba(148,163,184,0.12)',
+                cGridX2 = L ? 'rgba(71,60,40,0.07)' : 'rgba(148,163,184,0.06)',
+                cInk = L ? '#1e293b' : '#f1f5f9',
+                cPrice = L ? '#a35c06' : '#f7931a',
+                cBuy = L ? '#16a34a' : '#22c55e',
+                cSell = L ? '#dc2626' : '#ef4444',
+                cMid = L ? '#d97706' : '#f59e0b',
+                cRim = L ? '#F3EEDF' : '#fff',
+                cGuide = L ? 'rgba(30,41,59,0.35)' : 'rgba(226,232,240,0.35)',
+                cZone = L ? 'rgba(220,38,38,0.50)' : 'rgba(239,68,68,0.45)';
             ctx.font = (small ? 10 : 11) + 'px system-ui, -apple-system, sans-serif';
             ctx.textBaseline = 'middle';
 
@@ -3183,10 +3247,10 @@
             for (var k = Math.ceil(VY0 / step - 1e-9); k * step <= VY1 + 1e-9; k++) {
                 var t = k * step, yv = Math.pow(10, t), y = g.y(yv);
                 var major = Math.abs(t - Math.round(t)) < 1e-9;
-                ctx.strokeStyle = major ? 'rgba(148,163,184,0.16)' : 'rgba(148,163,184,0.07)';
+                ctx.strokeStyle = major ? cGridY : cGridY2;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
-                ctx.fillStyle = '#94a3b8';
+                ctx.fillStyle = cAxis;
                 ctx.fillText(tickLabel(yv), g.padL - 8, y);
             }
             /* grid + x labels: years zoomed out, months zoomed in */
@@ -3194,11 +3258,11 @@
             var minGap = small ? 42 : 56, lastLabelX = -1e9;
             xTicks(VX0, VX1).forEach(function (tk) {
                 var x = g.x(tk.days);
-                ctx.strokeStyle = tk.major ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.06)';
+                ctx.strokeStyle = tk.major ? cGridX : cGridX2;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
                 if (x - lastLabelX >= minGap) {
-                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillStyle = cAxis;
                     ctx.fillText(tk.label, x, h - g.padB + 14);
                     lastLabelX = x;
                 }
@@ -3220,14 +3284,14 @@
             /* zone lines: 10 / 20 / 30 percent below the cost —
                the overlay's lines; the cost line itself stays */
             if (window.BTC_OVERLAY !== false) {
-                seriesLine(CTS, 0.9, 'rgba(239,68,68,0.45)', 1, [5, 4]);
-                seriesLine(CTS, 0.8, 'rgba(239,68,68,0.45)', 1, [5, 4]);
-                seriesLine(CTS, 0.7, 'rgba(239,68,68,0.45)', 1, [5, 4]);
+                seriesLine(CTS, 0.9, cZone, 1, [5, 4]);
+                seriesLine(CTS, 0.8, cZone, 1, [5, 4]);
+                seriesLine(CTS, 0.7, cZone, 1, [5, 4]);
             }
             /* the production-cost floor */
-            seriesLine(CTS, 1, '#22c55e', 2);
+            seriesLine(CTS, 1, cBuy, 2);
             /* actual price */
-            seriesLine(PTS, 1, '#f7931a', 2);
+            seriesLine(PTS, 1, cPrice, 2);
 
             /* every dot on this chart takes the color of the zone
                its own value sits in (2026-11-19): green in the buy
@@ -3238,7 +3302,7 @@
                card's dot for this model uses */
             function zoneColor(price, cost) {
                 var p = (price / cost - 1) / (PEAK_RATIO - 1) * 100;
-                return p <= 5 ? '#22c55e' : p <= 50 ? '#f59e0b' : '#ef4444';
+                return p <= 5 ? cBuy : p <= 50 ? cMid : cSell;
             }
             /* the overlay's dots (2026-11-20): Johnny's ₿ Indicator's
                band days — a green dot on every day the combined score
@@ -3265,9 +3329,9 @@
                 for (var bi = 0; bi < bd.length; bi++) {
                     var bp = bandPos(bd[bi].day);
                     if (!bp) continue;
-                    ctx.fillStyle = bd[bi].band === 'buy' ? '#22c55e' : '#ef4444';
+                    ctx.fillStyle = bd[bi].band === 'buy' ? cBuy : cSell;
                     ctx.beginPath(); ctx.arc(bp[0], bp[1], 3.5, 0, Math.PI * 2); ctx.fill();
-                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                    ctx.strokeStyle = cRim; ctx.lineWidth = 1.5;
                     ctx.beginPath(); ctx.arc(bp[0], bp[1], 3.5, 0, Math.PI * 2); ctx.stroke();
                 }
             }
@@ -3281,18 +3345,18 @@
                marker is the band's own dot, enlarged */
             if (hover >= 0 && hover < PTS.length) {
                 var hd = PTS[hover][0], hx = g.x(hd), hy = g.y(PTS[hover][1]);
-                ctx.strokeStyle = 'rgba(226,232,240,0.35)'; ctx.lineWidth = 1;
+                ctx.strokeStyle = cGuide; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(hx, g.padT); ctx.lineTo(hx, g.padT + g.ih); ctx.stroke();
                 var hb = window.BTC_OVERLAY !== false && window.BTC_BANDS ? window.BTC_BANDS.bandOf(hd) : null;
                 if (hb) {
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = cRim;
                     ctx.beginPath(); ctx.arc(hx, hy, 6.5, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = hb.band === 'buy' ? '#22c55e' : '#ef4444';
+                    ctx.fillStyle = hb.band === 'buy' ? cBuy : cSell;
                     ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill();
                 } else {
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = cRim;
                     ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = window.BTC_OVERLAY !== false && CTS[hover] ? zoneColor(PTS[hover][1], CTS[hover][1]) : '#f7931a';
+                    ctx.fillStyle = window.BTC_OVERLAY !== false && CTS[hover] ? zoneColor(PTS[hover][1], CTS[hover][1]) : cPrice;
                     ctx.beginPath(); ctx.arc(hx, hy, 2.5, 0, Math.PI * 2); ctx.fill();
                 }
             }
@@ -3302,15 +3366,15 @@
                chart keeps its original form, the price line's own
                color */
             var tx = g.x(SPOT.days), ty = g.y(SPOT.price);
-            ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(SPOT.price, todayCost()) : '#f7931a';
+            ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(SPOT.price, todayCost()) : cPrice;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.strokeStyle = cRim; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             ctx.restore();
 
             /* today label, only while the point itself is in view */
             if (tx >= g.padL && tx <= w - g.padR && ty >= g.padT && ty <= h - g.padB) {
-                ctx.fillStyle = '#f1f5f9';
+                ctx.fillStyle = cInk;
                 ctx.textAlign = tx > w - 170 ? 'right' : 'left';
                 ctx.fillText('Today ' + money(SPOT.price), tx > w - 170 ? tx - 12 : tx + 12, ty - 14);
             }
@@ -3526,6 +3590,18 @@
         /* repaint when the band-day record refreshes (the nightly
            series landing, or the current day joining a band) */
         if (window.BTC_BANDS) window.BTC_BANDS.onChange(function () { draw(); });
+        /* Cream round (2026-11-20): the stage restyles with the
+           theme (CSS); on a flip the canvas repaints in the new
+           palette — the scoreboard's own pattern on finance.html. */
+        if (window.MutationObserver && document.body) {
+            var wasLight = document.body.classList.contains('light-mode');
+            new MutationObserver(function () {
+                var nowLight = document.body.classList.contains('light-mode');
+                if (nowLight === wasLight) return;
+                wasLight = nowLight;
+                draw();
+            }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
 
         var zin = document.getElementById('pc-zin');
         var zout = document.getElementById('pc-zout');
@@ -3775,6 +3851,33 @@
             ctx.clearRect(0, 0, w, h);
             var g = geom(w, h);
             var small = w < 520;
+
+            /* Cream round (2026-11-20): the light stage's palette.
+               Each colour is the dark stage's own hue in the value
+               the page already uses for that job in light mode —
+               axis labels take the light subtext #5F6E83, the price
+               line takes the header price's light orange #a35c06,
+               the zone colours take the indicator card's light
+               variants, rims take the stage colour itself. Dark mode
+               draws exactly the colours it drew before. */
+            var L = document.body.classList.contains('light-mode');
+            var cAxis = L ? '#5F6E83' : '#94a3b8',
+                cGridY = L ? 'rgba(71,60,40,0.20)' : 'rgba(148,163,184,0.16)',
+                cGridY2 = L ? 'rgba(71,60,40,0.09)' : 'rgba(148,163,184,0.07)',
+                cGridX = L ? 'rgba(71,60,40,0.15)' : 'rgba(148,163,184,0.12)',
+                cGridX2 = L ? 'rgba(71,60,40,0.07)' : 'rgba(148,163,184,0.06)',
+                cInk = L ? '#1e293b' : '#f1f5f9',
+                cPrice = L ? '#a35c06' : '#f7931a',
+                cBuy = L ? '#16a34a' : '#22c55e',
+                cSell = L ? '#dc2626' : '#ef4444',
+                cMid = L ? '#d97706' : '#f59e0b',
+                cRim = L ? '#F3EEDF' : '#fff',
+                cGuide = L ? 'rgba(30,41,59,0.35)' : 'rgba(226,232,240,0.35)',
+                cAccent = L ? '#0284c7' : '#38bdf8',
+                cSellFill = L ? 'rgba(220,38,38,0.10)' : 'rgba(239,68,68,0.08)',
+                cBuyFill = L ? 'rgba(22,163,74,0.10)' : 'rgba(34,197,94,0.08)',
+                cSellRef = L ? 'rgba(220,38,38,0.80)' : 'rgba(239,68,68,0.75)',
+                cBuyRef = L ? 'rgba(22,163,74,0.80)' : 'rgba(34,197,94,0.75)';
             ctx.font = (small ? 10 : 11) + 'px system-ui, -apple-system, sans-serif';
             ctx.textBaseline = 'middle';
 
@@ -3784,10 +3887,10 @@
             for (var k = 0; k * step <= VY1 + 1e-9; k++) {
                 var t = k * step, y = g.y(t);
                 var major = Math.abs(t - Math.round(t)) < 1e-9;
-                ctx.strokeStyle = major ? 'rgba(148,163,184,0.16)' : 'rgba(148,163,184,0.07)';
+                ctx.strokeStyle = major ? cGridY : cGridY2;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
-                ctx.fillStyle = '#94a3b8';
+                ctx.fillStyle = cAxis;
                 ctx.fillText(trimNum(t), g.padL - 8, y);
             }
             /* grid + x labels: years zoomed out, months zoomed in */
@@ -3795,11 +3898,11 @@
             var minGap = small ? 42 : 56, lastLabelX = -1e9;
             xTicks(VX0, VX1).forEach(function (tk) {
                 var x = g.x(tk.days);
-                ctx.strokeStyle = tk.major ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.06)';
+                ctx.strokeStyle = tk.major ? cGridX : cGridX2;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
                 if (x - lastLabelX >= minGap) {
-                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillStyle = cAxis;
                     ctx.fillText(tk.label, x, h - g.padB + 14);
                     lastLabelX = x;
                 }
@@ -3813,11 +3916,11 @@
                shaded — the overlay's shading; the dashed reference
                lines below are the gauge's own and stay */
             if (window.BTC_OVERLAY !== false && VY1 > 2.4) {
-                ctx.fillStyle = 'rgba(239,68,68,0.08)';
+                ctx.fillStyle = cSellFill;
                 ctx.fillRect(g.padL, g.padT, g.iw, g.y(2.4) - g.padT);
             }
             if (window.BTC_OVERLAY !== false && VY0 < 1) {
-                ctx.fillStyle = 'rgba(34,197,94,0.08)';
+                ctx.fillStyle = cBuyFill;
                 ctx.fillRect(g.padL, g.y(1), g.iw, g.padT + g.ih - g.y(1));
             }
             /* dashed reference lines at 2.4 and 1.0, labelled at the right edge */
@@ -3831,11 +3934,11 @@
                 ctx.textAlign = 'right';
                 ctx.fillText(label, w - g.padR - 4, y - 8);
             }
-            refLine(2.4, 'rgba(239,68,68,0.75)', '2.4');
-            refLine(1, 'rgba(34,197,94,0.75)', '1.0');
+            refLine(2.4, cSellRef, '2.4');
+            refLine(1, cBuyRef, '1.0');
 
             /* the multiple itself */
-            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2; ctx.setLineDash([]);
+            ctx.strokeStyle = cAccent; ctx.lineWidth = 2; ctx.setLineDash([]);
             ctx.beginPath();
             for (var i = 0; i < PTS.length; i++) {
                 var px = g.x(PTS[i][0]), py = g.y(PTS[i][1]);
@@ -3847,7 +3950,7 @@
                multiple of 1.0 or lower (the buy zone), red at 2.4
                or higher (the sell zone), amber between — the same
                bands the indicator card's dot for this model uses */
-            function zoneColor(v) { return v <= 1 ? '#22c55e' : v >= 2.4 ? '#ef4444' : '#f59e0b'; }
+            function zoneColor(v) { return v <= 1 ? cBuy : v >= 2.4 ? cSell : cMid; }
             /* the overlay's dots (2026-11-20): Johnny's ₿ Indicator's
                band days — a green dot on every day the combined score
                closed in its buy band (7.79 or lower), a red dot on
@@ -3873,9 +3976,9 @@
                 for (var bi = 0; bi < bd.length; bi++) {
                     var bp = bandPos(bd[bi].day);
                     if (!bp) continue;
-                    ctx.fillStyle = bd[bi].band === 'buy' ? '#22c55e' : '#ef4444';
+                    ctx.fillStyle = bd[bi].band === 'buy' ? cBuy : cSell;
                     ctx.beginPath(); ctx.arc(bp[0], bp[1], 3.5, 0, Math.PI * 2); ctx.fill();
-                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                    ctx.strokeStyle = cRim; ctx.lineWidth = 1.5;
                     ctx.beginPath(); ctx.arc(bp[0], bp[1], 3.5, 0, Math.PI * 2); ctx.stroke();
                 }
             }
@@ -3889,18 +3992,18 @@
                marker is the band's own dot, enlarged */
             if (hover >= 0 && hover < PTS.length) {
                 var hd = PTS[hover][0], hx = g.x(hd), hy = g.y(PTS[hover][1]);
-                ctx.strokeStyle = 'rgba(226,232,240,0.35)'; ctx.lineWidth = 1;
+                ctx.strokeStyle = cGuide; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(hx, g.padT); ctx.lineTo(hx, g.padT + g.ih); ctx.stroke();
                 var hb = window.BTC_OVERLAY !== false && window.BTC_BANDS ? window.BTC_BANDS.bandOf(hd) : null;
                 if (hb) {
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = cRim;
                     ctx.beginPath(); ctx.arc(hx, hy, 6.5, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = hb.band === 'buy' ? '#22c55e' : '#ef4444';
+                    ctx.fillStyle = hb.band === 'buy' ? cBuy : cSell;
                     ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill();
                 } else {
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = cRim;
                     ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(PTS[hover][1]) : '#38bdf8';
+                    ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(PTS[hover][1]) : cAccent;
                     ctx.beginPath(); ctx.arc(hx, hy, 2.5, 0, Math.PI * 2); ctx.fill();
                 }
             }
@@ -3911,9 +4014,9 @@
                own color */
             var last = PTS[PTS.length - 1];
             var tx = g.x(last[0]), ty = g.y(last[1]);
-            ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(last[1]) : '#38bdf8';
+            ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(last[1]) : cAccent;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.strokeStyle = cRim; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             ctx.restore();
         }
@@ -4126,6 +4229,18 @@
         /* repaint when the band-day record refreshes (the nightly
            series landing, or the current day joining a band) */
         if (window.BTC_BANDS) window.BTC_BANDS.onChange(function () { draw(); });
+        /* Cream round (2026-11-20): the stage restyles with the
+           theme (CSS); on a flip the canvas repaints in the new
+           palette — the scoreboard's own pattern on finance.html. */
+        if (window.MutationObserver && document.body) {
+            var wasLight = document.body.classList.contains('light-mode');
+            new MutationObserver(function () {
+                var nowLight = document.body.classList.contains('light-mode');
+                if (nowLight === wasLight) return;
+                wasLight = nowLight;
+                draw();
+            }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
 
         var zin = document.getElementById('mm-zin');
         var zout = document.getElementById('mm-zout');
@@ -4393,6 +4508,32 @@
             ctx.clearRect(0, 0, w, h);
             var g = geom(w, h);
             var small = w < 520;
+
+            /* Cream round (2026-11-20): the light stage's palette.
+               Each colour is the dark stage's own hue in the value
+               the page already uses for that job in light mode —
+               axis labels take the light subtext #5F6E83, the price
+               line takes the header price's light orange #a35c06,
+               the zone colours take the indicator card's light
+               variants, rims take the stage colour itself. Dark mode
+               draws exactly the colours it drew before. */
+            var L = document.body.classList.contains('light-mode');
+            var cAxis = L ? '#5F6E83' : '#94a3b8',
+                cGridY = L ? 'rgba(71,60,40,0.20)' : 'rgba(148,163,184,0.16)',
+                cGridY2 = L ? 'rgba(71,60,40,0.09)' : 'rgba(148,163,184,0.07)',
+                cGridX = L ? 'rgba(71,60,40,0.15)' : 'rgba(148,163,184,0.12)',
+                cGridX2 = L ? 'rgba(71,60,40,0.07)' : 'rgba(148,163,184,0.06)',
+                cInk = L ? '#1e293b' : '#f1f5f9',
+                cPrice = L ? '#a35c06' : '#f7931a',
+                cBuy = L ? '#16a34a' : '#22c55e',
+                cSell = L ? '#dc2626' : '#ef4444',
+                cMid = L ? '#d97706' : '#f59e0b',
+                cRim = L ? '#F3EEDF' : '#fff',
+                cGuide = L ? 'rgba(30,41,59,0.35)' : 'rgba(226,232,240,0.35)',
+                cAccent = L ? '#7c3aed' : '#a78bfa',
+                cSellFill = L ? 'rgba(220,38,38,0.10)' : 'rgba(239,68,68,0.08)',
+                cSellRef = L ? 'rgba(220,38,38,0.80)' : 'rgba(239,68,68,0.75)',
+                cZeroRef = L ? 'rgba(71,60,40,0.55)' : 'rgba(148,163,184,0.6)';
             ctx.font = (small ? 10 : 11) + 'px system-ui, -apple-system, sans-serif';
             ctx.textBaseline = 'middle';
 
@@ -4403,10 +4544,10 @@
             for (var k = k0; k * step <= VY1 + 1e-9; k++) {
                 var t = k * step, y = g.y(t);
                 var major = Math.abs(t - Math.round(t)) < 1e-9;
-                ctx.strokeStyle = major ? 'rgba(148,163,184,0.16)' : 'rgba(148,163,184,0.07)';
+                ctx.strokeStyle = major ? cGridY : cGridY2;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
-                ctx.fillStyle = '#94a3b8';
+                ctx.fillStyle = cAxis;
                 ctx.fillText(trimNum(t), g.padL - 8, y);
             }
             /* grid + x labels: years zoomed out, months zoomed in */
@@ -4414,11 +4555,11 @@
             var minGap = small ? 42 : 56, lastLabelX = -1e9;
             xTicks(VX0, VX1).forEach(function (tk) {
                 var x = g.x(tk.days);
-                ctx.strokeStyle = tk.major ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.06)';
+                ctx.strokeStyle = tk.major ? cGridX : cGridX2;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
                 if (x - lastLabelX >= minGap) {
-                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillStyle = cAxis;
                     ctx.fillText(tk.label, x, h - g.padB + 14);
                     lastLabelX = x;
                 }
@@ -4433,7 +4574,7 @@
                cap — so no fixed line on this Z axis can shade it; the
                green markers below carry it, point by point. */
             if (window.BTC_OVERLAY !== false && VY1 > 7) {
-                ctx.fillStyle = 'rgba(239,68,68,0.08)';
+                ctx.fillStyle = cSellFill;
                 ctx.fillRect(g.padL, g.padT, g.iw, g.y(7) - g.padT);
             }
             /* dashed reference lines at 7 and 0, labelled at the right edge */
@@ -4447,11 +4588,11 @@
                 ctx.textAlign = 'right';
                 ctx.fillText(label, w - g.padR - 4, y - 8);
             }
-            refLine(7, 'rgba(239,68,68,0.75)', '7');
-            refLine(0, 'rgba(148,163,184,0.6)', '0');
+            refLine(7, cSellRef, '7');
+            refLine(0, cZeroRef, '0');
 
             /* the Z-Score itself */
-            ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = 2; ctx.setLineDash([]);
+            ctx.strokeStyle = cAccent; ctx.lineWidth = 2; ctx.setLineDash([]);
             ctx.beginPath();
             for (var i = 0; i < PTS.length; i++) {
                 var px = g.x(PTS[i][0]), py = g.y(PTS[i][1]);
@@ -4464,7 +4605,7 @@
                zone), red at a Z-Score of 7 or higher (the sell
                zone), amber between — the same bands the indicator
                card's dot for this model uses */
-            function zoneColor(z, ratio) { return ratio <= 1.15 ? '#22c55e' : z >= 7 ? '#ef4444' : '#f59e0b'; }
+            function zoneColor(z, ratio) { return ratio <= 1.15 ? cBuy : z >= 7 ? cSell : cMid; }
             /* the overlay's dots (2026-11-20): Johnny's ₿ Indicator's
                band days — a green dot on every day the combined score
                closed in its buy band (7.79 or lower), a red dot on
@@ -4490,9 +4631,9 @@
                 for (var bi = 0; bi < bd.length; bi++) {
                     var bp = bandPos(bd[bi].day);
                     if (!bp) continue;
-                    ctx.fillStyle = bd[bi].band === 'buy' ? '#22c55e' : '#ef4444';
+                    ctx.fillStyle = bd[bi].band === 'buy' ? cBuy : cSell;
                     ctx.beginPath(); ctx.arc(bp[0], bp[1], 3.5, 0, Math.PI * 2); ctx.fill();
-                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                    ctx.strokeStyle = cRim; ctx.lineWidth = 1.5;
                     ctx.beginPath(); ctx.arc(bp[0], bp[1], 3.5, 0, Math.PI * 2); ctx.stroke();
                 }
             }
@@ -4506,18 +4647,18 @@
                marker is the band's own dot, enlarged */
             if (hover >= 0 && hover < PTS.length) {
                 var hd = PTS[hover][0], hx = g.x(hd), hy = g.y(PTS[hover][1]);
-                ctx.strokeStyle = 'rgba(226,232,240,0.35)'; ctx.lineWidth = 1;
+                ctx.strokeStyle = cGuide; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(hx, g.padT); ctx.lineTo(hx, g.padT + g.ih); ctx.stroke();
                 var hb = window.BTC_OVERLAY !== false && window.BTC_BANDS ? window.BTC_BANDS.bandOf(hd) : null;
                 if (hb) {
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = cRim;
                     ctx.beginPath(); ctx.arc(hx, hy, 6.5, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = hb.band === 'buy' ? '#22c55e' : '#ef4444';
+                    ctx.fillStyle = hb.band === 'buy' ? cBuy : cSell;
                     ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill();
                 } else {
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = cRim;
                     ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(PTS[hover][1], PTS[hover][2] / PTS[hover][3]) : '#a78bfa';
+                    ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(PTS[hover][1], PTS[hover][2] / PTS[hover][3]) : cAccent;
                     ctx.beginPath(); ctx.arc(hx, hy, 2.5, 0, Math.PI * 2); ctx.fill();
                 }
             }
@@ -4528,9 +4669,9 @@
                own color */
             var last = PTS[PTS.length - 1];
             var tx = g.x(last[0]), ty = g.y(last[1]);
-            ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(last[1], last[2] / last[3]) : '#a78bfa';
+            ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(last[1], last[2] / last[3]) : cAccent;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.strokeStyle = cRim; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
             ctx.restore();
         }
@@ -4743,6 +4884,18 @@
         /* repaint when the band-day record refreshes (the nightly
            series landing, or the current day joining a band) */
         if (window.BTC_BANDS) window.BTC_BANDS.onChange(function () { draw(); });
+        /* Cream round (2026-11-20): the stage restyles with the
+           theme (CSS); on a flip the canvas repaints in the new
+           palette — the scoreboard's own pattern on finance.html. */
+        if (window.MutationObserver && document.body) {
+            var wasLight = document.body.classList.contains('light-mode');
+            new MutationObserver(function () {
+                var nowLight = document.body.classList.contains('light-mode');
+                if (nowLight === wasLight) return;
+                wasLight = nowLight;
+                draw();
+            }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
 
         var zin = document.getElementById('mv-zin');
         var zout = document.getElementById('mv-zout');
@@ -4872,11 +5025,23 @@
             ctx.clearRect(0, 0, w, h);
             var g = geom(w, h);
             var small = w < 520;
+
+            /* Cream round (2026-11-20): the light stage's palette —
+               the same deepened values the four model charts use;
+               dark mode draws exactly as before. */
+            var L = document.body.classList.contains('light-mode');
+            var cAxis = L ? '#5F6E83' : '#94a3b8',
+                cGrid0 = L ? 'rgba(71,60,40,0.35)' : 'rgba(148,163,184,0.30)',
+                cGrid = L ? 'rgba(71,60,40,0.16)' : 'rgba(148,163,184,0.14)',
+                cGridX = L ? 'rgba(71,60,40,0.14)' : 'rgba(148,163,184,0.12)',
+                cInk = L ? '#1e293b' : '#e2e8f0',
+                cSky = L ? '#0284c7' : '#38bdf8',
+                cBuy = L ? '#16a34a' : '#22c55e';
             ctx.font = '13px system-ui, -apple-system, sans-serif';
             ctx.textBaseline = 'middle';
             /* axis title: both lines are an index, 1947 = 100 */
             ctx.textAlign = 'left';
-            ctx.fillStyle = '#94a3b8';
+            ctx.fillStyle = cAxis;
             ctx.font = '12px system-ui, -apple-system, sans-serif';
             ctx.fillText('Index \u2014 1947 = 100', g.padL, 15);
             ctx.font = '13px system-ui, -apple-system, sans-serif';
@@ -4884,20 +5049,20 @@
             ctx.textAlign = 'right';
             for (var t = 0; t <= 500; t += 100) {
                 var y = g.y(t);
-                ctx.strokeStyle = t === 0 ? 'rgba(148,163,184,0.30)' : 'rgba(148,163,184,0.14)';
+                ctx.strokeStyle = t === 0 ? cGrid0 : cGrid;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
-                ctx.fillStyle = '#94a3b8';
+                ctx.fillStyle = cAxis;
                 ctx.fillText(String(t), g.padL - 8, y);
             }
             /* grid + x labels: a year every 20 years */
             ctx.textAlign = 'center';
             [1960, 1980, 2000, 2020].forEach(function (yr) {
                 var x = g.x(yr);
-                ctx.strokeStyle = 'rgba(148,163,184,0.12)';
+                ctx.strokeStyle = cGridX;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
-                ctx.fillStyle = '#94a3b8';
+                ctx.fillStyle = cAxis;
                 ctx.fillText(String(yr), x, h - g.padB + 13);
             });
             /* plot content, clipped to the plot box */
@@ -4915,23 +5080,23 @@
             /* buying power in its sky blue, productivity in green:
                both of the old cards drew in sky blue, so the rising
                line takes the page's green to tell the two apart */
-            line(BUY, '#38bdf8');
-            line(PROD, '#22c55e');
+            line(BUY, cSky);
+            line(PROD, cBuy);
             /* the shared start: both lines leave 1947 at 100 */
             var sx = g.x(1947), sy = g.y(100);
-            ctx.fillStyle = '#e2e8f0';
+            ctx.fillStyle = cInk;
             ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fill();
             /* the two ends labelled with what each line reached */
             var px2 = g.x(2025), py2 = g.y(PROD[PROD.length - 1][1]);
-            ctx.fillStyle = '#22c55e';
+            ctx.fillStyle = cBuy;
             ctx.beginPath(); ctx.arc(px2, py2, 3, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#e2e8f0';
+            ctx.fillStyle = cInk;
             ctx.textAlign = 'right';
             ctx.fillText('an hour of work: \u00d75.3', px2 - 8, py2);
             var bx = g.x(2025), by = g.y(BUY[BUY.length - 1][1]);
-            ctx.fillStyle = '#38bdf8';
+            ctx.fillStyle = cSky;
             ctx.beginPath(); ctx.arc(bx, by, 3, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#e2e8f0';
+            ctx.fillStyle = cInk;
             ctx.textAlign = 'right';
             ctx.fillText('$1 buys: 7\u00a2', bx - 6, by - 11);
             ctx.restore();
@@ -4939,6 +5104,18 @@
         draw();
         var rt;
         window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(draw, 120); });
+        /* Cream round (2026-11-20): the stage restyles with the
+           theme (CSS); on a flip the canvas repaints in the new
+           palette — the scoreboard's own pattern on finance.html. */
+        if (window.MutationObserver && document.body) {
+            var wasLight = document.body.classList.contains('light-mode');
+            new MutationObserver(function () {
+                var nowLight = document.body.classList.contains('light-mode');
+                if (nowLight === wasLight) return;
+                wasLight = nowLight;
+                draw();
+            }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
     })();
     </script>
 
@@ -5066,11 +5243,23 @@
             ctx.clearRect(0, 0, w, h);
             var g = geom(w, h);
             var small = w < 520;
+
+            /* Cream round (2026-11-20): the light stage's palette —
+               the same deepened values the four model charts use;
+               dark mode draws exactly as before. */
+            var L = document.body.classList.contains('light-mode');
+            var cAxis = L ? '#5F6E83' : '#94a3b8',
+                cGrid0 = L ? 'rgba(71,60,40,0.35)' : 'rgba(148,163,184,0.30)',
+                cGrid = L ? 'rgba(71,60,40,0.16)' : 'rgba(148,163,184,0.14)',
+                cGridX = L ? 'rgba(71,60,40,0.14)' : 'rgba(148,163,184,0.12)',
+                cInk = L ? '#1e293b' : '#e2e8f0',
+                cSky = L ? '#0284c7' : '#38bdf8',
+                cBuy = L ? '#16a34a' : '#22c55e';
             ctx.font = '13px system-ui, -apple-system, sans-serif';
             ctx.textBaseline = 'middle';
             /* axis title: the ticks count payments per day */
             ctx.textAlign = 'left';
-            ctx.fillStyle = '#94a3b8';
+            ctx.fillStyle = cAxis;
             ctx.font = '12px system-ui, -apple-system, sans-serif';
             ctx.fillText('Payments per day', g.padL, 15);
             ctx.font = '13px system-ui, -apple-system, sans-serif';
@@ -5078,26 +5267,26 @@
             ctx.textAlign = 'right';
             for (var t = 0; t <= 800000; t += 200000) {
                 var y = g.y(t);
-                ctx.strokeStyle = t === 0 ? 'rgba(148,163,184,0.30)' : 'rgba(148,163,184,0.14)';
+                ctx.strokeStyle = t === 0 ? cGrid0 : cGrid;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(w - g.padR, y); ctx.stroke();
-                ctx.fillStyle = '#94a3b8';
+                ctx.fillStyle = cAxis;
                 ctx.fillText(t === 0 ? '0' : (t / 1000) + 'k', g.padL - 8, y);
             }
             /* grid + x labels: a year every four years */
             ctx.textAlign = 'center';
             [2012, 2016, 2020, 2024].forEach(function (yr) {
                 var x = g.x(di(yr * 10000 + 101));
-                ctx.strokeStyle = 'rgba(148,163,184,0.12)';
+                ctx.strokeStyle = cGridX;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
-                ctx.fillStyle = '#94a3b8';
+                ctx.fillStyle = cAxis;
                 ctx.fillText(String(yr), x, h - g.padB + 13);
             });
             /* plot content, clipped to the plot box */
             ctx.save();
             ctx.beginPath(); ctx.rect(g.padL, g.padT, g.iw, g.ih); ctx.clip();
-            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = small ? 1.5 : 2; ctx.setLineDash([]);
+            ctx.strokeStyle = cSky; ctx.lineWidth = small ? 1.5 : 2; ctx.setLineDash([]);
             ctx.beginPath();
             for (var i = 0; i < PTS.length; i++) {
                 var px = g.x(di(PTS[i][0])), py = g.y(PTS[i][1]);
@@ -5106,7 +5295,7 @@
             ctx.stroke();
             /* the line's end, labelled with what it reached */
             var lp = PTS[PTS.length - 1];
-            ctx.fillStyle = '#e2e8f0';
+            ctx.fillStyle = cInk;
             ctx.textAlign = 'right';
             ctx.font = '12px system-ui, -apple-system, sans-serif';
             ctx.fillText('about 620,000 a day', w - g.padR, g.y(lp[1]) + 16);
@@ -5115,6 +5304,18 @@
         draw();
         var rt;
         window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(draw, 120); });
+        /* Cream round (2026-11-20): the stage restyles with the
+           theme (CSS); on a flip the canvas repaints in the new
+           palette — the scoreboard's own pattern on finance.html. */
+        if (window.MutationObserver && document.body) {
+            var wasLight = document.body.classList.contains('light-mode');
+            new MutationObserver(function () {
+                var nowLight = document.body.classList.contains('light-mode');
+                if (nowLight === wasLight) return;
+                wasLight = nowLight;
+                draw();
+            }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
     })();
     </script>
 

@@ -292,6 +292,10 @@
     .tv-key-ma50 { height: 3px; background: #2962FF; }
     .tv-key-rsi { height: 3px; background: #7E57C2; }
     .tv-key-pe { height: 3px; background: #2dd4bf; }
+    /* Cream round (2026-11-20): the two palest series colours deepen
+       on the light stage — the same values the chart draws with. */
+    body.light-mode .tv-key-ma200 { background: #e65100; }
+    body.light-mode .tv-key-pe { background: #0f766e; }
     .tv-key-volma { height: 3px; background: var(--text-color); opacity: 0.55; }
     /* The key in the site's details pattern (2026-11-16): a slim
        summary line — a chevron, the words "Chart key" and the five
@@ -4693,6 +4697,32 @@ function btSeriesLabel(sym) {
     return s ? s.name + " (" + sym + ")" : sym;
 }
 
+
+    // Cream round (2026-11-20): on the light stage the backtest's
+    // line colours deepen to the site's light-theme values; the
+    // legend dots are built from the same line objects, so dot and
+    // line stay one colour. Dark mode keeps the original palette.
+    function btCol(c) {
+        if (!document.body.classList.contains("light-mode")) return c;
+        var M = {
+            "#f59e0b": "#b45309", "#22c55e": "#16a34a", "#a78bfa": "#7c3aed",
+            "#38bdf8": "#0284c7", "#f472b6": "#be185d", "#fb923c": "#ea580c",
+            "#94a3b8": "#64748b", "#4da6ff": "#0284c7", "#ef4444": "#dc2626",
+            "#e69f00": "#b45309", "#f0e442": "#8a6d00", "#56b4e9": "#1d6fb8",
+            "#009e73": "#007a5e", "#d55e00": "#c2410c", "#cc79a7": "#a34a7e"
+        };
+        return M[c] || c;
+    }
+    // A theme flip rebuilds the lines so their colours follow.
+    if (window.MutationObserver && document.body) {
+        var btWasLight = document.body.classList.contains("light-mode");
+        new MutationObserver(function () {
+            var nowLight = document.body.classList.contains("light-mode");
+            if (nowLight === btWasLight) return;
+            btWasLight = nowLight;
+            btRender();
+        }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    }
 function btRender() {
     const app = document.getElementById("backtestApp");
     if (!app || !backtestHistory) return;
@@ -4727,7 +4757,7 @@ function btRender() {
     // Benchmark: 100% in one symbol (an index ETF or a single holding).
     const benchValues = btCompute({ [backtestBenchmark]: 100 }, dates);
     const benchStats = btStats(benchValues);
-    lines.push({ label: btSeriesLabel(backtestBenchmark), color: "#94a3b8", values: benchValues, width: 2, dashed: true });
+    lines.push({ label: btSeriesLabel(backtestBenchmark), color: btCol("#94a3b8"), values: benchValues, width: 2, dashed: true });
     rows.push({ label: btSeriesLabel(backtestBenchmark) + " (benchmark)", stats: benchStats });
 
     // Framework baskets, equal-weighted over the stocks passing that rule.
@@ -4739,7 +4769,7 @@ function btRender() {
         members.forEach(t => { w[t] = 100 / members.length; });
         const vals = btCompute(w, dates);
         const st = btStats(vals);
-        lines.push({ label: fw.label + " basket (" + members.length + ")", color: fw.color, values: vals, width: 2 });
+        lines.push({ label: fw.label + " basket (" + members.length + ")", color: btCol(fw.color), values: vals, width: 2 });
         rows.push({ label: fw.label + " basket — " + members.join(", "), stats: st });
     });
 
@@ -5736,6 +5766,17 @@ if (typeof module !== "undefined") {
     (function () {
         "use strict";
         var MA200_COLOR = "#FF9800", MA50_COLOR = "#2962FF", RSI_COLOR = "#7E57C2", PE_COLOR = "#2dd4bf";
+        // Cream round (2026-11-20): on the light stage the two palest
+        // series colours deepen — the legend swatches in the page CSS
+        // take the same two values under body.light-mode, and the
+        // readout rows and hover dots read these same variables, so
+        // line, dot and swatch stay one colour in each theme. Called
+        // at the top of every draw; the theme toggle re-renders.
+        function finApplyThemeColors() {
+            var light = document.body.classList.contains("light-mode");
+            MA200_COLOR = light ? "#e65100" : "#FF9800";
+            PE_COLOR = light ? "#0f766e" : "#2dd4bf";
+        }
         // The RSI pane's 30/70 guide lines: the RSI's own violet at
         // half strength — same family, visibly quieter than the line.
         var RSI_GUIDE_COLOR = "rgba(126, 87, 194, 0.5)";
@@ -6043,6 +6084,7 @@ if (typeof module !== "undefined") {
 
         // ---- drawing ----
         function draw() {
+            finApplyThemeColors();
             var frame = document.getElementById("jboChartFrame");
             var cv = document.getElementById("jboChartCanvas");
             if (!frame || !cv || !view) return;
