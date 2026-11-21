@@ -2489,7 +2489,7 @@
         function xTicks(dMin, dMax) {
             var out = [], span = dMax - dMin, days;
             if (span > 1400) {
-                for (var yr = 2010; yr <= 2036; yr++) {
+                for (var yr = 2010; yr <= 2060; yr++) {
                     days = (Date.UTC(yr, 0, 1) - GENESIS) / DAY;
                     if (days >= dMin && days <= dMax) out.push({ days: days, label: String(yr), major: true });
                 }
@@ -2781,12 +2781,18 @@
 
         /* --- zoom + pan --- */
         function clampView() {
-            if (VX1 - VX0 >= X1 - X0) { VX0 = X0; VX1 = X1; }
-            else if (VX0 < X0) { VX1 += X0 - VX0; VX0 = X0; }
-            else if (VX1 > X1) { VX0 -= VX1 - X1; VX1 = X1; }
-            if (VY1 - VY0 >= Y1 - Y0) { VY0 = Y0; VY1 = Y1; }
-            else if (VY0 < Y0) { VY1 += Y0 - VY0; VY0 = Y0; }
-            else if (VY1 > Y1) { VY0 -= VY1 - Y1; VY1 = Y1; }
+            /* Chart freedom (2026-11-20): the view may roam a domain
+               wider than the reset domain — on x, log10 days 1.7..4.15
+               (day 50 to day 14,125, into 2047); on y, one price decade
+               past each end. Reset and the first view stay exactly on
+               X0..X1 / Y0..Y1; only the clamp widened. */
+            var DX0 = 1.7, DX1 = 4.15, DY0 = -3, DY1 = 8;
+            if (VX1 - VX0 >= DX1 - DX0) { VX0 = DX0; VX1 = DX1; }
+            else if (VX0 < DX0) { VX1 += DX0 - VX0; VX0 = DX0; }
+            else if (VX1 > DX1) { VX0 -= VX1 - DX1; VX1 = DX1; }
+            if (VY1 - VY0 >= DY1 - DY0) { VY0 = DY0; VY1 = DY1; }
+            else if (VY0 < DY0) { VY1 += DY0 - VY0; VY0 = DY0; }
+            else if (VY1 > DY1) { VY0 -= VY1 - DY1; VY1 = DY1; }
         }
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
@@ -3467,12 +3473,20 @@
 
         /* --- zoom + pan --- */
         function clampView() {
-            if (VX1 - VX0 >= X1 - X0) { VX0 = X0; VX1 = X1; }
-            else if (VX0 < X0) { VX1 += X0 - VX0; VX0 = X0; }
-            else if (VX1 > X1) { VX0 -= VX1 - X1; VX1 = X1; }
-            if (VY1 - VY0 >= Y1 - Y0) { VY0 = Y0; VY1 = Y1; }
-            else if (VY0 < Y0) { VY1 += Y0 - VY0; VY0 = Y0; }
-            else if (VY1 > Y1) { VY0 -= VY1 - Y1; VY1 = Y1; }
+            /* Chart freedom (2026-11-20): the view may roam a domain
+               wider than the reset domain — on x, two years of axis
+               past the data at each end (X1 rides 45 days past the
+               last day, live updates included, so +685 puts the edge
+               730 days past it); on y, 0.75 of a price decade past
+               each end. Reset and the first view stay exactly on
+               X0..X1 / Y0..Y1; only the clamp widened. */
+            var DX0 = X0 - 730, DX1 = X1 + 685, DY0 = -4.25, DY1 = 6.75;
+            if (VX1 - VX0 >= DX1 - DX0) { VX0 = DX0; VX1 = DX1; }
+            else if (VX0 < DX0) { VX1 += DX0 - VX0; VX0 = DX0; }
+            else if (VX1 > DX1) { VX0 -= VX1 - DX1; VX1 = DX1; }
+            if (VY1 - VY0 >= DY1 - DY0) { VY0 = DY0; VY1 = DY1; }
+            else if (VY0 < DY0) { VY1 += DY0 - VY0; VY0 = DY0; }
+            else if (VY1 > DY1) { VY0 -= VY1 - DY1; VY1 = DY1; }
         }
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
@@ -4107,12 +4121,21 @@
 
         /* --- zoom + pan --- */
         function clampView() {
-            if (VX1 - VX0 >= X1 - X0) { VX0 = X0; VX1 = X1; }
-            else if (VX0 < X0) { VX1 += X0 - VX0; VX0 = X0; }
-            else if (VX1 > X1) { VX0 -= VX1 - X1; VX1 = X1; }
-            if (VY1 - VY0 >= Y1 - Y0) { VY0 = Y0; VY1 = Y1; }
-            else if (VY0 < Y0) { VY1 += Y0 - VY0; VY0 = Y0; }
-            else if (VY1 > Y1) { VY0 -= VY1 - Y1; VY1 = Y1; }
+            /* Chart freedom (2026-11-20): the view may roam a domain
+               wider than the reset domain — on x, two years of axis
+               past the data at each end (X1 rides 20 days past the
+               last day, so +710 puts the edge 730 days past it); on
+               y, 30% of the range past the top — the bottom stays at
+               Y0 = 0, the floor a multiple of two positive prices
+               cannot cross. Reset and the first view stay exactly on
+               X0..X1 / Y0..Y1; only the clamp widened. */
+            var DX0 = X0 - 730, DX1 = X1 + 710, DY0 = Y0, DY1 = Y1 + 0.3 * (Y1 - Y0);
+            if (VX1 - VX0 >= DX1 - DX0) { VX0 = DX0; VX1 = DX1; }
+            else if (VX0 < DX0) { VX1 += DX0 - VX0; VX0 = DX0; }
+            else if (VX1 > DX1) { VX0 -= VX1 - DX1; VX1 = DX1; }
+            if (VY1 - VY0 >= DY1 - DY0) { VY0 = DY0; VY1 = DY1; }
+            else if (VY0 < DY0) { VY1 += DY0 - VY0; VY0 = DY0; }
+            else if (VY1 > DY1) { VY0 -= VY1 - DY1; VY1 = DY1; }
         }
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
@@ -4763,12 +4786,20 @@
 
         /* --- zoom + pan --- */
         function clampView() {
-            if (VX1 - VX0 >= X1 - X0) { VX0 = X0; VX1 = X1; }
-            else if (VX0 < X0) { VX1 += X0 - VX0; VX0 = X0; }
-            else if (VX1 > X1) { VX0 -= VX1 - X1; VX1 = X1; }
-            if (VY1 - VY0 >= Y1 - Y0) { VY0 = Y0; VY1 = Y1; }
-            else if (VY0 < Y0) { VY1 += Y0 - VY0; VY0 = Y0; }
-            else if (VY1 > Y1) { VY0 -= VY1 - Y1; VY1 = Y1; }
+            /* Chart freedom (2026-11-20): the view may roam a domain
+               wider than the reset domain — on x, two years of axis
+               past the data at each end (X1 rides 20 days past the
+               last day, so +710 puts the edge 730 days past it); on
+               y, 30% of the range past each end. Reset and the first
+               view stay exactly on X0..X1 / Y0..Y1; only the clamp
+               widened. */
+            var DX0 = X0 - 730, DX1 = X1 + 710, DY0 = Y0 - 0.3 * (Y1 - Y0), DY1 = Y1 + 0.3 * (Y1 - Y0);
+            if (VX1 - VX0 >= DX1 - DX0) { VX0 = DX0; VX1 = DX1; }
+            else if (VX0 < DX0) { VX1 += DX0 - VX0; VX0 = DX0; }
+            else if (VX1 > DX1) { VX0 -= VX1 - DX1; VX1 = DX1; }
+            if (VY1 - VY0 >= DY1 - DY0) { VY0 = DY0; VY1 = DY1; }
+            else if (VY0 < DY0) { VY1 += DY0 - VY0; VY0 = DY0; }
+            else if (VY1 > DY1) { VY0 -= VY1 - DY1; VY1 = DY1; }
         }
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
