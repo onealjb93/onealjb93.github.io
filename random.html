@@ -308,6 +308,26 @@
             transition: opacity var(--dur-2) var(--ease-out);
         }
         .gen-img.fading { opacity: 0; }
+        /* SWIPE TO DEAL (2026-11-21): the picture claims its own
+           gestures — a drag on the picture deals instead of
+           scrolling (the picture is the deck); scrolling stays
+           natural from every other part of the page. The waiting
+           card sits behind the dealt picture, so a drag reveals it
+           underneath; the dealt picture rides above it. Fly and
+           settle use the site's own durations and easings. */
+        .gen-img, .gen-quote, .gen-fs-img, .gen-fs-quote { touch-action: none; -webkit-user-drag: none; -webkit-touch-callout: none; }
+        .gen-img, .gen-quote, .gen-fs-img, .gen-fs-quote { position: relative; z-index: 1; }
+        .gen-img-behind, .gen-quote-behind, .gen-fs-img-behind, .gen-fs-quote-behind { position: absolute; pointer-events: none; z-index: 0; }
+        .gen-img-behind[hidden], .gen-quote-behind[hidden], .gen-fs-img-behind[hidden], .gen-fs-quote-behind[hidden] { display: none !important; }
+        .gen-img-behind { inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
+        .gen-quote-behind { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100%; cursor: default; }
+        .gen-fs-img-behind { inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; background: #000; border-radius: 20px; }
+        .gen-fs-quote-behind { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100%; }
+        .rg-swipe-fly { transition: transform var(--dur-2) var(--ease-out) !important; }
+        .rg-swipe-settle { transition: transform var(--dur-2) var(--ease-inout) !important; }
+        @media (prefers-reduced-motion: reduce) {
+            .rg-swipe-fly, .rg-swipe-settle { transition: none !important; }
+        }
         .gen-img-error {
             display: block;
             max-width: 640px;
@@ -1672,6 +1692,7 @@
                 saveDeck(st);
             }
             syncHist(prefix);
+            if (window.__rgSwipePresent) { window.__rgSwipePresent(prefix); }
         }
 
         // Session history navigation (browser model): Back/Forward
@@ -2217,10 +2238,11 @@
                 return;
             }
             var mode = lovedOnly ? 'loved' : 'all';
-            if (st.domMode === mode && st.shownId !== null) { return; }
-            if (st.cur[mode]) { renderEntry(prefix, st.cur[mode]); return; }
-            if (lovedOnly && effIds(st).length === 0) { showLovedEmpty(prefix); return; }
-            draw(prefix);
+            if (st.domMode === mode && st.shownId !== null) { /* already presenting */ }
+            else if (st.cur[mode]) { renderEntry(prefix, st.cur[mode]); }
+            else if (lovedOnly && effIds(st).length === 0) { showLovedEmpty(prefix); }
+            else { draw(prefix); }
+            if (window.__rgSwipePresent) { window.__rgSwipePresent(prefix); }
         }
 
         function setLovedOnly(on) {
@@ -3165,6 +3187,346 @@
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFS(p); }
                 });
             }
+        });
+    })();
+
+    // (SWIPE) SWIPE TO DEAL — THE DECK (2026-11-21): the draw button
+    // stays exactly as it is; swiping the dealt picture is a second
+    // way to press it. The model is a physical deck: the next entry
+    // is already dealt and waiting BEHIND the current picture, so a
+    // drag (any direction — one thumb, no direction decision) moves
+    // the current picture with the finger and reveals the waiting
+    // one underneath. Releasing before the commit point settles the
+    // picture back and nothing is dealt; releasing past it (or a
+    // flick with enough speed) sends the picture away and the draw
+    // fires — literally the draw segment's own click, so the deck,
+    // the session history, the Loved state, the category selection
+    // and the first-visit pulse all take the one existing path, and
+    // the card that comes up is the card that was waiting behind.
+    // The waiting card is a PEEK at the deck's head — the very card
+    // draw() shifts next — never a second deck: peeking runs
+    // draw()'s own deck preparation (weighted reshuffle + the
+    // back-to-back seam swap) when the deck is empty, so the
+    // previewed card is the dealt card even across a reshuffle, and
+    // peeking consumes nothing and persists nothing. History is
+    // untouched by the preview: back/forward keep re-rendering
+    // dealt cards, and the waiting card stays the next NEW deal
+    // while history is browsed — a swipe from mid-history is a
+    // fresh deal and truncates the forward entries, exactly like
+    // the button. Decks are per pool and per view (all / loved),
+    // so a category switch or a view toggle shows that pool's own
+    // waiting card, re-dealt by the __rgSwipePresent hooks in
+    // draw() and restoreGen(). In All mode the waiting card
+    // previews the visible pool's next deal; an All draw may still
+    // land on another pool — the button's own behaviour, kept
+    // identical on purpose.
+    (function () {
+        var PREFIXES = ['animals', 'art', 'arch', 'space', 'quotes', 'engineering', 'websites', 'scifi'];
+        var TAP_DIST = 28;      // px of travel before a press becomes a drag
+        var COMMIT_DIST = 88;   // px of travel that commits the deal on release
+        var FLICK_VEL = 0.45;   // px/ms over the last ~100ms that commits a short drag
+        var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        var pending = {};       // prefix -> a committed swipe whose draw is still settling
+        var behind = {};        // prefix -> { img, quote, text, attrib } stage behind elements
+        var fsBehind = { img: null, quote: null, text: null, attrib: null };
+        var suppressEl = null;
+        var suppressUntil = 0;
+
+        function viewMode() { return lovedOnly ? 'loved' : 'all'; }
+
+        function paintBehind(imgEl, quoteEl, textEl, attribEl, e, fs) {
+            if (e.quote) {
+                imgEl.hidden = true;
+                textEl.textContent = e.quote;
+                attribEl.textContent = '— ' + e.name;
+                quoteEl.className = (fs ? 'gen-fs-quote ' : 'gen-quote ') + quoteLenClass(e.quote.length) + (fs ? ' gen-fs-quote-behind' : ' gen-quote-behind');
+                quoteEl.hidden = false;
+            } else {
+                quoteEl.hidden = true;
+                var u = stageUrl(e.img);
+                if (imgEl.getAttribute('src') !== u) { imgEl.src = u; }
+                imgEl.hidden = false;
+            }
+        }
+
+        function visiblePrefix() {
+            var sec = document.querySelector('.gen-section:not([hidden])');
+            return sec ? sec.id.replace('gen-', '') : null;
+        }
+
+        // The fullscreen viewer carries a twin of the visible
+        // pool's waiting card behind its own picture.
+        function syncFsBehind() {
+            var ov = document.getElementById('gen-fs');
+            if (!ov || ov.hidden || !fsBehind.img) { return; }
+            var p = visiblePrefix();
+            var st = p ? GEN[p] : null;
+            var e = (st && st.behindId) ? st.byId[st.behindId] : null;
+            if (!e) {
+                fsBehind.img.hidden = true;
+                fsBehind.quote.hidden = true;
+                return;
+            }
+            paintBehind(fsBehind.img, fsBehind.quote, fsBehind.text, fsBehind.attrib, e, true);
+        }
+
+        // Deal the waiting card for a pool: peek the deck's head
+        // and put it behind the stage picture. Setting the behind
+        // image's src is the preload — the file is on the device
+        // before any drag begins. A no-op when the head is already
+        // the card waiting there.
+        function dealBehind(prefix) {
+            var st = GEN[prefix];
+            if (!st || pending[prefix]) { return; }
+            var els = behind[prefix];
+            if (!els) { return; }
+            var mode = viewMode();
+            var ids = effIds(st);
+            if (!ids.length) {
+                st.behindId = null;
+                els.img.hidden = true;
+                els.quote.hidden = true;
+                syncFsBehind();
+                return;
+            }
+            if (!st.decks[mode].length) {
+                st.decks[mode] = weightedDeck(st, ids);
+                // never repeat back-to-back across a reshuffle —
+                // the same seam guard draw() runs
+                if (st.last[mode] !== null && st.decks[mode][0] === st.last[mode] && st.decks[mode].length > 1) {
+                    var t = st.decks[mode][0]; st.decks[mode][0] = st.decks[mode][1]; st.decks[mode][1] = t;
+                }
+            }
+            var id = st.decks[mode][0];
+            if (st.behindId !== id || st.behindMode !== mode) {
+                st.behindId = id;
+                st.behindMode = mode;
+                var e = st.byId[id];
+                if (e) { paintBehind(els.img, els.quote, els.text, els.attrib, e, false); }
+            }
+            syncFsBehind();
+        }
+        window.__rgSwipePresent = function (prefix) { dealBehind(prefix); };
+
+        // Behind elements, built here so the eight sections keep
+        // their markup untouched: one photo and one quote figure
+        // per stage, and one pair inside the fullscreen viewer.
+        PREFIXES.forEach(function (prefix) {
+            var img = document.getElementById(prefix + '-img');
+            if (!img || !img.parentNode) { return; }
+            var stage = img.parentNode;
+            var bImg = document.createElement('img');
+            bImg.className = 'gen-img-behind';
+            bImg.id = prefix + '-nextimg';
+            bImg.alt = '';
+            bImg.setAttribute('aria-hidden', 'true');
+            bImg.hidden = true;
+            stage.insertBefore(bImg, stage.firstChild);
+            var bQuote = document.createElement('figure');
+            bQuote.className = 'gen-quote gen-quote-behind';
+            bQuote.id = prefix + '-nextquote';
+            bQuote.setAttribute('aria-hidden', 'true');
+            bQuote.hidden = true;
+            var bq = document.createElement('blockquote');
+            bq.className = 'gen-quote-text';
+            var bf = document.createElement('figcaption');
+            bf.className = 'gen-quote-attrib';
+            bQuote.appendChild(bq);
+            bQuote.appendChild(bf);
+            stage.insertBefore(bQuote, stage.firstChild);
+            behind[prefix] = { img: bImg, quote: bQuote, text: bq, attrib: bf };
+        });
+        (function () {
+            var ov = document.getElementById('gen-fs');
+            var fImg = document.getElementById('gen-fs-img');
+            if (!ov || !fImg) { return; }
+            var bImg = document.createElement('img');
+            bImg.className = 'gen-fs-img-behind';
+            bImg.id = 'gen-fs-nextimg';
+            bImg.alt = '';
+            bImg.setAttribute('aria-hidden', 'true');
+            bImg.hidden = true;
+            ov.insertBefore(bImg, fImg);
+            var bQuote = document.createElement('figure');
+            bQuote.className = 'gen-fs-quote gen-fs-quote-behind';
+            bQuote.id = 'gen-fs-nextquote';
+            bQuote.setAttribute('aria-hidden', 'true');
+            bQuote.hidden = true;
+            var bq = document.createElement('blockquote');
+            bq.className = 'gen-fs-quotetext';
+            var bf = document.createElement('figcaption');
+            bf.className = 'gen-fs-quoteattrib';
+            bQuote.appendChild(bq);
+            bQuote.appendChild(bf);
+            ov.insertBefore(bQuote, fImg);
+            fsBehind.img = bImg;
+            fsBehind.quote = bQuote;
+            fsBehind.text = bq;
+            fsBehind.attrib = bf;
+            // The viewer opening is when its waiting card must be
+            // in place behind the photo it opens on.
+            new MutationObserver(function () { syncFsBehind(); }).observe(ov, { attributes: true, attributeFilter: ['hidden'] });
+        })();
+
+        // A drag that crossed the tap threshold must never turn
+        // into the click that follows it — that click is what
+        // opens and closes the fullscreen view. Capture phase, so
+        // the swallow lands before the picture's own handlers.
+        document.addEventListener('click', function (e) {
+            if (suppressEl && Date.now() < suppressUntil && suppressEl.contains(e.target)) {
+                suppressEl = null; // exactly one click is swallowed
+                e.stopPropagation();
+                e.preventDefault();
+            }
+        }, true);
+
+        function stageImgSwapped(prefix) {
+            var img = document.getElementById(prefix + '-img');
+            if (!img) { return true; }
+            var src = img.getAttribute('src');
+            return !!src && src === img.getAttribute('data-stage');
+        }
+        // A committed swipe's draw has settled when the new entry
+        // is actually on the stage (photo decoded and swapped in —
+        // the same settle idea as the viewer's own gate) and, in
+        // the viewer, when the viewer has re-read that photo.
+        function settled(prefix, isFs, shownBefore) {
+            var st = GEN[prefix];
+            if (!st) { return true; }
+            if (st.shownId === shownBefore) { return false; }
+            var e = st.byId[st.shownId];
+            if (!e || e.quote) { return true; }
+            if (!stageImgSwapped(prefix)) { return false; }
+            if (isFs) {
+                var fImg = document.getElementById('gen-fs-img');
+                var sImg = document.getElementById(prefix + '-img');
+                if (!fImg || !sImg) { return true; }
+                // The stage's photo, or the full-res upgrade of it
+                // the viewer swaps in over the stage's photo.
+                return fImg.src === (sImg.currentSrc || sImg.src) || fImg.src === e.img;
+            }
+            return true;
+        }
+        function finishSwipe(el, prefix, isFs, shownBefore) {
+            var tries = 0;
+            var iv = setInterval(function () {
+                tries++;
+                if (!settled(prefix, isFs, shownBefore) && tries <= 30) { return; }
+                clearInterval(iv);
+                el.classList.remove('rg-swipe-fly');
+                el.style.transition = 'none';
+                el.style.transform = '';
+                setTimeout(function () { el.style.transition = ''; }, 60);
+                pending[prefix] = false;
+                dealBehind(prefix);
+            }, 50);
+        }
+        function fireDraw(isFs, prefix) {
+            var b = document.getElementById(isFs ? 'gen-fs-draw' : prefix + '-btn');
+            if (b) { b.click(); }
+        }
+
+        function wireSwipe(el, opt) {
+            if (!el) { return; }
+            if (el.tagName === 'IMG') { el.draggable = false; }
+            var g = null;
+            el.addEventListener('pointerdown', function (e) {
+                if (g) { return; }
+                if (e.pointerType === 'mouse' && e.button !== 0) { return; }
+                if (el.hidden) { return; }
+                if (opt.isFs) {
+                    var ov = document.getElementById('gen-fs');
+                    if (!ov || ov.hidden) { return; }
+                    var menu = document.getElementById('gen-fs-cat-menu');
+                    if (menu && !menu.hidden) { return; }
+                }
+                var prefix = opt.prefix();
+                if (!prefix) { return; }
+                var st = GEN[prefix];
+                if (!st || !st.shownId) { return; }
+                // A drag can only begin on a dealt card whose
+                // waiting card is dealt behind it.
+                if (!st.behindId) { dealBehind(prefix); }
+                g = {
+                    id: e.pointerId, prefix: prefix,
+                    x0: e.clientX, y0: e.clientY, dx: 0, dy: 0,
+                    dragging: false, shownBefore: st.shownId,
+                    samples: [{ x: e.clientX, y: e.clientY, t: Date.now() }]
+                };
+                try { el.setPointerCapture(e.pointerId); } catch (err) { }
+            });
+            el.addEventListener('pointermove', function (e) {
+                if (!g || e.pointerId !== g.id) { return; }
+                g.dx = e.clientX - g.x0;
+                g.dy = e.clientY - g.y0;
+                var now = Date.now();
+                g.samples.push({ x: e.clientX, y: e.clientY, t: now });
+                while (g.samples.length > 2 && now - g.samples[0].t > 100) { g.samples.shift(); }
+                if (!g.dragging && Math.hypot(g.dx, g.dy) >= TAP_DIST) { g.dragging = true; }
+                if (g.dragging && !reduceMotion) {
+                    el.style.transition = 'none';
+                    el.style.transform = 'translate(' + g.dx + 'px, ' + g.dy + 'px)';
+                }
+            });
+            function end(e, cancelled) {
+                if (!g || e.pointerId !== g.id) { return; }
+                var done = g;
+                g = null;
+                if (!done.dragging) { return; } // a tap: the click does its usual work
+                suppressEl = el;
+                suppressUntil = Date.now() + 600;
+                var dist = Math.hypot(done.dx, done.dy);
+                var vel = 0;
+                var s0 = done.samples[0];
+                var dt = Date.now() - s0.t;
+                if (dt > 0) { vel = Math.hypot(e.clientX - s0.x, e.clientY - s0.y) / dt; }
+                var commit = !cancelled && (dist >= COMMIT_DIST || (dist >= TAP_DIST && vel >= FLICK_VEL));
+                if (reduceMotion) {
+                    if (commit) { fireDraw(opt.isFs, done.prefix); }
+                    return;
+                }
+                if (!commit) {
+                    el.classList.add('rg-swipe-settle');
+                    el.style.transition = '';
+                    el.style.transform = '';
+                    setTimeout(function () { el.classList.remove('rg-swipe-settle'); }, 300);
+                    return;
+                }
+                // Commit: the picture leaves along the drag
+                // direction; the waiting card underneath carries
+                // the screen until the draw settles onto the
+                // stage, and only then does the picture reset.
+                var d = dist || 1;
+                var far = Math.hypot(window.innerWidth, window.innerHeight) + 120;
+                pending[done.prefix] = true;
+                el.classList.add('rg-swipe-fly');
+                el.style.transition = '';
+                el.style.transform = 'translate(' + (done.dx + (done.dx / d) * far) + 'px, ' + (done.dy + (done.dy / d) * far) + 'px)';
+                var isFs = opt.isFs;
+                var prefix = done.prefix;
+                var shownBefore = done.shownBefore;
+                setTimeout(function () {
+                    fireDraw(isFs, prefix);
+                    finishSwipe(el, prefix, isFs, shownBefore);
+                }, 270);
+            }
+            el.addEventListener('pointerup', function (e) { end(e, false); });
+            el.addEventListener('pointercancel', function (e) { end(e, true); });
+        }
+
+        PREFIXES.forEach(function (p) {
+            wireSwipe(document.getElementById(p + '-img'), { isFs: false, prefix: function () { return p; } });
+            wireSwipe(document.getElementById(p + '-quote'), { isFs: false, prefix: function () { return p; } });
+        });
+        wireSwipe(document.getElementById('gen-fs-img'), { isFs: true, prefix: visiblePrefix });
+        wireSwipe(document.getElementById('gen-fs-quote'), { isFs: true, prefix: visiblePrefix });
+
+        // Pools that dealt their opener before this block ran
+        // (the page's first show happens earlier in the script)
+        // get their waiting card now.
+        PREFIXES.forEach(function (p) {
+            var st = GEN[p];
+            if (st && st.shownId) { dealBehind(p); }
         });
     })();
 
