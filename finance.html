@@ -7687,6 +7687,15 @@ if (typeof module !== "undefined") {
         var sbHover = null;   // { ticker, idx } — idx into seriesFor(ticker)
         var sbGeom = null;    // the last full draw's geometry
         var sbPtr = null;     // the last pointer position over the canvas
+        // The visible window, for the two-finger gesture below:
+        // a { min, max } pair of dates while a pinch or pan has
+        // set one, null for the full range. sbDataMin/sbDataMax
+        // are the full range itself, cached by every draw.
+        var sbWin = null;
+        var sbDataMin = 0, sbDataMax = 0;
+        // The narrowest window a pinch may reach: 26 weeks — the
+        // price chart's 26-bar floor, in this chart's weekly units.
+        var SB_MIN_SPAN = 26 * 7 * 24 * 3600 * 1000;
         var sbTipKey = "";    // the readout content last filled
         var SB_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         function sbFmtDate(iso) {
@@ -7887,16 +7896,153 @@ if (typeof module !== "undefined") {
             sbHover = { ticker: best.ticker, idx: best.idx };
             requestDraw();
         }
-        canvas.addEventListener("pointermove", sbPointer);
-        canvas.addEventListener("pointerdown", sbPointer);
+        // ---- Two-finger pan and pinch (2026-11-21) ----
+        // The price chart's gesture implementation, carried over
+        // whole: pointers are tracked in a map, a second finger
+        // opens the gesture, and the window's width follows the
+        // fingers' distance while the date that sat under the
+        // gesture's starting midpoint stays under the moving
+        // midpoint — so spreading or pinching zooms, and sliding
+        // both fingers pans. Windows clamp to the data's range
+        // (the widest zoom is the range itself, which is no zoom
+        // at all) and to 26 weeks at the narrow end. When a
+        // gesture ends with one finger still down, that finger is
+        // ignored until it lifts, so the readout never jumps
+        // mid-gesture. One finger never moves the window: it
+        // inspects, exactly as it did before this gesture existed.
+        // Two adaptations for this chart's own model, and no
+        // others: the window is a pair of dates, not bar indices
+        // (and the score axis is a fixed 0–100 — it never zooms;
+        // the price scale follows the window the way the price
+        // chart's follows its bars), and there is no full-screen
+        // gate — this canvas is touch-action: pan-y in both views
+        // and its one-finger scrub already inspects in both, so
+        // the gesture runs in both.
+        var sbPtrs = {}, sbGest = null, sbGestBlock = false, sbLastTap = { t: 0, x: 0, y: 0 };
+        function sbPtrId(e) { return (e.pointerId === undefined || e.pointerId === null) ? "p" : e.pointerId; }
+        function sbSetWin(wMin, wMax) {
+            if (!(sbDataMax > sbDataMin)) return;
+            var full = sbDataMax - sbDataMin;
+            var span = wMax - wMin;
+            if (span < SB_MIN_SPAN) span = SB_MIN_SPAN;
+            if (span > full) span = full;
+            if (span >= full) {
+                if (sbWin) { sbWin = null; sbHover = null; sbTipKey = ""; requestDraw(); }
+                return;
+            }
+            var nMin = Math.round(wMin);
+            if (nMin < sbDataMin) nMin = sbDataMin;
+            if (nMin > sbDataMax - span) nMin = sbDataMax - span;
+            var nMax = nMin + span;
+            if (sbWin && sbWin.min === nMin && sbWin.max === nMax) return;
+            sbWin = { min: nMin, max: nMax };
+            sbHover = null; sbTipKey = "";
+            requestDraw();
+        }
+        function sbGestureBegin() {
+            var ids = Object.keys(sbPtrs);
+            if (ids.length !== 2 || !sbGeom) return false;
+            var a = sbPtrs[ids[0]], b = sbPtrs[ids[1]];
+            var rect = canvas.getBoundingClientRect();
+            if (!rect.width || !sbGeom.plotW) return false;
+            var f = ((a.x + b.x) / 2 - rect.left - sbGeom.leftPad) / sbGeom.plotW;
+            f = Math.max(0, Math.min(1, f));
+            var vMin = sbWin ? sbWin.min : sbDataMin, vMax = sbWin ? sbWin.max : sbDataMax;
+            sbGest = {
+                ids: ids,
+                d0: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+                span: vMax - vMin,
+                anchor: vMin + f * (vMax - vMin)
+            };
+            sbGestBlock = false;
+            sbHover = null; sbTipKey = ""; // the readout is suspended for the whole gesture
+            if (tipEl) tipEl.classList.remove("open");
+            ids.forEach(function (id) {
+                var raw = sbPtrs[id].raw;
+                if (typeof raw === "number" && canvas.setPointerCapture) {
+                    try { canvas.setPointerCapture(raw); } catch (err) { /* capture is a nicety, not a need */ }
+                }
+            });
+            requestDraw();
+            return true;
+        }
+        function sbGestureMove() {
+            if (!sbGest || !sbGeom) return;
+            var a = sbPtrs[sbGest.ids[0]], b = sbPtrs[sbGest.ids[1]];
+            if (!a || !b) return;
+            var rect = canvas.getBoundingClientRect();
+            if (!rect.width || !sbGeom.plotW) return;
+            var d = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+            var span = sbGest.span * sbGest.d0 / d;
+            var f = ((a.x + b.x) / 2 - rect.left - sbGeom.leftPad) / sbGeom.plotW;
+            f = Math.max(0, Math.min(1, f));
+            var wMin = sbGest.anchor - f * span;
+            sbSetWin(wMin, wMin + span);
+        }
+        function sbGestureEnd(id) {
+            delete sbPtrs[id];
+            if (sbGest && Object.keys(sbPtrs).length < 2) { sbGest = null; sbGestBlock = true; }
+            if (!Object.keys(sbPtrs).length) sbGestBlock = false;
+        }
+        canvas.addEventListener("pointerdown", function (e) {
+            var id = sbPtrId(e);
+            sbPtrs[id] = { x: e.clientX, y: e.clientY, raw: e.pointerId };
+            var n = Object.keys(sbPtrs).length;
+            if (n === 2) { if (!sbGestureBegin()) sbGestBlock = true; return; }
+            if (n > 2 || sbGestBlock) return;
+            // Double-tap: a second quick tap at the same spot
+            // hands the window back to the full range (the price
+            // chart's reset, carried over with its gesture).
+            if (e.pointerType === "touch") {
+                var now = Date.now();
+                if (sbWin && now - sbLastTap.t < 400 && Math.hypot(e.clientX - sbLastTap.x, e.clientY - sbLastTap.y) < 48) {
+                    sbWin = null; sbHover = null; sbTipKey = ""; sbLastTap = { t: 0, x: 0, y: 0 };
+                    requestDraw();
+                } else {
+                    sbLastTap = { t: now, x: e.clientX, y: e.clientY };
+                }
+            }
+            sbPointer(e);
+        });
+        canvas.addEventListener("pointermove", function (e) {
+            var id = sbPtrId(e);
+            if (sbPtrs[id]) {
+                sbPtrs[id].x = e.clientX; sbPtrs[id].y = e.clientY;
+                if (sbGest) { sbGestureMove(); return; }
+                if (sbGestBlock) return;
+            }
+            sbPointer(e);
+        });
+        canvas.addEventListener("pointerup", function (e) { sbGestureEnd(sbPtrId(e)); });
         canvas.addEventListener("pointerleave", function (e) {
             // Same gate as the price chart: a lifted touch finger
             // fires pointerleave too, and a tap's readout must stay
             // after the finger lifts (Johnny's ruling, 2026-11-20).
+            // Only the mouse's leave resets the gesture tracking
+            // and clears the readout.
             if (e.pointerType && e.pointerType !== "mouse") return;
+            sbPtrs = {}; sbGest = null; sbGestBlock = false;
             sbClearHover();
         });
-        canvas.addEventListener("pointercancel", sbClearHover);
+        canvas.addEventListener("pointercancel", function (e) {
+            sbGestureEnd(sbPtrId(e));
+            sbClearHover();
+        });
+        // With two fingers down, the gesture belongs to the
+        // chart, never to the page: without these, Safari claims
+        // the pinch for the page and cancels the chart's pointers
+        // mid-gesture (until this fix, that cancel was the whole
+        // story — it landed on sbClearHover and wiped the
+        // readout). One finger keeps the shipped behaviour
+        // exactly: a horizontal drag inspects, a vertical drag
+        // scrolls the page (the canvas's touch-action: pan-y).
+        canvas.addEventListener("touchstart", function (e) {
+            if (e.touches && e.touches.length >= 2) e.preventDefault();
+        }, { passive: false });
+        canvas.addEventListener("touchmove", function (e) {
+            if (e.touches && e.touches.length >= 2) e.preventDefault();
+        }, { passive: false });
+        canvas.addEventListener("gesturestart", function (e) { e.preventDefault(); });
         function buildChips() {
             if (!chipsEl || chipsEl.childElementCount) return;
             ensureSelection();
@@ -8050,7 +8196,22 @@ if (typeof module !== "undefined") {
                 }
             });
             if (!isFinite(minMs) || maxMs <= minMs) return;
-            var X = function (ms) { return leftPad + ((ms - minMs) / (maxMs - minMs)) * plotW; };
+            sbDataMin = minMs; sbDataMax = maxMs;
+            // The visible window: the gesture's window (sbWin)
+            // when one is set, clamped inside the data's own
+            // range; a window the data no longer overlaps (the
+            // selection changed under it) falls back to the full
+            // range, the way the price chart's zoom falls back to
+            // its range. Everything below — the lines, the price
+            // scale, the axis labels, and the cached geometry the
+            // pointer handlers read — works inside the window.
+            var vMin = minMs, vMax = maxMs;
+            if (sbWin) {
+                vMin = Math.max(minMs, sbWin.min);
+                vMax = Math.min(maxMs, sbWin.max);
+                if (!(vMax - vMin >= 7 * 24 * 3600 * 1000)) { sbWin = null; vMin = minMs; vMax = maxMs; }
+            }
+            var X = function (ms) { return leftPad + ((ms - vMin) / (vMax - vMin)) * plotW; };
             ctx.font = "11px system-ui, sans-serif";
             for (var g = 0; g <= 4; g++) {
                 var gv = g * 25, gy = Y(gv);
@@ -8072,7 +8233,7 @@ if (typeof module !== "undefined") {
                 var lo = Infinity, hi = -Infinity;
                 priceBars.forEach(function (b) {
                     var bms = Date.parse(b[0]);
-                    if (bms < minMs || bms > maxMs) return;
+                    if (bms < vMin || bms > vMax) return;
                     if (b[1] < lo) lo = b[1];
                     if (b[1] > hi) hi = b[1];
                 });
@@ -8093,14 +8254,41 @@ if (typeof module !== "undefined") {
                 }
             }
             ctx.textAlign = "center";
-            var y0 = new Date(minMs).getUTCFullYear(), y1 = new Date(maxMs).getUTCFullYear();
-            for (var yr = y0; yr <= y1; yr++) {
-                var yms = Date.UTC(yr, 0, 1);
-                if (yms < minMs || yms > maxMs) continue;
-                ctx.fillStyle = subC;
-                ctx.fillText(String(yr), X(yms), hCss - 6);
+            ctx.fillStyle = subC;
+            // The axis labels follow the window: years while the
+            // window is wide, months once a pinch has narrowed it
+            // past the point where a window can hold no January
+            // 1st and year labels alone would leave the axis bare.
+            // Month labels step so at most six or seven ever draw.
+            var spanMs = vMax - vMin;
+            if (spanMs > 2.5 * 365.25 * 24 * 3600 * 1000) {
+                var y0 = new Date(vMin).getUTCFullYear(), y1 = new Date(vMax).getUTCFullYear();
+                for (var yr = y0; yr <= y1; yr++) {
+                    var yms = Date.UTC(yr, 0, 1);
+                    if (yms < vMin || yms > vMax) continue;
+                    ctx.fillText(String(yr), X(yms), hCss - 6);
+                }
+            } else {
+                var mStep = Math.max(1, Math.ceil((spanMs / (30.44 * 24 * 3600 * 1000)) / 6));
+                var mAnchor = new Date(vMin);
+                var mCur = Date.UTC(mAnchor.getUTCFullYear(), mAnchor.getUTCMonth(), 1);
+                var mIdx = 0;
+                while (mCur <= vMax) {
+                    if (mCur >= vMin && mIdx % mStep === 0) {
+                        var mDate = new Date(mCur);
+                        ctx.fillText(SB_MONTHS[mDate.getUTCMonth()] + " " + String(mDate.getUTCFullYear()).slice(2), X(mCur), hCss - 6);
+                    }
+                    var mNext = new Date(mCur);
+                    mCur = Date.UTC(mNext.getUTCFullYear(), mNext.getUTCMonth() + 1, 1);
+                    mIdx++;
+                }
             }
             var lineColors = assignedColors();
+            // The lines are clipped to the plot: with a window
+            // set, the points outside it would otherwise paint
+            // across the axes and the page.
+            ctx.save();
+            ctx.beginPath(); ctx.rect(leftPad, topPad, plotW, plotH); ctx.clip();
             tickers.forEach(function (t) {
                 if (!selected[t]) return;
                 var s = allSeries[t];
@@ -8118,7 +8306,7 @@ if (typeof module !== "undefined") {
                     lastPt = [px, py];
                 }
                 ctx.stroke();
-                if (lastPt) {
+                if (lastPt && lastPt[0] >= leftPad && lastPt[0] <= leftPad + plotW) {
                     ctx.fillStyle = color;
                     ctx.beginPath(); ctx.arc(lastPt[0], lastPt[1], 2.6, 0, Math.PI * 2); ctx.fill();
                 }
@@ -8134,19 +8322,20 @@ if (typeof module !== "undefined") {
                 var pStarted = false, pLast = null;
                 priceBars.forEach(function (b) {
                     var bms2 = Date.parse(b[0]);
-                    if (bms2 < minMs || bms2 > maxMs) return;
+                    if (bms2 < vMin || bms2 > vMax) return;
                     var px = X(bms2), py = pY(b[1]);
                     if (!pStarted) { ctx.moveTo(px, py); pStarted = true; }
                     else ctx.lineTo(px, py);
                     pLast = [px, py];
                 });
                 ctx.stroke();
-                if (pLast) {
+                if (pLast && pLast[0] >= leftPad && pLast[0] <= leftPad + plotW) {
                     ctx.fillStyle = subC;
                     ctx.beginPath(); ctx.arc(pLast[0], pLast[1], 2.2, 0, Math.PI * 2); ctx.fill();
                 }
                 ctx.restore();
             }
+            ctx.restore(); // the plot clip the lines were drawn under
             // The legend names both lines while the overlay is drawn.
             if (legendEl) {
                 var wantLegend = !!(overlayOn && pY);
@@ -8177,7 +8366,7 @@ if (typeof module !== "undefined") {
             // The hover readout rides on this draw's geometry:
             // cache it for the pointer handlers, draw the markers
             // over the finished lines, and place the readout.
-            sbGeom = { minMs: minMs, maxMs: maxMs, leftPad: leftPad, topPad: topPad, plotW: plotW, plotH: plotH, overlayOn: overlayOn, singleTicker: singleTicker, priceBars: priceBars, allSeries: allSeries, lineColors: lineColors, pY: pY, subC: subC };
+            sbGeom = { minMs: vMin, maxMs: vMax, leftPad: leftPad, topPad: topPad, plotW: plotW, plotH: plotH, overlayOn: overlayOn, singleTicker: singleTicker, priceBars: priceBars, allSeries: allSeries, lineColors: lineColors, pY: pY, subC: subC };
             drawSbHover(ctx);
             updateSbTip();
             ctx.lineWidth = 1;
