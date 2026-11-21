@@ -27,14 +27,24 @@
    to an eye; the bloom is extracted from the rendered frame
    itself, so nothing blooms that is not bright in the data.
    Earth, alone among the planets, upgrades her own surface when
-   you fly in to meet her: NASA's Blue Marble day map, the VIIRS
-   night-lights map (city lights on the dark side, lit by the
-   same sun that lights the day side), and the Visible Earth
-   cloud composite on its own slowly-drifting sphere — all
-   public-domain NASA imagery, fetched only on a first approach
-   to the solar system and crossfaded over the plainer map, so
-   nothing about the game's start changes for anyone who never
-   flies in.
+   you fly in to meet her: NASA's Blue Marble day map and the
+   VIIRS night-lights map (city lights on the dark side, lit by
+   the same sun that lights the day side) at 8192x4096, the
+   Visible Earth cloud composite on its own slowly-drifting
+   sphere, an ocean specular mask behind the sun-glint, and a
+   terrain relief map shading the ranges — all public-domain
+   NASA imagery, fetched only on a first approach to the solar
+   system and crossfaded over the plainer map, so nothing about
+   the game's start changes for anyone who never flies in. The
+   Moon hangs beside her at her true direction and size, her
+   distance compressed so the enlarged Earth does not swallow
+   her (the About note states it). Twelve named galaxies resolve
+   into real NASA/ESA/ESO/NOIRLab photographs as you close in,
+   and near home the sky itself is ESO's photographic panorama
+   of the real night sky, fading as you leave the neighbourhood.
+   Flying fast stretches each star along its own motion and the
+   renderer's resolution ladder is compensated, so nothing in
+   the scene dims when you speed up.
    Flight is faster than light — the HUD says by how much.
    Those are the only liberties, and the game states them.
 
@@ -142,10 +152,15 @@ var STAR_VERT = [
     'uniform float uScaleH;',   /* (height px * 0.5 * proj[1][1]) * dpr */
     'uniform float uDpr;',
     'uniform float uTime;',
+    /* the camera's velocity this frame, in view space (parsecs per
+       frame): stars streak along it — see the stretch maths in main */
+    'uniform vec3 uVelView;',
     'varying vec3 vCol;',
     'varying float vAlpha;',
     'varying float vGlow;',
     'varying float vShim;',
+    'varying float vStretch;',
+    'varying float vAng;',
     'vec3 ciColor(float ci) {',
     '    vec3 c1 = vec3(0.50, 0.62, 1.00);',  /* -0.33 blue-white      */
     '    vec3 c2 = vec3(0.72, 0.82, 1.00);',  /*  0.00 white-blue      */
@@ -192,7 +207,33 @@ var STAR_VERT = [
        larger — so its halo covers real screen and the brightest
        stars read as orbs, not pinpricks. The 46px cap (a near
        giant must not fill the screen) is unchanged. */
-    '    gl_PointSize = clamp(sz * (1.0 + 0.45 * vGlow + 0.05 * vGlow * shim), 2.0, 46.0) * uDpr;',
+    '    float szPx = clamp(sz * (1.0 + 0.45 * vGlow + 0.05 * vGlow * shim), 2.0, 46.0);',
+    '    gl_PointSize = szPx * uDpr;',
+    /* VELOCITY STREAKS (quality pass, 2026-11-21): a star sprite is
+       redrawn each frame wherever the star now is; it never smears.
+       On a real retina — and on any sample-and-hold screen — a fast
+       star crosses each pixel so briefly that the eye integrates
+       less light from it, so a fast field reads DIMMER than the same
+       field at rest (measured on the live game: at high speed
+       everything goes dark). Nothing in the scene actually dims —
+       the light per star is constant; it is the dwell time that
+       shrinks. The honest fix is the one the sky itself uses:
+       stretch the sprite along its own screen motion by the
+       distance it travels per frame, so the light it sheds is
+       spread over the path it truly crosses, and divide the alpha
+       by the stretch so the star's total light is conserved —
+       a streak, not a dimming and not a brightening. Direction is
+       the star's own parallax motion (near stars streak long, the
+       far field barely moves — exactly as in real flight). The
+       elongation saturates at 5x so a warp-speed pass reads as
+       streaks, not lines across the sky. */
+    '    vec2 velPx = uVelView.xy * (uScaleH / dist);',  /* this star's screen travel, CSS px per frame */
+    '    float spd = length(velPx);',
+    '    vStretch = clamp(spd * 0.55 / max(szPx, 2.0), 0.0, 5.0);',
+    '    vAng = atan(-velPx.y, velPx.x);',   /* point-coord y runs down, view y up */
+    '    if (spd < 0.05) { vStretch = 0.0; vAng = 0.0; }',
+    /* a stretched sprite needs a bigger point to hold the streak */
+    '    gl_PointSize = min(gl_PointSize * (1.0 + vStretch * 0.85), 300.0 * uDpr);',
     '    vCol = ciColor(aCi);',
     /* Brightness follows the same squeezed scale, floored so the
        faintest catalogued stars stay faint but never vanish. */
@@ -202,13 +243,25 @@ var STAR_VERT = [
 ].join('\n');
 var STAR_FRAG = [
     'precision mediump float;',
+    'uniform float uPeakComp;',
     'varying vec3 vCol;',
     'varying float vAlpha;',
     'varying float vGlow;',
     'varying float vShim;',
+    'varying float vStretch;',
+    'varying float vAng;',
     'void main() {',
     '    vec2 q = gl_PointCoord - 0.5;',
-    '    float d = length(q) * 2.0;',
+    /* velocity streaks: the vertex stage enlarged the point to hold
+       the streak (grow) — undo that so the profile keeps its
+       authored size across the track, then measure the radius with
+       the along-track axis divided by the stretch, and spread the
+       same total light over the longer sprite (the divisor on a) */
+    '    vec2 qd = q * (1.0 + vStretch * 0.85) * 2.0;',
+    '    float ca = cos(vAng), sa = sin(vAng);',
+    '    float along = qd.x * ca + qd.y * sa;',
+    '    float cross = -qd.x * sa + qd.y * ca;',
+    '    float d = length(vec2(along / (1.0 + vStretch), cross));',
     /* Push the colour away from grey — starlight should read as
        colour (white, pale blue, yellow, orange, red), not as noise. */
     '    vec3 col = mix(vec3(dot(vCol, vec3(0.3333))), vCol, 1.30);',
@@ -216,7 +269,7 @@ var STAR_FRAG = [
     '    float g2 = g * g;',
     '    float core = g2 * g2 * g2 * g2 * g * (1.0 + 0.35 * vGlow);',
     '    float halo = g2 * (0.20 + 0.85 * vGlow);',
-    '    float a = clamp(core + halo, 0.0, 1.0) * vAlpha * vShim;',
+    '    float a = clamp(core + halo, 0.0, 1.0) * vAlpha * vShim / (1.0 + vStretch * 0.8);',
     '    if (a < 0.004) discard;',
     /* QUALITY PASS: with the HDR final pass the authored colour
        is linearised here and the composite re-encodes it, so the
@@ -228,7 +281,18 @@ var STAR_FRAG = [
        does not. */
     '#if HDR_LINEAR',
     '    col = pow(max(col, vec3(0.0)), vec3(2.2));',
-    '    col *= 1.0 + core * vGlow * 2.8;',
+    /* uPeakComp: the adaptive-resolution ladder trades buffer
+       pixels for frame rate, and a star's core is the sharpest
+       peak in the scene — at a lower buffer resolution the peak
+       is sampled by fewer, larger pixels and the light that
+       should cross the bloom threshold falls short of it, so
+       the whole field reads dimmer exactly when the GPU is
+       working hardest (fast flight through dense fields). The
+       compensation raises the HDR core drive as the ladder
+       descends, sized from the ladder measurement in the
+       quality-pass report, so a star's bloomed brightness is
+       the same at every rung. */
+    '    col *= 1.0 + core * vGlow * 2.8 * uPeakComp;',
     '#endif',
     '    gl_FragColor = vec4(col, a);',
     '}'
@@ -310,6 +374,13 @@ var GAL_VERT = [
     'attribute float aBright;',
     'attribute float aTint;',
     'attribute float aSeed;',
+    /* photographic hero tiles (quality pass, 2026-11-21): aHero is
+       the tile number + 1 in universe-heroes.jpg (0 = no photo),
+       aHeroRot the rotation that aligns the photograph with this
+       galaxy's catalogued major axis; both filled in when the
+       hero manifest lands (buildHeroes) */
+    'attribute float aHero;',
+    'attribute float aHeroRot;',
     'uniform float uScaleH;',
     'uniform mediump float uHalo;',   /* mediump: must match the fragment stage's precision or strict drivers reject the program */
     'varying vec3 vCol;',
@@ -320,6 +391,8 @@ var GAL_VERT = [
     'varying float vSeed;',
     'varying float vDetail;',
     'varying vec2 vQ;',
+    'varying float vHero;',
+    'varying float vHeroRot;',
     'void main() {',
     '    vec4 mv = modelViewMatrix * vec4(aPos, 1.0);',
     '    float dist = max(1.0, -mv.z);',
@@ -348,6 +421,8 @@ var GAL_VERT = [
     '    vCol = aTint < 0.5 ? warm : (aTint < 1.5 ? spiral : irreg);',
     '    vTint = aTint;',
     '    vSeed = aSeed;',
+    '    vHero = aHero;',
+    '    vHeroRot = aHeroRot;',
     /* Procedural form (arms, clumps) only resolves once the sprite is
        big enough to carry it; far specks keep the smooth profile. */
     '    vDetail = clamp(px / 42.0, 0.0, 1.0);',
@@ -361,6 +436,9 @@ var GAL_VERT = [
 var GAL_FRAG = [
     'precision mediump float;',
     'uniform float uHalo;',   /* 1 for the named set, 0 for the cloud */
+    'uniform float uPeakComp;',
+    'uniform float uHeroW;',   /* 0 until the hero atlas has landed */
+    'uniform sampler2D tHeroes;',
     'varying vec3 vCol;',
     'varying float vAlpha;',
     'varying float vAng;',
@@ -369,10 +447,13 @@ var GAL_FRAG = [
     'varying float vSeed;',
     'varying float vDetail;',
     'varying vec2 vQ;',
+    'varying float vHero;',
+    'varying float vHeroRot;',
     'void main() {',
     '    vec2 q = vQ;',                          /* profile units: 0.5 = catalogued edge; the quad reaches 0.75 */
     '    float ca = cos(vAng), sa = sin(vAng);',
-    '    vec2 r = mat2(ca, -sa, sa, ca) * q;',   /* into the galaxy frame */
+    '    vec2 p = mat2(ca, -sa, sa, ca) * q;',   /* into the galaxy frame (still tilt-squeezed — the frame a photograph lives in) */
+    '    vec2 r = p;',
     '    r.y /= max(0.10, vAxis);',              /* undo the tilt squeeze */
     '    float d = length(r) * 2.0;',            /* 1.0 = catalogued edge */
     '    if (d > 1.52) discard;',                /* outside the feather — keeps the padded quad cheap */
@@ -421,15 +502,43 @@ var GAL_FRAG = [
        the quad's own edge, so no straight edge can ever show. */
     '    lum *= 1.0 - smoothstep(1.28, 1.5, d);',
     '    float a = clamp(lum, 0.0, 1.0) * vAlpha;',
+    /* PHOTOGRAPHIC HEROES (quality pass, 2026-11-21): for the
+       named galaxies a real photograph exists of (universe-
+       heroes.jpg — NASA/ESA/ESO/NOIRLab press images, sources
+       and licences in the credits), the photograph takes over
+       as the galaxy resolves: the procedural form is the far
+       view and the stand-in wherever no photo exists, and the
+       photo — fitted by its long edge to the catalogued
+       diameter, rotated onto the catalogued major axis, its
+       black sky contributing nothing under additive blending —
+       fades in over it on approach. The wide named halo and
+       the feather are the procedural layer's and stay. */
+    '    if (uHalo > 0.5 && vHero > 0.5 && uHeroW > 0.001) {',
+    '        float chr = cos(vHeroRot), shr = sin(vHeroRot);',
+    '        vec2 hp = mat2(chr, -shr, shr, chr) * p;',
+    '        vec2 huv = hp * 1.024 + 0.5;',   /* the tile holds the photo at 1000 of 1024 px */
+    '        if (all(greaterThanEqual(huv, vec2(0.001))) && all(lessThanEqual(huv, vec2(0.999)))) {',
+    '            float tile = vHero - 1.0;',
+    '            vec2 auv = (vec2(mod(tile, 4.0), floor(tile / 4.0)) + vec2(huv.x, 1.0 - huv.y)) / vec2(4.0, 3.0);',
+    '            vec3 ph = texture2D(tHeroes, auv).rgb;',
+    '            float phLum = dot(ph, vec3(0.299, 0.587, 0.114));',
+    '            float hw = uHeroW * smoothstep(0.20, 0.65, vDetail);',
+    '            float heroA = clamp(phLum * 1.7, 0.0, 1.0) * vAlpha * (1.0 - smoothstep(1.28, 1.5, d));',
+    '            col = mix(col, ph, hw);',
+    '            a = mix(a, heroA, hw);',
+    '            lum = mix(lum, phLum * 1.15, hw);',
+    '        }',
+    '    }',
     '    if (a < 0.004) discard;',
     /* QUALITY PASS: same HDR treatment as the stars — the
        authored colour linearises, and a core multiplier driven
        by the galaxy's own rendered luminance pushes only the
        brightest cores (Andromeda class) over the bloom
-       threshold. */
+       threshold. uPeakComp is the resolution ladder's make-good
+       (see STAR_FRAG). */
     '#if HDR_LINEAR',
     '    col = pow(max(col, vec3(0.0)), vec3(2.2));',
-    '    col *= 1.0 + pow(clamp(lum, 0.0, 1.0), 3.0) * 1.8;',
+    '    col *= 1.0 + pow(clamp(lum, 0.0, 1.0), 3.0) * 1.8 * uPeakComp;',
     '#endif',
     '    gl_FragColor = vec4(col, a);',
     '}'
@@ -659,6 +768,12 @@ export function initUniverse(stage) {
     var fxBrightMat = null, fxBlurMat = null, fxCopyMat = null, fxCompMat = null;
     var glowFine = null, glowBroad = null;
     var backdrop = null;
+    /* quality pass (2026-11-21): the near-home photographic sky
+       layer, the hero-galaxy manifest + named-cloud attributes,
+       and the camera-velocity state behind the star streaks */
+    var panoSky = null, panoTex = null;
+    var heroesManifest = null, heroAttrs = null, heroTex = null;
+    var prevCamPos = null, velViewSm = new THREE.Vector3();
     var solarGroup = null, solarBodies = null;
     var earthSys = null;   /* Earth texture-stack refs (set in buildSolarSystem) */
     var earthStackState = { started: false, ready: false, blend: 0 };
@@ -755,6 +870,54 @@ export function initUniverse(stage) {
         return fetch(url).then(function (resp) { return resp.ok ? resp.json() : []; })
             .then(function (j) { if (Array.isArray(j)) nebulae = j; })
             .catch(function () { /* enhancement layer — never fatal */ });
+    }
+    /* The hero galaxies' photographs live in their own pair of
+       files, on the nebulae precedent: universe-heroes.json maps
+       catalog names to tiles of universe-heroes.jpg (real press
+       photographs — NASA/ESA/ESO/NOIRLab; sources and licences
+       in the site credits) with the rotation that aligns each
+       photograph to its galaxy's catalogued major axis. A failed
+       fetch simply leaves every galaxy procedural; the game runs
+       without the layer. */
+    function loadHeroes() {
+        var url = new URL('./universe-heroes.json', import.meta.url);
+        return fetch(url).then(function (resp) { return resp.ok ? resp.json() : null; })
+            .then(function (j) { if (j && Array.isArray(j.tiles)) heroesManifest = j; })
+            .catch(function () { /* enhancement layer — never fatal */ });
+    }
+    function buildHeroes() {
+        if (!heroesManifest || !heroAttrs || !galNamedPoints) return;
+        var byName = {};
+        heroesManifest.tiles.forEach(function (t) { byName[t.name] = t; });
+        var filled = 0;
+        /* the named cloud's instances are the named galaxies in
+           catalog order — each named entry carries its own galaxy
+           index (e.i), which is the instance index to fill */
+        data.named.forEach(function (e) {
+            if (e.k !== 1 || e.i >= heroAttrs.count) return;
+            var t = byName[e.n];
+            if (t) {
+                heroAttrs.hero.array[e.i] = t.tile + 1;
+                heroAttrs.rot.array[e.i] = t.rot || 0;
+                filled++;
+            }
+        });
+        if (!filled) return;
+        heroAttrs.hero.needsUpdate = true;
+        heroAttrs.rot.needsUpdate = true;
+        heroTex = new THREE.TextureLoader().load(
+            new URL('./universe-heroes.jpg', import.meta.url).href,
+            function () {
+                galNamedPoints.material.uniforms.tHeroes.value = heroTex;
+                galNamedPoints.material.uniforms.uHeroW.value = 1;
+                if (galCloudPoints) {
+                    galCloudPoints.material.uniforms.tHeroes.value = heroTex;
+                }
+            },
+            undefined,
+            function () { /* atlas failed — galaxies stay procedural */ });
+        heroTex.colorSpace = THREE.SRGBColorSpace;
+        heroTex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
     }
     function buildNebulae() {
         if (!nebulae.length) return;
@@ -1067,10 +1230,73 @@ export function initUniverse(stage) {
         return mesh;
     }
 
+    /* ---------------- the near-home photographic sky ----------------
+       The backdrop above is the catalog's own light summed into
+       directions — honest, but smoothed: no photograph of the real
+       sky has ever been in the game. Near home there IS a real sky
+       to show: ESO's GigaGalaxy Zoom panorama (eso0932a, ESO /
+       S. Brunier, CC BY 4.0) — the whole celestial sphere
+       photographed from Earth's darkest sites, in galactic
+       coordinates. This layer puts that photograph around the
+       player, oriented by the true galactic frame (its centre
+       toward the real galactic centre, its pole on the real north
+       galactic pole), at full strength at home. It is a photograph
+       OF HOME'S SKY, so it belongs only near home: it fades out
+       between 1.5 and 25 kpc from the Sun, and beyond that the
+       catalog floor — light that is really there in the data —
+       is the sky again. The pano texture's own orientation inside
+       its file (u direction, v sense, centre offset) was measured
+       off the image itself at bake time (the galactic centre's and
+       the Large Magellanic Cloud's pixel positions fix all three)
+       and is carried in the texture transform below. */
+    function buildPanoSky() {
+        var mat = new THREE.MeshBasicMaterial({
+            side: THREE.BackSide, depthWrite: false, fog: false,
+            transparent: true, opacity: 0
+        });
+        mat.color.setScalar(0.9);
+        var mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), mat);
+        mesh.renderOrder = -2;
+        mesh.frustumCulled = false;
+        /* the galactic frame in equatorial components (J2000):
+           X toward the galactic centre (RA 17.7611h, Dec -29.0078),
+           Z toward the north galactic pole (RA 12.8567h, +27.1284),
+           Y completes the right-handed triad */
+        function eq(raH, decD) {
+            var ra = raH * Math.PI / 12, dec = decD * Math.PI / 180;
+            return new THREE.Vector3(Math.cos(dec) * Math.cos(ra),
+                                     Math.cos(dec) * Math.sin(ra),
+                                     Math.sin(dec));
+        }
+        var gx = eq(17.7611, -29.0078), gz = eq(12.8567, 27.1284);
+        var gy = new THREE.Vector3().crossVectors(gz, gx).normalize();
+        gx = new THREE.Vector3().crossVectors(gy, gz).normalize();
+        var m = new THREE.Matrix4().makeBasis(gx, gy, gz);
+        mesh.quaternion.setFromRotationMatrix(m);
+        mesh.quaternion.premultiply(new THREE.Quaternion()
+            .setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2));
+        panoTex = new THREE.TextureLoader().load(
+            new URL('./milkyway-pano.jpg', import.meta.url).href,
+            function () {
+                mat.map = panoTex;
+                mat.needsUpdate = true;
+            },
+            undefined,
+            function () { panoTex = null; /* layer stays out */ });
+        panoTex.colorSpace = THREE.SRGBColorSpace;
+        /* measured off the source image at bake time: the panorama
+           is centred on the galactic centre with longitude running
+           right-to-left as published; the wrap and offset below put
+           l=0 at the texture seam the sphere expects */
+        panoTex.wrapS = THREE.RepeatWrapping;
+        panoTex.repeat.x = -1;
+        return mesh;
+    }
+
     /* ---------------- the solar system ----------------
        The catalog's frame reaches down to the Sun, but the planets
        were never in it — Earth was not a place you could go. These
-       nine bodies are placed at their true heliocentric positions
+       ten bodies are placed at their true heliocentric positions
        for 2026-11-18 12:00 UTC, computed from JPL's approximate
        Keplerian elements (Standish, Table 1) into this game's
        equatorial J2000 frame. Distances and directions are true;
@@ -1086,6 +1312,19 @@ export function initUniverse(stage) {
         { n: 'Mercury', p: [-9.467426e-7, 1.078693e-6, 6.743610e-7],   r: 7.906e-8, tex: 'mercury.jpg', pole: [18.734, 61.45] },
         { n: 'Venus',   p: [1.136007e-6, 3.040495e-6, 1.296272e-6],    r: 1.961e-7, tex: 'venus.jpg',   pole: [18.184, 67.16] },
         { n: 'Earth',   p: [2.695043e-6, 3.635981e-6, 1.576126e-6],    r: 2.065e-7, tex: 'earth.jpg',   pole: [0, 90], atmo: true },
+        /* The Moon (quality pass, 2026-11-21 — she was never in the
+           game). Her direction from Earth and her size against
+           Earth are true: the geocentric direction for this same
+           epoch by Schlyter's lunar algorithm (true distance
+           393,133 km that day), radius 0.2727x Earth's. Her DISTANCE
+           cannot be true at the game's drawn scales — at true
+           proportion she would sit inside the drawn Earth — so she
+           stands 6 drawn Earth radii out in the true direction, the
+           same class of liberty as the planets' 1,000x radii,
+           stated in the About text. Texture: the Moon map of the
+           same Solar System Scope set as the planets (built from
+           NASA LRO/Clementine data), grey and cratered as she is. */
+        { n: 'Moon',    p: [3.839893e-6, 3.192515e-6, 1.409463e-6],    r: 5.631e-8, tex: 'moon.jpg',    pole: [17.888, 65.64] },
         { n: 'Mars',    p: [-2.500337e-6, 6.705219e-6, 3.142969e-6],   r: 1.098e-7, tex: 'mars.jpg',    pole: [21.179, 52.89] },
         { n: 'Jupiter', p: [-1.824027e-5, 1.659686e-5, 7.557852e-6],   r: 2.266e-6, tex: 'jupiter.jpg', pole: [17.871, 64.49] },
         { n: 'Saturn',  p: [4.454207e-5, 9.860811e-6, 2.155511e-6],    r: 1.887e-6, tex: 'saturn.jpg',  pole: [2.706, 83.54], ring: true },
@@ -1121,8 +1360,14 @@ export function initUniverse(stage) {
        (startEarthStack, below) — NASA's Blue Marble day map, the
        VIIRS night-lights map, and the Visible Earth cloud
        composite (planets/earth-day.jpg / earth-night.jpg /
-       earth-clouds.jpg, 4096x2048 renditions; fetch_earth_stack.py
-       records the sources). The shader reproduces the game's
+       earth-clouds.jpg; fetch_earth_stack.py records the sources).
+       The 2026-11-21 quality pass raises the day and night maps
+       to 8192x4096 renditions and adds the stack's two physical
+       layers: planets/earth-spec.jpg, the land/ocean specular
+       mask behind the ocean's sun-glint, and planets/earth-
+       normal.jpg, the terrain relief map (both Solar System
+       Scope renditions of NASA data, CC BY 4.0). They gate only
+       themselves — Earth never waits on them. The shader reproduces the game's
        Lambert terms exactly — the PointLight's 5.2/pi on the day
        side, the ambient's 0.22/pi whisper — so Earth sits in the
        same light as her neighbours in both render paths; the
@@ -1135,9 +1380,16 @@ export function initUniverse(stage) {
         'varying vec2 vUv;',
         'varying vec3 vNV;',
         'varying vec3 vVP;',
+        'varying vec3 vTV;',
         'void main() {',
         '    vUv = uv;',
         '    vNV = normalize(normalMatrix * normal);',
+        /* the east tangent of the sphere, from the geometry itself:
+           for the sphere's own parametrisation the direction of
+           increasing longitude at a vertex is (z, 0, x) of its
+           object position — the frame the relief map is read in */
+        '    vec3 tObj = vec3(position.z, 0.0, position.x);',
+        '    vTV = normalize(normalMatrix * (length(tObj) > 0.001 ? tObj : vec3(1.0, 0.0, 0.0)));',
         '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
         '    vVP = mv.xyz;',
         '    gl_Position = projectionMatrix * mv;',
@@ -1155,16 +1407,33 @@ export function initUniverse(stage) {
         'varying vec2 vUv;',
         'varying vec3 vNV;',
         'varying vec3 vVP;',
+        'varying vec3 vTV;',
         'uniform sampler2D tLow;',
         'uniform sampler2D tDay;',
         'uniform sampler2D tNight;',
+        'uniform sampler2D tSpec;',
+        'uniform sampler2D tNrm;',
         'uniform float uBlend;',
         'uniform float uHasLow;',
         'uniform float uHasStack;',
+        'uniform float uHasSpec;',
+        'uniform float uHasNrm;',
         'uniform vec3 uSunVP;',
         SRGB_ENC_GLSL,
         'void main() {',
         '    vec3 N = normalize(vNV);',
+        /* terrain relief (quality pass, 2026-11-21): the stack's
+           normal map tilts the shading normal by the real terrain
+           — mountain ranges and ocean trenches shade against the
+           sun instead of the day map's baked suggestion of them.
+           Fades in with the stack's own blend, like everything
+           else in it, and only ever touches the stack's Earth. */
+        '    if (uHasStack > 0.5 && uHasNrm > 0.5) {',
+        '        vec3 tN = texture2D(tNrm, vUv).rgb * 2.0 - 1.0;',
+        '        vec3 T = normalize(vTV);',
+        '        vec3 B = cross(N, T);',
+        '        N = normalize(N + (T * tN.x + B * tN.y) * (uBlend * 0.85));',
+        '    }',
         '    vec3 L = normalize(uSunVP - vVP);',
         '    float ndl = dot(N, L);',
         /* before any map lands, the same 0x888888 grey the Lambert
@@ -1179,6 +1448,19 @@ export function initUniverse(stage) {
            the stack's own blend so they never pop */
         '        float nightF = (1.0 - smoothstep(-0.18, 0.10, ndl)) * uBlend;',
         '        col += texture2D(tNight, vUv).rgb * nightF * 1.2;',
+        '    }',
+        /* ocean sun-glint (quality pass, 2026-11-21): the specular
+           map is the real land/ocean mask — land contributes
+           nothing, open water throws a Blinn-Phong glint back at
+           the camera around the sun's mirror point, the single
+           strongest "this is a real planet" cue a still orbit
+           view has. It rides the stack blend like the rest. */
+        '    if (uHasStack > 0.5 && uHasSpec > 0.5) {',
+        '        float ocean = texture2D(tSpec, vUv).r;',
+        '        vec3 V = normalize(-vVP);',
+        '        vec3 H = normalize(L + V);',
+        '        float spec = pow(max(dot(N, H), 0.0), 42.0) * ocean;',
+        '        col += vec3(1.0, 0.97, 0.92) * spec * 0.55 * uBlend;',
         '    }',
         '#if !HDR_LINEAR',
         '    col = srgbEnc(col);',
@@ -1227,16 +1509,19 @@ export function initUniverse(stage) {
             /* blend only on a complete, day-bearing stack: if the
                day map failed, Earth keeps her plain map and the
                lights and clouds stay off — a partial stack would
-               be worse than none */
-            if (settled === 3 && dayOK) {
+               be worse than none. The specular and relief maps
+               settle in the same count but gate only themselves
+               (uHasSpec / uHasNrm, set in their own callbacks):
+               a missing glint must never cost Earth her day map */
+            if (settled === 5 && dayOK) {
                 earthStackState.ready = true;
                 earthSys.uniforms.uHasStack.value = 1;
                 earthSys.cloudMesh.visible = true;
             }
         }
-        function grab(file, srgb, isDay) {
+        function grab(file, srgb, isDay, flag) {
             var t = loader.load(new URL('./planets/' + file, import.meta.url).href,
-                function () { settle(true, isDay); },
+                function () { if (flag) earthSys.uniforms[flag].value = 1; settle(true, isDay); },
                 undefined,
                 function () { settle(false, isDay); });
             if (srgb) t.colorSpace = THREE.SRGBColorSpace;
@@ -1246,6 +1531,8 @@ export function initUniverse(stage) {
         earthSys.uniforms.tDay.value = grab('earth-day.jpg', true, true);
         earthSys.uniforms.tNight.value = grab('earth-night.jpg', true, false);
         earthSys.cloudUniforms.tCov.value = grab('earth-clouds.jpg', false, false);
+        earthSys.uniforms.tSpec.value = grab('earth-spec.jpg', false, false, 'uHasSpec');
+        earthSys.uniforms.tNrm.value = grab('earth-normal.jpg', false, false, 'uHasNrm');
     }
 
     function buildSolarSystem() {
@@ -1281,7 +1568,9 @@ export function initUniverse(stage) {
                     vertexShader: EARTH_VERT, fragmentShader: EARTH_FRAG,
                     uniforms: {
                         tLow: { value: null }, tDay: { value: null }, tNight: { value: null },
+                        tSpec: { value: null }, tNrm: { value: null },
                         uBlend: { value: 0 }, uHasLow: { value: 0 }, uHasStack: { value: 0 },
+                        uHasSpec: { value: 0 }, uHasNrm: { value: 0 },
                         uSunVP: sunVP
                     },
                     defines: { HDR_LINEAR: fxOK ? 1 : 0 }
@@ -1388,7 +1677,8 @@ export function initUniverse(stage) {
         sg.setAttribute('aPhase', new THREE.BufferAttribute(phaseArr, 1));
         var sm = new THREE.ShaderMaterial({
             vertexShader: STAR_VERT, fragmentShader: STAR_FRAG,
-            uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uTime: { value: 0 } },
+            uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uTime: { value: 0 },
+                        uVelView: { value: new THREE.Vector3() }, uPeakComp: { value: 1 } },
             defines: { HDR_LINEAR: fxOK ? 1 : 0 },
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
         });
@@ -1429,10 +1719,18 @@ export function initUniverse(stage) {
             g.setAttribute('aBright', new THREE.InstancedBufferAttribute(bright, 1));
             g.setAttribute('aTint', new THREE.InstancedBufferAttribute(tint, 1));
             g.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seed, 1));
+            /* hero tiles: all zero (procedural) until the hero
+               manifest lands and buildHeroes fills the named set */
+            var heroA = new THREE.InstancedBufferAttribute(new Float32Array(n), 1);
+            var heroR = new THREE.InstancedBufferAttribute(new Float32Array(n), 1);
+            g.setAttribute('aHero', heroA);
+            g.setAttribute('aHeroRot', heroR);
+            if (from === 0) heroAttrs = { hero: heroA, rot: heroR, count: n };
             g.instanceCount = n;
             var m = new THREE.ShaderMaterial({
                 vertexShader: GAL_VERT, fragmentShader: GAL_FRAG,
-                uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uHalo: { value: halo } },
+                uniforms: { uScaleH: { value: 1 }, uDpr: { value: 1 }, uHalo: { value: halo },
+                            uPeakComp: { value: 1 }, uHeroW: { value: 0 }, tHeroes: { value: null } },
                 defines: { HDR_LINEAR: fxOK ? 1 : 0 },
                 transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
             });
@@ -1469,6 +1767,15 @@ export function initUniverse(stage) {
            sky is a floor under every position and speed */
         backdrop = buildBackdrop();
         scene.add(backdrop);
+
+        /* the near-home photographic sky (ESO's panorama of the
+           real sky, galactic frame) under the catalog floor */
+        panoSky = buildPanoSky();
+        scene.add(panoSky);
+
+        /* the hero galaxies' photographs, matched to their
+           catalog entries (attributes filled, atlas streamed) */
+        buildHeroes();
 
         /* the bright nebulae — soft coloured glows at their real
            catalog positions (universe-nebulae.json) */
@@ -1976,6 +2283,35 @@ export function initUniverse(stage) {
             var bs = camera.far * 0.45;
             backdrop.scale.set(bs, bs, bs);
         }
+        /* the photographic sky rides the camera the same way, a
+           touch inside the catalog floor, and fades with distance
+           from home: full at home, gone by 25 kpc — a photograph
+           of Earth's sky is only the actual sky near Earth */
+        if (panoSky) {
+            panoSky.position.copy(camPos);
+            var ps2 = camera.far * 0.44;
+            panoSky.scale.set(ps2, ps2, ps2);
+            if (panoTex && panoSky.material.map) {
+                var homeF = 1 - Math.min(1, Math.max(0, (alt - 1500) / 23500));
+                homeF = homeF * homeF * (3 - 2 * homeF);
+                panoSky.material.opacity = 0.88 * homeF;
+            }
+        }
+        /* star streaks: the camera's velocity this frame, in view
+           space, smoothed over two frames so a single hitched
+           frame cannot flash the field into lines. The rotation
+           transpose is the inverse rotation — world travel into
+           the camera's own axes. */
+        if (starPoints) {
+            if (prevCamPos && dt > 0.0005 && dt < 0.1) {
+                tmpV.copy(camPos).sub(prevCamPos);   /* per-frame travel, parsecs */
+                tmpM.extractRotation(camera.matrixWorld).transpose();
+                tmpV.applyMatrix4(tmpM);
+                velViewSm.lerp(tmpV, 0.55);
+            }
+            if (prevCamPos) prevCamPos.copy(camPos); else prevCamPos = camPos.clone();
+            starPoints.material.uniforms.uVelView.value.copy(velViewSm);
+        }
         /* the Sun's point sprite hands over to its textured sphere
            once you are close enough for the sphere to be the Sun */
         if (sunPoints) sunPoints.visible = alt > 3e-6;
@@ -2036,6 +2372,15 @@ export function initUniverse(stage) {
                 p.material.uniforms.uScaleH.value = scaleH;
                 p.material.uniforms.uDpr.value = dpr;
             }
+        });
+        /* peak compensation for the resolution ladder (see
+           STAR_FRAG): as the effective pixel ratio falls below the
+           cap, the HDR core drive rises to hold bloomed brightness
+           constant — exponent from the ladder measurement in the
+           quality-pass report */
+        var peakComp = Math.min(2.0, Math.pow(dprCap / Math.max(dpr, 0.01), 0.75));
+        [starPoints, galNamedPoints, galCloudPoints].forEach(function (p) {
+            if (p && p.material.uniforms.uPeakComp) p.material.uniforms.uPeakComp.value = peakComp;
         });
         /* the final-pass targets track the drawing buffer, so a
            resize or a DPR-ladder step re-makes them at the new
@@ -2287,7 +2632,7 @@ export function initUniverse(stage) {
     loadMsg.textContent = 'Loading the real universe\u2026';
     loadData().then(function (d) {
         data = d;
-        return loadNebulae();
+        return Promise.all([loadNebulae(), loadHeroes()]);
     }).then(function () {
         try {
             buildScene();
