@@ -162,8 +162,13 @@ const easeIn=(a,b,p)=>a+(b-a)*p*p, easeInOut=(a,b,p)=>a+(b-a)*(-Math.cos(p*Math.
 const overlap=(x1,w1,x2,w2,p)=>{ const h1=w1*p/2,h2=w2*p/2; return !(x1+h1<x2-h2||x1-h1>x2+h2); };
 
 /* ---------- engine constants ---------- */
-const SEG_LEN=200, RUMBLE=3, ROAD_W=2100, DRAW_DIST=150, CAM_H=2050;
-const BASE_DEPTH = 1/Math.tan((100/2)*Math.PI/180);   /* FOV 100 */
+const SEG_LEN=200, RUMBLE=3, ROAD_W=2100, DRAW_DIST=230, CAM_H=3200;
+const BASE_DEPTH = 1/Math.tan((92/2)*Math.PI/180);    /* FOV 92 */
+const YSCALE=0.62;   /* vertical projection stretch: pitches the view down
+                        so the road ahead spreads over more of the screen —
+                        the vanishing point stays at H/2, so the backdrop
+                        horizon alignment is untouched */
+const GRAV=20000;    /* jump gravity, world units / s^2 */
 const MAX_SPEED = SEG_LEN*62;                          /* 12,400 u/s */
 const BOOST_MAX = MAX_SPEED*1.18;
 const ACCEL=4600, BRAKE=9800, RUMBLE_SCRUB=5600;
@@ -178,7 +183,7 @@ function addSegment(curve,y){
   segments.push({ index:n, curve:curve,
     p1:{world:{y:lastY(),z:n*SEG_LEN},camera:{},screen:{}},
     p2:{world:{y:y,z:(n+1)*SEG_LEN},camera:{},screen:{}},
-    sprites:[], shade: Math.floor(n/RUMBLE)%2 });
+    sprites:[], shade: Math.floor(n/RUMBLE)%2, ramp:false, gate:false, ringGate:false });
 }
 function addRoad(enter,hold,leave,curve,endY){
   const startY=lastY(), total=enter+hold+leave; let n;
@@ -186,38 +191,69 @@ function addRoad(enter,hold,leave,curve,endY){
   for(n=0;n<hold;n++)  addSegment(curve, easeInOut(startY,endY,(enter+n)/total));
   for(n=0;n<leave;n++) addSegment(easeIn(curve,0,n/leave), easeInOut(startY,endY,(enter+hold+n)/total));
 }
+function addJump(){
+  /* a launch ramp, built into the road profile: a 14-segment face whose
+     rise per segment accelerates (~6 -> ~112 u, so the lip slope is
+     ~0.56), a flagged lip segment, then a 55-segment easing descent back
+     to the height the ramp started from — a long landing hill. */
+  const y0=lastY(); let y=y0;
+  const FACE=14;
+  for(let i=0;i<FACE;i++){ y += lerp(6,112,Math.pow(i/(FACE-1),1.6)); addSegment(0,y); }
+  segments[segments.length-1].ramp=true;
+  const lipY=y, LAND=55;
+  for(let i=0;i<LAND;i++){ const t=(i+1)/LAND; addSegment(0, lipY+(y0-lipY)*easeInOut(0,1,t)); }
+}
 function findSegment(z){ return segments[Math.floor(z/SEG_LEN)%segments.length]; }
+function roadYAt(z){ const s=findSegment(z), pct=((z%SEG_LEN)+SEG_LEN)%SEG_LEN/SEG_LEN; return lerp(s.p1.world.y, s.p2.world.y, pct); }
 function hashRand(i){ const v=Math.sin(i*127.1+311.7)*43758.5453; return v-Math.floor(v); }
 
 function buildTrack(){
   segments=[];
-  addRoad(25,25,25, 0, 0);      /* start straight */
-  addRoad(30,30,30, 2, 12);     /* gentle right */
-  addRoad(20,20,20, 0, 22);
-  addRoad(30,40,30,-4,-12);     /* medium left */
-  addRoad(15,15,15, 0, 0);
-  addRoad(35,45,35, 6, 30);     /* hard right, uphill */
-  addRoad(25,25,25,-2, 6);
-  addRoad(30,40,30,-6,-22);     /* hard left, downhill */
-  addRoad(25,35,25, 3, 0);
-  addRoad(20,20,20, 0, 0);      /* run to the line */
+  addRoad(25,25,25, 0, 0);      /* start straight — the gate avenue */
+  addRoad(25,25,25, 2, 10);     /* gentle right */
+  addRoad(10,10,10, 0, 10);     /* short flat run */
+  addJump();                    /* JUMP 1 (segs ~180-248) */
+  addRoad(15,15,15, 0, 10);     /* landing run-out */
+  addRoad(30,40,30,-4,-14);     /* medium left, through the canyon */
+  addRoad(20,20,20, 0,-14);     /* straight — the ring gate stands here */
+  addRoad(35,45,35, 6, 26);     /* hard right, uphill */
+  addRoad(10,10,10, 0, 26);     /* short flat run */
+  addJump();                    /* JUMP 2 (segs ~599-667) */
+  addRoad(15,15,15, 0, 26);     /* landing run-out */
+  addRoad(30,40,30,-6,-20);     /* hard left, downhill */
+  addRoad(20,25,20, 3, 0);      /* sweeping right, home */
+  addRoad(15,15,15, 0, 0);      /* run to the line */
   trackLength = segments.length*SEG_LEN;
-  /* roadside dressing — deterministic by segment index. Same placement
-     pattern as the live game; the dressing itself is the ring city's:
-     habitat towers, spires and colossal rings in place of trees. */
+  segments[320].gate=true;      /* plain city gates overhead */
+  segments[760].gate=true;
+  segments[424].ringGate=true;  /* the colossal ring, threaded by the road */
+  /* roadside dressing — deterministic by segment index. The course now
+     threads THROUGH the ring city: tower walls close on both sides for
+     long canyon stretches, gates cross overhead, and one ring stands
+     astride the road itself. Open stretches keep the wider spacing. */
+  const canyon = i => (i>=294 && i<394) || (i>=454 && i<569) || (i>=713 && i<813);
   for(let i=6;i<segments.length;i++){
-    const s=segments[i], r=hashRand(i);
-    if(Math.abs(s.curve)>=4 && i%6===0) s.sprites.push({type:'sign', offset:-Math.sign(s.curve)*2.05, dir:Math.sign(s.curve)});
-    else if(i%7===3)  s.sprites.push({type: r<0.5?'towerA':'spire', offset:-1.9-r*0.8});
-    else if(i%9===4)  s.sprites.push({type: r<0.5?'spire':'towerA', offset: 1.9+r*0.8});
-    else if(i%13===5) s.sprites.push({type:'ring', offset:(i%26===5?-3.1:3.1)});
-    else if(i%17===8) s.sprites.push({type:'marker', offset:(r<0.5?-1.22:1.22)});
+    const s=segments[i], r=hashRand(i), r2=hashRand(i+5000);
+    if(Math.abs(s.curve)>=4 && i%6===0){ s.sprites.push({type:'sign', offset:-Math.sign(s.curve)*2.05, dir:Math.sign(s.curve)}); continue; }
+    if(i%29===11){ s.sprites.push({type:'ring', offset:(r<0.5?-1:1)*(2.6+r*0.8)}); continue; }
+    if(i%17===8){ s.sprites.push({type:'marker', offset:(r<0.5?-1.22:1.22)}); continue; }
+    if(canyon(i)){
+      if(i%2===0){
+        s.sprites.push({type: r<0.5?'towerA':'spire',  offset:-(1.5+r*0.35),  s:0.8+hashRand(i*3+1)*0.55});
+        s.sprites.push({type: r2<0.5?'spire':'towerA', offset: (1.5+r2*0.35), s:0.8+hashRand(i*7+2)*0.55});
+      } else if(i%4===1){
+        s.sprites.push({type: r<0.5?'towerA':'spire', offset:-(1.55+r*0.4), s:0.8+hashRand(i*3+1)*0.55});
+      }
+    } else if(i%3!==0){
+      const side = r<0.5?-1:1;
+      s.sprites.push({type: r2<0.45?'towerA':'spire', offset: side*(1.8+r*0.9), s:0.8+hashRand(i*5+3)*0.55});
+    }
   }
 }
 buildTrack();
 
 /* pickup bunches: fixed segments spread around the lap */
-const PICKUP_SEGS=[70,180,300,415,520,640,730];
+const PICKUP_SEGS=[60,160,285,380,470,700,880];
 let pickups=[];
 function resetPickups(){ pickups = PICKUP_SEGS.map((s,i)=>({seg:s, offset:(i%2? -0.45:0.45), ready:true, respawnT:0})); }
 
@@ -226,6 +262,7 @@ let state='title';              /* title | countdown | racing | finished */
 let paused=false, pauseReason='';
 let position=0, playerTotal=0, playerX=0, speed=0, raceTime=0, countT=0, finishTime=0, finalPos=4;
 let spinT=0, invulnT=0, driftT=0, boostT=0, fovKick=1, hillFar=0, hillNear=0, cloudDrift=0, shake=0;
+let airborne=false, airY=0, airVY=0, landT=0, pitchSm=0;
 let carry=0, holding=false, thrown=null, trackBananas=[];
 let goHeld=false, leftHeld=false, slideTarget=0, slideCur=0;
 let releaseStamp=-9, releaseWasCorner=false, releaseSpeedOk=false, driftDir=0;
@@ -240,6 +277,7 @@ let rivals=[];
 function resetRace(){
   position=0; playerTotal=0; playerX=0; speed=0; raceTime=0; spinT=0; invulnT=0;
   driftT=0; boostT=0; fovKick=1; shake=0;
+  airborne=false; airY=0; airVY=0; landT=0; pitchSm=0;
   carry=0; holding=false; thrown=null; trackBananas=[];
   goHeld=false; leftHeld=false; slideTarget=0; slideCur=0; releaseStamp=-9;
   stats={drifts:0,boosts:0,spins:0,drops:0,throws:0}; particles=[];
@@ -309,7 +347,7 @@ function throwBanana(){
    then press GO again within 0.45 s -> 0.55 s drift, then a 0.9 s boost.
    One drift per release/press sequence; the release stamp is consumed on use. */
 function onGoDown(){
-  if(state!=='racing'||paused) return;
+  if(state!=='racing'||paused||airborne) return;   /* no drift feather mid-flight */
   if(raceTime-releaseStamp<=0.45 && releaseWasCorner && releaseSpeedOk && driftT<=0 && boostT<=0 && spinT<=0){
     driftT=0.55; driftDir=releaseDirSign; stats.drifts++;
     releaseStamp=-9;                       /* consume: one boost per feather */
@@ -332,12 +370,13 @@ function updatePlayer(dt){
   const sp=speed/MAX_SPEED;
   /* --- lateral: auto-follow + slide + centrifugal push --- */
   slideCur += (slideTarget-slideCur)*Math.min(1,dt*11);
-  let push = seg.curve * sp*sp * 0.20;                       /* corners push you wide */
+  const airF = airborne? 0.3 : 1;                            /* in the air the machine barely answers: no tyre grip */
+  let push = seg.curve * sp*sp * 0.20 * airF;                /* corners push you wide */
   let centerPull = (1.15-0.45*sp);                           /* gentle auto-centre */
   const edgeFade = (slideCur!==0 && Math.sign(slideCur)===Math.sign(playerX) && Math.abs(playerX)>0.95)
     ? Math.max(0, 1-(Math.abs(playerX)-0.95)/0.35) : 1;      /* slide fades at the road's edge */
-  playerX += slideCur * 2.3 * dt * (0.5+0.5*Math.max(sp,0.15)) * edgeFade;
-  playerX += push*dt - playerX*centerPull*dt*(slideCur===0?1:0.35)*(Math.abs(playerX)>0.95?2.0:1);
+  playerX += slideCur * 2.3 * dt * (0.5+0.5*Math.max(sp,0.15)) * edgeFade * airF;
+  playerX += push*dt - playerX*centerPull*dt*(slideCur===0?1:0.35)*(Math.abs(playerX)>0.95?2.0:1)*(airborne?0.35:1);
   if(driftT>0) playerX += driftDir * dt * 0.85;              /* drift runs a wider line */
   playerX = clamp(playerX,-1.3,1.3);
   /* --- longitudinal --- */
@@ -356,13 +395,13 @@ function updatePlayer(dt){
   if(boostT>0) boostT-=dt;
   fovKick += (((boostT>0)?1.13:1)-fovKick)*Math.min(1,dt*5);
   /* --- rumble edge --- */
-  const onRumble = Math.abs(playerX)>0.82 && speed>200;
+  const onRumble = !airborne && Math.abs(playerX)>0.82 && speed>200;
   if(onRumble && speed>2400){
     speed=Math.max(0,speed-RUMBLE_SCRUB*dt); shake=Math.min(7,shake+dt*22);
     if(Math.random()<0.55) spawnP({type:'dust', x:W/2+(Math.random()-0.5)*70, y:H-24, vx:(Math.random()-0.5)*60, vy:-30-Math.random()*40, life:0.5, t:0, size:9+Math.random()*13});
   } else shake=Math.max(0,shake-dt*26);
   /* --- drift sparks --- */
-  if(driftT>0 && speed>1500){
+  if(driftT>0 && speed>1500 && !airborne){
     for(let i=0;i<3;i++) spawnP({type:'spark', x:W/2-driftDir*36+(Math.random()-0.5)*16, y:H-16,
       vx:-driftDir*(60+Math.random()*130), vy:-(40+Math.random()*90), life:0.32, t:0, size:3+Math.random()*3});
   }
@@ -373,16 +412,43 @@ function updatePlayer(dt){
   position=(position+dz)%trackLength; playerTotal+=dz;
   hillFar  += seg.curve*sp*dt*7;  hillNear += seg.curve*sp*dt*15;
   cloudDrift += dt*4 + seg.curve*sp*dt*3;
+  /* --- jumps: crossing a ramp lip at speed launches the machine --- */
+  if(!airborne && speed>2500){
+    const nSeg=segments.length, span=(playerSegIndex()-prevIdx+nSeg)%nSeg;
+    if(span>0 && span<=10) for(let s=0;s<span;s++){
+      const ls=segments[(prevIdx+s)%nSeg];
+      if(ls.ramp){
+        airborne=true;
+        airY=roadYAt(position + CAM_H*BASE_DEPTH);
+        airVY=speed*(ls.p2.world.y-ls.p1.world.y)/SEG_LEN;   /* the face's slope, thrown forward */
+        beep(240,0.12,'sawtooth',0.03);
+        break;
+      }
+    }
+  }
+  /* --- the airborne arc: gravity pulls the machine back to the road --- */
+  if(airborne){
+    airVY -= GRAV*dt; airY += airVY*dt;
+    const rY=roadYAt(position + CAM_H*BASE_DEPTH);
+    if(airY<=rY){
+      airY=rY; airborne=false; landT=0.22; shake=Math.max(shake,2.5);
+      for(let i=0;i<10;i++) spawnP({type:'dust', x:W/2+(Math.random()-0.5)*90, y:H-20, vx:(Math.random()-0.5)*90, vy:-24-Math.random()*46, life:0.5, t:0, size:8+Math.random()*12});
+      beep(140,0.09,'square',0.04);
+    }
+  } else {
+    airY=roadYAt(position + CAM_H*BASE_DEPTH);
+    if(landT>0) landT-=dt;
+  }
   /* --- pickups --- */
   const pIdx=playerSegIndex();
   for(const pk of pickups){
     if(!pk.ready){ pk.respawnT-=dt; if(pk.respawnT<=0) pk.ready=true; continue; }
-    if(pk.seg===pIdx && Math.abs(pk.offset-playerX)<0.42 && carry===0 && spinT<=0){
+    if(pk.seg===pIdx && Math.abs(pk.offset-playerX)<0.42 && carry===0 && spinT<=0 && !airborne){
       carry=1; pk.ready=false; pk.respawnT=6; beep(880,0.08,'square',0.04);
     }
   }
   /* --- track banana collision --- */
-  if(spinT<=0 && invulnT<=0 && speed>300){
+  if(!airborne && spinT<=0 && invulnT<=0 && speed>300){
     /* swept test: every segment the kart crossed this frame, not only the one it
        landed in — at full speed one frame covers more than a whole segment, so a
        banana in a jumped-over segment was driven over without ever being tested */
@@ -423,7 +489,9 @@ function updateRivals(dt){
     const gap=r.totalDist-playerTotal, ag=Math.abs(gap);
     const rubber = ag<3000? 0 : clamp((ag-3000)/47000,0,1)*0.045*(gap<0?1:-1);
     r.lastRubber = rubber;
-    const rSeg=segments[Math.floor((r.totalDist%trackLength)/SEG_LEN)];
+    /* wrapped like the render path: a rival can sit behind the start
+       line (negative totalDist) early or under test manipulation */
+    const rSeg=segments[Math.floor((((r.totalDist%trackLength)+trackLength)%trackLength)/SEG_LEN)];
     const curveSlow = 1 - Math.min(0.24, Math.abs(rSeg.curve)*0.032);
     const vary = 1 + 0.028*Math.sin(raceTime*0.55 + r.phase);
     r.baseTarget = r.base*MAX_SPEED;
@@ -441,13 +509,13 @@ function updateRivals(dt){
     if(r.dropT<=0){
       r.dropT=7+Math.random()*6;
       if(r.totalDist>playerTotal+1600 && state==='racing'){
-        trackBananas.push({seg: Math.floor((r.totalDist%trackLength)/SEG_LEN), offset: clamp(r.off + Math.sin(r.sway)*0.09,-0.9,0.9)});
+        trackBananas.push({seg: Math.floor((((r.totalDist%trackLength)+trackLength)%trackLength)/SEG_LEN), offset: clamp(r.off + Math.sin(r.sway)*0.09,-0.9,0.9)});
         if(trackBananas.length>24) trackBananas.shift();
       }
     }
     /* rival meets a track banana */
     if(r.spinT<=0 && r.invulnT<=0 && r.speed>300){
-      const ri=Math.floor((r.totalDist%trackLength)/SEG_LEN), ro=r.off+Math.sin(r.sway)*0.09;
+      const ri=Math.floor((((r.totalDist%trackLength)+trackLength)%trackLength)/SEG_LEN), ro=r.off+Math.sin(r.sway)*0.09;
       for(let i=0;i<trackBananas.length;i++){
         if(trackBananas[i].seg===ri && Math.abs(trackBananas[i].offset-ro)<0.38){
           trackBananas.splice(i,1); r.spinT=1.0; r.invulnT=2.0;
@@ -541,6 +609,20 @@ loadImg('machine','machine.webp', {src:'assets-raw/media-generation-machine-rear
 loadImg('towerA','tower-a.webp', {src:'assets-raw/media-generation-tower-a-0-9ed70402-1050-424d-9af1-c16f8cf64e30.webp', key:true, th:1024});
 loadImg('spire','tower-b.webp', {src:'assets-raw/media-generation-tower-b-0-345c38d6-b859-42e6-aad8-a4c2e3e027b9.webp', key:true, th:1024});
 loadImg('ring','ring.webp', {src:'assets-raw/media-generation-ring-arch-0-89888b7c-20a4-4c3a-9096-082a7aa4014e.webp', key:true, tw:880});
+/* half-height working copies of the two tower images, built once:
+   hundreds of roadside draws per frame sample these instead of the
+   full 1024-tall sources — the same picture on screen (no roadside
+   tower is ever shown taller than a few hundred pixels) at a
+   fraction of the raster cost */
+const IMG_S={};
+function makeScaled(key){
+  const img=IMG[key]; if(!imgOk(img) || IMG_S[key]) return;
+  const f=Math.min(1, 512/ih(img)); if(f>=1){ IMG_S[key]=img; return; }
+  const c=document.createElement('canvas');
+  c.width=Math.max(2, Math.round(iw(img)*f)); c.height=Math.max(2, Math.round(ih(img)*f));
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  IMG_S[key]=c;
+}
 function iw(im){ return im? (im.naturalWidth||im.width||0) : 0; }
 function ih(im){ return im? (im.naturalHeight||im.height||0) : 0; }
 function imgOk(im){ return iw(im)>0 && (im.complete===undefined || im.complete); }
@@ -568,7 +650,7 @@ function project(p, camX, camY, camZ, depth){
   p.camera.z = p.world.z - camZ;
   p.screen.scale = depth/Math.max(1,p.camera.z);
   p.screen.x = Math.round(W/2 + p.screen.scale*p.camera.x*W/2);
-  p.screen.y = Math.round(H/2 - p.screen.scale*p.camera.y*H/2);
+  p.screen.y = Math.round(H/2 - p.screen.scale*p.camera.y*H*YSCALE);
   p.screen.w = Math.round(p.screen.scale*ROAD_W*W/2);
 }
 function shade(hex,f){
@@ -692,13 +774,18 @@ function drawKart(x, groundY, w, color, shirt, lean, spinRot, alpha){
    pool on the wet track and thruster glow that grows with throttle.
    Thruster centres sit at ±0.326 of the width, 0.20 of the height up
    from the sprite's base — measured off the sprite's own pixels. */
-function drawMachine(x, groundY, w, img, color, shirt, lean, spinRot, alpha, thrust){
+function drawMachine(x, groundY, w, img, color, shirt, lean, spinRot, alpha, thrust, shadowBaseY){
   if(!imgOk(img)){ drawKart(x, groundY, w, color, shirt, lean, spinRot, alpha); return; }
   const h=w*ih(img)/iw(img);
+  /* when the machine is airborne, its shadow stays on the road at
+     shadowBaseY — shrinking and fading as the machine climbs away */
+  const lift = shadowBaseY===undefined? 0 : Math.max(0, shadowBaseY-groundY);
+  const shY = shadowBaseY===undefined? groundY : shadowBaseY;
+  const airF = clamp(lift/(H*0.45), 0, 1);
   /* hover light pool on the wet deck */
-  ctx.fillStyle='rgba(56,225,255,'+(0.05+0.10*thrust)+')';
-  ctx.beginPath(); ctx.ellipse(x, groundY+2, w*0.47, w*0.075, 0, 0, 6.29); ctx.fill();
-  shadowEllipse(x, groundY+2, w*0.40, w*0.06, 0.30);
+  ctx.fillStyle='rgba(56,225,255,'+((0.05+0.10*thrust)*(1-0.6*airF))+')';
+  ctx.beginPath(); ctx.ellipse(x, shY+2, w*0.47*(1-0.3*airF), w*0.075, 0, 0, 6.29); ctx.fill();
+  shadowEllipse(x, shY+2, w*0.40*(1-0.45*airF), w*0.06*(1-0.45*airF), 0.30*(1-0.55*airF));
   ctx.save(); ctx.translate(x,groundY); ctx.rotate(lean+spinRot);
   if(alpha!==undefined) ctx.globalAlpha=alpha;
   ctx.drawImage(img, -w/2, -h, w, h);
@@ -723,17 +810,34 @@ function segPoint(seg, frac, offset){
 }
 function drawRoadside(sp, seg){
   const pt=segPoint(seg, 0.5, sp.offset), sc=pt.scale;
-  const unit=sc*(W/2); if(unit<2) return;
+  /* unit = screen px per world unit at this segment: ~3.5 beside the
+     kart, ~0.02 at the far end of the visible course. The cull belongs
+     at the far end — anything nearer must paint. (At 2, nothing beyond
+     the kart's own segment ever painted: the city was backdrop-only.) */
+  const unit=sc*(W/2); if(unit<0.02) return;
   ctx.save(); if(seg.fog>0.03) ctx.globalAlpha=1-seg.fog*0.65;
   if(sp.type==='towerA'||sp.type==='spire'||sp.type==='ring'){
-    const img=IMG[sp.type];
+    let img=IMG[sp.type];
+    if(sp.type!=='ring'){ if(!IMG_S[sp.type]) makeScaled(sp.type); img=IMG_S[sp.type]||img; }
     if(imgOk(img)){
-      const wBase = sp.type==='towerA'? 1180 : sp.type==='spire'? 600 : 2500;
+      const wBase = (sp.type==='towerA'? 1180 : sp.type==='spire'? 600 : 2500) * (sp.s||1);
       const w=unit*wBase, h=w*ih(img)/iw(img);
-      /* a ring is colossal: if a nearer crest hides most of it, skip it
-         rather than paint it over the road in front */
-      if(sp.type!=='ring' || pt.y <= seg.clip + h*0.55)
-        ctx.drawImage(img, pt.x-w/2, pt.y-h, w, h);
+      /* draw only the part of the sprite inside the canvas, cropping
+         the source to match: a tower beside the kart can be thousands
+         of pixels wide on paper, but only its visible slice should
+         ever cost raster time */
+      const dx0=pt.x-w/2, dy0=pt.y-h, vx0=Math.max(0,dx0), vy0=Math.max(0,dy0);
+      const vx1=Math.min(W,dx0+w), vy1=Math.min(H,pt.y);
+      if(vx1>vx0 && vy1>vy0){
+        const sx0=(vx0-dx0)/w*iw(img), sw=(vx1-vx0)/w*iw(img);
+        const sy0=(vy0-dy0)/h*ih(img), sh=(vy1-vy0)/h*ih(img);
+        /* a ring is colossal: if a nearer crest hides most of it, skip it
+           rather than paint it over the road in front */
+        if(sp.type==='ring'){ if(pt.y <= seg.clip + h*0.55) ctx.drawImage(img, sx0, sy0, sw, sh, vx0, vy0, vx1-vx0, vy1-vy0); }
+        /* a tower whose base sits more than half its height above the
+           nearer crest line is behind that hill: skip it */
+        else if(seg.clip - pt.y <= h*0.5) ctx.drawImage(img, sx0, sy0, sw, sh, vx0, vy0, vx1-vx0, vy1-vy0);
+      }
     }
   }
   else if(sp.type==='sign'){
@@ -758,7 +862,7 @@ function drawRoadside(sp, seg){
   ctx.restore();
 }
 function drawGantry(seg){
-  const s1=seg.p1.screen, sc=s1.scale, unit=sc*(W/2); if(unit<3) return;
+  const s1=seg.p1.screen, sc=s1.scale, unit=sc*(W/2); if(unit<0.03) return;
   const postH=unit*2500, postW=Math.max(2,unit*150);
   const lx=s1.x - sc*1.3*ROAD_W*(W/2), rx=s1.x + sc*1.3*ROAD_W*(W/2), by=s1.y;
   ctx.fillStyle='#232d38'; ctx.fillRect(lx-postW/2, by-postH, postW, postH); ctx.fillRect(rx-postW/2, by-postH, postW, postH);
@@ -770,6 +874,33 @@ function drawGantry(seg){
   for(let rI=0;rI<rows;rI++) for(let cI=0;cI<cols;cI++) if((rI+cI)%2===0)
     ctx.fillRect(lx+bw*cI/cols, by-postH+bh*rI/rows, bw/cols, bh/rows);
   ctx.strokeStyle='#22d3ee'; ctx.lineWidth=Math.max(2,unit*30); ctx.strokeRect(lx, by-postH, bw, bh);
+}
+/* a plain city gate: the start gantry's frame without the chequer —
+   the course passes under these deep in the city */
+function drawGate(seg){
+  const s1=seg.p1.screen, sc=s1.scale, unit=sc*(W/2); if(unit<0.03) return;
+  const postH=unit*2500, postW=Math.max(2,unit*150);
+  const lx=s1.x - sc*1.3*ROAD_W*(W/2), rx=s1.x + sc*1.3*ROAD_W*(W/2), by=s1.y;
+  ctx.fillStyle='#232d38'; ctx.fillRect(lx-postW/2, by-postH, postW, postH); ctx.fillRect(rx-postW/2, by-postH, postW, postH);
+  ctx.fillStyle='#22d3ee'; ctx.fillRect(lx-postW/2, by-postH*0.55, postW, postH*0.08); ctx.fillRect(rx-postW/2, by-postH*0.55, postW, postH*0.08);
+  const bh=unit*430, bw=rx-lx;
+  ctx.fillStyle='#10161f'; ctx.fillRect(lx, by-postH, bw, bh);
+  ctx.strokeStyle='#22d3ee'; ctx.lineWidth=Math.max(2,unit*30); ctx.strokeRect(lx, by-postH, bw, bh);
+  ctx.fillStyle='rgba(103,232,249,0.85)'; ctx.fillRect(lx+bw*0.06, by-postH+bh*0.42, bw*0.88, Math.max(2,bh*0.16));
+}
+/* the colossal ring standing astride the road: drawn centred on the
+   road line, wide enough that its legs land clear of the shoulders */
+function drawRingGate(seg){
+  const img=IMG.ring; if(!imgOk(img)) return;
+  const pt=segPoint(seg, 0.5, 0), sc=pt.scale, unit=sc*(W/2); if(unit<0.02) return;
+  const w=unit*3000, h=w*ih(img)/iw(img);
+  if(pt.y <= seg.clip + h*0.55){
+    ctx.save(); if(seg.fog>0.03) ctx.globalAlpha=1-seg.fog*0.65;
+    /* the artwork's opening sits a touch right of the image centre:
+       shift the draw so the opening, not the frame, centres on the road */
+    ctx.drawImage(img, pt.x-w/2-w*0.05, pt.y-h, w, h);
+    ctx.restore();
+  }
 }
 function drawPickup(seg, pk){
   const pt=segPoint(seg, 0.5, pk.offset), w=pt.scale*560*(W/2); if(w<5 || w>W*0.8) return;
@@ -810,11 +941,16 @@ function render(){
     renderSegment(seg);
     maxY=seg.p1.screen.y;
   }
-  /* entities, far to near */
+  /* entities, far to near. Roadside dressing stops at n=170: beyond
+     that a tower is a few dozen pixels wide, the backdrop already
+     carries the distant city, and every skipped draw is real frame
+     time on a phone GPU budget */
   for(let n=proj.length-1;n>=0;n--){
     const seg=proj[n];
-    for(const sp of seg.sprites) drawRoadside(sp, seg);
+    if(n<170) for(const sp of seg.sprites) drawRoadside(sp, seg);
     if(seg.index===0) drawGantry(seg);
+    if(seg.gate) drawGate(seg);
+    if(seg.ringGate) drawRingGate(seg);
     for(const pk of pickups) if(pk.ready && pk.seg===seg.index) drawPickup(seg, pk);
     for(const b of trackBananas) if(b.seg===seg.index) drawTrackBanana(seg, b);
     if(thrown){
@@ -848,17 +984,32 @@ function render(){
   const bounce = state==='racing'? Math.sin(raceTime*26)*spN*2.2 + Math.sin(raceTime*6.3)*0.7 : Math.sin(performance.now()*0.004)*1.1;
   const px=W/2 + slideCur*W*0.016 + (shake? (Math.random()-0.5)*shake : 0);
   const py=H - kw*0.04 + bounce;
+  /* airborne: the machine rises off its ground line by the projected
+     height of the arc; the shadow stays behind on the road (drawMachine
+     receives the ground line as shadowBaseY). A landing settle dips the
+     machine briefly below its ride line. */
+  const airH = airborne? Math.max(0, airY-roadYAt(position + CAM_H*BASE_DEPTH)) : 0;
+  let pyDraw = py - airH * H * YSCALE / CAM_H;
+  if(landT>0) pyDraw += Math.sin((0.22-landT)/0.22*Math.PI)*7;
+  /* pitch: on the ground the machine tips with the road's slope (up the
+     ramp face); in the air it follows the arc — nose up while climbing,
+     nose down as the arc falls. Kept modest: the sprite is a rear view,
+     so a big rotation would read as roll, not pitch. */
   const seg=segments[playerSegIndex()];
-  let lean = slideCur*0.13 + seg.curve*spN*0.014;
+  let pitchT;
+  if(airborne) pitchT = clamp(Math.atan2(airVY, Math.max(speed,3000)), -0.5, 0.55);
+  else pitchT = Math.atan2(seg.p2.world.y-seg.p1.world.y, SEG_LEN)*0.85;
+  pitchSm += (pitchT-pitchSm)*0.35;
+  let lean = slideCur*0.13 + seg.curve*spN*0.014 - pitchSm*0.45;
   if(driftT>0) lean += driftDir*0.20;
   const spinRot = spinT>0? Math.sin(spinT*20)*0.9*spinT : 0;
   const blink = (invulnT>0 && spinT<=0)? (Math.sin(raceTime*30)>0? 0.35:0.9) : 1;
-  if(holding && carry) drawBananaShape(px+kw*0.40, py-kw*0.05, kw*0.36, 0.55);   /* shield banana behind the machine */
-  /* spray kicked up off the wet deck at speed */
-  if(state==='racing' && spN>0.4){
+  if(holding && carry) drawBananaShape(px+kw*0.40, pyDraw-kw*0.05, kw*0.36, 0.55);   /* shield banana behind the machine */
+  /* spray kicked up off the wet deck at speed — only while in contact */
+  if(state==='racing' && spN>0.4 && !airborne){
     for(let i=0;i<2;i++) spawnP({type:'dust', x:px+(Math.random()-0.5)*kw*0.7, y:py+2, vx:(Math.random()-0.5)*46 - slideCur*30, vy:-14-Math.random()*26, life:0.55, t:0, size:6+Math.random()*9});
   }
-  drawMachine(px, py, kw, machineImgFor(null), '#1565c0', '#ffd94d', lean, spinRot, blink, spN);
+  drawMachine(px, pyDraw, kw, machineImgFor(null), '#1565c0', '#ffd94d', lean, spinRot, blink, spN, py);
   /* particles */
   for(const p of particles){
     const a=1-(p.t/p.life);
@@ -1241,6 +1392,7 @@ window.__kart={
     thrown:!!thrown, thrownTotal: thrown? thrown.total : -1, trackBananas:trackBananas.length,
     bananaSegs: trackBananas.map(b=>b.seg), playerSeg: playerSegIndex(), playerTotal:playerTotal, segCount: segments.length,
     stats:stats, raceTime:raceTime,
+    airborne:airborne, airH: airborne? Math.round(airY-roadYAt(position + CAM_H*BASE_DEPTH)) : 0,
     rivalTarget:i=>rivals[i].lastTarget, rivalBase:i=>rivals[i].baseTarget, rivalRubber:i=>rivals[i].lastRubber||0 }; },
   debug:{
     giveBanana(){ carry=1; },
@@ -1248,6 +1400,9 @@ window.__kart={
       position=(idx*SEG_LEN - CAM_H*BASE_DEPTH + SEG_LEN*1.5 + trackLength)%trackLength; speed=9500; },
     setRivalGap(i,gap){ rivals[i].totalDist = playerTotal + gap; },
     setPlayerTotal(v){ playerTotal=v; position=((v%trackLength)+trackLength)%trackLength; },
+    rampSegs(){ return segments.map((s,i)=>s.ramp?i:-1).filter(i=>i>=0); },
+    setPlayerSeg(idx){ position=((idx*SEG_LEN - CAM_H*BASE_DEPTH)%trackLength+trackLength)%trackLength; playerTotal=position; },
+    setSpeed(v){ speed=v; },
   }
 };
 </script>
