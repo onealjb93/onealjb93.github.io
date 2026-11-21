@@ -9,7 +9,7 @@
 // pools' entries.
 // Final pool (2026-11-21): after two strict re-audits against the
 // reference pictures Johnny sent, and his own thumbs-up verdicts on
-// the presented survivors, the pool is these seven entries. Entries
+// the presented survivors, the pool is these ten entries. Entries
 // carry no credit field: the page shows no credit line for this pool.
 window.SCIFI_DATA = [
   {
@@ -109,5 +109,47 @@ window.SCIFI_DATA = [
     "img": "https://johnny-oneal.com/scifi-sky-bridge-towers.webp",
     "source": "https://johnny-oneal.com/scifi-sky-bridge-towers.webp",
     "deep": "<p>Gorges divide everything they touch — roads, farms, families. The usual answer is a bridge at the bottom or a long road around; this town's answer is to live at the height where the crossing is shortest and make the crossing itself a neighbourhood, with homes and a hall inside the span. Sky-bridges have been creeping up the world's towers for thirty years, from meeting rooms to swimming pools hung between buildings in London. Here the idea reaches its logical end: the bridge is not an amenity between two buildings. It is the main street, and the towers are its two ends.</p>"
+  },
+  {
+    "id": "promenade-dam",
+    "name": "The Promenade Dam",
+    "sub": "A great curved dam whose crest is a glass gallery and the town's evening boulevard",
+    "overview": "The dam is the town's favourite walk. A glass gallery runs the length of its curved crest, crowds stroll the boulevard on top in evening dress, turquoise reservoir on one side — and on the other, the spillway throws up a standing rainbow in its own spray.",
+    "details": [
+      "A curved dam is an arch laid on its side: the water's pressure is carried sideways into the canyon walls, which is what lets the wall stay this slender at this height.",
+      "The glass gallery inside the crest is working space, not a viewing tube — it houses the inspection and control level, and putting it behind glass turned a service corridor into the town's promenade.",
+      "The rainbow is plain physics on permanent display: spillway spray breaks the low sun into its spectrum, and on any bright evening the dam makes one as reliably as it makes power."
+    ],
+    "img": "https://johnny-oneal.com/scifi-promenade-dam.webp",
+    "source": "https://johnny-oneal.com/scifi-promenade-dam.webp",
+    "deep": "<p>A dam is usually a fence: keep out, danger, machinery. This town built the opposite — a dam as a public room. The crest is a boulevard wide enough for the whole town's evening stroll, the gallery behind its glass is lit and occupied, and the structure's power is not hidden but staged: water leaving through the spillway in a white staircase, spray catching the sun, a rainbow standing in it like a signature. It treats generating electricity as a civic achievement worth dressing up for — infrastructure a town is proud of, maintained like a cathedral and used like a park.</p>"
+  },
+  {
+    "id": "sky-boulevard",
+    "name": "The Sky Boulevard",
+    "sub": "A tree-lined neighbourhood street running along the top of a colossal gorge span",
+    "overview": "The street is on top of the bridge. A tree-lined boulevard runs the length of a colossal span high over a turquoise gorge — glass-fronted homes and cafes on both sides, light masts glowing, a glass transit gallery gliding alongside, and the bridge's great tower rising ahead through the haze.",
+    "details": [
+      "Putting the street on top of the deck — not under it — gives the neighbourhood sun, sky and the long view down the gorge; the structure below is just the street's foundation, hundreds of metres of engineered air.",
+      "The enclosed glass gallery beside the walkway is the district's transit: weatherproof, level, and lit, it moves along the span the way a tram moves along a street — because here, the span is the street.",
+      "The light masts are the boulevard's own system, not street furniture added later: slender posts whose warm strips mark the street's edge over the drop and light the walk home."
+    ],
+    "img": "https://johnny-oneal.com/scifi-sky-boulevard.webp",
+    "source": "https://johnny-oneal.com/scifi-sky-boulevard.webp",
+    "deep": "<p>Every city has a street its people love most. This district's happens to run across the sky. The span came first — a crossing so large it had room for a neighbourhood on its back — and the town grew along the deck the way towns grow along any good street: homes with gardens, cafes with their chairs out, trees in a row, lamps lit at dusk. The difference is the ground. Between the two walkways the gorge falls away to a turquoise river, and the transit gallery slides past at parapet height, close enough to wave at. It is ordinary prosperous street life, conducted at an altitude that makes it extraordinary — a future you would not just visit, but take an apartment in.</p>"
+  },
+  {
+    "id": "sea-gate",
+    "name": "The Sea Gate",
+    "sub": "Twin advanced towers joined by inhabited spans, standing as a harbour's gate",
+    "overview": "The harbour has a front door. Two engineered towers of glass and pale alloy rise from the water on either side of the entrance, joined by a glowing inhabited span and a glass gallery walkway — and the town's promenade runs straight out to meet them at golden hour.",
+    "details": [
+      "The towers' splayed, braced legs are the structure showing its work: harbour gates take wind and wave loads from every direction, so the frame splays wide at the waterline and ties together at the inhabited span.",
+      "The glass gallery at mid height is the gate's public crossing — you can walk from shore to shore over the harbour mouth, above the shipping lane, inside the monument.",
+      "A gate this size is also the harbour's instrument panel: the towers carry the lights, sensors and control rooms that run the port, dressed as the town's landmark instead of hidden as plant."
+    ],
+    "img": "https://johnny-oneal.com/scifi-sea-gate.webp",
+    "source": "https://johnny-oneal.com/scifi-sea-gate.webp",
+    "deep": "<p>Ports used to announce themselves with forts. This one announces itself with architecture. The gate towers are working harbour infrastructure — structure, control, light — built at the scale of a civic monument and finished like one, with an inhabited span glowing between them and a public gallery crossing the harbour mouth. The white town climbs the hills behind, the promenade fills with the evening crowd, and every ship that enters passes under the town's front door. It is the Storm Barrier's philosophy carried into peacetime: the machinery that protects and runs a place, built proudly enough to be the postcard.</p>"
   }
 ];
