@@ -84,6 +84,49 @@
     #titleScreen .kb-hint { display:none; }
     #titleScreen .panel { padding:10px 14px; }
   }
+  /* ---------- all-time scoreboard ---------- */
+  .tb-btns { display:flex; gap:8px; align-items:center; flex:0 0 auto; }
+  #scoreBtn { flex:0 0 auto; font-size:clamp(13px,2.2vw,16px); font-weight:800; color:#aee9ff;
+    background:#0d1622; border:3px solid #22d3ee; border-radius:999px; padding:7px 16px; cursor:pointer; }
+  #scoreBtn:active { transform:scale(.96); }
+  /* The glass popup standard in the game's own material: a floating
+     bubble over a dimmed, blurred stage — never a full-bleed takeover.
+     The bubble is narrower than the stage so the race peeks at the
+     edges, and it carries a labeled Close button. */
+  #scoreShade { position:absolute; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
+    padding:14px; background:rgba(3,8,15,.55); backdrop-filter:blur(6px) brightness(.85);
+    -webkit-backdrop-filter:blur(6px) brightness(.85); }
+  #scoreShade.hidden { display:none; }
+  .score-bubble { background:rgba(5,18,30,.92); border:2px solid rgba(34,211,238,.35); border-radius:22px;
+    box-shadow:0 18px 50px rgba(0,0,0,.5); padding:16px 18px; width:100%; max-width:430px;
+    max-height:100%; overflow-y:auto; color:#fff; }
+  .score-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .score-head h3 { font-size:clamp(18px,3.4vw,24px); font-weight:900; letter-spacing:1px; color:#e8f6ff; }
+  .score-close { flex:0 0 auto; font-size:14px; font-weight:800; color:#aee9ff; background:#0d1622;
+    border:2px solid #22d3ee; border-radius:999px; padding:6px 14px; cursor:pointer; }
+  .score-close:active { transform:scale(.96); }
+  .score-entry { margin-bottom:12px; }
+  .score-entry p { font-size:clamp(14px,2.7vw,17px); font-weight:700; line-height:1.4; margin-bottom:8px; }
+  .score-entry .score-err { color:#ffb4a2; font-weight:700; }
+  .score-form { display:flex; gap:8px; flex-wrap:wrap; }
+  #scoreName { flex:1 1 150px; min-width:0; font:inherit; font-size:16px; font-weight:700; color:#06222b;
+    background:#eafcff; border:3px solid #0e7490; border-radius:999px; padding:10px 16px; }
+  #scoreSubmit { flex:0 0 auto; font-size:15px; font-weight:900; letter-spacing:.5px; color:#06222b;
+    background:linear-gradient(#8ff3ff,#22d3ee); border:3px solid #0e7490; border-radius:999px;
+    padding:10px 18px; cursor:pointer; }
+  #scoreSubmit:active { transform:scale(.96); }
+  #scoreSubmit:disabled { opacity:.55; cursor:default; }
+  .score-note { font-size:13.5px; font-weight:600; line-height:1.45; color:#aee9ff; margin-bottom:10px; }
+  .score-note.hidden, .score-entry.hidden, .score-empty.hidden { display:none; }
+  /* The board table, in the metrics of the site's tables: full width,
+     collapsed borders, small-caps subdued header, row hairlines. */
+  .score-table { width:100%; border-collapse:collapse; text-align:left; font-size:15.5px; }
+  .score-table th, .score-table td { padding:8px 10px; border-bottom:1px solid rgba(34,211,238,.22); white-space:nowrap; }
+  .score-table th { font-size:11.5px; text-transform:uppercase; letter-spacing:2px; color:#67e8f9; font-weight:900; }
+  .score-table td:last-child, .score-table th:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+  .score-table tr:last-child td { border-bottom:none; }
+  .score-table tr.score-new td { background:rgba(34,211,238,.18); font-weight:900; }
+  .score-empty { text-align:center; color:#aee9ff; font-weight:600; padding:14px 6px; }
   #test-results { position:absolute; left:8px; bottom:8px; z-index:50; background:#fff; color:#000; font:12px monospace;
     padding:8px; white-space:pre-wrap; max-width:90%; display:none; }
 </style>
@@ -92,7 +135,7 @@
 <div id="shell">
   <div id="titlebar">
     <h1>🏁 THUMB <span class="drive-word">DRIVE</span></h1>
-    <button id="fsBtn" type="button">Full screen</button>
+    <div class="tb-btns"><button id="scoreBtn" type="button">All-time best</button><button id="fsBtn" type="button">Full screen</button></div>
   </div>
   <div id="stage" class="title-up">
     <canvas id="game" aria-label="Thumb Drive race. Touch: hold the right thumb zone to go and the left zone for the banana. Mouse: hold the button to go and move the mouse to steer. Space works the banana: press to hold it behind you, press again to drop it, double-tap to throw it ahead."></canvas>
@@ -144,6 +187,29 @@
       <span id="rotateIcon">📱</span>
       <h2>Hold your phone sideways</h2>
       <p>Thumb Drive is played in landscape — one thumb on each side of the screen.</p>
+    </div>
+
+    <div id="scoreShade" class="hidden" role="dialog" aria-modal="true" aria-labelledby="scoreTitle">
+      <div class="score-bubble">
+        <div class="score-head">
+          <h3 id="scoreTitle">🏆 All-time best</h3>
+          <button id="scoreClose" class="score-close" type="button">Close</button>
+        </div>
+        <div id="scoreEntry" class="score-entry hidden">
+          <p id="scoreEntryText"></p>
+          <div class="score-form">
+            <input id="scoreName" type="text" maxlength="12" placeholder="Your name" autocomplete="off" aria-label="Your name for the board">
+            <button id="scoreSubmit" type="button">Put my name on the board</button>
+          </div>
+          <p id="scoreEntryErr" class="score-err" hidden></p>
+        </div>
+        <p id="scoreNote" class="score-note hidden"></p>
+        <table class="score-table">
+          <thead><tr><th>#</th><th>Name</th><th>Time</th></tr></thead>
+          <tbody id="scoreRows"></tbody>
+        </table>
+        <p id="scoreEmpty" class="score-empty hidden">No times yet — set the first one.</p>
+      </div>
     </div>
 
     <div id="test-results"></div>
@@ -478,6 +544,7 @@ function updatePlayer(dt){
     $('finishTitle').textContent = finalPos===1? '🏆 YOU WIN!' : 'FINISH — '+ordinal(finalPos);
     $('finishText').textContent = 'You finished '+ordinal(finalPos)+' of 4 · Time '+fmtTime(finishTime);
     setTimeout(()=>{ if(state==='finished') $('finishScreen').classList.remove('hidden'); },650);
+    tkScoreFinish();
   }
 }
 function ordinal(n){ return n===1?'1st':n===2?'2nd':n===3?'3rd':'4th'; }
@@ -1312,9 +1379,11 @@ window.addEventListener('resize', checkOrientation);
 let lastCount=4, goBeeped=false;
 function startRace(){
   resetRace(); state='countdown'; countT=3.4; lastCount=4; goBeeped=false; setPaused(false);
+  scoreFetchBoard();
   $('titleScreen').classList.add('hidden');
   stage.classList.remove('title-up');
   $('finishScreen').classList.add('hidden');
+  $('scoreShade').classList.add('hidden'); scorePending = null;
   $('countOverlay').classList.remove('hidden'); $('countNum').textContent='3';
   if(AC && AC.state==='suspended') AC.resume();
   checkOrientation();
@@ -1385,6 +1454,200 @@ function stepFrame(dt){
 resize(); checkOrientation();
 requestAnimationFrame(animate);
 if(DEMO) setInterval(()=>stepFrame(1/60), 16);   /* demo keeps advancing even where rAF is throttled */
+
+/* ================= all-time scoreboard =================
+   The board lives in the scores store (scoreboard-build backend:
+   a Cloudflare Worker + D1, the Loved store's sibling).
+   SCORES_API_URL is the ONE configuration constant, filled with
+   the deployed Worker's address at deploy time; it ships empty,
+   exactly as LOVED_API_URL did. Empty — or unreachable — the game
+   keeps a device-local board in localStorage and says so in the
+   popup; nothing about the race changes either way. */
+const SCORES_API_URL = '';
+const SCORE_GAME = 'thumb-drive';
+const SCORE_LOCAL_KEY = 'td-scores-local-v1';
+const SCORE_CACHE_KEY = 'td-scores-cache-v1';
+let scoreBoardCache = null;   /* last board fetched from the store */
+let scorePending = null;      /* {ms} — a finish waiting for a name */
+let scoreHighlight = -1;      /* board row to light up, or -1 */
+
+function scoreLocalBoard(){
+  try {
+    const b = JSON.parse(localStorage.getItem(SCORE_LOCAL_KEY) || '[]');
+    return Array.isArray(b) ? b : [];
+  } catch (e) { return []; }
+}
+function scoreSaveLocal(board){
+  try { localStorage.setItem(SCORE_LOCAL_KEY, JSON.stringify(board.slice(0, 10))); } catch (e) {}
+}
+function scoreCachedBoard(){
+  if (scoreBoardCache) return scoreBoardCache;
+  try {
+    const b = JSON.parse(localStorage.getItem(SCORE_CACHE_KEY) || 'null');
+    if (Array.isArray(b)) return b;
+  } catch (e) {}
+  return null;
+}
+function scoreFetchBoard(){
+  if (!SCORES_API_URL) return Promise.resolve(null);
+  return fetch(SCORES_API_URL + '/scores?game=' + SCORE_GAME)
+    .then((r) => { if (!r.ok) throw new Error('store'); return r.json(); })
+    .then((j) => {
+      const b = (j && Array.isArray(j.scores)) ? j.scores : [];
+      scoreBoardCache = b;
+      try { localStorage.setItem(SCORE_CACHE_KEY, JSON.stringify(b)); } catch (e) {}
+      return b;
+    })
+    .catch(() => null);
+}
+/* A finish qualifies when the board it would join has room, or the
+   time beats the board's 10th. Compared against the freshest board
+   available: fetched, else the cached copy of it, else this
+   device's own board. */
+function scoreQualifies(ms){
+  const b = scoreCachedBoard() || scoreLocalBoard();
+  return b.length < 10 || ms < b[b.length - 1].score_ms;
+}
+/* Rows are built with textContent only — a name is data, never
+   markup, so nothing a player types can become HTML. */
+function scoreRender(board, note){
+  const tb = $('scoreRows');
+  while (tb.firstChild) tb.removeChild(tb.firstChild);
+  board.slice(0, 10).forEach((row, i) => {
+    const tr = document.createElement('tr');
+    if (i === scoreHighlight) tr.className = 'score-new';
+    const c1 = document.createElement('td'); c1.textContent = i + 1;
+    const c2 = document.createElement('td'); c2.textContent = row.name;
+    const c3 = document.createElement('td'); c3.textContent = fmtTime(row.score_ms / 1000);
+    tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(c3);
+    tb.appendChild(tr);
+  });
+  $('scoreEmpty').classList.toggle('hidden', board.length > 0);
+  const n = $('scoreNote');
+  if (note) { n.textContent = note; n.classList.remove('hidden'); }
+  else n.classList.add('hidden');
+}
+function openScores(mode){
+  const shade = $('scoreShade');
+  shade.classList.remove('hidden');
+  if ((state === 'racing' || state === 'countdown') && pauseReason !== 'scores') {
+    setPaused(true, 'scores');
+  }
+  const entry = $('scoreEntry');
+  if (mode === 'entry' && scorePending) {
+    $('scoreEntryText').textContent =
+      'Your time ' + fmtTime(scorePending.ms / 1000) + ' makes the all-time board.';
+    $('scoreEntryErr').hidden = true;
+    entry.classList.remove('hidden');
+  } else {
+    entry.classList.add('hidden');
+  }
+  if (!SCORES_API_URL) {
+    scoreRender(scoreLocalBoard(),
+      'The all-time store isn’t connected yet — this board lives on this device.');
+  } else {
+    const cached = scoreCachedBoard();
+    if (cached) scoreRender(cached, null);
+    else scoreRender(scoreLocalBoard(), 'Reaching the all-time store…');
+    scoreFetchBoard().then((b) => {
+      if (shade.classList.contains('hidden')) return;
+      if (b) scoreRender(b, null);
+      else scoreRender(scoreLocalBoard(),
+        'The all-time store couldn’t be reached — this is this device’s own board.');
+    });
+  }
+  if (mode === 'entry' && scorePending) {
+    setTimeout(() => { try { $('scoreName').focus(); } catch (e) {} }, 60);
+  }
+}
+function closeScores(){
+  $('scoreShade').classList.add('hidden');
+  scoreHighlight = -1;
+  if (pauseReason === 'scores') setPaused(false);
+}
+function scoreLocalAdd(name, ms){
+  const b = scoreLocalBoard();
+  b.push({ name: name, score_ms: ms, created_at: Date.now() });
+  b.sort((a, z) => (a.score_ms - z.score_ms) || (a.created_at - z.created_at));
+  const top = b.slice(0, 10);
+  scoreSaveLocal(top);
+  scoreHighlight = top.findIndex((r) => r.name === name && r.score_ms === ms);
+}
+function submitScore(){
+  if (!scorePending) return;
+  const name = $('scoreName').value.trim().replace(/\s+/g, ' ');
+  const err = $('scoreEntryErr');
+  if (!name) { err.textContent = 'Type your name first.'; err.hidden = false; return; }
+  const ms = scorePending.ms;
+  const btn = $('scoreSubmit');
+  btn.disabled = true;
+  const done = () => { btn.disabled = false; };
+  const savedLocally = (note) => {
+    scoreLocalAdd(name, ms);
+    scorePending = null;
+    $('scoreEntry').classList.add('hidden');
+    scoreRender(scoreLocalBoard(), note);
+    done();
+  };
+  if (!SCORES_API_URL) {
+    savedLocally('The all-time store isn’t connected yet — your time is on this device’s board.');
+    return;
+  }
+  fetch(SCORES_API_URL + '/scores', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ game: SCORE_GAME, name: name, score_ms: ms }),
+  }).then((r) => r.json().then((j) => ({ ok: r.ok, status: r.status, j: j })))
+    .then(({ ok, status, j }) => {
+      if (!ok) {
+        if (status === 400) {
+          err.textContent = 'That name can’t go on the board — try another.';
+          err.hidden = false;
+          done();
+          return;
+        }
+        throw new Error('store');
+      }
+      scorePending = null;
+      $('scoreEntry').classList.add('hidden');
+      const b = (j && Array.isArray(j.scores)) ? j.scores : [];
+      scoreBoardCache = b;
+      try { localStorage.setItem(SCORE_CACHE_KEY, JSON.stringify(b)); } catch (e) {}
+      scoreHighlight = (j && typeof j.rank === 'number') ? j.rank - 1 : -1;
+      scoreRender(b, null);
+      done();
+    })
+    .catch(() => savedLocally(
+      'The all-time store couldn’t be reached — your time is saved on this device.'));
+}
+/* Called from the finish block (anchor edit 6). Demo and test runs
+   never prompt: the qualification is real only for a human race. */
+function tkScoreFinish(){
+  if (typeof DEMO !== 'undefined' && DEMO) return;
+  if (typeof TESTMODE !== 'undefined' && TESTMODE) return;
+  const ms = Math.round(finishTime * 1000);
+  scoreFetchBoard().then(() => {
+    if (!scoreQualifies(ms)) return;
+    scorePending = { ms: ms };
+    setTimeout(() => {
+      if (state === 'finished' && scorePending) openScores('entry');
+    }, 700);
+  });
+}
+$('scoreBtn').addEventListener('click', () => openScores('view'));
+$('scoreClose').addEventListener('click', closeScores);
+$('scoreSubmit').addEventListener('click', submitScore);
+$('scoreName').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitScore(); });
+/* Taps and keys inside the popup are the popup's: they must not
+   fall through to the stage's press-to-start or the kart's keys. */
+$('scoreShade').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  if (e.target === $('scoreShade')) closeScores();
+});
+$('scoreShade').addEventListener('keydown', (e) => e.stopPropagation());
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('scoreShade').classList.contains('hidden')) closeScores();
+});
 
 /* ================= test / debug hooks ================= */
 window.__kart={
