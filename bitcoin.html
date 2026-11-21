@@ -1087,6 +1087,17 @@
         .btc-record-table th:first-child, .btc-record-table td:first-child { padding-left: 0; }
         .btc-record-table th:last-child, .btc-record-table td:last-child { padding-right: 0; }
         .btc-record-table tbody tr { border-top: 1px solid var(--border-color); }
+        /* Pinned record-table headers (2026-11-21): the long record
+           tables keep their header row pinned under the site header
+           and the Why box's two pinned bars while their rows scroll —
+           the finance pattern. CSS sticky cannot do it here: each
+           table sits in a .btc-record-twrap whose overflow-x makes
+           the wrapper a scroll container, which defeats page-level
+           sticky — so the script at the end of the body drives a
+           transform on the header cells themselves (the real header
+           row, never a clone), and this class gives the pinned
+           cells their solid ground, at the matrix header's z-index. */
+        .btc-record-table thead th.jbo-th-pin { z-index: 80; background: var(--bg-color); }
         .btc-record-fact { line-height: 1.55; margin: 10px 0 0; font-size: 1rem; color: var(--text-color); }
         @media (prefers-reduced-motion: reduce) {
             .btc-record-chev { transition: none; }
@@ -7690,6 +7701,99 @@ draw();
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) { tick(); }
         });
+    })();
+    </script>
+    <script>
+    /* Pinned record-table headers (2026-11-21): every long record
+       table on this page keeps its header row pinned while its rows
+       scroll — the finance pattern. CSS sticky cannot do it here:
+       each table sits in a .btc-record-twrap whose overflow-x makes
+       the wrapper a scroll container, which defeats page-level
+       sticky — so the pin is a transform on the header cells
+       themselves, driven from the page's scroll: the real header
+       row (never a clone, so column widths ride along exactly),
+       translated down to the pin line and clamped so it rides away
+       with the table's last row. The wrapper keeps its sideways
+       scroll untouched — the header lives inside the scrolled
+       content, so columns stay aligned at any sideways position.
+       The pin line is the frozen 55px site header plus the Why
+       box's two pinned bars while they are stuck: the box's own bar
+       first, then the table's category bar under it. In the phone
+       band the wide episode tables restack into label–value rows
+       with their header row hidden, so those tables are skipped
+       there — there is no header row on screen to pin. */
+    (function () {
+        "use strict";
+        var PIN_BASE = 55; // the site header's height
+        var whySum = document.querySelector('.btc-whybox > summary');
+        function pinLineFor(table) {
+            var pin = PIN_BASE;
+            if (!whySum) return pin;
+            var wr = whySum.getBoundingClientRect();
+            if (!(wr.top <= PIN_BASE + 1 && wr.bottom > PIN_BASE)) return pin;
+            pin += whySum.offsetHeight;
+            var cat = table.closest ? table.closest('details.btc-point, details.btc-satoshi') : null;
+            var sum = cat ? cat.querySelector(':scope > summary') : null;
+            if (sum) {
+                var sr = sum.getBoundingClientRect();
+                if (sr.top <= pin + 1 && sr.bottom > pin) pin += sum.offsetHeight;
+            }
+            return pin;
+        }
+        var stacked = window.matchMedia ? window.matchMedia('(max-width: 768px)') : null;
+        var items = [];
+        function collect() {
+            items = [];
+            document.querySelectorAll('.btc-record-table').forEach(function (t) {
+                var head = t.tHead;
+                if (!head || !head.rows.length) return;
+                items.push({ table: t, head: head, cells: Array.prototype.slice.call(head.rows[0].cells), shift: null });
+            });
+        }
+        function setShift(it, px) {
+            if (it.shift === px) return;
+            it.shift = px;
+            var tf = px > 0 ? "translateY(" + px + "px)" : "";
+            it.cells.forEach(function (c) {
+                c.style.transform = tf;
+                c.classList.toggle("jbo-th-pin", px > 0);
+            });
+        }
+        function update() {
+            var vh = window.innerHeight || 0;
+            for (var i = 0; i < items.length; i++) {
+                var it = items[i];
+                if (stacked && stacked.matches && it.table.classList.contains('btc-record-table-stack')) { setShift(it, 0); continue; }
+                var pin = pinLineFor(it.table);
+                var r = it.table.getBoundingClientRect();
+                if (!r.height || r.bottom <= pin || r.top >= vh) { setShift(it, 0); continue; }
+                var headH = it.head.offsetHeight || 0;
+                var max = Math.max(0, r.height - headH);
+                var shift = Math.min(Math.max(pin - r.top, 0), max);
+                setShift(it, Math.round(shift * 100) / 100);
+            }
+        }
+        var ticking = false;
+        function requestUpdate() {
+            if (ticking) return;
+            ticking = true;
+            window.requestAnimationFrame(function () { ticking = false; update(); });
+        }
+        window.addEventListener("scroll", requestUpdate, { passive: true });
+        window.addEventListener("resize", requestUpdate);
+        // Expander folds open and close the tables and move every
+        // offset: re-collect, debounced, then re-pin (the finance
+        // pattern — details elements report through the open
+        // attribute).
+        var moTimer = null;
+        if (window.MutationObserver && document.body) {
+            new MutationObserver(function () {
+                clearTimeout(moTimer);
+                moTimer = setTimeout(function () { collect(); update(); }, 120);
+            }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "open"] });
+        }
+        collect();
+        update();
     })();
     </script>
 </body>
