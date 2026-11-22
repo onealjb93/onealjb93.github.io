@@ -233,36 +233,33 @@
             outline: 2px solid var(--link-color);
             outline-offset: 2px;
         }
-        /* Explanation panel: normal flow, below the marker and above the grid,
-           so it pushes the recipes down and can never float over the photos.
-           Solid theme background (the site's card background) — the old
-           5%-opacity hover-bg let the food photos show straight through. */
+        /* Explanation bubble: a brief explanation floats OVER the page
+           (the site's shared .glass-bubble treatment carries the glass;
+           the bubble doctrine, 2026-11-22) — it never sits in flow and
+           never moves the page. This rule carries positioning and
+           visibility only; the script is the single controller for
+           hover, focus, and tap, and it places the bubble before
+           opening it, so it can never appear unplaced. */
         .standout-tooltip {
-            display: none;
-            position: static;
-            margin-top: 8px;
-            max-width: 70ch;
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 1250;
+            width: 300px;
+            max-width: calc(100vw - 16px);
             padding: 10px 12px;
             font-size: 0.85rem;
             line-height: 1.5;
             color: var(--text-color);
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-        }
-        /* Hover/focus only where a hover exists. On touch (hover: none) only
-           .tooltip-open shows the panel, so tap-again reliably hides it —
-           a sticky :hover/:focus-within after a tap would otherwise keep
-           it open. */
-        @media (hover: hover) {
-            .standout-legend:hover .standout-tooltip,
-            .standout-legend:focus-within .standout-tooltip {
-                display: block;
-            }
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--dur-2) var(--ease-out), visibility var(--dur-2) var(--ease-out);
         }
         .standout-legend.tooltip-open .standout-tooltip {
-            display: block;
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
         }
     
         /* ---- Tips: two views (By concept / By food) ---- */
@@ -329,9 +326,15 @@
         }
         .head-cook-btn.inviting { animation: cookNudgePulse 1.8s ease-in-out infinite; }
         @keyframes cookNudgePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+        /* Dismissal (Johnny's pulse rule, 2026-11-22): the first
+           press of a visit ends the invitation by FADING it — the
+           script freezes the pulse's current scale on the button
+           and this transition eases it back to rest over a second,
+           a spectrum rather than a cut. */
+        .head-cook-btn.inviting-out { animation: none; transition: transform 1s ease-out; }
         .cook-toggle.nudge-pulse { animation: cookTogglePulse 0.9s ease-in-out 2; }
         @keyframes cookTogglePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4); } }
-        @media (prefers-reduced-motion: reduce) { .head-cook-btn.inviting, .cook-toggle.nudge-pulse { animation: none; } .head-cook-btn:active { transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .head-cook-btn.inviting, .cook-toggle.nudge-pulse { animation: none; } .head-cook-btn.inviting-out { animation: none; transition: none; } .head-cook-btn:active { transform: none; } }
         #cookView { display: none; position: fixed; inset: 0; z-index: 1000; overflow: hidden; }
         #cookView.open { display: flex; flex-direction: column; }
         #cookRecipes { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row; align-items: stretch; gap: 14px; padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
@@ -531,6 +534,11 @@
        row's bottom edge), so the two bars never overlap and both stay
        fully visible and tappable. */
     #targetsBar { position: fixed; left: 0; right: 0; top: 55px; z-index: 950; background: var(--bg-color); border-bottom: 1px solid var(--border-color); }
+    /* The fixed Targets bar hangs below the header; the page's first line gets
+       exactly the clearance the stack needs beyond the body's top margin —
+       --back-clear is published from the bars' measured heights by
+       placeTargetsBar, so the link is never under the bar at any width. */
+    .back-link { margin-top: var(--back-clear, 26px); }
     #targetsBar.covered { visibility: hidden; }
     #targetsBar .targets-inner { max-width: 1140px; margin: 0 auto; padding: 0.25rem 40px; display: flex; align-items: center; gap: 0.45rem 0.6rem; flex-wrap: wrap; box-sizing: border-box; }
     @media (max-width: 768px) { #targetsBar .targets-inner { padding: 0.25rem 18px; } }
@@ -1324,29 +1332,53 @@
 
             <div class="standout-legend">
                 <button type="button" class="standout-legend-btn" id="standoutLegendBtn" aria-expanded="false" aria-describedby="standoutLegendTip">★ Standout</button>
-                <span class="standout-tooltip" id="standoutLegendTip" role="tooltip">★ Standout marks a nutrition standout — the recipe satisfies more of the 48 evidence-informed nutrition tips that apply to recipes (of 93 total) than most recipes on this page.</span>
+                <span class="standout-tooltip glass-bubble" id="standoutLegendTip" role="tooltip">★ Standout marks a nutrition standout — the recipe satisfies more of the 48 evidence-informed nutrition tips that apply to recipes (of 93 total) than most recipes on this page.</span>
             </div>
             <script>
                 (function () {
                     var btn = document.getElementById('standoutLegendBtn');
                     var wrap = btn.closest('.standout-legend');
-                    btn.addEventListener('click', function () {
-                        var open = wrap.classList.toggle('tooltip-open');
+                    var tip = document.getElementById('standoutLegendTip');
+                    function place() {
+                        var r = btn.getBoundingClientRect();
+                        var w = tip.offsetWidth, h = tip.offsetHeight;
+                        var left = r.right + 8;
+                        if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+                        if (left < 8) left = 8;
+                        var top = r.top + (r.height - h) / 2;
+                        if (top < 8) top = 8;
+                        if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
+                        tip.style.left = left + 'px';
+                        tip.style.top = top + 'px';
+                    }
+                    function setOpen(open) {
+                        if (open) place();
+                        wrap.classList.toggle('tooltip-open', open);
                         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    }
+                    btn.addEventListener('click', function () {
+                        setOpen(!wrap.classList.contains('tooltip-open'));
+                    });
+                    if (window.matchMedia && window.matchMedia('(hover: hover)').matches) {
+                        wrap.addEventListener('mouseenter', function () { setOpen(true); });
+                        wrap.addEventListener('mouseleave', function () { setOpen(false); });
+                    }
+                    wrap.addEventListener('focusin', function () { setOpen(true); });
+                    wrap.addEventListener('focusout', function (e) {
+                        if (!wrap.contains(e.relatedTarget)) setOpen(false);
                     });
                     document.addEventListener('click', function (e) {
-                        if (!wrap.contains(e.target)) {
-                            wrap.classList.remove('tooltip-open');
-                            btn.setAttribute('aria-expanded', 'false');
-                        }
+                        if (!wrap.contains(e.target)) setOpen(false);
                     });
                     document.addEventListener('keydown', function (e) {
-                        if (e.key === 'Escape') {
-                            wrap.classList.remove('tooltip-open');
-                            btn.setAttribute('aria-expanded', 'false');
-                            btn.blur();
-                        }
+                        if (e.key === 'Escape') { setOpen(false); btn.blur(); }
                     });
+                    window.addEventListener('resize', function () {
+                        if (wrap.classList.contains('tooltip-open')) place();
+                    });
+                    window.addEventListener('scroll', function () {
+                        if (wrap.classList.contains('tooltip-open')) place();
+                    }, { passive: true });
                 })();
             </script>
 
@@ -9146,6 +9178,22 @@
         var stuck = stuckRowBottom(bottom);
         if (stuck > bottom) bottom = stuck;
         targetsBar.style.top = Math.max(0, Math.round(bottom)) + 'px';
+        /* Publish the measured stack so flow content and scroll
+           landings clear it exactly: --stack-h is the header plus
+           this bar; --tip-row-h is a section toggle's height (the
+           row that takes the pinned slot while tips are open);
+           --back-clear is what the page's first line needs beyond
+           the body's own top margin, with a 12px gap. */
+        var rootEl = document.documentElement;
+        rootEl.style.setProperty('--stack-h', (nav.offsetHeight + targetsBar.offsetHeight) + 'px');
+        var anyToggle = document.querySelector('.info-toggle');
+        if (anyToggle && anyToggle.offsetHeight) rootEl.style.setProperty('--tip-row-h', anyToggle.offsetHeight + 'px');
+        var backLink = document.querySelector('.back-link');
+        if (backLink) {
+            var bodyMt = parseFloat(getComputedStyle(document.body).marginTop) || 0;
+            var need = nav.offsetHeight + targetsBar.offsetHeight + 12 - bodyMt;
+            rootEl.style.setProperty('--back-clear', Math.max(0, Math.round(need)) + 'px');
+        }
     }
     /* Slot-covered: the recipe-name bar owns the slot while it is
        shown (it is the open recipe's own toggle), so this bar is
@@ -13083,25 +13131,45 @@
        anything itself. Once recipes are selected, the same button
        becomes the entry point ("Cook · N recipes") and opens the
        cook view through the cook script's own hook, beside the cook
-       bars rather than instead of them. The pulse retires
-       permanently after the first use (a toggle tap or a tap on the
-       button itself); the retirement is remembered under the retired
-       pill's storage key, so the move costs no returning visitor a
-       second first impression. */
+       bars rather than instead of them. The pulse follows
+       Johnny's pulse rule (2026-11-22): it runs on every load --
+       no stored flag retires it -- and the first use of a visit
+       (a toggle tap or a tap on the button itself) ends it, by
+       fading out over a second rather than cutting. */
     (function () {
         var btn = document.getElementById('headCookBtn');
         var label = document.getElementById('headCookLabel');
         var glyph = document.getElementById('headCookGlyph');
         if (!btn || !label) return;
-        var KEY = 'jbo-cook-nudge-v1';
         var used = false;
-        try { used = localStorage.getItem(KEY) === '1'; } catch (e) {}
+        var fading = false;
         var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         function markUsed() {
             if (used) return;
             used = true;
-            setClass(btn, 'inviting', false);
-            try { localStorage.setItem(KEY, '1'); } catch (e) {}
+            dismissInvite();
+        }
+        /* The invitation ends the way Johnny's pulse rule asks:
+           not a cut but a fade. The pulse's current scale is
+           frozen on the button, then the inviting-out rule's
+           transition eases it back to rest over a second; under
+           reduced motion the class simply comes off. While the
+           fade runs, sync() leaves the inviting class alone and
+           this timeout takes it off at the end. */
+        function dismissInvite() {
+            if (!btn.classList.contains('inviting')) return;
+            if (reduce) { setClass(btn, 'inviting', false); return; }
+            fading = true;
+            btn.style.transform = window.getComputedStyle ? getComputedStyle(btn).transform : '';
+            btn.classList.add('inviting-out');
+            void btn.offsetWidth;
+            btn.style.transform = 'none';
+            setTimeout(function () {
+                btn.classList.remove('inviting-out');
+                setClass(btn, 'inviting', false);
+                btn.style.transform = '';
+                fading = false;
+            }, 1100);
         }
         function countSelected() { return document.querySelectorAll('.cook-toggle.selected').length; }
         /* Every write in sync() is guarded: the MutationObserver below
@@ -13123,14 +13191,14 @@
                 if (glyph && !glyph.hidden) glyph.hidden = true;
                 if (label.textContent !== txt) label.textContent = txt;
                 setClass(btn, 'has-selection', true);
-                setClass(btn, 'inviting', false);
+                if (!fading) setClass(btn, 'inviting', false);
                 if (btn.getAttribute('aria-label') !== aria) btn.setAttribute('aria-label', aria);
             } else {
                 var restAria = 'Try the cook tool: go to the first recipe\'s Cook button';
                 if (glyph && glyph.hidden) glyph.hidden = false;
                 if (label.textContent !== 'Cook') label.textContent = 'Cook';
                 setClass(btn, 'has-selection', false);
-                setClass(btn, 'inviting', !used);
+                if (!fading) setClass(btn, 'inviting', !used);
                 if (btn.getAttribute('aria-label') !== restAria) btn.setAttribute('aria-label', restAria);
             }
         }
