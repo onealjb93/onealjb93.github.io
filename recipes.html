@@ -653,10 +653,19 @@
     .combiner-bands th, .combiner-bands td { text-align: left; padding: 0.14rem 0.9rem 0.14rem 0; font-weight: 400; }
     .combiner-bands th { color: var(--subtext-color); font-weight: 600; }
     .combiner-bands td:first-child { font-weight: 700; }
-    /* Pairing actions (2026-11-22): the reading view's Pairs well with
-       entry carries its own cook actions in the cook system's face;
-       the cook view answers with one slim row under its head. */
-    .pair-actions { display: flex; gap: 0.45rem; margin-top: 0.45rem; flex-wrap: nowrap; }
+    /* Pairing selection (2026-11-22): the reading view's Pairs well with
+       entry is a selection, not three actions — radio rows in the
+       vitamin-pick idiom (native input, accent-color link blue) name
+       the dish you're viewing, the dish it offers, or both; one Cook
+       button under the rows cooks the selection. The cook view answers
+       a lone dish that has a pairing with one slim row under its head. */
+    .pair-pick { display: flex; flex-direction: column; gap: 6px; margin-top: 0.5rem; }
+    .pair-pick-row { display: flex; align-items: flex-start; gap: 0.45rem; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; }
+    .pair-pick-row input { accent-color: var(--link-color); width: 1.05rem; height: 1.05rem; flex: none; margin: 0.1rem 0 0; cursor: pointer; }
+    .pair-pick-name { font-size: 0.82rem; font-weight: 600; color: var(--subtext-color); line-height: 1.3; min-width: 0; }
+    .pair-pick-row:has(> input:checked) { border-color: var(--link-color); }
+    .pair-pick-row:has(> input:checked) .pair-pick-name { color: var(--text-color); font-weight: 700; }
+    .pair-pick .pair-cook-btn { align-self: flex-start; margin-top: 2px; }
     .pair-cook-btn { font-size: 0.75rem; font-weight: 700; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--glass-bg-solid); color: var(--text-color); cursor: pointer; white-space: nowrap; }
     #cookPairRow { flex: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.9rem; font-size: 0.85rem; color: var(--text-color); }
     #cookPairRow[hidden] { display: none; }
@@ -8332,15 +8341,24 @@
     function pairsHTML(recipeId, withActions) {
         var data = NUTRI.recipes[dataKey(recipeId)];
         if (!data || !data.pairs || !data.pairs.length) return '';
+        var hostR = null;
+        RECIPES.forEach(function (x) { if (x.id === recipeId) hostR = x; });
+        var hostName = hostR ? hostR.name : recipeId;
         var h = '<div class="nutrition-pairs"><div class="recipe-section-title">Pairs well with</div>';
         data.pairs.forEach(function (p) {
             var r = null;
             RECIPES.forEach(function (x) { if (x.id === p.id) r = x; });
             var name = r ? r.name : p.id;
             var tag = p.classic ? 'Classic pairing' : 'Nutrition pairing';
-            h += '<p><strong><a href="#" class="pair-link" data-pair="' + esc(p.id) + '">' + esc(name) + '</a></strong> <span class="pair-tag">\u00b7 ' + tag + '</span> \u2014 ' + esc(p.reason);
-            if (withActions) h += '<span class="pair-actions"><button type="button" class="pair-cook-btn" data-pair-cook="both" data-host="' + esc(recipeId) + '" data-pair="' + esc(p.id) + '">Cook both</button><button type="button" class="pair-cook-btn" data-pair-cook="pair" data-host="' + esc(recipeId) + '" data-pair="' + esc(p.id) + '">Cook the pairing</button></span>';
-            h += '</p>';
+            h += '<p><strong><a href="#" class="pair-link" data-pair="' + esc(p.id) + '">' + esc(name) + '</a></strong> <span class="pair-tag">\u00b7 ' + tag + '</span> \u2014 ' + esc(p.reason) + '</p>';
+            if (withActions) {
+                var g = 'pairpick-' + recipeId + '-' + p.id;
+                h += '<div class="pair-pick" role="radiogroup" aria-label="Choose what to cook">' +
+                    '<label class="pair-pick-row"><input type="radio" name="' + esc(g) + '" value="host"><span class="pair-pick-name">' + esc(hostName) + '</span></label>' +
+                    '<label class="pair-pick-row"><input type="radio" name="' + esc(g) + '" value="pair"><span class="pair-pick-name">' + esc(name) + '</span></label>' +
+                    '<label class="pair-pick-row"><input type="radio" name="' + esc(g) + '" value="both" checked><span class="pair-pick-name">Both dishes</span></label>' +
+                    '<button type="button" class="pair-cook-btn" data-pair-cook-go data-host="' + esc(recipeId) + '" data-pair="' + esc(p.id) + '">Cook</button></div>';
+            }
         });
         return h + '</div>';
     }
@@ -8403,6 +8421,11 @@
             RECIPES.forEach(function (x) { if (x.id === p.id) r = x; });
             return { id: p.id, name: r ? r.name : p.id };
         });
+    };
+    window.__jboRecipeName = function (recipeId) {
+        var r = null;
+        RECIPES.forEach(function (x) { if (x.id === recipeId) r = x; });
+        return r ? r.name : recipeId;
     };
     function renderAllPanels() {
         RECIPES.forEach(function (r) {
@@ -12330,10 +12353,15 @@
                at the exact scroll position openCook captured. */
             if (cookReturnY !== null) { window.scrollTo(0, cookReturnY); cookReturnY = null; }
         }
-        /* ---- Pairing actions (2026-11-22) ----
-           The reading view's Pairs well with entry carries Cook both /
-           Cook the pairing; the cook view answers a lone dish that has
-           a pairing with one slim row under its head. Everything runs
+        /* ---- Pairing selection (2026-11-22) ----
+           The reading view's Pairs well with entry is a selection:
+           radio rows name the dish you're viewing, the dish it offers,
+           or both (the default), and one Cook button cooks the
+           selection. The cook view answers a lone dish with one slim
+           row under its head naming the other dish of its pairing —
+           for a dish cooked alone out of a pairing block, that is the
+           block's host, which the session context remembers (the
+           pairing data itself is one-directional). Everything runs
            through the cook system's own selection and open path, so a
            pairing press is never a navigation: the view opens and
            closes over the reading view exactly as it always does. */
@@ -12345,10 +12373,14 @@
             if (!cookPairRow) return;
             cookPairTarget = null;
             var target = null;
-            if (cookView && cookView.classList.contains('open') && selected.length === 1 && window.__jboPairFor) {
-                var pairs = window.__jboPairFor(selected[0]);
-                if (pairs) for (var i = 0; i < pairs.length; i++) {
-                    if (selected.indexOf(pairs[i].id) === -1) { target = pairs[i]; break; }
+            if (cookView && cookView.classList.contains('open') && selected.length === 1) {
+                if (pairSession && pairSession.ctx && selected[0] === pairSession.ctx.pair && window.__jboRecipeName) {
+                    target = { id: pairSession.ctx.host, name: window.__jboRecipeName(pairSession.ctx.host) };
+                } else if (window.__jboPairFor) {
+                    var pairs = window.__jboPairFor(selected[0]);
+                    if (pairs) for (var i = 0; i < pairs.length; i++) {
+                        if (selected.indexOf(pairs[i].id) === -1) { target = pairs[i]; break; }
+                    }
                 }
             }
             if (!target) { cookPairRow.hidden = true; return; }
@@ -12380,9 +12412,9 @@
         if (cookPairBtn) cookPairBtn.addEventListener('click', function () {
             if (cookPairTarget) addCookDish(cookPairTarget);
         });
-        function startPairCook(ids) {
+        function startPairCook(ids, ctx) {
             if (!cookView || !ids.length) return;
-            pairSession = { snapshot: selected.slice(), grew: false };
+            pairSession = { snapshot: selected.slice(), grew: false, ctx: ctx || null };
             selected = ids.slice();
             cookToggles.forEach(refreshToggle);
             updateBar();
@@ -12390,13 +12422,33 @@
         }
         document.addEventListener('click', function (ev) {
             var t = ev.target;
-            var b = t && t.closest ? t.closest('[data-pair-cook]') : null;
+            var b = t && t.closest ? t.closest('[data-pair-cook-go]') : null;
             if (!b) return;
             var host = b.getAttribute('data-host');
             var pair = b.getAttribute('data-pair');
             if (!host || !pair) return;
             ev.preventDefault();
-            startPairCook(b.getAttribute('data-pair-cook') === 'both' ? [host, pair] : [pair]);
+            var pick = b.closest('.pair-pick');
+            var sel = pick ? pick.querySelector('input[type="radio"]:checked') : null;
+            var what = sel ? sel.value : 'both';
+            var ids = what === 'host' ? [host] : what === 'pair' ? [pair] : [host, pair];
+            startPairCook(ids, { host: host, pair: pair });
+        });
+        /* A selection lives only while its reading view sits open:
+           any card toggle returns the block to Both dishes, so a fresh
+           open always starts from the combination the block suggests. */
+        function resetPairPicks(scope) {
+            if (!scope) return;
+            scope.querySelectorAll('.pair-pick').forEach(function (g) {
+                var both = g.querySelector('input[type="radio"][value="both"]');
+                if (both) both.checked = true;
+            });
+        }
+        document.addEventListener('click', function (e) {
+            var tog = e.target && e.target.closest ? e.target.closest('.recipe-toggle') : null;
+            if (!tog) return;
+            var wrap = tog.closest('.recipe-wrapper');
+            if (wrap) requestAnimationFrame(function () { resetPairPicks(wrap); });
         });
         if (cookIngBtn) cookIngBtn.addEventListener('click', function () {
             if (cookIngPop && !cookIngPop.hidden) closeCookIng(false);
