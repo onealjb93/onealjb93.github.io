@@ -386,7 +386,7 @@
     body.light-mode .pl-chart-wrap { background: #F3EEDF; }
     body.light-mode .pl-tip { background: rgba(251, 246, 234, 0.96); color: #1e293b; border-color: rgba(0, 0, 0, 0.12); }
     body.light-mode .pl-zoom button { background: rgba(251, 246, 234, 0.92); color: #1e293b; border-color: rgba(0, 0, 0, 0.12); }
-    .pl-chart-wrap canvas { display: block; width: 100%; height: 420px; touch-action: none; cursor: grab; }
+    .pl-chart-wrap canvas { display: block; width: 100%; height: 420px; touch-action: pan-y; cursor: grab; }
     .pl-tip { position: absolute; pointer-events: none; background: rgba(2, 6, 23, 0.94); color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; font-size: 0.82rem; line-height: 1.45; white-space: nowrap; z-index: 5; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
     .pl-tip strong { color: #fbbf24; }
     .pl-zoom { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 6; }
@@ -2704,6 +2704,104 @@
     })();
     </script>
     </div>
+    <script>
+    /* The one gesture system for every chart on this page — the same
+       arbitration the Finance and Bitcoin line charts run. Touch is
+       arbitrated from the touch events themselves, never from pointer
+       events and never by hand-scrolling: a one-finger drag is
+       undecided until it has travelled 8px, then the dominant axis
+       wins. A sideways drag is claimed by the surface (inspect); a
+       vertical drag is the page's: it is never preventDefaulted,
+       never captured and never scrolled by script, so the browser
+       scrolls natively exactly as if the chart were not there. While
+       a drag is undecided, a move is preventDefaulted only when it
+       runs at least twice as far sideways as down — a clearly
+       sideways intent — so an engine that claims scrolls early
+       cannot steal a sideways drag. A second finger claims the
+       gesture for pinch zoom and pan. In fullscreen there is no page
+       to scroll, so nothing is released: the same drags do the
+       surface's own work on both axes, through this same code path.
+       A touch that ends still undecided is a tap, and a tap inspects
+       where it lifts. The mouse keeps the pointer handlers each
+       surface already had. */
+    window.BTC_TOUCH = function (el, o) {
+        var DECIDE = 8, BIAS = 2;
+        var pts = {}, n = 0, g = null;
+        function inFs() {
+            if (o.fs) return o.fs();
+            var node = el;
+            while (node && node !== document.body) {
+                if (node === document.fullscreenElement) return true;
+                if (node.classList && node.classList.contains('btc-fs-fallback')) return true;
+                node = node.parentElement;
+            }
+            return false;
+        }
+        function list() { var out = []; for (var id in pts) out.push(pts[id]); return out; }
+        el.addEventListener('touchstart', function (e) {
+            var i, t;
+            for (i = 0; i < e.changedTouches.length; i++) {
+                t = e.changedTouches[i];
+                if (!pts[t.identifier]) n++;
+                pts[t.identifier] = { x: t.clientX, y: t.clientY };
+            }
+            if (n === 1) {
+                var p = list()[0];
+                g = { id: e.changedTouches[0].identifier, sx: p.x, sy: p.y, lx: p.x, ly: p.y, mode: 0, moved: false };
+            } else if (n === 2) {
+                g = null;
+                if (o.pinchStart) o.pinchStart(list());
+            }
+        }, { passive: true });
+        el.addEventListener('touchmove', function (e) {
+            var i, t, t0 = null;
+            for (i = 0; i < e.changedTouches.length; i++) {
+                t = e.changedTouches[i];
+                if (pts[t.identifier]) pts[t.identifier] = { x: t.clientX, y: t.clientY };
+                if (g && t.identifier === g.id) t0 = t;
+            }
+            if (n === 2) { e.preventDefault(); if (o.pinchMove) o.pinchMove(list()); return; }
+            if (!g || !t0) return;
+            var x = t0.clientX, y = t0.clientY;
+            var dx = x - g.lx, dy = y - g.ly;
+            g.lx = x; g.ly = y;
+            if (Math.abs(x - g.sx) + Math.abs(y - g.sy) > 2) g.moved = true;
+            if (g.mode === 2) return;
+            if (g.mode === 1) { e.preventDefault(); if (o.move) o.move(x, y, dx, dy); return; }
+            var tdx = x - g.sx, tdy = y - g.sy;
+            var fsNow = inFs();
+            if (fsNow) e.preventDefault();
+            else if (Math.abs(tdx) >= BIAS * Math.abs(tdy) && Math.abs(tdx) >= 4) e.preventDefault();
+            if (Math.max(Math.abs(tdx), Math.abs(tdy)) < DECIDE) return;
+            if (!fsNow && Math.abs(tdy) > Math.abs(tdx)) { g.mode = 2; return; }
+            g.mode = 1;
+            e.preventDefault();
+            if (o.claim) o.claim(x, y);
+            if (o.move) o.move(x, y, tdx, tdy);
+        }, { passive: false });
+        function endTouch(e, cancelled) {
+            var i, t;
+            for (i = 0; i < e.changedTouches.length; i++) {
+                t = e.changedTouches[i];
+                if (pts[t.identifier]) { delete pts[t.identifier]; n--; }
+                if (g && t.identifier === g.id) {
+                    if (!cancelled && g.mode === 0 && !g.moved && n === 0 && o.tap) o.tap(t.clientX, t.clientY);
+                    g = null;
+                }
+            }
+            if (n === 1 && !g) {
+                var id = null, k;
+                for (k in pts) id = k;
+                var p = list()[0];
+                g = { id: +id, sx: p.x, sy: p.y, lx: p.x, ly: p.y, mode: 0, moved: true };
+                if (o.pinchEnd) o.pinchEnd(p.x, p.y);
+            }
+            if (n === 0) g = null;
+        }
+        el.addEventListener('touchend', function (e) { endTouch(e, false); });
+        el.addEventListener('touchcancel', function (e) { endTouch(e, true); });
+    };
+    </script>
     <script type="text/plain" id="btc-pl-code">
     /* Bitcoin Power Law chart — log-log canvas. Data: blockchain.info market-price
        index, every 4 days from day 592 (Aug 18, 2010) to day 6520 (Nov 10, 2026).
@@ -3164,6 +3262,7 @@
         function restore(s) { VX0 = s.vx0; VX1 = s.vx1; VY0 = s.vy0; VY1 = s.vy1; }
 
         cv.addEventListener('pointerdown', function (e) {
+            if (e.pointerType === 'touch') return;
             var p = localPos(e);
             if (!pointers[e.pointerId]) nPointers++;
             pointers[e.pointerId] = p;
@@ -3189,6 +3288,7 @@
         });
 
         cv.addEventListener('pointermove', function (e) {
+            if (e.pointerType === 'touch') return;
             if (pointers[e.pointerId]) {
                 var p = localPos(e);
                 pointers[e.pointerId] = p;
@@ -3231,6 +3331,7 @@
         });
 
         function endPointer(e) {
+            if (e.pointerType === 'touch') return;
             if (pointers[e.pointerId]) { delete pointers[e.pointerId]; nPointers--; }
             if (nPointers < 2) pinchStart = null;
             if (nPointers === 1) {
@@ -3257,6 +3358,34 @@
            (2026-11-20): a touch tap or scrub leaves the
            readout up until the next interaction */
         cv.addEventListener('pointerleave', function (e) { if (!nPointers && e.pointerType === 'mouse') hideTip(); });
+
+        /* touch runs the one system (window.BTC_TOUCH): a sideways
+           one-finger drag inspects, a vertical one is the page's own
+           native scroll, two fingers pinch — the pointer handlers
+           above are the mouse's from here on */
+        var tPinch = null;
+        if (window.BTC_TOUCH) window.BTC_TOUCH(cv, {
+            tap: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            claim: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            move: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            pinchStart: function (pts) {
+                var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
+                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
+                hideTip();
+            },
+            pinchMove: function (pts) {
+                if (!tPinch) return;
+                var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
+                var d = Math.hypot(a.x - b.x, a.y - b.y);
+                var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+                restore(tPinch.view);
+                if (d > 0 && tPinch.dist > 0) zoomViewAt(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, tPinch.dist / d);
+                panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
+                clampView();
+                draw();
+            },
+            pinchEnd: function (x, y) { showTip({ clientX: x, clientY: y }); }
+        });
 
         /* repaint when the band-day record refreshes (the nightly
            series landing, or the current day joining a band) */
@@ -3854,6 +3983,7 @@
         function restore(s) { VX0 = s.vx0; VX1 = s.vx1; VY0 = s.vy0; VY1 = s.vy1; }
 
         cv.addEventListener('pointerdown', function (e) {
+            if (e.pointerType === 'touch') return;
             var p = localPos(e);
             if (!pointers[e.pointerId]) nPointers++;
             pointers[e.pointerId] = p;
@@ -3879,6 +4009,7 @@
         });
 
         cv.addEventListener('pointermove', function (e) {
+            if (e.pointerType === 'touch') return;
             if (pointers[e.pointerId]) {
                 var p = localPos(e);
                 pointers[e.pointerId] = p;
@@ -3923,6 +4054,7 @@
         });
 
         function endPointer(e) {
+            if (e.pointerType === 'touch') return;
             if (pointers[e.pointerId]) { delete pointers[e.pointerId]; nPointers--; }
             if (nPointers < 2) pinchStart = null;
             if (nPointers === 1) {
@@ -3949,6 +4081,35 @@
            (2026-11-20): a touch tap or scrub leaves the
            readout up until the next interaction */
         cv.addEventListener('pointerleave', function (e) { if (!nPointers && e.pointerType === 'mouse') hideTip(); });
+
+        /* touch runs the one system (window.BTC_TOUCH): a sideways
+           one-finger drag inspects, a vertical one is the page's own
+           native scroll, two fingers pinch — the pointer handlers
+           above are the mouse's from here on */
+        var tPinch = null;
+        if (window.BTC_TOUCH) window.BTC_TOUCH(cv, {
+            tap: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            claim: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            move: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            pinchStart: function (pts) {
+                var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
+                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
+                hideTip();
+            },
+            pinchMove: function (pts) {
+                if (!tPinch) return;
+                var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
+                var d = Math.hypot(a.x - b.x, a.y - b.y);
+                var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+                restore(tPinch.view);
+                if (d > 0 && tPinch.dist > 0) zoomViewAt(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, tPinch.dist / d);
+                panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
+                viewTouched = true;
+                clampView();
+                draw();
+            },
+            pinchEnd: function (x, y) { showTip({ clientX: x, clientY: y }); }
+        });
 
         /* repaint when the band-day record refreshes (the nightly
            series landing, or the current day joining a band) */
@@ -4514,6 +4675,7 @@
         function restore(s) { VX0 = s.vx0; VX1 = s.vx1; VY0 = s.vy0; VY1 = s.vy1; }
 
         cv.addEventListener('pointerdown', function (e) {
+            if (e.pointerType === 'touch') return;
             var p = localPos(e);
             if (!pointers[e.pointerId]) nPointers++;
             pointers[e.pointerId] = p;
@@ -4539,6 +4701,7 @@
         });
 
         cv.addEventListener('pointermove', function (e) {
+            if (e.pointerType === 'touch') return;
             if (pointers[e.pointerId]) {
                 var p = localPos(e);
                 pointers[e.pointerId] = p;
@@ -4583,6 +4746,7 @@
         });
 
         function endPointer(e) {
+            if (e.pointerType === 'touch') return;
             if (pointers[e.pointerId]) { delete pointers[e.pointerId]; nPointers--; }
             if (nPointers < 2) pinchStart = null;
             if (nPointers === 1) {
@@ -4609,6 +4773,35 @@
            (2026-11-20): a touch tap or scrub leaves the
            readout up until the next interaction */
         cv.addEventListener('pointerleave', function (e) { if (!nPointers && e.pointerType === 'mouse') hideTip(); });
+
+        /* touch runs the one system (window.BTC_TOUCH): a sideways
+           one-finger drag inspects, a vertical one is the page's own
+           native scroll, two fingers pinch — the pointer handlers
+           above are the mouse's from here on */
+        var tPinch = null;
+        if (window.BTC_TOUCH) window.BTC_TOUCH(cv, {
+            tap: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            claim: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            move: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            pinchStart: function (pts) {
+                var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
+                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
+                hideTip();
+            },
+            pinchMove: function (pts) {
+                if (!tPinch) return;
+                var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
+                var d = Math.hypot(a.x - b.x, a.y - b.y);
+                var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+                restore(tPinch.view);
+                if (d > 0 && tPinch.dist > 0) zoomViewAt(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, tPinch.dist / d);
+                panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
+                viewTouched = true;
+                clampView();
+                draw();
+            },
+            pinchEnd: function (x, y) { showTip({ clientX: x, clientY: y }); }
+        });
 
         /* repaint when the band-day record refreshes (the nightly
            series landing, or the current day joining a band) */
@@ -5185,6 +5378,7 @@
         function restore(s) { VX0 = s.vx0; VX1 = s.vx1; VY0 = s.vy0; VY1 = s.vy1; }
 
         cv.addEventListener('pointerdown', function (e) {
+            if (e.pointerType === 'touch') return;
             var p = localPos(e);
             if (!pointers[e.pointerId]) nPointers++;
             pointers[e.pointerId] = p;
@@ -5210,6 +5404,7 @@
         });
 
         cv.addEventListener('pointermove', function (e) {
+            if (e.pointerType === 'touch') return;
             if (pointers[e.pointerId]) {
                 var p = localPos(e);
                 pointers[e.pointerId] = p;
@@ -5254,6 +5449,7 @@
         });
 
         function endPointer(e) {
+            if (e.pointerType === 'touch') return;
             if (pointers[e.pointerId]) { delete pointers[e.pointerId]; nPointers--; }
             if (nPointers < 2) pinchStart = null;
             if (nPointers === 1) {
@@ -5280,6 +5476,35 @@
            (2026-11-20): a touch tap or scrub leaves the
            readout up until the next interaction */
         cv.addEventListener('pointerleave', function (e) { if (!nPointers && e.pointerType === 'mouse') hideTip(); });
+
+        /* touch runs the one system (window.BTC_TOUCH): a sideways
+           one-finger drag inspects, a vertical one is the page's own
+           native scroll, two fingers pinch — the pointer handlers
+           above are the mouse's from here on */
+        var tPinch = null;
+        if (window.BTC_TOUCH) window.BTC_TOUCH(cv, {
+            tap: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            claim: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            move: function (x, y) { showTip({ clientX: x, clientY: y }); },
+            pinchStart: function (pts) {
+                var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
+                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
+                hideTip();
+            },
+            pinchMove: function (pts) {
+                if (!tPinch) return;
+                var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
+                var d = Math.hypot(a.x - b.x, a.y - b.y);
+                var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+                restore(tPinch.view);
+                if (d > 0 && tPinch.dist > 0) zoomViewAt(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, tPinch.dist / d);
+                panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
+                viewTouched = true;
+                clampView();
+                draw();
+            },
+            pinchEnd: function (x, y) { showTip({ clientX: x, clientY: y }); }
+        });
 
         /* repaint when the band-day record refreshes (the nightly
            series landing, or the current day joining a band) */
