@@ -4866,7 +4866,7 @@ function btDrawChart(lines, dates) {
     const cs = getComputedStyle(document.body);
     const textColor = (cs.getPropertyValue("--subtext-color") || "#888").trim();
     const gridColor = (cs.getPropertyValue("--border-color") || "#ccc").trim();
-    const padL = 64, padR = 12, padT = 12, padB = 28;
+    const padL = 64, padR = 12, padT = 12, padB = 40;
     const plotW = w - padL - padR, plotH = h - padT - padB;
     if (!lines.length || !dates || dates.length < 2) {
         ctx.fillStyle = textColor;
@@ -4894,13 +4894,21 @@ function btDrawChart(lines, dates) {
         ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
         ctx.fillText("$" + Math.round(v).toLocaleString("en-US"), padL - 8, y + 4);
     }
+    // The pane's name, in the same top-left spot the price
+    // chart's panes carry theirs.
+    ctx.textAlign = "left";
+    ctx.fillText("Portfolio value", padL + 6, padT + 11);
     // X labels: one per year.
     ctx.textAlign = "center";
     const yearsSeen = {};
     dates.forEach(d => {
         const y = d.slice(0, 4);
-        if (!yearsSeen[y]) { yearsSeen[y] = d; ctx.fillText(y, xFor(d), h - 8); }
+        if (!yearsSeen[y]) { yearsSeen[y] = d; ctx.fillText(y, xFor(d), h - 20); }
     });
+    // The axis's name, in its own strip under the year ticks
+    // (padB grew from 28 to 40 to hold the second row).
+    ctx.textAlign = "right";
+    ctx.fillText("Date", w - 6, h - 6);
     // Lines.
     lines.forEach(l => {
         ctx.strokeStyle = l.color;
@@ -6216,6 +6224,10 @@ if (typeof module !== "undefined") {
                 ctx.fillStyle = subC; ctx.textAlign = "left";
                 ctx.fillText(fmtAxis(gv), 10 + plotW, gy + 3);
             }
+            // the price pane's name, in the same top-left spot the
+            // RSI and P/E panes below carry theirs
+            ctx.fillStyle = subC; ctx.textAlign = "left";
+            ctx.fillText("Price", 8, priceY + 11);
             function linePath(vals, yFn, color, width) {
                 ctx.strokeStyle = color; ctx.lineWidth = width;
                 ctx.beginPath();
@@ -6250,6 +6262,8 @@ if (typeof module !== "undefined") {
             // themes. The average starts at the 20th bar: no
             // average exists before 20 weeks do.
             if (volH > 0) {
+                ctx.fillStyle = subC; ctx.textAlign = "left";
+                ctx.fillText("Volume", 8, volY + 11);
                 var maxV = 0;
                 for (i = v.start; i <= v.end; i++) if (bars[i][5] > maxV) maxV = bars[i][5];
                 // The average shares the pane's scale, so a heavy
@@ -6350,6 +6364,11 @@ if (typeof module !== "undefined") {
                 ctx.textAlign = "center";
                 ctx.fillText(lab, lx, H - 6);
             }
+            // the axis's name, in the bottom strip's free right
+            // corner (the last tick centres at the plot's right
+            // edge, W - 64, so its label never reaches this corner)
+            ctx.textAlign = "right";
+            ctx.fillText("Date", W - 6, H - 6);
             // crosshair
             if (hover >= v.start && hover <= v.end) {
                 var hx = X(hover);
@@ -8185,6 +8204,10 @@ if (typeof module !== "undefined") {
                 if (overlayOn) { ctx.textAlign = "right"; ctx.fillText(gv + "%", leftPad - 5, gy + 3); }
                 else { ctx.textAlign = "left"; ctx.fillText(gv + "%", leftPad + plotW + 4, gy + 3); }
             }
+            // the score axis's name, at the plot's top-left — the
+            // spot the price chart's panes carry theirs
+            ctx.fillStyle = subC; ctx.textAlign = "left";
+            ctx.fillText("Score", leftPad + 2, topPad + 11);
             // The price axis: the stock's actual closes over the
             // drawn window, padded a little so the line never touches
             // the plot's edge, with a tick at each gridline and the
@@ -8247,6 +8270,9 @@ if (typeof module !== "undefined") {
                     mIdx++;
                 }
             }
+            // the axis's name, in the bottom strip's right corner
+            ctx.textAlign = "right";
+            ctx.fillText("Date", wCss - 2, hCss - 6);
             var lineColors = assignedColors();
             // The lines are clipped to the plot: with a window
             // set, the points outside it would otherwise paint
