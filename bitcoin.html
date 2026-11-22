@@ -1173,9 +1173,9 @@
         .spiral-pill:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         .spiral-pill[aria-pressed="true"] { background: var(--accent-color); border-color: transparent; color: #fff; }
         .spiral-pill:disabled { opacity: 0.45; cursor: default; }
-        .spiral-stage { position: relative; width: 100%; height: min(58vh, 540px); min-height: 340px; border-radius: 16px; overflow: hidden; touch-action: pan-y; cursor: grab; background: radial-gradient(120% 90% at 50% 0%, rgba(77, 166, 255, 0.05), transparent 60%); }
+        .spiral-stage { position: relative; width: 100%; height: min(58vh, 540px); min-height: 340px; border-radius: 16px; overflow: hidden; touch-action: none; cursor: grab; background: radial-gradient(120% 90% at 50% 0%, rgba(77, 166, 255, 0.05), transparent 60%); }
         body.light-mode .spiral-stage { background: radial-gradient(120% 90% at 50% 0%, rgba(2, 132, 199, 0.05), transparent 60%); }
-        .spiral-stage canvas { display: block; width: 100%; height: 100%; }
+        .spiral-stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
         .spiral-stage:active { cursor: grabbing; }
         .spiral-readout { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 15px; min-height: 22px; margin: 0; }
         .spiral-readout .ro-date { font-weight: 650; }
@@ -2463,17 +2463,32 @@ if (THREE) {
     }
 
     // pointer: sideways drag = orbit, wheel/pinch = zoom, hover/tap = inspect.
-    // The stage is touch-action: pan-y, so a vertical drag scrolls the
-    // page instead of trapping it; horizontal drags orbit.
+    // The canvas is touch-action: none, so no engine can claim the gesture
+    // for scrolling before it reaches these handlers. (The stage used to
+    // rely on touch-action: pan-y for that split; an engine that does not
+    // honor pan-y claims a page-view drag after a few pixels and fires
+    // pointercancel, so the stack only ever turned in fullscreen, where
+    // the page cannot scroll.) The split is made here instead, for touch
+    // pointers in page view only: a drag that runs mostly sideways
+    // orbits; one that runs mostly up or down scrolls the page by hand,
+    // so the page is never trapped under the chart. In fullscreen there
+    // is no page to scroll, and mouse drags orbit on both axes — both
+    // exactly as before.
     const pointers = new Map();
     let dragMoved = 0, pinchD = 0, downAt = 0;
+    let gMode = null, gStartX = 0, gStartY = 0, gTouch = false;
     const el = renderer.domElement;
     el.addEventListener('pointerdown', e => {
         pointers.set(e.pointerId, [e.clientX, e.clientY]);
         dragMoved = 0; downAt = performance.now();
+        if (pointers.size === 1) {
+            gMode = null; gStartX = e.clientX; gStartY = e.clientY;
+            gTouch = e.pointerType === 'touch';
+        }
         if (pointers.size === 2) {
             const [a, b] = [...pointers.values()];
             pinchD = Math.hypot(a[0] - b[0], a[1] - b[1]);
+            gMode = 'pinch';
         }
         try { el.setPointerCapture(e.pointerId); } catch (err) {}
     });
@@ -2484,6 +2499,20 @@ if (THREE) {
         pointers.set(e.pointerId, [e.clientX, e.clientY]);
         dragMoved += Math.abs(dx) + Math.abs(dy);
         if (pointers.size === 1) {
+            if (gTouch && !fsOn() && gMode !== 'orbit') {
+                if (gMode === 'scroll') { window.scrollBy(0, -dy); return; }
+                const tdx = e.clientX - gStartX, tdy = e.clientY - gStartY;
+                if (Math.max(Math.abs(tdx), Math.abs(tdy)) < 9) return;
+                gMode = Math.abs(tdx) >= Math.abs(tdy) ? 'orbit' : 'scroll';
+                if (gMode === 'orbit') {
+                    az -= tdx * 0.0052;
+                    pol = THREE.MathUtils.clamp(pol - tdy * 0.0052, 0.05, 1.45);
+                } else {
+                    window.scrollBy(0, -tdy);
+                }
+                needsFrame = true;
+                return;
+            }
             az -= dx * 0.0052;
             pol = THREE.MathUtils.clamp(pol - dy * 0.0052, 0.05, 1.45);
             needsFrame = true;
@@ -2498,10 +2527,18 @@ if (THREE) {
     function endPointer(e) {
         const wasTap = pointers.has(e.pointerId) && dragMoved < 6 && performance.now() - downAt < 400;
         pointers.delete(e.pointerId);
+        if (!pointers.size) gMode = null;
+        else if (pointers.size === 1) {
+            const p = [...pointers.values()][0];
+            gStartX = p[0]; gStartY = p[1]; gMode = null;
+        }
         if (wasTap) inspect(e, true);
     }
     el.addEventListener('pointerup', endPointer);
-    el.addEventListener('pointercancel', e => pointers.delete(e.pointerId));
+    el.addEventListener('pointercancel', e => {
+        pointers.delete(e.pointerId);
+        if (!pointers.size) gMode = null;
+    });
     el.addEventListener('pointerleave', () => { if (!pointers.size) showLatest(); });
     el.addEventListener('wheel', e => {
         e.preventDefault();
