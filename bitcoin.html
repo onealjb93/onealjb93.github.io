@@ -667,10 +667,13 @@
            segment continues the same line across the row's 10px
            top margin, and its horizontal segment turns right
            along the row's top edge toward the row's label. */
-        .btc-gauge::before { content: ""; position: absolute; left: -3px; top: 33px; bottom: 0; width: 2px; border-radius: 1px; background: #f7931a; }
-        body.light-mode .btc-gauge::before { background: #a35c06; }
-        .btc-zones .btc-ovl-switch { position: relative; width: auto; margin: 10px 2px 0; }
-        .btc-zones .btc-ovl-switch::before { content: ""; position: absolute; left: -3px; top: -10px; width: 26px; height: 10px; border-left: 2px solid #f7931a; border-bottom: 2px solid #f7931a; border-bottom-left-radius: 8px; }
+        /* The overlay row rides inside the gauge, directly under
+           the scale's labels and above the gauge's name (2026-11-22):
+           a short, quiet elbow drops from the scale block's bottom
+           edge across the row's 8px gap into the row's left edge —
+           never a line down the card. */
+        .btc-zones .btc-ovl-switch { position: relative; width: auto; margin: 8px 0 0; }
+        .btc-zones .btc-ovl-switch::before { content: ""; position: absolute; left: -3px; top: -8px; width: 26px; height: 8px; border-left: 2px solid #f7931a; border-bottom: 2px solid #f7931a; border-bottom-left-radius: 6px; }
         body.light-mode .btc-zones .btc-ovl-switch::before { border-color: #a35c06; }
         /* The gauge's name (2026-11-19): the indicator's name
            rides inside the gauge block as its caption, centered
@@ -1489,9 +1492,9 @@
                 </div>
                 <div class="btc-gauge-nums" aria-hidden="true"><span class="btc-gauge-num btc-gauge-num-0">0</span><span class="btc-gauge-num btc-gauge-num-buy">7.79</span><span class="btc-gauge-num btc-gauge-num-sell">92.91</span><span class="btc-gauge-num btc-gauge-num-100">100</span></div>
                 <div class="btc-gauge-names" aria-hidden="true"><span class="btc-gauge-name btc-gauge-name-buy">Buy zone</span><span class="btc-gauge-name btc-gauge-name-hold">Hold</span><span class="btc-gauge-name btc-gauge-name-sell">Sell zone</span></div>
+                <button type="button" class="btc-ovl-switch" id="btcOvlBtn" role="switch" aria-checked="true" aria-label="Johnny’s ₿ Indicator overlay" title="Turn Johnny’s ₿ Indicator overlay on or off"><span class="btc-ovl-label" aria-hidden="true">Johnny’s ₿ Indicator overlay</span><span class="btc-switch-track" aria-hidden="true"><span class="btc-switch-knob"></span></span></button>
                 <div class="btc-gauge-title">Johnny's ₿ Indicator</div>
             </div>
-            <button type="button" class="btc-ovl-switch" id="btcOvlBtn" role="switch" aria-checked="true" aria-label="Johnny’s ₿ Indicator overlay" title="Turn Johnny’s ₿ Indicator overlay on or off"><span class="btc-ovl-label" aria-hidden="true">Johnny’s ₿ Indicator overlay</span><span class="btc-switch-track" aria-hidden="true"><span class="btc-switch-knob"></span></span></button>
             <details class="btc-zones-defs">
               <summary>How the colors and the indicator work</summary>
               <p>The card's dots and mini scales color each model by the segment the model's scaled value occupies on Johnny's ₿ Indicator's 0-to-100 scale. Each model's own chart colors the model by the model's own bands.</p>
@@ -1760,6 +1763,9 @@
                 <div class="ta-overlay-wrap">
                     <h3>All four cycles on one set of axes</h3>
                     <div class="ta-keyrow" id="spiralTaKeyRow">
+                        <div class="ta-seg" role="group" aria-label="Y axis: dollars, or multiples of the halving day’s price">
+                            <button type="button" class="ta-seg-btn" id="spiralTaUnitUsd" aria-pressed="false">$</button><button type="button" class="ta-seg-btn" id="spiralTaUnitMult" aria-pressed="true">×</button>
+                        </div>
                         <div class="ta-seg" role="group" aria-label="X axis: days since the halving, or the dates of one chosen cycle">
                             <button type="button" class="ta-seg-btn" id="spiralTaModeDays" aria-pressed="true">Days</button><button type="button" class="ta-seg-btn" id="spiralTaModeDates" aria-pressed="false">Dates</button>
                         </div>
@@ -2823,6 +2829,27 @@ const taSeries = taFloors.map(fl => {
 // reading never moves the reader's zoom or pan.
 let taMode = 'days';
 let taCycle = taSeries.length - 1;
+// $ | × (2026-11-22): the y axis reads two ways — each cycle's
+// price counted in multiples of its own halving day's price
+// (the view the graph has always had), or the cycles' actual
+// dollar prices on the same log axis. The unit is module state
+// beside the x mode's; neither flip touches the other, and
+// taZoom is not part of either, so flipping never moves the
+// reader's zoom or pan. The $ axis's domain follows the ×
+// view's rule — a generous finite boundary around everything
+// the graph can draw: every cycle close and the whole
+// projection fan, in absolute log10 dollars, padded 0.2 of a
+// log on both ends and snapped outward to the nearest tenth.
+let taUnit = 'mult';
+const TA_USD = (() => {
+    let lo = Infinity, hi = -Infinity;
+    const eat = v => { if (v < lo) lo = v; if (v > hi) hi = v; };
+    taSeries.forEach(s => s.pts.forEach(p => eat(Math.log10(p.price))));
+    FAN.guides.forEach(gd => gd.pts.forEach(p => eat(p[1])));
+    FAN.band.forEach(b => { eat(b[1]); eat(b[2]); });
+    FAN.median.forEach(p => eat(p[1]));
+    return { ymin: Math.floor((lo - 0.2) * 10) / 10, ymax: Math.ceil((hi + 0.2) * 10) / 10 };
+})();
 const taAddDays = (iso, n) => new Date(Date.parse(iso + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
 const taMonthYear = iso => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 
@@ -2847,12 +2874,21 @@ function taAxes(W, H, prof, svgClass) {
     const g = taEl('g', {}, svg);
     const m = { l: prof.l, r: prof.r, t: prof.t, b: prof.b }, S = prof.S;
     const X = d => m.l + d / TAX.max * (W - m.l - m.r);
-    const Y = v => m.t + (TAX.ymax - v) / (TAX.ymax - TAX.ymin) * (H - m.t - m.b);
-    [1, 3, 10, 30, 100].forEach(mult => {
-        const v = Math.log10(mult);
-        taEl('line', { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), class: 'grid' }, g);
-        taEl('text', { x: m.l - 5, y: Y(v) + 3.5 * S, 'text-anchor': 'end', class: 'axislab' }, g, mult + '×');
-    });
+    const dom = taUnit === 'usd' ? TA_USD : TAX;
+    const Y = v => m.t + (dom.ymax - v) / (dom.ymax - dom.ymin) * (H - m.t - m.b);
+    if (taUnit === 'usd') {
+        for (let e = Math.ceil(dom.ymin); e <= Math.floor(dom.ymax); e++) {
+            taEl('line', { x1: m.l, x2: W - m.r, y1: Y(e), y2: Y(e), class: 'grid' }, g);
+            taEl('text', { x: m.l - 5, y: Y(e) + 3.5 * S, 'text-anchor': 'end', class: 'axislab' }, g,
+                '$' + Math.pow(10, e).toLocaleString('en-US'));
+        }
+    } else {
+        [1, 3, 10, 30, 100].forEach(mult => {
+            const v = Math.log10(mult);
+            taEl('line', { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), class: 'grid' }, g);
+            taEl('text', { x: m.l - 5, y: Y(v) + 3.5 * S, 'text-anchor': 'end', class: 'axislab' }, g, mult + '×');
+        });
+    }
     [0, 360, 720, 1080, 1440].forEach(d => {
         taEl('line', { x1: X(d), x2: X(d), y1: m.t, y2: H - m.b, class: 'grid' }, g);
         const last = d === TAX.max;
@@ -3065,7 +3101,8 @@ function buildOverlay(container, W, H, prof, svgClass, withTitle) {
         zoomBy(f) { zv.zoomAt((m.l + W - m.r) / 2, (m.t + H - m.b) / 2, f); },
         reset() { taZoom.k = 1; taZoom.tx = 0; taZoom.ty = 0; zv.applyZoom(); },
     };
-    if (withTitle) taEl('text', { x: m.l + 2, y: m.t + 11 * S, class: 'axistitle' }, vp, 'price, × the halving day’s');
+    if (withTitle) taEl('text', { x: m.l + 2, y: m.t + 11 * S, class: 'axistitle' }, vp,
+        taUnit === 'usd' ? 'Price' : 'price, × the halving day’s');
     if (withTitle) taEl('text', { x: W - m.r - 4 * S, y: H - m.b - 5 * S, 'text-anchor': 'end', class: 'axistitle' }, vp,
         taMode === 'dates' ? 'Date — ' + taSeries[taCycle].fl.label : 'Days since the halving');
     const band = (d0, d1, cls, edgeCls, num, badgeFill, badgeFg) => {
@@ -3078,8 +3115,13 @@ function buildOverlay(container, W, H, prof, svgClass, withTitle) {
     band(371, 546, 'band-top', 'band-edge-top', '1', '#f5a623', '#14100a');
     band(777, 912, 'band-bot', 'band-edge-bot', '2', '#e5484d', '#ffffff');
     const fl4 = taFloors[taFloors.length - 1], hp4 = fl4.halving.logp, L4 = fl4.length_days;
-    const fanPt = p => ({ day: p[0] * L4, y: p[1] - hp4 });
-    const bandPts = FAN.band.map(p => ({ d: p[0] * L4, lo: p[1] - hp4, hi: p[2] - hp4 }));
+    // the fan's points are absolute log10 dollars: the × view
+    // re-bases them to the current cycle's halving, the $ view
+    // takes them as they are.
+    const fanPt = p => ({ day: p[0] * L4, y: taUnit === 'usd' ? p[1] : p[1] - hp4 });
+    const bandPts = FAN.band.map(p => taUnit === 'usd'
+        ? { d: p[0] * L4, lo: p[1], hi: p[2] }
+        : { d: p[0] * L4, lo: p[1] - hp4, hi: p[2] - hp4 });
     if (bandPts.length) {
         const poly = bandPts.map(b => `${X(b.d).toFixed(1)},${Y(b.hi).toFixed(1)}`)
             .concat(bandPts.slice().reverse().map(b => `${X(b.d).toFixed(1)},${Y(b.lo).toFixed(1)}`)).join(' ');
@@ -3107,19 +3149,28 @@ function buildOverlay(container, W, H, prof, svgClass, withTitle) {
         else pts[pts.length - 1] = livePt;
         return { ...s, pts };
     });
-    effSeries.forEach((s, i) => taEl('polyline', { points: taLine(s.pts, X, Y), class: 'curve ' + (s.current ? 'cur' : 'c' + (i + 1)) }, vp));
-    effSeries.forEach(s => {
+    // In the $ reading every point's height is its absolute
+    // log10 price — the multiple it already carries, shifted by
+    // its own cycle's halving price. Days, dates, prices and
+    // kinds ride along untouched, so the readout, the marks and
+    // the inspection all speak exactly as they do in the × view.
+    const drawSeries = taUnit === 'usd' ? effSeries.map(s => {
+        const sh = s.fl.halving.logp, up = p => ({ ...p, y: p.y + sh });
+        return { ...s, pts: s.pts.map(up), halvingPt: up(s.halvingPt), top: up(s.top), bottom: up(s.bottom) };
+    }) : effSeries;
+    drawSeries.forEach((s, i) => taEl('polyline', { points: taLine(s.pts, X, Y), class: 'curve ' + (s.current ? 'cur' : 'c' + (i + 1)) }, vp));
+    drawSeries.forEach(s => {
         taDot(vp, X, Y, s.halvingPt, '#2ea043', 3.2 * S);
         taDot(vp, X, Y, s.top, '#2f6feb', 3.6 * S);
         taDot(vp, X, Y, s.bottom, '#e5484d', 3.6 * S);
     });
-    const lp = effSeries[effSeries.length - 1].pts;
+    const lp = drawSeries[drawSeries.length - 1].pts;
     const lastPt = lp[lp.length - 1];
     taEl('circle', { cx: X(lastPt.day), cy: Y(lastPt.y), r: 4 * S, fill: '#ffffff', stroke: 'var(--btc-orange, #f7931a)', 'stroke-width': 1.6 * S }, vp);
     taMarkLabel(vp, X, Y, W, S, lastPt, `Today · day ${lastPt.day}`, fmtDate(lastPt.date), 'above');
     container.appendChild(svg);
     zv.clampZoom(); zv.applyZoom();
-    taWireInspect(zv, effSeries, X, Y);
+    taWireInspect(zv, drawSeries, X, Y);
 }
 const taOverlayEl = document.getElementById('spiralTaOverlay');
 const taPhoneMq = window.matchMedia('(max-width: 719px)');
@@ -3151,6 +3202,8 @@ else if (taPhoneMq.addListener) taPhoneMq.addListener(() => renderTaGraph());
     const keyRow = document.getElementById('spiralTaKeyRow');
     const modeDaysBtn = document.getElementById('spiralTaModeDays');
     const modeDatesBtn = document.getElementById('spiralTaModeDates');
+    const unitUsdBtn = document.getElementById('spiralTaUnitUsd');
+    const unitMultBtn = document.getElementById('spiralTaUnitMult');
     const bandTopsEl = document.getElementById('taBandTops');
     const bandBottomsEl = document.getElementById('taBandBottoms');
     function buildTaKey() {
@@ -3176,6 +3229,16 @@ else if (taPhoneMq.addListener) taPhoneMq.addListener(() => renderTaGraph());
     }
     if (modeDaysBtn) modeDaysBtn.addEventListener('click', () => { if (taMode !== 'days') { taMode = 'days'; taModeSync(); } });
     if (modeDatesBtn) modeDatesBtn.addEventListener('click', () => { if (taMode !== 'dates') { taMode = 'dates'; taModeSync(); } });
+    // The unit flip is the mode flip's twin: it syncs its own
+    // two buttons and rebuilds the graph — the x mode, the
+    // chosen cycle and the reader's zoom are not part of it.
+    function taUnitSync() {
+        if (unitUsdBtn) unitUsdBtn.setAttribute('aria-pressed', String(taUnit === 'usd'));
+        if (unitMultBtn) unitMultBtn.setAttribute('aria-pressed', String(taUnit === 'mult'));
+        renderTaGraph(true);
+    }
+    if (unitUsdBtn) unitUsdBtn.addEventListener('click', () => { if (taUnit !== 'usd') { taUnit = 'usd'; taUnitSync(); } });
+    if (unitMultBtn) unitMultBtn.addEventListener('click', () => { if (taUnit !== 'mult') { taUnit = 'mult'; taUnitSync(); } });
     buildTaKey();
 }
 
