@@ -7412,7 +7412,15 @@ if (typeof module !== "undefined") {
             if (ans < 0) ans = n - 1;
             var counts = mode === "daily" ? RANGE_DAYS : RANGE_WEEKS;
             var order = ["1Y", "5Y", "10Y", "ALL"], chosen = "ALL", ri;
-            for (ri = 0; ri < order.length; ri++) { if (ans >= n - Math.min(n, counts[order[ri]])) { chosen = order[ri]; break; } }
+            // The range must hold the full window below (504 days /
+            // 104 weeks): a range smaller than the window (the 1Y
+            // range, for any dot inside the last year) collapses
+            // the window to the whole range with no zoom set, and
+            // the pinch clamp then makes widening a no-op — the
+            // timeframe feels stuck. Skip ranges too small to hold
+            // the window; ALL always qualifies.
+            var Wcap = mode === "daily" ? 504 : 104;
+            for (ri = 0; ri < order.length; ri++) { if (order[ri] !== "ALL" && counts[order[ri]] < Wcap) continue; if (ans >= n - Math.min(n, counts[order[ri]])) { chosen = order[ri]; break; } }
             cur.range = chosen;
             var rangeCount = Math.min(n, counts[chosen]);
             var W = Math.min(rangeCount, mode === "daily" ? 504 : 104);
