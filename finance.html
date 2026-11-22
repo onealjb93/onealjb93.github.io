@@ -282,6 +282,33 @@
     .jbo-tip-val { margin-left: auto; padding-left: 0.9rem; color: var(--text-color); font-weight: 600; white-space: nowrap; }
     .jbo-chart-note { margin-top: 0.75rem; font-size: 0.85rem; color: var(--subtext-color); }
     .jbo-chart-datanote { margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--subtext-color); }
+    /* Johnny's indicator switch (2026-11-22): the Bitcoin overlay
+       switch's construction — a full-width row of the chart block,
+       the label at its left, the site slider's own track (36x23,
+       the header slider's neutral colours) and knob (18px at a
+       2.5px inset, 13px of travel) at its right. The row is always
+       present, so flipping it moves nothing; the dots alone appear
+       and disappear. Until the first flip the track glows — the
+       site's memorability device, in the link colour. The Bitcoin
+       bridge note steps aside in full screen like the chart's
+       other notes. */
+    .fin-ind-switch { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; height: 40px; padding: 0; background: none; border: none; border-radius: 999px; color: var(--text-color); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .fin-ind-switch:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+    .fin-ind-label { font-size: 0.85rem; font-weight: 600; color: var(--text-color); white-space: nowrap; }
+    .fin-ind-track { position: relative; flex: none; width: 36px; height: 23px; border-radius: 999px; background-color: #3a4556; }
+    body.light-mode .fin-ind-track { background-color: #d3d8de; }
+    .fin-ind-knob { position: absolute; left: 2.5px; top: 2.5px; width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); transition: transform var(--dur-2) var(--ease-inout); }
+    .fin-ind-switch[aria-checked="true"] .fin-ind-knob { transform: translateX(13px); }
+    .fin-ind-switch.fin-ind-glow .fin-ind-track { animation: fin-ind-glow 1.8s ease-in-out infinite; }
+    @keyframes fin-ind-glow {
+        0%, 100% { box-shadow: 0 0 3px 2px transparent, 0 0 12px 2px transparent; }
+        50% { box-shadow: 0 0 3px 6px color-mix(in srgb, color-mix(in srgb, var(--link-color) 85%, var(--text-color) 15%) 70%, transparent 30%), 0 0 24px 10px color-mix(in srgb, color-mix(in srgb, var(--link-color) 85%, var(--text-color) 15%) 28%, transparent 72%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .fin-ind-switch.fin-ind-glow .fin-ind-track { animation: none; }
+    }
+    #chart:fullscreen .fin-ind-btcnote, #chart:-webkit-full-screen .fin-ind-btcnote, #chart.chart-fs .fin-ind-btcnote { display: none; }
+    .fin-ind-btcnote a { color: var(--link-color); }
     /* Chart key: the swatches are the exact colours and weights the
        in-page chart draws — amber 200-week (3px), blue 50-week (2px),
        violet weekly RSI (2px), teal P/E (2px, its pane is optional),
@@ -298,6 +325,14 @@
     body.light-mode .tv-key-ma200 { background: #e65100; }
     body.light-mode .tv-key-pe { background: #0f766e; }
     .tv-key-volma { height: 3px; background: var(--text-color); opacity: 0.55; }
+    /* The indicator's key swatch: the two dots themselves. */
+    .tv-key-ind { height: auto; width: auto; background: none; display: inline-flex; align-items: center; gap: 3px; }
+    .chart-key summary .tv-key-ind { width: auto; }
+    .tv-key-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+    .tv-key-dot-buy { background: #22c55e; }
+    .tv-key-dot-sell { background: #ef4444; }
+    body.light-mode .tv-key-dot-buy { background: #16a34a; }
+    body.light-mode .tv-key-dot-sell { background: #dc2626; }
     /* The key in the site's details pattern (2026-11-16): a slim
        summary line — a chevron, the words "Chart key" and the five
        swatches — with the full descriptions one tap down, the same
@@ -1330,16 +1365,19 @@
             </div>
             </div>
         </div>
+        <button type="button" class="fin-ind-switch" id="finIndBtn" role="switch" aria-checked="false" aria-label="Johnny’s indicator" title="Turn Johnny’s indicator on or off"><span class="fin-ind-label" aria-hidden="true">Johnny’s indicator</span><span class="fin-ind-track" aria-hidden="true"><span class="fin-ind-knob"></span></span></button>
         <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Weekly price chart with 200-week and 50-week moving averages, volume, weekly RSI and an optional P/E pane"></canvas><div class="glass-bubble" id="jboChartTip"></div></div>
         <p class="jbo-chart-note" id="jboChartNote" hidden></p>
+        <p class="jbo-chart-note fin-ind-btcnote" id="finIndBtcNote" hidden>A deeper Bitcoin indicator lives on the <a href="bitcoin.html">Bitcoin page</a>.</p>
         <details class="chart-key" id="chartKey">
-            <summary><span class="chart-key-chev" aria-hidden="true">&#9654;</span> Chart key <span class="chart-key-swatches" aria-hidden="true"><span class="tv-key-swatch tv-key-ma200"></span><span class="tv-key-swatch tv-key-ma50"></span><span class="tv-key-swatch tv-key-rsi"></span><span class="tv-key-swatch tv-key-pe"></span><span class="tv-key-swatch tv-key-volma"></span></span></summary>
+            <summary><span class="chart-key-chev" aria-hidden="true">&#9654;</span> Chart key <span class="chart-key-swatches" aria-hidden="true"><span class="tv-key-swatch tv-key-ma200"></span><span class="tv-key-swatch tv-key-ma50"></span><span class="tv-key-swatch tv-key-rsi"></span><span class="tv-key-swatch tv-key-pe"></span><span class="tv-key-swatch tv-key-volma"></span><span class="tv-key-swatch tv-key-ind"><span class="tv-key-dot tv-key-dot-buy"></span><span class="tv-key-dot tv-key-dot-sell"></span></span></span></summary>
         <div class="tv-chart-key">
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma200" aria-hidden="true"></span><span id="keyMa200"><strong>Amber &mdash; the 200-week average</strong>. Four years of trading in one line: below it, a stock has historically been cheap.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-ma50" aria-hidden="true"></span><span id="keyMa50"><strong>Blue &mdash; the 50-week average</strong>. A year of price: above it, the trend is up and intact; below it, the trend is broken.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-rsi" aria-hidden="true"></span><span id="keyRsi"><strong>Violet &mdash; the weekly RSI</strong>. How stretched the price is &mdash; pushed too far, too fast, in either direction. Dashed lines mark 70 and 30: above 70, overbought; below 30, oversold.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-pe" aria-hidden="true"></span><span><strong>Teal &mdash; the P/E ratio</strong>. The price divided by the last twelve months of earnings per share &mdash; how many dollars investors pay for one dollar of profit. Where the line breaks, the company was losing money: there is no P/E without earnings. The dashed line is the stock's own median P/E: above it, expensive for itself; below it, cheap for itself.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span id="keyVolma"><strong>Grey &mdash; the 20-week volume average</strong>. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-buy"></span><span class="tv-key-dot tv-key-dot-sell"></span></span><span><strong>Green and red dots &mdash; Johnny&rsquo;s indicator</strong>. A green dot marks a buy day: the RSI at or under 30, the VIX at or over 30, the price at or under its 200-week average and PEG at or under 1, all on the same day. A red dot marks a sell day: the RSI over 70, the VIX under 15, PEG at 2 or more and the price at least 50% above its 200-week average, all of it held for five straight days. The S&amp;P 500, the Nasdaq, gold and Bitcoin have no earnings of their own, so their dots use the same rules without PEG.</span></span>
         </div>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         <p class="chart-intro">Tap a pick above, or choose from my 19 stocks and the Nasdaq-100 in the box above. The chart is drawn from this page&rsquo;s own weekly and daily data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-week moving average, the 50-week moving average for the trend, and the weekly RSI &mdash; in the Daily view, the same three by the day: the 200-day average, the 50-day average, and the daily RSI. A stock with under four years of trading history has no 200-week line yet; the note under the chart says so when that is the case.</p>
@@ -5814,7 +5852,7 @@ if (typeof module !== "undefined") {
     // (Johnny's spec — the native optgroup headers were inert).
     (function () {
         "use strict";
-        var MA200_COLOR = "#FF9800", MA50_COLOR = "#2962FF", RSI_COLOR = "#7E57C2", PE_COLOR = "#2dd4bf";
+        var MA200_COLOR = "#FF9800", MA50_COLOR = "#2962FF", RSI_COLOR = "#7E57C2", PE_COLOR = "#2dd4bf", BUY_COLOR = "#22c55e", SELL_COLOR = "#ef4444";
         // Cream round (2026-11-20): on the light stage the two palest
         // series colours deepen — the legend swatches in the page CSS
         // take the same two values under body.light-mode, and the
@@ -5825,13 +5863,15 @@ if (typeof module !== "undefined") {
             var light = document.body.classList.contains("light-mode");
             MA200_COLOR = light ? "#e65100" : "#FF9800";
             PE_COLOR = light ? "#0f766e" : "#2dd4bf";
+            BUY_COLOR = light ? "#16a34a" : "#22c55e";
+            SELL_COLOR = light ? "#dc2626" : "#ef4444";
         }
         // The RSI pane's 30/70 guide lines: the RSI's own violet at
         // half strength — same family, visibly quieter than the line.
         var RSI_GUIDE_COLOR = "rgba(126, 87, 194, 0.5)";
         // The P/E pane's median line: the P/E's own teal, same treatment.
         var PE_GUIDE_COLOR = "rgba(45, 212, 191, 0.5)";
-        var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1", MODE_KEY = "jbo-chart-mode-v1";
+        var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1", MODE_KEY = "jbo-chart-mode-v1", IND_KEY = "jbo-chart-ind-v1";
         var PICK_KEYS = ["SPX", "IXIC", "GOLD", "BTC", "VIX"];
         var RANGE_WEEKS = { "1Y": 52, "5Y": 260, "10Y": 520, "ALL": Infinity };
         // Daily ranges, counted in trading days (252 to a year):
@@ -5857,8 +5897,14 @@ if (typeof module !== "undefined") {
         // Pane toggles: Volume and RSI start on (the shipped look),
         // P/E starts off; a stored "0"/"1" overrides per pane.
         var peOn = false, volOn = true, rsiOn = true;
+        // Johnny's indicator: starts off, persists like the panes;
+        // indTouched records that a choice exists at all — until
+        // one does, the switch's track glows (see syncInd).
+        var indOn = false, indTouched = false;
         try {
             peOn = window.localStorage.getItem(PE_KEY) === "1";
+            indOn = window.localStorage.getItem(IND_KEY) === "1";
+            indTouched = window.localStorage.getItem(IND_KEY) !== null;
             volOn = window.localStorage.getItem(VOL_KEY) !== "0";
             rsiOn = window.localStorage.getItem(RSI_KEY) !== "0";
             // The mode persists like the pane choices: a visitor
@@ -5967,11 +6013,36 @@ if (typeof module !== "undefined") {
             // The pipeline's P/E array, only trusted when it lines
             // up 1:1 with the bars; anything else reads as absent.
             var peArr = (s.pe && s.pe.length === s.bars.length) ? s.pe : null;
+            // Johnny's indicator (2026-11-22): the pipeline's buy /
+            // sell dates live on the DAILY series; map each onto
+            // this view's bars — the day itself in Daily mode, in
+            // Weekly mode the first bar dated on or after it (the
+            // week containing it). Null when the switch is off or
+            // the daily file hasn't arrived yet.
+            var buySet = null, sellSet = null;
+            if (indOn) {
+                var dsig = mode === "daily" ? s : (dailyData && dailyData.series ? dailyData.series[key] : null);
+                if (dsig && (dsig.buy || dsig.sell)) {
+                    buySet = {}; sellSet = {};
+                    var sigDates = s.bars.map(function (b) { return b[0]; });
+                    var markSig = function (list, set) {
+                        if (!list) return;
+                        for (var k = 0; k < list.length; k++) {
+                            var d = list[k], loI = 0, hiI = sigDates.length - 1, ans = -1;
+                            while (loI <= hiI) { var mid = (loI + hiI) >> 1; if (sigDates[mid] >= d) { ans = mid; hiI = mid - 1; } else { loI = mid + 1; } }
+                            if (ans >= 0) set[ans] = true;
+                        }
+                    };
+                    markSig(dsig.buy, buySet);
+                    markSig(dsig.sell, sellSet);
+                }
+            }
             return {
                 s: s, closes: closes,
                 ma200: sma(closes, 200), ma50: sma(closes, 50), rsi: rsiWilder(closes, 14),
                 volMa: sma(volumes, 20),
                 pe: peArr, peMedian: peMedianOf(peArr, mode === "daily" ? 252 : 52),
+                buySet: buySet, sellSet: sellSet,
                 isBench: PICK_KEYS.indexOf(key) >= 0,
                 start: n - count, end: n - 1,
                 hasVolume: s.bars.some(function (b) { return b[5] > 0; })
@@ -6062,6 +6133,8 @@ if (typeof module !== "undefined") {
             if (hover < view.start || hover > view.end) hover = -1;
             var nt = noteText(view);
             if (note) { note.textContent = nt; note.hidden = !nt; }
+            var btcNote = document.getElementById("finIndBtcNote");
+            if (btcNote) btcNote.hidden = !(indOn && cur.key === "BTC");
             if (dataNote) dataNote.textContent = (modeNote ? modeNote + " " : "") + (mode === "daily" ? "Daily" : "Weekly") + " data from Yahoo Finance through " + fmtDate(view.s.bars[view.end][0]) + " — refreshed weekday evenings with the rest of this page’s data.";
             draw();
             updateTip();
@@ -6256,6 +6329,20 @@ if (typeof module !== "undefined") {
             }
             linePath(v.ma50, YP, MA50_COLOR, 2);
             linePath(v.ma200, YP, MA200_COLOR, 3);
+            // Johnny's indicator dots (2026-11-22): the pipeline's
+            // buy days in the site's buy green, its sell days in
+            // the sell red, on the close at the day's own index —
+            // present only while the switch is on; toggling draws
+            // or clears them and moves nothing else.
+            if (indOn && (v.buySet || v.sellSet)) {
+                for (i = v.start; i <= v.end; i++) {
+                    var dc = v.buySet && v.buySet[i] ? BUY_COLOR : (v.sellSet && v.sellSet[i] ? SELL_COLOR : null);
+                    if (!dc) continue;
+                    ctx.beginPath(); ctx.arc(X(i), YP(v.closes[i]), 4, 0, Math.PI * 2);
+                    ctx.fillStyle = dc; ctx.fill();
+                    ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"; ctx.stroke();
+                }
+            }
             // volume pane: the bars, then the 20-week volume
             // average over them — the theme text colour at reduced
             // strength, so it reads against the bars in both
@@ -6645,6 +6732,25 @@ if (typeof module !== "undefined") {
             else return;
             syncControls(); render();
         });
+        // ---- Johnny's indicator switch ----
+        // Turning it on needs the daily file (the pipeline's
+        // signal dates live there), so the first flip starts that
+        // load in either mode; ensureDaily's arrival re-renders
+        // when the switch is on. The knob shows the state; the
+        // stored choice ends the glow for good.
+        var indBtn = document.getElementById("finIndBtn");
+        function syncInd() {
+            if (!indBtn) return;
+            indBtn.setAttribute("aria-checked", indOn ? "true" : "false");
+            indBtn.classList.toggle("fin-ind-glow", !indTouched);
+        }
+        if (indBtn) indBtn.addEventListener("click", function () {
+            indOn = !indOn; indTouched = true;
+            storePane(IND_KEY, indOn);
+            syncInd();
+            if (indOn && !dailyData) ensureDaily(); else render();
+        });
+        syncInd();
         // ---- full-screen view ----
         // The button at the right end of the section's title row
         // takes the WHOLE chart block — #chart — full screen (the
@@ -6954,7 +7060,7 @@ if (typeof module !== "undefined") {
             dailyPromise
                 .then(function (d) {
                     dailyData = d;
-                    if (mode === "daily") render();
+                    if (mode === "daily" || indOn) render();
                 })
                 .catch(function () {
                     dailyFailed = true;
