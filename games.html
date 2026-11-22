@@ -522,13 +522,13 @@
            narrower than the stage, safe-area padded, with a labeled Close
            button. Scoped rules below only place and size it. */
         .tk-score-shade {
-            position: absolute; inset: 0; z-index: 30;
+            position: fixed; inset: 0; z-index: 1300;
             display: flex; align-items: center; justify-content: center;
             padding: 14px;
         }
         .tk-score-shade.tk-hidden { display: none; }
         .tk-score-bubble {
-            width: 100%; max-width: 430px; max-height: 100%; overflow-y: auto;
+            width: 100%; max-width: 430px; max-height: 100%; overflow-y: auto; overscroll-behavior: contain;
             padding: 16px 18px; color: var(--text-color);
         }
         .tk-score-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
@@ -1018,7 +1018,7 @@
                 <thead><tr><th>#</th><th>Name</th><th>Time</th></tr></thead>
                 <tbody id="tk-scoreRows"></tbody>
               </table>
-              <p id="tk-scoreEmpty" class="tk-score-empty tk-hidden">No times yet — set the first one.</p>
+              <p id="tk-scoreEmpty" class="tk-score-empty tk-hidden">No times yet — finish a race with a top-10 time and your name goes here.</p>
             </div>
           </div>
 
@@ -2236,7 +2236,7 @@ function startRace(){
   $('tk-titleScreen').classList.add('tk-hidden');
   stage.classList.remove('tk-title-up');
   $('tk-finishScreen').classList.add('tk-hidden');
-  $('tk-scoreShade').classList.add('tk-hidden'); scorePending = null;
+  $('tk-scoreShade').classList.add('tk-hidden');
   $('tk-countOverlay').classList.remove('tk-hidden'); $('tk-countNum').textContent='3';
   if(AC && AC.state==='suspended') AC.resume();
   checkOrientation();
@@ -2319,6 +2319,7 @@ if(DEMO) setInterval(()=>stepFrame(1/60), 16);   /* demo keeps advancing even wh
 const SCORES_API_URL = '';
 const SCORE_GAME = 'thumb-drive';
 const SCORE_LOCAL_KEY = 'td-scores-local-v1';
+const SCORE_PENDING_KEY = 'td-scores-pending-v1';
 const SCORE_CACHE_KEY = 'td-scores-cache-v1';
 let scoreBoardCache = null;   /* last board fetched from the store */
 let scorePending = null;      /* {ms} — a finish waiting for a name */
@@ -2387,7 +2388,10 @@ function openScores(mode){
     setPaused(true, 'scores');
   }
   const entry = $('tk-scoreEntry');
-  if (mode === 'entry' && scorePending) {
+  if (scorePending) {
+    /* A time is waiting for its name: the entry rides along with
+       the board however the popup was opened, so a dismissed or
+       missed prompt is never a dead end. */
     $('tk-scoreEntryText').textContent =
       'Your time ' + fmtTime(scorePending.ms / 1000) + ' makes the all-time board.';
     $('tk-scoreEntryErr').hidden = true;
@@ -2409,6 +2413,7 @@ function openScores(mode){
         'The all-time store couldn’t be reached — this is this device’s own board.');
     });
   }
+  if (scorePending) $('tk-scoreEmpty').classList.add('tk-hidden');
   if (mode === 'entry' && scorePending) {
     setTimeout(() => { try { $('tk-scoreName').focus(); } catch (e) {} }, 60);
   }
@@ -2426,18 +2431,89 @@ function scoreLocalAdd(name, ms){
   scoreSaveLocal(top);
   scoreHighlight = top.findIndex((r) => r.name === name && r.score_ms === ms);
 }
+/* ---------- the store's name rules, mirrored for this device ----------
+   With no store connected, the device board applies the backend's
+   own validation (validateName + the profanity filter in
+   scoreboard-build's src/index.js, ported line for line): trim and
+   single-space, 1–12 characters, letters/numbers and . ' - _ ! ?
+   only, and the same blocked words with the same leet-folding and
+   the same innocent exceptions. A name the store would reject
+   never reaches this device's board either. Returns the cleaned
+   name, or null when the name can't go on the board. */
+const SCORE_NAME_RE = /^[\p{L}\p{N} .'\-_!?]+$/u;
+const SCORE_BLOCK_SUBSTR = ['fuck', 'shit', 'bitch', 'whore', 'nigger', 'nigga',
+  'faggot', 'cunt', 'slut', 'pussy', 'penis', 'vagina', 'wanker', 'twat',
+  'asshole', 'dickhead', 'bastard', 'bollocks', 'rapist', 'pedo', 'nazi',
+  'hitler', 'semen', 'porn', 'jizz', 'retard'];
+const SCORE_BLOCK_WORD = ['ass', 'cock', 'dick', 'cum', 'tit', 'sex', 'fuk', 'fuc'];
+const SCORE_INNOCENT = { cunt: ['scunthorpe'], shit: ['shiitake'] };
+function scoreNameIsClean(name){
+  const lower = name.toLowerCase();
+  const folded = lower.replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+    .replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
+    .replace(/@/g, 'a').replace(/\$/g, 's');
+  const squashed = folded.replace(/[^\p{L}]/gu, '').replace(/(.)\1{2,}/g, '$1$1');
+  const innocentHit = (word) =>
+    (SCORE_INNOCENT[word] || []).some((ok) => squashed.includes(ok));
+  for (const w of SCORE_BLOCK_SUBSTR) {
+    if (squashed.includes(w) && !innocentHit(w)) return false;
+  }
+  const words = folded.split(/[^\p{L}]+/u).filter(Boolean);
+  for (const w of SCORE_BLOCK_WORD) {
+    if (squashed === w || words.includes(w)) return false;
+  }
+  return true;
+}
+function scoreValidateName(raw){
+  if (typeof raw !== 'string') return null;
+  const name = raw.trim().replace(/\s+/g, ' ');
+  const chars = Array.from(name).length;
+  if (chars < 1 || chars > 12) return null;
+  if (!SCORE_NAME_RE.test(name)) return null;
+  if (!scoreNameIsClean(name)) return null;
+  return name;
+}
+/* A qualifying time that hasn't been given a name yet waits in
+   localStorage, not just in memory: closing the popup, racing
+   again or reloading the page can no longer lose it. The board
+   popup offers the entry whenever a time is waiting. */
+function scoreSavePending(){
+  try {
+    if (scorePending) localStorage.setItem(SCORE_PENDING_KEY, JSON.stringify(scorePending));
+    else localStorage.removeItem(SCORE_PENDING_KEY);
+  } catch (e) {}
+}
+function scoreRestorePending(){
+  try {
+    const p = JSON.parse(localStorage.getItem(SCORE_PENDING_KEY) || 'null');
+    if (p && typeof p.ms === 'number' && scoreQualifies(p.ms)) scorePending = { ms: p.ms };
+  } catch (e) {}
+}
 function submitScore(){
   if (!scorePending) return;
-  const name = $('tk-scoreName').value.trim().replace(/\s+/g, ' ');
   const err = $('tk-scoreEntryErr');
-  if (!name) { err.textContent = 'Type your name first.'; err.hidden = false; return; }
+  const rawName = $('tk-scoreName').value;
+  if (!rawName.trim()) { err.textContent = 'Type your name first.'; err.hidden = false; return; }
+  /* Device-local mode judges the name by the store's own rules
+     (scoreValidateName above); the store path still lets the
+     server judge, exactly as built. */
+  let name = rawName.trim().replace(/\s+/g, ' ');
+  if (!SCORES_API_URL) {
+    const checked = scoreValidateName(rawName);
+    if (checked === null) {
+      err.textContent = 'That name can’t go on the board — try another.';
+      err.hidden = false;
+      return;
+    }
+    name = checked;
+  }
   const ms = scorePending.ms;
   const btn = $('tk-scoreSubmit');
   btn.disabled = true;
   const done = () => { btn.disabled = false; };
   const savedLocally = (note) => {
     scoreLocalAdd(name, ms);
-    scorePending = null;
+    scorePending = null; scoreSavePending();
     $('tk-scoreEntry').classList.add('tk-hidden');
     scoreRender(scoreLocalBoard(), note);
     done();
@@ -2461,7 +2537,7 @@ function submitScore(){
         }
         throw new Error('store');
       }
-      scorePending = null;
+      scorePending = null; scoreSavePending();
       $('tk-scoreEntry').classList.add('tk-hidden');
       const b = (j && Array.isArray(j.scores)) ? j.scores : [];
       scoreBoardCache = b;
@@ -2481,7 +2557,12 @@ function tkScoreFinish(){
   const ms = Math.round(finishTime * 1000);
   scoreFetchBoard().then(() => {
     if (!scoreQualifies(ms)) return;
-    scorePending = { ms: ms };
+    /* Keep the best waiting time: a slower later finish never
+       overwrites a faster one still waiting for its name. */
+    if (!scorePending || ms < scorePending.ms) {
+      scorePending = { ms: ms };
+      scoreSavePending();
+    }
     setTimeout(() => {
       if (state === 'finished' && scorePending) openScores('entry');
     }, 700);
@@ -2498,6 +2579,8 @@ $('tk-scoreShade').addEventListener('pointerdown', (e) => {
   if (e.target === $('tk-scoreShade')) closeScores();
 });
 $('tk-scoreShade').addEventListener('keydown', (e) => e.stopPropagation());
+/* A name entry left waiting by an earlier visit is picked back up. */
+scoreRestorePending();
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !$('tk-scoreShade').classList.contains('tk-hidden')) closeScores();
 });
@@ -2596,7 +2679,7 @@ function tkSetActive(on){
     if(state === 'racing' || state === 'countdown') setPaused(true, 'inactive');
   }
 }
-return { setActive: tkSetActive, state: window.__thumbKart.state, debug: window.__thumbKart.debug };
+return { setActive: tkSetActive, openScores: function () { openScores('view'); }, state: window.__thumbKart.state, debug: window.__thumbKart.debug };
 
     };
     </script>
@@ -2696,6 +2779,19 @@ return { setActive: tkSetActive, state: window.__thumbKart.state, debug: window.
         }
         Object.keys(btns).forEach(function (name) {
             if (btns[name]) btns[name].addEventListener('click', function () { toggle(name); });
+        });
+        /* The Thumb Drive All-time best button lives in the title row,
+           outside the collapsible body, while the engine (and its own
+           button listener) starts only on first expand — so a press
+           with the section closed used to do nothing at all. This
+           parse-time listener opens the section first, then the
+           board; once the engine runs, its own listener serves the
+           press and this one steps aside. */
+        var tkScoreBtnEl = document.getElementById('tk-scoreBtn');
+        if (tkScoreBtnEl) tkScoreBtnEl.addEventListener('click', function () {
+            if (open === 'thumbkart' && tkStarted) return;
+            if (open !== 'thumbkart') toggle('thumbkart');
+            if (window.__tk && window.__tk.openScores) window.__tk.openScores();
         });
         if (open === 'universe') setOpen('universe', true, true);
         if (open === 'thumbkart') setOpen('thumbkart', true, true);
