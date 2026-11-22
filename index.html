@@ -653,10 +653,13 @@
            segment continues the same line across the row's 10px
            top margin, and its horizontal segment turns right
            along the row's top edge toward the row's label. */
-        .btc-gauge::before { content: ""; position: absolute; left: -3px; top: 33px; bottom: 0; width: 2px; border-radius: 1px; background: #f7931a; }
-        body.light-mode .btc-gauge::before { background: #a35c06; }
-        .btc-zones .btc-ovl-switch { position: relative; width: auto; margin: 10px 2px 0; }
-        .btc-zones .btc-ovl-switch::before { content: ""; position: absolute; left: -3px; top: -10px; width: 26px; height: 10px; border-left: 2px solid #f7931a; border-bottom: 2px solid #f7931a; border-bottom-left-radius: 8px; }
+        /* The overlay row rides inside the gauge, directly under
+           the scale's labels and above the gauge's name (2026-11-22):
+           a short, quiet elbow drops from the scale block's bottom
+           edge across the row's 8px gap into the row's left edge —
+           never a line down the card. */
+        .btc-zones .btc-ovl-switch { position: relative; width: auto; margin: 8px 0 0; }
+        .btc-zones .btc-ovl-switch::before { content: ""; position: absolute; left: -3px; top: -8px; width: 26px; height: 8px; border-left: 2px solid #f7931a; border-bottom: 2px solid #f7931a; border-bottom-left-radius: 6px; }
         body.light-mode .btc-zones .btc-ovl-switch::before { border-color: #a35c06; }
         /* The gauge's name (2026-11-19): the indicator's name
            rides inside the gauge block as its caption, centered
@@ -1621,7 +1624,7 @@
 
         <!-- Bitcoin chart picker: one button opens the list of chart views -->
     <div class="btc-chart-card btc-cursor" id="bitcoin-chart">
-        <h3 class="btc-chart-title">How to understand Bitcoin's current value</h3>
+        <h3 class="btc-chart-title" id="btc-value">How to understand Bitcoin's current value</h3>
         <div class="btc-card-actions">
             <button type="button" class="btc-action-pill" id="btcShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg><span>Share</span></button>
             <button type="button" class="btc-action-pill btc-fs-btn" id="btcFsBtn" aria-label="Full screen" aria-pressed="false" title="Full screen"><svg class="btc-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="btc-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="btc-fs-label">Full screen</span></button>
@@ -1660,9 +1663,9 @@
                 </div>
                 <div class="btc-gauge-nums" aria-hidden="true"><span class="btc-gauge-num btc-gauge-num-0">0</span><span class="btc-gauge-num btc-gauge-num-buy">7.79</span><span class="btc-gauge-num btc-gauge-num-sell">92.91</span><span class="btc-gauge-num btc-gauge-num-100">100</span></div>
                 <div class="btc-gauge-names" aria-hidden="true"><span class="btc-gauge-name btc-gauge-name-buy">Buy zone</span><span class="btc-gauge-name btc-gauge-name-hold">Hold</span><span class="btc-gauge-name btc-gauge-name-sell">Sell zone</span></div>
+                <button type="button" class="btc-ovl-switch" id="btcOvlBtn" role="switch" aria-checked="true" aria-label="Johnny’s ₿ Indicator overlay" title="Turn Johnny’s ₿ Indicator overlay on or off"><span class="btc-ovl-label" aria-hidden="true">Johnny’s ₿ Indicator overlay</span><span class="btc-switch-track" aria-hidden="true"><span class="btc-switch-knob"></span></span></button>
                 <div class="btc-gauge-title">Johnny's ₿ Indicator</div>
             </div>
-            <button type="button" class="btc-ovl-switch" id="btcOvlBtn" role="switch" aria-checked="true" aria-label="Johnny’s ₿ Indicator overlay" title="Turn Johnny’s ₿ Indicator overlay on or off"><span class="btc-ovl-label" aria-hidden="true">Johnny’s ₿ Indicator overlay</span><span class="btc-switch-track" aria-hidden="true"><span class="btc-switch-knob"></span></span></button>
             <details class="btc-zones-defs">
               <summary>How the colors and the indicator work</summary>
               <p>The card's dots and mini scales color each model by the segment the model's scaled value occupies on Johnny's ₿ Indicator's 0-to-100 scale. Each model's own chart colors the model by the model's own bands.</p>
@@ -6235,8 +6238,16 @@
            the section is in the viewport and hidden outside it. */
         (function () {
             var el = document.getElementById('btcHeaderPrice');
-            var sec = document.getElementById('btc-value');
-            if (!el || !sec) { return; }
+            /* The section the fade answers to is the homepage's
+               whole Bitcoin region — the indicator card (#btcZones)
+               through the chart card (#bitcoin-chart). No element
+               on this page carries the id 'btc-value' (that id is
+               the Bitcoin page's own section heading), so the
+               region is measured as the union of the two cards'
+               rects: the first card's top, the last card's bottom. */
+            var secTop = document.getElementById('btcZones');
+            var secBot = document.getElementById('bitcoin-chart');
+            if (!el || !secTop || !secBot) { return; }
             if (window.BTC_LIVE) {
                 window.BTC_LIVE.onChange(function (v) {
                     el.textContent = '$' + Math.round(v).toLocaleString('en-US');
@@ -6247,7 +6258,9 @@
             function apply() {
                 ticking = false;
                 var vh = window.innerHeight || 800;
-                var r = sec.getBoundingClientRect();
+                var rTop = secTop.getBoundingClientRect();
+                var rBot = secBot.getBoundingClientRect();
+                var r = { top: rTop.top, bottom: rBot.bottom };
                 var o;
                 if (reduce) {
                     o = (r.bottom > 0 && r.top < vh) ? 1 : 0;
