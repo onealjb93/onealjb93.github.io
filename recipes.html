@@ -650,6 +650,25 @@
     .combiner-picker-list label { display: flex; align-items: center; gap: 0.45rem; padding: 0.34rem 0.1rem; border-bottom: 1px solid var(--border-color); font-size: 0.86rem; cursor: pointer; }
     .combiner-picker-list label:last-child { border-bottom: 0; }
     .combiner-picker-list .combiner-serving { color: var(--subtext-color); font-size: 0.78rem; }
+    /* Recipe search (2026-11-22): one search face for the whole page --
+       the media page's book/podcast search row (a plain full-width
+       field at the top of the section, in the section's own colors)
+       wearing the bubble picker's input styling. The same field sits
+       over the card grid and over the combiner list; a clear (x)
+       rides inside the field once text is present, so the browser's
+       own cancel glyph is stood down to keep one clear control. */
+    .recipe-search-row { display: flex; align-items: center; gap: 0.6rem; padding-bottom: 10px; }
+    .combiner-search-row { margin: 0 0 0.55rem; }
+    .search-field { position: relative; display: block; flex: 1 1 auto; }
+    .recipe-search-row input[type="search"], .combiner-search-row input[type="search"] { width: 100%; box-sizing: border-box; padding: 0.4rem 2rem 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--badge-bg); color: var(--text-color); font: inherit; font-size: 0.85rem; outline: none; }
+    .recipe-search-row input[type="search"]::-webkit-search-cancel-button, .combiner-search-row input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+    .jbo-search-clear { position: absolute; right: 0.25rem; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--subtext-color); font-size: 1.05rem; line-height: 1; cursor: pointer; }
+    .jbo-search-clear:hover { color: var(--link-color); }
+    .recipe-search-count { color: var(--subtext-color); font-size: 0.85rem; white-space: nowrap; }
+    .recipe-search-empty, .combiner-search-empty { font-size: 0.9rem; color: var(--subtext-color); margin: 4px 0 0; }
+    /* The briefing's characterizing lead (2026-11-22): the description
+       opens the block, ahead of the three beats. */
+    .combiner-briefing-lead { font-weight: 600; margin: 0 0 0.4rem; }
     /* Combiner results: the percent column takes 7.75rem so the longest Custom-mode
        string the tool can render ("11028% of your target", 119.1px measured) fits
        inside the card with a few px to spare; the extra width comes out of the dots
@@ -1268,6 +1287,13 @@
             <h4>Home-Tested Custom Recipes</h4>
             <p>Click any dish below to view ingredients, precise preparation steps, and health focuses. Each recipe now includes estimated nutrition per serving, and the Nutrition Comparison Tool below lets you combine recipes against your daily targets. <a href="#cooking-tips">Browse the evidence-informed cooking &amp; nutrition tips</a> — the same tips are also linked from inside the recipes where they apply.</p>
 
+            <div class="recipe-search-row">
+                <span class="search-field">
+                    <input type="search" id="recipe-search" placeholder="Search recipes or ingredients" aria-label="Search recipes or ingredients" autocomplete="off">
+                    <button type="button" class="jbo-search-clear" id="recipe-search-clear" aria-label="Clear search" hidden>&times;</button>
+                </span>
+                <span class="recipe-search-count" id="recipe-search-count" role="status" hidden></span>
+            </div>
             <div class="recipe-controls">
                 <div class="recipe-filters" role="group" aria-label="Filter recipes by category">
                     <button class="filter-pill active" data-filter="all">All (102)</button>
@@ -1294,6 +1320,7 @@
                 </select>
             </div>
             <div class="recipe-empty" id="recipe-empty" hidden>No recipes in this category yet.</div>
+            <p class="recipe-search-empty" id="recipe-search-empty" hidden>No recipes match your search.</p>
 
             <div class="standout-legend">
                 <button type="button" class="standout-legend-btn" id="standoutLegendBtn" aria-expanded="false" aria-describedby="standoutLegendTip">★ Standout</button>
@@ -7814,6 +7841,42 @@
         }
 
         // Recipe filter + sort (same pattern as the homepage book list)
+        /* Recipe search text (2026-11-22): a recipe answers a search by
+           its title and by the words in its own ingredient lists -- the
+           lists under the Ingredients head (or its named groups) before
+           the Preparation head, the tips cluster excluded. The one rule
+           is shared by the card grid, the combiner list and the bubble
+           picker, so it lives on window (the combiner is a separate
+           script block). Matching is word-start: every word typed must
+           begin some word of the text, so "corn" finds corn, cornmeal
+           and cornstarch but not peppercorns. */
+        window.__jboRecipeHaystack = function (contentEl, title) {
+            if (!contentEl) return (title || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            if (contentEl.__jboHaystack) return contentEl.__jboHaystack;
+            var parts = [title || ''], stopped = false;
+            contentEl.querySelectorAll('.recipe-section-title, ul.recipe-list').forEach(function (n) {
+                if (stopped) return;
+                if (n.classList.contains('recipe-section-title')) {
+                    if (/^preparation/i.test(n.textContent.replace(/\s+/g, ' ').trim())) stopped = true;
+                } else if (!n.closest('.recipe-topcluster')) {
+                    parts.push(n.textContent);
+                }
+            });
+            var text = parts.join(' ').replace(/\s+/g, ' ').trim().toLowerCase();
+            contentEl.__jboHaystack = text;
+            return text;
+        };
+        window.__jboSearchTokens = function (text) {
+            return (String(text || '').toLowerCase().match(/[a-zà-ÿ][a-zà-ÿ'-]*/g) || []);
+        };
+        window.__jboSearchMatch = function (hayText, query) {
+            var qw = window.__jboSearchTokens(query);
+            if (!qw.length) return false;
+            var hw = window.__jboSearchTokens(hayText);
+            return qw.every(function (q) {
+                return hw.some(function (w) { return w.indexOf(q) === 0; });
+            });
+        };
         var recipeArchiveOrder = Array.prototype.slice.call(document.querySelectorAll('.recipe-wrapper'));
         var recipeEmpty = document.getElementById('recipe-empty');
         function recipeVisibleCount() {
@@ -7822,6 +7885,10 @@
             return n;
         }
         function applyRecipeFilter(value) {
+            /* While a search term stands, finding beats filtering: the
+               grid shows the term's matches from every category, and a
+               pill tap only changes the state the clear restores. */
+            if (recipeQuery) { applyRecipeSearch(); return; }
             recipeArchiveOrder.forEach(function (w) {
                 var tags = (w.getAttribute('data-tags') || '').split(' ');
                 w.style.display = (value === 'all' || tags.indexOf(value) !== -1) ? '' : 'none';
@@ -7864,6 +7931,68 @@
         var recipeSort = document.getElementById('recipe-sort');
         if (recipeSort) {
             recipeSort.addEventListener('change', function () { applyRecipeSort(recipeSort.value); });
+        }
+
+        /* Card-grid search (2026-11-22): the media page's search row
+           over the grid. Typing filters the cards live by the shared
+           title + ingredients rule; clearing the term hands the grid
+           back to applyRecipeFilter, which restores exactly the chip
+           state the pills currently show. */
+        var recipeQuery = '';
+        var recipeSearchEl = document.getElementById('recipe-search');
+        var recipeSearchClearEl = document.getElementById('recipe-search-clear');
+        var recipeSearchCountEl = document.getElementById('recipe-search-count');
+        var recipeSearchEmptyEl = document.getElementById('recipe-search-empty');
+        function wrapperHaystack(w) {
+            if (w.__jboHay) return w.__jboHay;
+            var title = w.querySelector('.recipe-card-title');
+            var text = window.__jboRecipeHaystack(w.querySelector('.recipe-content'), title ? title.textContent : '');
+            w.__jboHay = text;
+            return text;
+        }
+        function activeRecipeFilter() {
+            var active = document.querySelector('.recipe-filters .filter-pill.active');
+            return active ? active.getAttribute('data-filter') : 'all';
+        }
+        function applyRecipeSearch() {
+            var n = 0;
+            recipeArchiveOrder.forEach(function (w) {
+                var show = window.__jboSearchMatch(wrapperHaystack(w), recipeQuery);
+                w.style.display = show ? '' : 'none';
+                if (show) n++;
+            });
+            var vitSec = document.getElementById('vitamins-section');
+            if (vitSec) vitSec.hidden = true;
+            var panSec = document.getElementById('pantry-section');
+            if (panSec) panSec.hidden = true;
+            if (recipeEmpty) recipeEmpty.hidden = true;
+            if (recipeSearchEmptyEl) recipeSearchEmptyEl.hidden = n !== 0;
+            if (recipeSearchCountEl) {
+                recipeSearchCountEl.textContent = n + ' of ' + recipeArchiveOrder.length + ' recipes';
+                recipeSearchCountEl.hidden = false;
+            }
+        }
+        function clearRecipeSearch() {
+            recipeQuery = '';
+            if (recipeSearchEl) recipeSearchEl.value = '';
+            if (recipeSearchClearEl) recipeSearchClearEl.hidden = true;
+            if (recipeSearchCountEl) recipeSearchCountEl.hidden = true;
+            if (recipeSearchEmptyEl) recipeSearchEmptyEl.hidden = true;
+            applyRecipeFilter(activeRecipeFilter());
+        }
+        if (recipeSearchEl) {
+            recipeSearchEl.addEventListener('input', function () {
+                recipeQuery = recipeSearchEl.value.trim().toLowerCase();
+                if (recipeSearchClearEl) recipeSearchClearEl.hidden = !recipeQuery;
+                if (!recipeQuery) { clearRecipeSearch(); return; }
+                applyRecipeSearch();
+            });
+        }
+        if (recipeSearchClearEl) {
+            recipeSearchClearEl.addEventListener('click', function () {
+                clearRecipeSearch();
+                if (recipeSearchEl) recipeSearchEl.focus();
+            });
         }
     </script>
     <script>
@@ -8618,7 +8747,12 @@
             pickerSearchEl.addEventListener('input', function () {
                 var q = pickerSearchEl.value.trim().toLowerCase();
                 pl.querySelectorAll('label').forEach(function (lab) {
-                    lab.style.display = (!q || lab.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+                    if (!lab._chay) {
+                        var pcb = lab.querySelector('input[type="checkbox"]');
+                        var rid = pcb ? pcb.getAttribute('data-recipe') : '';
+                        lab._chay = window.__jboRecipeHaystack(document.getElementById(rid), nameOf(rid));
+                    }
+                    lab.style.display = (!q || window.__jboSearchMatch(lab._chay, q)) ? '' : 'none';
                 });
             });
         }
@@ -9746,6 +9880,59 @@
         rows.sort(function (a, b) { return b.kcal - a.kcal; });
         var single = rows.length === 1;
         var lead = rows[0];
+        /* The characterizing lead (Johnny, 2026-11-22): the briefing
+           opens by saying what the food IS, in the cards' own words,
+           before any numbers. The lead dish (most kcal) speaks first,
+           with its card's opening sentence whole. Each next dish is
+           woven in through its own card's opening sentence, shortened
+           only by cutting whole clauses at a comma, colon, semicolon
+           or dash -- never paraphrased; a dish whose sentence will not
+           cut honestly is named instead. Two dishes weave; any beyond
+           that are named in one plain line. Where the lead dish's own
+           cost paragraph carries a "built on" sentence, that sentence
+           closes the lead too. Words and facts come only from the
+           selected cards, and servings never touch this paragraph --
+           the description is the same at any portion. */
+        function charFirstSentence(row) {
+            var s = briefSentences(row.facts.why);
+            return s.length ? s[0] : null;
+        }
+        function charClause(sentence) {
+            if (sentence.split(' ').length <= 16) return sentence;
+            var clauses = sentence.split(/(?<=[,:;—])\s+/);
+            var acc = '';
+            for (var i = 0; i < clauses.length; i++) {
+                var cand = acc ? acc + ' ' + clauses[i] : clauses[i];
+                if (cand.split(' ').length > 16) break;
+                acc = cand;
+                if (acc.split(' ').length >= 4) break;
+            }
+            if (!acc || acc.split(' ').length < 4) return null;
+            return acc.replace(/[,:;—\s]+$/, '') + '.';
+        }
+        var charLead = null;
+        (function () {
+            var srcIdx = -1, srcSentence = null;
+            for (var i = 0; i < rows.length; i++) {
+                var s0 = charFirstSentence(rows[i]);
+                if (s0) { srcIdx = i; srcSentence = s0; break; }
+            }
+            if (srcIdx === -1) return;
+            var parts = [srcSentence], woven = 0, named = [];
+            rows.forEach(function (r, i) {
+                if (i === srcIdx) return;
+                var frag = null;
+                if (woven < 2) { var s = charFirstSentence(r); if (s) frag = charClause(s); }
+                if (frag) { parts.push(frag); woven++; }
+                else named.push(r.name);
+            });
+            if (named.length) parts.push('Also here: ' + andJoin(named) + '.');
+            var costS = briefSentences(rows[srcIdx].facts.cost);
+            for (var j = 0; j < costS.length; j++) {
+                if (/built on/i.test(costS[j]) && parts.indexOf(costS[j]) === -1) { parts.push(costS[j]); break; }
+            }
+            charLead = parts.join(' ');
+        })();
         /* Why it's healthy: the lead dish's own topic sentence when it is
            a short one, then the selection's goods from the totals. */
         var goods = [];
@@ -9768,14 +9955,20 @@
         goods = goods.concat(micros).slice(0, 3);
         var whyS = briefSentences(lead.facts.why);
         var carrier = (whyS.length && whyS[0].split(' ').length <= 12) ? whyS[0] : null;
+        /* The lead paragraph already speaks the lead dish's opening
+           sentence: the Why beat never says it a second time. */
+        var leadUsedWhy0 = !!(charLead && whyS.length && charLead.indexOf(whyS[0]) === 0);
+        if (leadUsedWhy0) carrier = null;
         var why;
         if (goods.length) {
             var leadIn = single
                 ? (lead.mult === 1 ? 'One serving brings ' : fmtServQty(lead.mult) + ' servings bring ')
                 : 'Together, these bring ';
             why = (carrier ? carrier + ' ' : '') + leadIn + andJoin(goods) + '.';
-        } else if (single && whyS.length) {
+        } else if (single && whyS.length && !leadUsedWhy0) {
             why = whyS[0];
+        } else if (single && whyS.length > 1 && leadUsedWhy0) {
+            why = whyS[1];
         } else {
             why = 'By the numbers: ' + Math.round(kcal) + ' kcal, ' + prot + ' g of protein and ' + amtStr(fib, 'g') + ' of fiber \u2014 the cards carry each dish\u2019s own story.';
         }
@@ -9810,7 +10003,7 @@
             costLine = 'The cost is small: saturated fat at ' + satPct + '% of the day\u2019s limit, sodium at ' + sodPct + '% of the day\u2019s ceiling, sugar ' + amtStr(sugG, 'g') + ' \u2014 nothing here crowds the day.';
         } else {
             var tc = topContributor(worst.num);
-            costLine = 'The honest cost: ' + worst.amt + (tc ? ', most of it from ' + tc.name : ', spread across the selection') + '.';
+            costLine = worst.amt + (tc ? ', most of it from ' + tc.name : ', spread across the selection') + '.';
             /* The lever answers the cost named: the pasture-raised /
                grass-fed sentence from the cards' own cost paragraphs,
                combined once when two or more dishes share the dairy one. */
@@ -9846,6 +10039,7 @@
             });
         }
         var h = '<div class="combiner-briefing">';
+        if (charLead) h += '<p class="combiner-briefing-lead">' + esc(charLead) + '</p>';
         h += '<p class="honest-cost-head"><strong>Why it\u2019s healthy</strong></p><p>' + esc(why) + '</p>';
         h += '<div class="honest-cost"><p class="honest-cost-head"><strong>The honest cost</strong></p><p>' + esc(costLine) + (lever ? ' ' + esc(lever) : '') + '</p></div>';
         if (keepItems.length) {
@@ -12172,6 +12366,37 @@
             chipBar.appendChild(b);
         });
         listEl.insertBefore(chipBar, listEl.firstChild);
+        /* Combiner list search (2026-11-22): the same field and the
+           same title + ingredients rule as the card grid's search. It
+           composes with the chips -- the chips narrow first, the term
+           narrows what is left -- and a ticked row always stays
+           visible, this list's standing rule, so a search can never
+           hide or lose a selection; clearing the term brings every
+           row the chips allow back. */
+        var cSearch = '';
+        var searchRow = document.createElement('div');
+        searchRow.className = 'combiner-search-row';
+        searchRow.innerHTML = '<span class="search-field"><input type="search" id="combiner-search" placeholder="Search dishes or ingredients" aria-label="Search dishes or ingredients" autocomplete="off"><button type="button" class="jbo-search-clear" id="combiner-search-clear" aria-label="Clear search" hidden>&times;</button></span>';
+        listEl.insertBefore(searchRow, chipBar);
+        var searchEmptyEl = document.createElement('p');
+        searchEmptyEl.className = 'combiner-search-empty';
+        searchEmptyEl.textContent = 'No dishes match your search.';
+        searchEmptyEl.hidden = true;
+        listEl.appendChild(searchEmptyEl);
+        var cSearchInput = searchRow.querySelector('#combiner-search');
+        var cSearchClear = searchRow.querySelector('#combiner-search-clear');
+        cSearchInput.addEventListener('input', function () {
+            cSearch = cSearchInput.value.trim().toLowerCase();
+            cSearchClear.hidden = !cSearch;
+            applyCombinerFilter();
+        });
+        cSearchClear.addEventListener('click', function () {
+            cSearchInput.value = '';
+            cSearch = '';
+            cSearchClear.hidden = true;
+            applyCombinerFilter();
+            cSearchInput.focus();
+        });
         var cMode = 'all';
         function labelTags(label) {
             if (label._ctags) return label._ctags;
@@ -12189,6 +12414,23 @@
             label._ctags = tags;
             return tags;
         }
+        function labelHaystack(label, cb) {
+            if (label._chay) return label._chay;
+            var id = cb.getAttribute('data-recipe');
+            var text;
+            if (VITS[id]) {
+                /* Vitamins carry no ingredient list: their own name is
+                   their searchable text. */
+                text = label.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
+            } else {
+                var content = document.getElementById(id);
+                var wrap = content && content.closest ? content.closest('.recipe-wrapper') : null;
+                var title = wrap ? wrap.querySelector('.recipe-card-title') : null;
+                text = window.__jboRecipeHaystack(content, title ? title.textContent : '');
+            }
+            label._chay = text;
+            return text;
+        }
         function mainFilterValue() {
             var active = document.querySelector('.recipe-filters .filter-pill.active');
             return active ? active.getAttribute('data-filter') : 'all';
@@ -12196,6 +12438,7 @@
         function applyCombinerFilter() {
             var pf = cMode === 'page' ? mainFilterValue() : null;
             var anyVitVisible = false;
+            var anyVisible = false;
             listEl.querySelectorAll('label').forEach(function (label) {
                 var cb = label.querySelector('input[type="checkbox"]');
                 if (!cb) return;
@@ -12205,10 +12448,13 @@
                 else if (cMode === 'selected') show = false;
                 else if (cMode === 'page') show = pf === 'all' || tags.indexOf(pf) !== -1;
                 else show = tags.indexOf(cMode) !== -1;
+                if (show && cSearch && !cb.checked) show = window.__jboSearchMatch(labelHaystack(label, cb), cSearch);
                 label.style.display = show ? '' : 'none';
+                if (show) anyVisible = true;
                 if (show && VITS[cb.getAttribute('data-recipe')]) anyVitVisible = true;
             });
             groupHead.style.display = anyVitVisible ? '' : 'none';
+            if (searchEmptyEl) searchEmptyEl.hidden = !(cSearch && !anyVisible);
         }
         chipBar.addEventListener('click', function (e) {
             var b = e.target && e.target.closest ? e.target.closest('.cfilter-pill') : null;
