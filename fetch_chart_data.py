@@ -86,8 +86,19 @@ computed exactly as the weekly ones — the same point-in-time EDGAR
 EPS timeline — at daily granularity: each day's close divided by
 the TTM EPS knowable that day. Benchmarks get none; TSM stays
 excluded by the same rule.
+
+Indicator signals (added 2026-11-22): each daily series also gains
+"buy" / "sell" arrays of ISO dates — Johnny's indicator, computed
+from the daily bars, the P/E array and the VIX series in this same
+run (see compute_indicator_signals below for the exact formula).
+Benchmarks (SPX, IXIC, GOLD, BTC) have no earnings and no P/E, so
+their signals use the remaining conditions; the VIX is an input,
+never a target. Signals are a pure function of the bars and P/E
+already in the file, recomputed in full each run — history never
+repaints beyond what the underlying bars and P/E themselves do.
 """
 
+import bisect
 import json
 import os
 import sys
@@ -597,6 +608,183 @@ def compute_pe(bars, facts, splits):
     return out
 
 
+# ------------------------------------------------- Johnny's indicator
+# Buy/sell signal dates for the Finance chart, computed nightly here
+# (added 2026-11-22; formula settled by Johnny, 2026-11-22, after two
+# research rounds against this file's own history). Pure Python: the
+# workflow installs only `requests`.
+#
+# BUY (every condition, the same day):
+#   stocks:          RSI(14) <= 30, VIX >= 30, close <= 200-week MA,
+#                    PEG <= 1
+#   SPX/IXIC/GOLD/BTC (no earnings exist, no P/E array): the same
+#                    without PEG — never presented as PEG-checked.
+# SELL (every condition held for 5 consecutive trading days; the
+# signal is live from the 5th day through the end of the run):
+#   stocks:          RSI(14) > 70, VIX < 15, PEG >= 2,
+#                    close >= 200-week MA x 1.50
+#   benchmarks:      the same without PEG.
+# PEG = P/E / growth, growth the mean of the three most recent
+# year-over-year EPS growth rates (252 trading days apart, EPS =
+# close / P/E), in percent, capped at 25 (Lynch's ranges unadjusted);
+# PEG is undefined unless EPS > 0 at all four points and growth > 0,
+# and where PEG is required but undefined no signal fires that day.
+# The 200-week average is the mean of the last 1,000 closes including
+# today; RSI(14) is Wilder's; the VIX is aligned point-in-time (the
+# last VIX close on or before the series' own date).
+
+_SIGNAL_NO_PEG_KEYS = {"SPX", "IXIC", "GOLD", "BTC"}
+_SIGNAL_PERSIST = 5
+
+
+def _sig_ma200w(closes):
+    out = [None] * len(closes)
+    total = 0.0
+    for i, v in enumerate(closes):
+        total += v
+        if i >= 1000:
+            total -= closes[i - 1000]
+        if i >= 999:
+            out[i] = total / 1000.0
+    return out
+
+
+def _sig_rsi(closes, period=14):
+    n = len(closes)
+    out = [None] * n
+    if n <= period:
+        return out
+    gain = []
+    loss = []
+    for i in range(1, n):
+        d = closes[i] - closes[i - 1]
+        gain.append(d if d > 0 else 0.0)
+        loss.append(-d if d < 0 else 0.0)
+    ag = sum(gain[:period]) / period
+    al = sum(loss[:period]) / period
+
+    def r(ag, al):
+        if al == 0:
+            return 100.0
+        return 100.0 - 100.0 / (1.0 + ag / al)
+
+    out[period] = r(ag, al)
+    for i in range(period, len(gain)):
+        ag = (ag * (period - 1) + gain[i]) / period
+        al = (al * (period - 1) + loss[i]) / period
+        out[i + 1] = r(ag, al)
+    return out
+
+
+def _sig_peg(bars, pe):
+    """PEG per bar (None where undefined). pe aligns 1:1 with bars."""
+    n = len(bars)
+    out = [None] * n
+    if not pe or len(pe) != n:
+        return out
+    eps = [None] * n
+    for i in range(n):
+        p = pe[i]
+        if p is not None and p > 0:
+            eps[i] = bars[i][4] / p
+    Y = 252
+    for i in range(3 * Y, n):
+        e0, e1, e2, e3 = eps[i], eps[i - Y], eps[i - 2 * Y], eps[i - 3 * Y]
+        if any(e is None or e <= 0 for e in (e0, e1, e2, e3)):
+            continue
+        g = ((e0 / e1 - 1) + (e1 / e2 - 1) + (e2 / e3 - 1)) / 3.0 * 100.0
+        if g <= 0:
+            continue
+        if g > 25.0:
+            g = 25.0
+        p = pe[i]
+        if p is None or p <= 0:
+            continue
+        out[i] = p / g
+    return out
+
+
+def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
+    """(buy_dates, sell_dates) for one daily series."""
+    dates = [b[0] for b in bars]
+    closes = [float(b[4]) for b in bars]
+    n = len(closes)
+    ma = _sig_ma200w(closes)
+    rsi = _sig_rsi(closes)
+    peg = None if key in _SIGNAL_NO_PEG_KEYS else _sig_peg(bars, pe)
+    buy = []
+    sell = []
+    run = 0
+    for i in range(n):
+        if ma[i] is None or rsi[i] is None:
+            run = 0
+            continue
+        j = bisect.bisect_right(vix_dates, dates[i]) - 1
+        if j < 0:
+            run = 0
+            continue
+        vix = vix_closes[j]
+        if key in _SIGNAL_NO_PEG_KEYS:
+            is_buy = rsi[i] <= 30 and vix >= 30 and closes[i] <= ma[i]
+            is_sell = rsi[i] > 70 and vix < 15 and closes[i] >= ma[i] * 1.50
+        else:
+            if peg[i] is None:
+                run = 0
+                continue
+            is_buy = (rsi[i] <= 30 and vix >= 30 and closes[i] <= ma[i]
+                      and peg[i] <= 1)
+            is_sell = (rsi[i] > 70 and vix < 15
+                       and closes[i] >= ma[i] * 1.50 and peg[i] >= 2)
+        if is_buy:
+            buy.append(dates[i])
+        run = run + 1 if is_sell else 0
+        if run >= _SIGNAL_PERSIST:
+            sell.append(dates[i])
+    return buy, sell
+
+
+def attach_indicator_signals(d_series, d_previous):
+    """Compute buy/sell dates for every daily series in place.
+
+    The VIX series built in this same run is the input; if it is
+    somehow absent, the previous file's signals stand untouched.
+    A stock whose P/E is missing this run (an EDGAR failure with no
+    carried-over pe) keeps its previous signals, filtered to dates
+    its current bars still carry — the same spirit as the P/E
+    carry-over above."""
+    vix_entry = d_series.get("VIX") or {}
+    vix_bars = vix_entry.get("bars") or []
+    if not vix_bars:
+        log("  indicator: no VIX series this run — previous signals stand")
+        return
+    vix_dates = [b[0] for b in vix_bars]
+    vix_closes = [float(b[4]) for b in vix_bars]
+    total_buy = 0
+    total_sell = 0
+    for key, entry in d_series.items():
+        if key == "VIX":
+            continue
+        bars = entry.get("bars") or []
+        if not bars:
+            continue
+        buy, sell = compute_indicator_signals(
+            key, bars, entry.get("pe"), vix_dates, vix_closes)
+        if key not in _SIGNAL_NO_PEG_KEYS and not entry.get("pe"):
+            prev = d_previous.get(key) or {}
+            if prev.get("buy") or prev.get("sell"):
+                have = {b[0] for b in bars}
+                buy = [d for d in (prev.get("buy") or []) if d in have]
+                sell = [d for d in (prev.get("sell") or []) if d in have]
+                log("  indicator: %s has no P/E this run — previous "
+                    "signals carried" % key)
+        entry["buy"] = buy
+        entry["sell"] = sell
+        total_buy += len(buy)
+        total_sell += len(sell)
+    log("Indicator signals: %d buy days, %d sell days across %d series."
+        % (total_buy, total_sell, len(d_series) - 1))
+
+
 # ------------------------------------------------------------- share snapshots
 # og-finance.jpg + og-finance-<TICKER>.jpg: dated snapshots of The
 # Chart's own Price view, drawn from the SAME weekly output dict this
@@ -1071,6 +1259,15 @@ def main():
             % (", ".join(d_missing), daily_path, out_path))
         return 1
 
+    # Johnny's indicator: buy/sell signal dates on every daily
+    # series, from this run's own bars, P/E and VIX (see the
+    # indicator section above compute_pe).
+    try:
+        attach_indicator_signals(d_series, d_previous)
+    except Exception as exc:
+        log("WARNING: indicator signals failed (%s) — the daily file "
+            "ships without fresh signals." % exc)
+
     d_last_dates = [s["bars"][-1][0] for s in d_series.values() if s.get("bars")]
     d_output = {
         "last_updated": today.isoformat(),
@@ -1081,7 +1278,9 @@ def main():
                   "trailing-twelve-month diluted EPS from SEC EDGAR "
                   "companyfacts, point-in-time by first filing date, "
                   "each period taken from its original filing and "
-                  "split-adjusted to the prices' basis",
+                  "split-adjusted to the prices' basis. Buy/sell "
+                  "arrays: Johnny's indicator signal dates, computed "
+                  "from these bars, P/E arrays and the VIX series",
         "through": max(d_last_dates) if d_last_dates else None,
         "series": d_series,
         "nasdaq100": [ticker for ticker, _name in NASDAQ100],
