@@ -17,7 +17,10 @@ one tiny file, btc-state.json, at the repo root:
                "parts": {"powerlaw": ..., "cost": ...,
                          "mayer": ..., "mvrv": ...}},
      "record": {...}, "score_record": {...},
-     "score_series": [["2011-02-02", ...], ...]}
+     "score_series": [["2011-02-02", ...], ...],
+     "spiral_series": {"source": ..., "first": "2010-07-18",
+                       "last": "YYYY-MM-DD",
+                       "closes": [["2010-07-18", ...], ...]}}
 
 Each reading's "pct" is the percent note the page's indicator prints
 beside the model's name (its fmtDist input): how far the price sits
@@ -79,6 +82,16 @@ inside an adjustment period), with the last baked fees standing
 in for the tail's — so the series runs to the feeds' latest day
 instead of stopping at the grid's edge; if that history cannot be
 read, the series simply ends at the grid's edge.
+
+"spiral_series" is the Bitcoin Spiral's daily-close series: the
+full CoinMetrics PriceUSD history this run already fetched (the
+cm_prices map behind the MVRV reading), as one [ISO date, close]
+pair per day from 2010-07-18 onward, closes rounded to 4 decimals.
+The Spiral's baked floors stop aging against it: the page rebuilds
+its spiral from this series whenever the series' "last" is fresher
+than the page's baked copy. The key is additive — every other key
+is computed and written exactly as before, and no other reader of
+this file (the headers, the indicator, golden_alert.py) reads it.
 
 The state also carries a "record" object — the all-four record,
 still published unchanged (the alert emails state the score's
@@ -1101,6 +1114,20 @@ def main():
     tail_diffs = fetch_tail_diffs(grid_end + 1, max(cm_prices))
     series = score_series(inputs, peak, cm_prices, mvrv_rows,
                           tail_diffs)
+    # The Bitcoin Spiral's daily-close series (2026-11-21): the
+    # CoinMetrics PriceUSD history already in hand (cm_prices, the
+    # map behind the MVRV reading — its completeness was guarded in
+    # fetch_mvrv_rows), published in full so the Spiral's baked
+    # floors stop aging. Additive only: no existing key changes,
+    # and golden_alert.py reads named keys, never this one.
+    spiral_closes = [[str(GENESIS + timedelta(days=day)), round(p, 4)]
+                     for day, p in sorted(cm_prices.items())]
+    spiral_series = {
+        "source": "CoinMetrics PriceUSD daily closes",
+        "first": spiral_closes[0][0],
+        "last": spiral_closes[-1][0],
+        "closes": spiral_closes,
+    }
     state = {
         "golden": golden,
         "top": top,
@@ -1117,6 +1144,7 @@ def main():
         "record": record,
         "score_record": score_record,
         "score_series": series,
+        "spiral_series": spiral_series,
     }
     tmp = OUT_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
