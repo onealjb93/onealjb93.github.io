@@ -1149,6 +1149,349 @@ def render_snapshot(state, inputs, out_path=OG_PATH):
     return st
 
 
+# -------------------------------------------------------------------------
+# og-bitcoin.jpg as a TRUE CAPTURE of the page's own chart section.
+#
+# Johnny's ruling (2026-11-22): the picture in the alert email must
+# BE his graph — the chart section of bitcoin.html exactly as the
+# page draws it — not render_snapshot()'s imitation above, whose
+# words and treatment drifted from the page (its strip read
+# "FAIR VALUE (TREND)" / "VS. TREND" / "SUPPORT FLOOR" where the
+# page reads "Typical price" / "Vs. typical price" / "Floor"; it
+# invented a gold callout line and a "Snapshot ·" caption the page
+# section does not carry; its markers were its own invention, not
+# the page overlay's dots; and its price line was the baked grid
+# alone, where the page appends live daily closes). So the run now
+# serves this repo locally, opens bitcoin.html in headless Chrome,
+# and screenshots the chart section's own elements — the numbers
+# strip and the chart panel — framed to the 1200x630 share size.
+#
+# The captured state is the email's state, as Johnny settled it
+# (2026-11-22): the Power Law view (CAPTURE_VIEW — switching the
+# view is a one-line change), the indicator OVERLAY ON, set
+# through the page's own switch (#btcOvlBtn) so the dots on the
+# chart are the page's own combined-score band-day dots, and the
+# view window zoomed to roughly the last four years — one halving
+# cycle's journey: the 2022 bottom, the 2025 top, the fall, and
+# today's buy run at the floor — at an email-readable size.
+#
+# The window is set through the chart's OWN view state. The
+# capture serves a copy of the page whose power-law code block
+# carries one added line exposing a setter for its real
+# VX0/VX1/VY0/VY1 variables; the setter assigns them and calls
+# the chart's own clampView() + draw(), so the axes, ticks and
+# lines are drawn by the chart itself for that window — never a
+# CSS crop of the full-history render. bitcoin.html on disk is
+# never modified: the hook exists only in the served copy, only
+# for this screenshot. If the chart code changes so the hook's
+# anchor line is gone, the capture fails safe (see below).
+#
+# Truth guard: the page finishes its chart from live Coinbase /
+# Kraken data (daily closes + the spot). The capture proceeds
+# only once the strip's Spot carries the state's own date and
+# matches the state's price within 2% — the picture can never
+# silently disagree with the numbers the same run publishes.
+# Any failure at any step keeps the previous og-bitcoin.jpg and
+# the run still succeeds; render_snapshot() runs only when no
+# og-bitcoin.jpg exists yet.
+
+CAPTURE_VIEW = os.environ.get("BTC_CAPTURE_VIEW", "powerlaw")
+
+_CAPTURE_VIEWS = {
+    # view -> the page elements that make up its chart section.
+    # "spot"/"note" name the readout's live-spot stat, used by the
+    # truth guard; the MVRV readout carries no spot stat.
+    "powerlaw": {"button": "powerlaw", "wrap": "#btc-view-powerlaw",
+                 "readout": "#pl-readout", "spot": "#pl-spot",
+                 "note": "#pl-spot-date"},
+    "cost": {"button": "cost", "wrap": "#btc-view-cost",
+             "readout": "#pc-readout", "spot": "#pc-spot",
+             "note": "#pc-spot-date"},
+    "mayer": {"button": "mayer", "wrap": "#btc-view-mayer",
+              "readout": "#mm-readout", "spot": "#mm-spot",
+              "note": "#mm-spot-date"},
+    "mvrv": {"button": "mvrv", "wrap": "#btc-view-mvrv",
+             "readout": "#mv-readout", "spot": None, "note": None},
+}
+
+_PL_VIEW_ANCHOR = "var VX0 = X0, VX1 = X1, VY0 = Y0, VY1 = Y1;"
+
+
+def _capture_window(state, inputs):
+    """The email's Power Law window (Johnny, 2026-11-22): roughly
+    the last four years. Returns (vx0, vx1, vy0, vy1) in the
+    chart's own log10 space — x from four years before the state's
+    day to that day plus headroom; y fitted to the window's own
+    price journey (the page's baked grid + the state's spot) with
+    headroom at both ends."""
+    asof = datetime.strptime(state["as_of"], "%Y-%m-%dT%H:%M:%SZ")
+    last_day = (asof.date() - GENESIS).days
+    first_day = last_day - 1461  # four years, the leap day included
+    lo = hi = None
+    for i, p in enumerate(inputs["prices"]):
+        d = GRID_START + i * GRID_STEP
+        if first_day <= d <= last_day:
+            lo = p if lo is None else min(lo, p)
+            hi = p if hi is None else max(hi, p)
+    if lo is None:
+        raise ValueError("no baked prices inside the capture window")
+    lo = min(lo, float(state["price"]))
+    hi = max(hi, float(state["price"]))
+    return (math.log10(first_day), math.log10(last_day + 183),
+            math.log10(lo) - 0.14, math.log10(hi) + 0.19)
+
+
+def _inject_pl_view_hook(page_text):
+    """The served copy of the page with the view setter added to
+    the power-law code block (see the section note above). Returns
+    None when the block or its anchor line is not found exactly
+    once — the capture then fails safe rather than guessing."""
+    marker = 'id="btc-pl-code"'
+    start = page_text.find(marker)
+    if start < 0:
+        return None
+    end = page_text.find("</script>", start)
+    if end < 0:
+        return None
+    block = page_text[start:end]
+    if block.count(_PL_VIEW_ANCHOR) != 1:
+        return None
+    hook = (_PL_VIEW_ANCHOR + "\n        window.__plSetView = "
+            "function (x0, x1, y0, y1) { VX0 = x0; VX1 = x1; "
+            "VY0 = y0; VY1 = y1; clampView(); draw(); "
+            "return [VX0, VX1, VY0, VY1]; };")
+    return page_text[:start] + block.replace(_PL_VIEW_ANCHOR, hook) \
+        + page_text[end:]
+
+
+def _capture_serve(site_dir, page_bytes):
+    """Serve site_dir on a loopback port, with bitcoin.html coming
+    from page_bytes (the possibly-hooked copy) instead of disk."""
+    import http.server
+    import threading
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=site_dir, **kwargs)
+
+        def do_GET(self):
+            if self.path.split("?")[0] in ("/", "/bitcoin.html"):
+                self.send_response(200)
+                self.send_header("Content-Type",
+                                 "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(page_bytes)))
+                self.end_headers()
+                self.wfile.write(page_bytes)
+                return
+            super().do_GET()
+
+        def log_message(self, *args):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def _capture_launch(pw):
+    """Headless Chrome, however this machine provides it: the
+    Playwright bundle, the system Chrome channel, or a binary on
+    a standard path — first success wins."""
+    attempts = [{}, {"channel": "chrome"},
+                {"executable_path": "/usr/bin/google-chrome"},
+                {"executable_path": "/usr/bin/chromium"},
+                {"executable_path": "/usr/bin/chromium-browser"}]
+    last = None
+    for kwargs in attempts:
+        try:
+            return pw.chromium.launch(**kwargs)
+        except Exception as exc:
+            last = exc
+    raise RuntimeError("no launchable chromium: %s" % last)
+
+
+def _capture_shot(state, inputs, view, cfg, port):
+    """Drive the page to the email's chart state and screenshot
+    the section (strip + chart panel) as PNG bytes. Raises on any
+    failure; capture_snapshot() turns that into the safe path."""
+    import io
+
+    from PIL import Image
+    from playwright.sync_api import sync_playwright
+
+    asof = datetime.strptime(state["as_of"], "%Y-%m-%dT%H:%M:%SZ")
+    want_label = _fmt_date(asof.date())
+    wrap = cfg["wrap"]
+    chart_sel = wrap + " .pl-chart-wrap"
+    with sync_playwright() as pw:
+        browser = _capture_launch(pw)
+        try:
+            page = browser.new_page(
+                viewport={"width": 1280, "height": 900},
+                device_scale_factor=2, color_scheme="dark")
+            page.goto("http://127.0.0.1:%d/bitcoin.html" % port,
+                      wait_until="load", timeout=60000)
+            # The overlay's band data comes from the state file the
+            # same run just wrote; wait until it has landed.
+            page.wait_for_function("!!window.BTC_BANDS", timeout=30000)
+            if cfg["button"] != "powerlaw":
+                page.evaluate(
+                    "document.querySelector('.btc-pick-opt[data-view="
+                    "\"%s\"]').click()" % cfg["button"])
+                page.wait_for_selector(chart_sel, state="visible",
+                                       timeout=20000)
+            if cfg["spot"]:
+                # The truth guard: the strip's spot note carries
+                # the state's own date only once the live tail has
+                # replaced the baked figures — and the spot itself
+                # must agree with the state's price.
+                page.wait_for_function(
+                    "([sel, label]) => { var el = "
+                    "document.querySelector(sel); return el && "
+                    "el.textContent.indexOf(label) >= 0; }",
+                    arg=[cfg["note"], want_label], timeout=45000)
+                spot_txt = page.text_content(cfg["spot"]) or ""
+                spot_val = float(spot_txt.replace("$", "")
+                                 .replace(",", "").strip())
+                if abs(spot_val - state["price"]) > 0.02 * state["price"]:
+                    raise ValueError(
+                        "page spot %s disagrees with state price %s"
+                        % (spot_txt, state["price"]))
+            else:
+                page.wait_for_function(
+                    "sel => { var el = document.querySelector(sel); "
+                    "return el && el.textContent.trim().length > 1; }",
+                    arg=cfg["readout"] + " .pl-value", timeout=30000)
+            # The overlay, through the page's own switch.
+            if page.evaluate("window.BTC_OVERLAY") is not True:
+                page.click("#btcOvlBtn", timeout=15000)
+                page.wait_for_function("window.BTC_OVERLAY === true",
+                                       timeout=10000)
+            page.wait_for_timeout(400)  # the overlay's redraw settles
+            if view == "powerlaw":
+                win = _capture_window(state, inputs)
+                page.evaluate(
+                    "([a, b, c, d]) => window.__plSetView(a, b, c, d)",
+                    arg=list(win))
+                page.wait_for_timeout(250)
+            # Frame the section: the strip at a fixed offset below
+            # the viewport top (clear of the site header and the
+            # pinned picker), the whole strip + chart in the shot.
+            top = page.evaluate(
+                "sel => document.querySelector(sel)"
+                ".getBoundingClientRect().top + window.scrollY",
+                arg=cfg["readout"])
+            page.evaluate("y => window.scrollTo(0, y)", arg=top - 150)
+            page.wait_for_timeout(200)
+            rb = page.locator(cfg["readout"]).bounding_box()
+            cb = page.locator(chart_sel).bounding_box()
+            if not rb or not cb:
+                raise ValueError("chart section elements not found")
+            shot = page.screenshot()
+            img = Image.open(io.BytesIO(shot))
+            dsf = img.width / 1280.0
+            x0 = int(min(rb["x"], cb["x"]) * dsf)
+            y0 = int(rb["y"] * dsf)
+            x1 = int(max(rb["x"] + rb["width"],
+                         cb["x"] + cb["width"]) * dsf)
+            y1 = int((cb["y"] + cb["height"]) * dsf)
+            out = io.BytesIO()
+            img.crop((x0, y0, x1, y1)).save(out, "PNG")
+            return out.getvalue()
+        finally:
+            browser.close()
+
+
+def _write_share_jpeg(png_bytes, out_path):
+    """Frame the section shot to the 1200x630 share size: scale
+    to width, pad with the page's dark ground (or trim the chart's
+    foot) to height, and save as JPEG — atomically, so a failure
+    never leaves a half-written og-bitcoin.jpg."""
+    import io
+
+    from PIL import Image
+
+    img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+    if img.width != 1200:
+        img = img.resize(
+            (1200, max(1, round(img.height * 1200 / img.width))),
+            Image.LANCZOS)
+    if img.height > 630:
+        img = img.crop((0, 0, 1200, 630))
+    elif img.height < 630:
+        framed = Image.new("RGB", (1200, 630), (7, 9, 14))
+        framed.paste(img, (0, (630 - img.height) // 2))
+        img = framed
+    tmp = out_path + ".tmp"
+    img.save(tmp, "JPEG", quality=90)
+    os.replace(tmp, out_path)
+
+
+def _ensure_playwright():
+    """The capture drives headless Chrome through Playwright,
+    but the workflow's install step does not provide the package
+    (it installs requests + pillow only) and the workflow file
+    cannot be edited from here — so the script carries its own
+    dependency: import Playwright if it is present, pip-install
+    it if it is not. Any failure raises; capture_snapshot()
+    turns that into the safe path (previous picture kept, the
+    run still succeeds)."""
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: F401
+        return
+    except ImportError:
+        pass
+    import importlib
+    import subprocess
+
+    print("update_btc_state: playwright is not installed; "
+          "installing it with pip", file=sys.stderr)
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "playwright"],
+        check=True, capture_output=True)
+    importlib.invalidate_caches()
+    from playwright.sync_api import sync_playwright  # noqa: F401
+
+
+def capture_snapshot(state, inputs, out_path=OG_PATH, view=None,
+                     site_dir=HERE):
+    """The true capture described in the section note above.
+    Returns True when og-bitcoin.jpg was replaced by the page's
+    own chart section; returns False — never raises — on any
+    failure, leaving any previous file exactly as it was."""
+    view = (view or CAPTURE_VIEW).strip().lower()
+    cfg = _CAPTURE_VIEWS.get(view)
+    if cfg is None:
+        print("update_btc_state: WARNING: unknown capture view %r"
+              % view, file=sys.stderr)
+        return False
+    try:
+        _ensure_playwright()
+        with open(os.path.join(site_dir, "bitcoin.html"),
+                  "r", encoding="utf-8") as fh:
+            page_text = fh.read()
+        if view == "powerlaw":
+            hooked = _inject_pl_view_hook(page_text)
+            if hooked is None:
+                print("update_btc_state: WARNING: power-law view "
+                      "hook anchor not found; capture skipped",
+                      file=sys.stderr)
+                return False
+            page_text = hooked
+        srv = _capture_serve(site_dir, page_text.encode("utf-8"))
+        try:
+            png = _capture_shot(state, inputs, view, cfg,
+                                srv.server_address[1])
+        finally:
+            srv.shutdown()
+        _write_share_jpeg(png, out_path)
+        return True
+    except Exception as exc:
+        print("update_btc_state: WARNING: chart capture failed: %s"
+              % exc, file=sys.stderr)
+        return False
+
+
 # ------------------------------------------------------------------------- main
 
 def main():
@@ -1265,13 +1608,26 @@ def main():
              json.dumps(score_record, sort_keys=True),
              len(series), series[0][0], series[-1][0], series[-1][1]))
 
-    # The share snapshot rides the same run, from the same state —
-    # best-effort: a drawing failure never blocks the state above.
+    # The share picture rides the same run, from the same state —
+    # best-effort: a picture failure never blocks the state above.
+    # First choice is the TRUE CAPTURE of the page's own chart
+    # section (capture_snapshot, below); any capture failure keeps
+    # the previous og-bitcoin.jpg, and render_snapshot() — the
+    # drawn imitation — runs only when no file exists yet.
     try:
-        render_snapshot(state, inputs)
-        print("update_btc_state: og-bitcoin.jpg rendered")
+        if capture_snapshot(state, inputs):
+            print("update_btc_state: og-bitcoin.jpg captured from "
+                  "the page (view: %s)" % CAPTURE_VIEW)
+        elif not os.path.exists(OG_PATH):
+            render_snapshot(state, inputs)
+            print("update_btc_state: og-bitcoin.jpg rendered "
+                  "(capture unavailable; first file)")
+        else:
+            print("update_btc_state: WARNING: chart capture "
+                  "unavailable; previous og-bitcoin.jpg kept",
+                  file=sys.stderr)
     except Exception as exc:
-        print("update_btc_state: WARNING: snapshot render failed: %s"
+        print("update_btc_state: WARNING: snapshot step failed: %s"
               % exc, file=sys.stderr)
 
 
