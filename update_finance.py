@@ -1114,10 +1114,12 @@ def build_scoreboard_block(facts, price, fallback_shares, mcap_billions,
 
 
 # =====================================================================
-# Durability block (added 2026-11-17): the three decade tests behind
-# the Stack runner's "Proven over time" check on the page, computed
-# from the same companyfacts payload the run already fetched — no new
-# EDGAR calls. A faithful port of the verified prototype:
+# Durability block (added 2026-11-17): the three decade measures
+# computed from the same companyfacts payload the run already
+# fetched — no new EDGAR calls. The page's reader is Buffett's
+# scoreboard popover, which reads T1: in how many of the last N
+# years the stock cleared Buffett's 15% ROE bar. A faithful port
+# of the verified prototype:
 # - T1 return persistence: ROE (net income / AVERAGE equity) at 15%+
 #   in at least 7 of the last 10 fiscal years (>= 70% of the years
 #   available with a shorter history; a company needs >= 5 graded
