@@ -455,6 +455,13 @@
         .pl-sw-mayer { background: #38bdf8; }
         .pl-sw-mvrv { background: #a78bfa; }
         .btc-zones { margin: 14px 0 16px; padding: 12px 14px 10px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-color); }
+        /* Cycle phase line (2026-11-21): one factual line at the foot
+           of the indicator card — the day of the halving cycle and
+           where the cycle's past tops and bottoms landed. The same
+           weight as the subscribe strip's record line; hidden in
+           fullscreen like the card's other small factual blocks. */
+        .btc-phase-line { font-size: 0.85rem; line-height: 1.4; color: var(--text-muted, #94a3b8); margin: 8px 2px 0; }
+        .btc-chart-card:fullscreen .btc-phase-line, .btc-chart-card.btc-fs-fallback .btc-phase-line { display: none; }
         .btc-zones-row { display: flex; gap: 6px; }
         .btc-zone { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px 4px; background: none; border: none; border-radius: 10px; cursor: pointer; font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
         .btc-zone:hover { background: var(--card-bg); }
@@ -1595,7 +1602,52 @@
               <p>In the 564 weeks in the record — weeks, not days — the buy band fired in 13 weeks and the sell band fired in 6 weeks. The buy band fired on the day of the December 2018 bottom and on the day of the March 2020 bottom; the sell band fired on the day of the December 2013 top and on the day of the December 2017 top. No band fired in January 2015 or at either 2021 top.</p>
               <p>A reading of the models, not a promise.</p>
             </details>
+            <p class="btc-phase-line" id="btcPhaseLine"></p>
         </div>
+        <script>
+        /* Cycle phase line (2026-11-21): fills the #btcPhaseLine line
+           at the foot of the indicator card — the day of the current
+           halving cycle and where past tops and bottoms landed in
+           their cycles (Spiral backtest over the three completed
+           cycles: tops on days 371–546, bottoms on days 777–912).
+           Display only — no score, band or alert reads this line.
+           The 2024 halving date is read from the Spiral data in
+           this file (#spiral-data) when present; the same date
+           stands as the fallback, so index.html — which carries
+           the same card without the Spiral — words the line
+           identically. */
+        (function () {
+            function fill() {
+                var el = document.getElementById('btcPhaseLine');
+                if (!el) return;
+                var halving = '2024-04-19';
+                try {
+                    var sd = document.getElementById('spiral-data');
+                    if (sd) {
+                        var hs = JSON.parse(sd.textContent).halvings;
+                        if (hs && hs.length) halving = hs[hs.length - 1];
+                    }
+                } catch (e) {}
+                function dayNum(iso) {
+                    var p = iso.split('-');
+                    return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000;
+                }
+                var now = new Date();
+                var today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000;
+                var n = Math.round(today - dayNum(halving));
+                var num = n.toLocaleString('en-US');
+                var text;
+                if (n < 371) text = 'Day ' + num + ' of this halving cycle · past tops landed on days 371–546 and past bottoms on days 777–912';
+                else if (n <= 546) text = 'Day ' + num + ' of this halving cycle · inside the stretch where past tops landed (days 371–546)';
+                else if (n <= 776) text = 'Day ' + num + ' of this halving cycle · past bottoms landed on days 777–912';
+                else if (n <= 912) text = 'Day ' + num + ' of this halving cycle · inside the stretch where past bottoms landed (days 777–912)';
+                else text = 'Day ' + num + ' of this halving cycle · the stretch where past bottoms landed (days 777–912) has passed for this cycle';
+                el.textContent = text;
+            }
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fill);
+            else fill();
+        })();
+        </script>
         <div class="btc-pick" id="btcPick">
             <button type="button" class="btc-ovl-switch" id="btcOvlBtn" role="switch" aria-checked="true" aria-label="Johnny’s ₿ Indicator overlay" title="Turn Johnny’s ₿ Indicator overlay on or off"><span class="btc-ovl-label" aria-hidden="true">Johnny’s ₿ Indicator overlay</span><span class="btc-switch-track" aria-hidden="true"><span class="btc-switch-knob"></span></span></button>
             <button type="button" class="btc-pick-face" id="btcPickFace" aria-haspopup="listbox" aria-expanded="false" aria-controls="btcPickPanel">
