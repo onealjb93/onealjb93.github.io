@@ -269,6 +269,24 @@
         .btc-pick-opt:hover, .btc-pick-opt:focus-visible { background: var(--badge-bg); }
         .btc-pick-opt.active { background: var(--badge-bg); font-weight: 700; }
         #btc-view-anim { overflow: hidden; }
+        /* Overlay connection (2026-11-22): the overlay switch lives
+           inside the indicator card, directly under the gauge (its
+           markup moved there), and the picker bar and the chart
+           stage inset to the card's own content column, so the
+           scale bar, the connection wire, the overlay row, the
+           picker and the chart share one left edge: the card's
+           border (1px) + its padding (14px) + the gauge's own
+           margin (2px) = 17px. At phone widths the card's padding
+           is 8px, so the inset is 11px. Fullscreen zeroes the
+           insets — its grid owns the geometry there. */
+        .btc-pick { margin-left: 17px; margin-right: 17px; }
+        #btc-view-anim { margin-left: 17px; margin-right: 17px; }
+        .btc-chart-card:fullscreen .btc-pick, .btc-chart-card.btc-fs-fallback .btc-pick { margin-left: 0; margin-right: 0; }
+        .btc-chart-card:fullscreen #btc-view-anim, .btc-chart-card.btc-fs-fallback #btc-view-anim { margin-left: 0; margin-right: 0; }
+        @media (max-width: 480px) {
+            .btc-pick { margin-left: 11px; margin-right: 11px; }
+            #btc-view-anim { margin-left: 11px; margin-right: 11px; }
+        }
         /* Chart action corner + fullscreen (2026-11-18): the card's own
            title row carries Share, then Full screen, as labeled pills at
            the row's right end — the placement rule Johnny set on the
@@ -345,10 +363,11 @@
            is untouched. */
         .btc-chart-card:fullscreen, .btc-chart-card.btc-fs-fallback { padding-top: 10px; padding-bottom: 8px; }
         .btc-chart-card:fullscreen .btc-pick, .btc-chart-card.btc-fs-fallback .btc-pick { padding-top: 2px; padding-bottom: 2px; margin-bottom: 0; }
-        /* Fullscreen tightens the two-row bar further (2026-11-19):
-           a 4px row gap, a 36px switch row and a 40px face, so
-           the bar takes 84px of the screen's height against the
-           one-line bar's 48px and the chart keeps the rest. */
+        /* Fullscreen tightens the bar further (2026-11-19): a 4px
+           row gap and a 40px face; the switch row's 36px now
+           applies inside the scorecard, where the switch lives
+           under the gauge (2026-11-22), and the chart keeps the
+           rest of the screen. */
         .btc-chart-card:fullscreen #btcPick, .btc-chart-card.btc-fs-fallback #btcPick { gap: 4px; }
         .btc-chart-card:fullscreen .btc-ovl-switch, .btc-chart-card.btc-fs-fallback .btc-ovl-switch { height: 36px; }
         .btc-chart-card:fullscreen .btc-pick-face, .btc-chart-card.btc-fs-fallback .btc-pick-face { min-height: 40px; }
@@ -571,19 +590,17 @@
         body.light-mode .btc-mini.seg-sell .btc-mini-dot { background: #dc2626; }
         /* The overlay toggle as a switch (2026-11-19): the pill
            spelled its state in words ('Johnny's overlay: On');
-           the switch SHOWS its state instead — while the overlay
-           is on, the knob sits right and the track takes the
-           bar's accent color; while it is off, the knob sits
-           left on the neutral track. The track and knob take the
-           theme slider's own geometry (a 36px track, an 18px
-           knob at a 2.5px inset, 13px of travel) and its neutral
-           track colors, so the site's two switches read as one
-           system. The switch is the picker bar's first row
-           (2026-11-19): the label at the row's left, the track
-           at the row's right end, and the
-           button's accessible name is 'Johnny's ₿ Indicator
-           overlay' in full at every width — the stepped short
-           label the one-line bar needed is retired. */
+           the switch SHOWS its state instead — the knob sits
+           right while the overlay is on and left while it is off.
+           The track and knob take the theme slider's own geometry
+           (a 36px track, an 18px knob at a 2.5px inset, 13px of
+           travel), so the site's two switches read as one system.
+           The switch is the indicator card's own row, directly
+           under the gauge (2026-11-22 — it was the picker bar's
+           first row until then): the label at the row's left, the
+           track at the row's right end, and the button's
+           accessible name is 'Johnny's ₿ Indicator overlay' in
+           full at every width. */
         .btc-ovl-switch { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; height: 40px; padding: 0; background: none; border: none; border-radius: 999px; color: var(--text-color); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
         .btc-ovl-switch:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         /* The label's type (2026-11-20): the picker face's own
@@ -591,9 +608,15 @@
            row names a control, so its label reads as one, not
            as a small gray caption. */
         .btc-ovl-label { font-size: 0.85rem; font-weight: 600; color: var(--text-color); white-space: nowrap; }
-        .btc-switch-track { position: relative; flex: none; width: 36px; height: 23px; border-radius: 999px; background: #3a4556; transition: background-color var(--dur-2) var(--ease-inout); }
-        body.light-mode .btc-switch-track { background: #d3d8de; }
-        .btc-ovl-switch[aria-checked="true"] .btc-switch-track { background: var(--link-color); }
+        /* The track wears the scale (2026-11-22): the switch's
+           track is the gauge in miniature — the same three
+           segments at the gauge's own proportions (green from 0
+           to 7.79%, amber from 7.79% to 92.91%, red from 92.91%
+           to 100), in both states. The knob's position alone
+           says on or off, the way the needle's position speaks
+           on the gauge; the track itself never changes. */
+        .btc-switch-track { position: relative; flex: none; width: 36px; height: 23px; border-radius: 999px; background: linear-gradient(90deg, #22c55e 0%, #22c55e 7.79%, #f59e0b 7.79%, #f59e0b 92.91%, #ef4444 92.91%, #ef4444 100%); }
+        body.light-mode .btc-switch-track { background: linear-gradient(90deg, #16a34a 0%, #16a34a 7.79%, #d97706 7.79%, #d97706 92.91%, #dc2626 92.91%, #dc2626 100%); }
         .btc-switch-knob { position: absolute; left: 2.5px; top: 2.5px; width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); transition: transform var(--dur-2) var(--ease-inout); }
         .btc-ovl-switch[aria-checked="true"] .btc-switch-knob { transform: translateX(13px); }
         /* First-visit glow (2026-11-19; rebuilt on the track
@@ -628,7 +651,27 @@
            the flag never leaves the card; the needle never is, so
            the needle always marks the true position. The reading's
            sentences live in the bar's aria-label only. */
-        .btc-gauge { margin: 10px 2px 0; }
+        .btc-gauge { margin: 10px 2px 0; position: relative; }
+        /* The connection wire (2026-11-22): a Bitcoin-orange line
+           drops from the scale bar's left end — starting at the
+           track's own centre height, 33px into the gauge's box
+           (the 26px flag row plus half the 14px track) — down the
+           card's left gutter to the overlay row under the gauge,
+           and turns right into that row, so the eye follows the
+           scale into its switch: the switch is the scale's own
+           control, drawn as one object. The gauge's ::before is
+           the drop; the gauge's box starts 2px inside the card's
+           padding, so left: -3px puts the 2px wire in the gutter
+           with 1px of air beside the scale's own labels. The
+           switch row's ::before is the elbow: its vertical
+           segment continues the same line across the row's 10px
+           top margin, and its horizontal segment turns right
+           along the row's top edge toward the row's label. */
+        .btc-gauge::before { content: ""; position: absolute; left: -3px; top: 33px; bottom: 0; width: 2px; border-radius: 1px; background: #f7931a; }
+        body.light-mode .btc-gauge::before { background: #a35c06; }
+        .btc-zones .btc-ovl-switch { position: relative; width: auto; margin: 10px 2px 0; }
+        .btc-zones .btc-ovl-switch::before { content: ""; position: absolute; left: -3px; top: -10px; width: 26px; height: 10px; border-left: 2px solid #f7931a; border-bottom: 2px solid #f7931a; border-bottom-left-radius: 8px; }
+        body.light-mode .btc-zones .btc-ovl-switch::before { border-color: #a35c06; }
         /* The gauge's name (2026-11-19): the indicator's name
            rides inside the gauge block as its caption, centered
            below the bar, the boundary numbers and the zone
@@ -705,6 +748,10 @@
            text and the .btc-gauge-name spans), set together so
            the two never drift apart. */
         .btc-zl-legend { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin: 8px 2px 0; border-radius: 6px; padding: 5px 10px; font-size: 0.78rem; font-weight: 600; color: var(--text-color); background: rgba(148, 163, 184, 0.22); }
+        /* Cream purity (2026-11-22): in light mode the legend strip
+           takes the badge token, not the slate grey — the strip is
+           a badge surface, and light mode's badges are cream. */
+        body.light-mode .btc-zl-legend { background: var(--badge-bg); }
         .btc-zl-stop { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
         .btc-zl-sym { font-size: 11px; line-height: 1; }
         .btc-zl-sym-buy { color: #22c55e; }
@@ -1008,9 +1055,19 @@
         .btc-whybox > summary { position: sticky; top: 55px; z-index: 95; width: auto; padding: 12px 14px; font-size: 1.05rem; line-height: 1.3; background: var(--bg-color); border-bottom: 1px solid var(--border-color); }
         @media (max-width: 480px) {
             .btc-whybox > summary { padding: 10px 8px; }
+            .btc-whybox > .btc-topwrap { margin-left: calc(1.1rem + 8px); }
+            .btc-whybox > .btc-satoshi { margin-left: calc(1.1rem + 8px); }
         }
-        .btc-whybox > .btc-topwrap { margin: 10px 0 0 1.1rem; }
-        .btc-whybox > .btc-satoshi { margin-left: 1.1rem; }
+        /* Subcategory indent (2026-11-22): all four subcategory
+           blocks — the three inside the top wrap and Satoshi's —
+           step in by the same amount: the section summary's own
+           left padding (14px) plus 1.1rem, so the step is
+           measured from the section title's own text, not from
+           the box's edge, and the four titles read as one level
+           below 'Why Bitcoin?' at a glance. At phone widths the
+           summary's padding is 8px and the step follows it. */
+        .btc-whybox > .btc-topwrap { margin: 10px 0 0 calc(1.1rem + 14px); }
+        .btc-whybox > .btc-satoshi { margin-left: calc(1.1rem + 14px); }
         /* Category title pin (2026-11-19, two-level 2026-11-20):
            while a category is open, its title bar pins directly
            beneath the box's pinned title bar — the offset is the
@@ -1033,7 +1090,12 @@
             position: sticky; top: calc(55px + var(--btc-why-h, 46px)); z-index: 96;
             width: auto; background: var(--bg-color);
             border-bottom: 1px solid var(--border-color);
-            font-size: 1.05rem;
+            /* Subcategory size (2026-11-22): the four subcategory
+               titles step down to 0.95rem under the section's own
+               1.05rem — the size step and the indent step together
+               are the hierarchy, so a subcategory never reads as a
+               peer of 'Why Bitcoin?' itself. */
+            font-size: 0.95rem;
         }
         /* Why Bitcoin box charts (2026-11-19): every chart graphic
            in the box is capped at a 440px-wide graphic, centred --
@@ -1049,10 +1111,24 @@
            path. The same day's clarity pass put every chart's
            measure inside the chart itself (an axis title in the
            dollar chart's idiom where the ticks carry no unit) and
-           raised the axis text throughout. */
+           raised the axis text throughout. (2026-11-22: the caps
+           are retired — the SVG graphics' inline 440px cap is
+           removed and the canvas wraps span the column at the
+           heights set below, so the whole family reads at the
+           section's full width.) */
         #why-bitcoin .btc-cpi { max-width: none; margin-left: 0; margin-right: 0; }
-        #why-bitcoin .btc-cpi-wrap { max-width: 472px; margin-left: auto; margin-right: auto; }
-        #why-bitcoin .btc-cpi-wrap canvas { height: 120px; }
+        /* Chart family at full width (2026-11-22): the two canvas
+           charts span the section's whole column like the SVG
+           evidence charts do now, and stand 320px tall (240px on
+           phone widths) so the lines have room to read; both
+           canvases draw from their CSS size and redraw when their
+           details opens, so the bigger size flows through the
+           existing draw path. */
+        #why-bitcoin .btc-cpi-wrap { max-width: none; margin-left: 0; margin-right: 0; }
+        #why-bitcoin .btc-cpi-wrap canvas { height: 320px; }
+        @media (max-width: 719px) {
+            #why-bitcoin .btc-cpi-wrap canvas { height: 240px; }
+        }
         #why-bitcoin .usgap-gap { fill: #ef4444; }
         body.light-mode #why-bitcoin .usgap-gap { fill: #dc2626; }
         #why-bitcoin .usgap-chip { background: #ef4444; }
@@ -1206,6 +1282,30 @@
            the bands, dots and fan read at 393px. */
         .ta-linekey { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--subtext-color); margin: 2px 0 4px; }
         .ta-linekey .k { display: inline-block; width: 16px; border-top: 3px solid; margin-right: 5px; vertical-align: 3px; border-radius: 2px; }
+        /* Days | Dates (2026-11-22): the taken-apart x axis reads
+           in days since the halving, or — with one cycle chosen
+           in the line key — in that cycle's own dates. The
+           segmented control leads the legend row it changes: the
+           spiral pills' treatment, joined into one control. In
+           Dates mode the legend's cycle chips become the cycle
+           selector (the key row's .dates-on state): the chosen
+           chip takes the pressed fill. The chips carry their
+           padding in both modes, so flipping the mode never
+           moves the row. */
+        .ta-keyrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+        .ta-seg { display: inline-flex; flex: none; }
+        .ta-seg-btn { border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); font: inherit; font-size: 12.5px; min-height: 30px; padding: 3px 11px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .ta-seg-btn:first-child { border-radius: 999px 0 0 999px; }
+        .ta-seg-btn:last-child { border-radius: 0 999px 999px 0; border-left: none; }
+        .ta-seg-btn:hover { background: var(--hover-bg); }
+        .ta-seg-btn:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+        .ta-seg-btn[aria-pressed="true"] { background: var(--accent-color); border-color: transparent; color: #fff; }
+        .ta-seg-btn[aria-pressed="true"]:hover { background: var(--accent-color); }
+        .ta-linekey .ta-chip { font: inherit; color: inherit; background: none; border: none; border-radius: 6px; padding: 1px 5px; margin: -1px -5px; display: inline-flex; align-items: center; }
+        .ta-keyrow.dates-on .ta-linekey .ta-chip { cursor: pointer; }
+        .ta-keyrow.dates-on .ta-linekey .ta-chip:hover { background: var(--hover-bg); }
+        .ta-keyrow.dates-on .ta-linekey .ta-chip:focus-visible { outline: 2px solid var(--link-color); outline-offset: 1px; }
+        .ta-keyrow.dates-on .ta-linekey .ta-chip.sel { background: var(--accent-color); color: #fff; }
         .ta-cap { font-size: 13px; color: var(--subtext-color); margin: 6px 2px 2px; line-height: 1.5; }
         .ta-cap b { color: var(--text-color); font-weight: 700; }
         .ta-takeaway { font-size: 15.5px; line-height: 1.55; margin: 14px 2px 2px; }
@@ -1391,6 +1491,7 @@
                 <div class="btc-gauge-names" aria-hidden="true"><span class="btc-gauge-name btc-gauge-name-buy">Buy zone</span><span class="btc-gauge-name btc-gauge-name-hold">Hold</span><span class="btc-gauge-name btc-gauge-name-sell">Sell zone</span></div>
                 <div class="btc-gauge-title">Johnny's ₿ Indicator</div>
             </div>
+            <button type="button" class="btc-ovl-switch" id="btcOvlBtn" role="switch" aria-checked="true" aria-label="Johnny’s ₿ Indicator overlay" title="Turn Johnny’s ₿ Indicator overlay on or off"><span class="btc-ovl-label" aria-hidden="true">Johnny’s ₿ Indicator overlay</span><span class="btc-switch-track" aria-hidden="true"><span class="btc-switch-knob"></span></span></button>
             <details class="btc-zones-defs">
               <summary>How the colors and the indicator work</summary>
               <p>The card's dots and mini scales color each model by the segment the model's scaled value occupies on Johnny's ₿ Indicator's 0-to-100 scale. Each model's own chart colors the model by the model's own bands.</p>
@@ -1468,7 +1569,6 @@
             <button type="button" class="btc-about-pill" id="btcAboutBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="btcAboutPop">About these emails</button>
         </div>
         <div class="btc-pick" id="btcPick">
-            <button type="button" class="btc-ovl-switch" id="btcOvlBtn" role="switch" aria-checked="true" aria-label="Johnny’s ₿ Indicator overlay" title="Turn Johnny’s ₿ Indicator overlay on or off"><span class="btc-ovl-label" aria-hidden="true">Johnny’s ₿ Indicator overlay</span><span class="btc-switch-track" aria-hidden="true"><span class="btc-switch-knob"></span></span></button>
             <button type="button" class="btc-pick-face" id="btcPickFace" aria-haspopup="listbox" aria-expanded="false" aria-controls="btcPickPanel">
                 <span class="btc-pick-main"><span class="btc-pick-label btc-vh">Select chart</span><span class="btc-pick-face-text" id="btcPickFaceText">Bitcoin power law</span></span>
                 <span class="btc-pick-chev" aria-hidden="true">&#9662;</span>
@@ -1634,7 +1734,7 @@
         <!-- Bitcoin Spiral (2026-11-21): the halving cycles drawn the
              Rational Root Spiral's way — one floor per cycle, angle =
              the day's place in its cycle, distance from the centre =
-             the price on one $0.1–$1,000,000 log scale shared by every
+             the price on one $0.1–$10,000,000 log scale shared by every
              floor — then taken apart onto identical axes so the cycles'
              shared timing shows. Data: CoinMetrics daily closes,
              Jul 18, 2010 – Nov 20, 2026, baked at build time (the
@@ -1659,17 +1759,22 @@
                 <p class="ta-axes-note">One graph, one set of axes: days since each cycle's halving across (0–1,440), and the price up, counted in how many times that cycle's halving day's price (log scale).</p>
                 <div class="ta-overlay-wrap">
                     <h3>All four cycles on one set of axes</h3>
-                    <p class="ta-linekey" id="spiralTaLineKey"></p>
+                    <div class="ta-keyrow" id="spiralTaKeyRow">
+                        <div class="ta-seg" role="group" aria-label="X axis: days since the halving, or the dates of one chosen cycle">
+                            <button type="button" class="ta-seg-btn" id="spiralTaModeDays" aria-pressed="true">Days</button><button type="button" class="ta-seg-btn" id="spiralTaModeDates" aria-pressed="false">Dates</button>
+                        </div>
+                        <p class="ta-linekey" id="spiralTaLineKey"></p>
+                    </div>
                     <div id="spiralTaOverlay"></div>
                     <div class="pl-zoom" role="group" aria-label="Taken apart graph zoom controls">
                         <button type="button" id="spiralTaZin" aria-label="Zoom in" title="Zoom in">+</button>
                         <button type="button" id="spiralTaZout" aria-label="Zoom out" title="Zoom out">&minus;</button>
                         <button type="button" id="spiralTaZreset" class="pl-zreset" aria-label="Reset view" title="Reset view">Reset</button>
                     </div>
-                    <p class="ta-cap"><b>①</b> Every past top landed in this stretch — days 371–546 after the halving. <b>②</b> Every past bottom landed in this stretch — days 777–912. This cycle's top so far (day 535) and bottom so far (day 802) sit inside the same two stretches.</p>
+                    <p class="ta-cap"><b>①</b> Tops: every past cycle reached its highest price inside this stretch <span class="ta-band-when" id="taBandTops">(days 371–546)</span>. <b>②</b> Bottoms: every past cycle reached its lowest price inside this stretch <span class="ta-band-when" id="taBandBottoms">(days 777–912)</span>. This cycle's top so far (day 535) and bottom so far (day 802) sit inside the same two stretches.</p>
                 </div>
                 <p class="pl-zoomhint">Scroll or pinch to zoom, drag to pan.</p>
-                <p class="ta-takeaway">The turns keep the same time in every cycle — tops between day 371 and day 546, bottoms between day 777 and day 912 — but each climb is a fraction of the one before it: <strong>the tops went 92×, then 30×, then 8× — and this cycle's top so far is 2×.</strong></p>
+                <p class="ta-takeaway">The turns keep the same time in every cycle, but each climb is a fraction of the one before it: <strong>the tops went 92×, then 30×, then 8× — and this cycle's top so far is 2×.</strong></p>
             </div>
             <p class="spiral-readout" id="spiralReadout" aria-live="polite"></p>
             <p class="spiral-legend" id="spiralLegend3d">
@@ -1681,7 +1786,7 @@
                 <span><span class="sw sw-line" style="border-color:#8b98a9"></span>Earlier cycles' remaining journeys, re-based to today</span>
                 <span><span class="sw sw-dash" style="border-color:#ffb84d"></span>Pattern projection (middle of the 3)</span>
             </p>
-            <p class="spiral-fine" id="spiralFine3d">Each floor is one halving cycle drawn the flat Spiral's way: a full turn is one cycle, and how far the line sits from the centre is the price, on the same $1–$1,000,000 scale on every floor. <strong>The dashed line on the top floor is a projection, not a price:</strong> each finished cycle's remaining journey from this same point in its cycle, re-based to start at today's price — the dashed line is the middle of the three, and the pale band is their spread. Three cycles only: a pattern's range, not a promise.</p>
+            <p class="spiral-fine" id="spiralFine3d">Each floor is one halving cycle drawn the flat Spiral's way: a full turn is one cycle, and how far the line sits from the centre is the price, on the same $1–$10,000,000 scale on every floor. <strong>The dashed line on the top floor is a projection, not a price:</strong> each finished cycle's remaining journey from this same point in its cycle, re-based to start at today's price — the dashed line is the middle of the three, and the pale band is their spread. Three cycles only: a pattern's range, not a promise.</p>
             <p class="spiral-legend" id="spiralLegendTa" hidden>
                 <span><span class="sw" style="background:#2ea043"></span>Halving — every line starts at the left edge, at 1×</span>
                 <span><span class="sw" style="background:#2f6feb"></span>Cycle top</span>
@@ -2168,7 +2273,7 @@ if (THREE) {
     const LOG0 = Math.log10(0.03);            // radius zero = $0.03
     const RS = 1.2;                            // radius units per decade
     const GAP = 2.75;                          // floor spacing (tilt pass: wider than the mock's 2.35, so the floors separate at phone size)
-    const RMAX = (6 - LOG0) * RS;              // $1,000,000 ring
+    const RMAX = (7 - LOG0) * RS;              // $10,000,000 ring
     const radius = logp => (logp - LOG0) * RS;
     const polar = (f, logp, y) => {
         const t = f * Math.PI * 2, r = radius(logp);
@@ -2236,12 +2341,12 @@ if (THREE) {
     const ringMat = regMat(new THREE.LineBasicMaterial({ transparent: true }), 'ring', 'ring');
     const discMat = regMat(new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false }), 'disc', 'disc');
 
-    const RING_PS = [0.1, 1, 10, 100, 1000, 10000, 100000, 1000000];
-    const RING_LB = ['$0.1', '$1', '$10', '$100', '$1k', '$10k', '$100k', '$1M'];
+    const RING_PS = [0.1, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000];
+    const RING_LB = ['$0.1', '$1', '$10', '$100', '$1k', '$10k', '$100k', '$1M', '$10M'];
     // Tilt pass: the bottom and top floors carry every ring; the middle
     // floors carry four, so the stack reads as separate floors instead
     // of one dense cage of lines at phone size.
-    const RING_MID = [1, 100, 10000, 1000000];
+    const RING_MID = [1, 100, 10000, 1000000, 10000000];
 
     DATA.floors.forEach((fl) => {
         const y = fl.idx * GAP;
@@ -2529,7 +2634,19 @@ if (THREE) {
     function fitDistance() {
         const a = stage.clientWidth / Math.max(1, stage.clientHeight);
         const v = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-        return Math.max(22, (RMAX * 1.20) / (v * Math.min(1, a)));
+        /* The fit is derived from what must stay on screen
+           (2026-11-22, the $10M ring): the farthest point that has
+           to fit is the top floor's outermost ring label — the
+           label rides at the ring's radius on the top floor,
+           lifted 0.28 above it, so its centre sits
+           sqrt(RMAX^2 + dy^2) from the camera target (the stack's
+           middle height), with dy the label's height above that
+           middle — plus the label's own half-diagonal (~0.56)
+           and 5% of air around the whole figure, so no ring and
+           no label is ever cut off at the fitted distance. */
+        const dy = (topFloorY + 0.28) - topFloorY / 2;
+        const fitR = Math.sqrt(RMAX * RMAX + dy * dy) + 0.56;
+        return Math.max(22, (fitR * 1.05) / (v * Math.min(1, a)));
     }
     function applyCam() {
         const sp = Math.sin(pol), y = Math.cos(pol);
@@ -2623,14 +2740,14 @@ if (THREE) {
         },
         pinchMove: pts => {
             const nd = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-            if (pinchD) dist = THREE.MathUtils.clamp(dist * pinchD / nd, 10, 60);
+            if (pinchD) dist = THREE.MathUtils.clamp(dist * pinchD / nd, 10, Math.max(60, fitDistance() * 1.1));
             pinchD = nd;
             needsFrame = true;
         }
     });
     el.addEventListener('wheel', e => {
         e.preventDefault();
-        dist = THREE.MathUtils.clamp(dist * (e.deltaY > 0 ? 1.09 : 0.92), 10, 60);
+        dist = THREE.MathUtils.clamp(dist * (e.deltaY > 0 ? 1.09 : 0.92), 10, Math.max(60, fitDistance() * 1.1));
         needsFrame = true;
     }, { passive: false });
 
@@ -2656,7 +2773,7 @@ if (THREE) {
         }
     }
 
-    view3d = () => { pol = 1.06; az = -0.62; needsFrame = true; };
+    view3d = () => { pol = 1.06; az = -0.62; dist = fitDistance(); needsFrame = true; };
 
     threeOk = true;
     window.__spiralStats = { floors: DATA.floors.length, points: inspectPts.length, latest: { date: bakedAnchor.date, price: bakedAnchor.price }, threeOk: true };
@@ -2698,6 +2815,17 @@ const taSeries = taFloors.map(fl => {
     };
 });
 
+// Days | Dates (2026-11-22): the x axis reads two ways — days
+// since the halving, or the calendar dates of one chosen cycle
+// (the legend's chips choose it; the 2024 cycle is chosen first).
+// The mode and the choice are module state the axes builder
+// reads; taZoom is not part of the state, so flipping the
+// reading never moves the reader's zoom or pan.
+let taMode = 'days';
+let taCycle = taSeries.length - 1;
+const taAddDays = (iso, n) => new Date(Date.parse(iso + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+const taMonthYear = iso => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+
 const TA_NS = 'http://www.w3.org/2000/svg';
 function taEl(tag, attrs, parent, text) {
     const n = document.createElementNS(TA_NS, tag);
@@ -2728,7 +2856,10 @@ function taAxes(W, H, prof, svgClass) {
     [0, 360, 720, 1080, 1440].forEach(d => {
         taEl('line', { x1: X(d), x2: X(d), y1: m.t, y2: H - m.b, class: 'grid' }, g);
         const last = d === TAX.max;
-        taEl('text', { x: last ? W - 2 : X(d), y: H - 5.5 * S, 'text-anchor': last ? 'end' : 'middle', class: 'axislab' }, g, String(d));
+        const lab = taMode === 'dates'
+            ? taMonthYear(taAddDays(taSeries[taCycle].fl.halving.date, d))
+            : String(d);
+        taEl('text', { x: last ? W - 2 : X(d), y: H - 5.5 * S, 'text-anchor': last ? 'end' : 'middle', class: 'axislab' }, g, lab);
     });
     return { svg, g, X, Y, m, W, H, S };
 }
@@ -2743,6 +2874,22 @@ function taMarkLabel(svg, X, Y, W, S, pt, main, sub, place) {
     const y1 = place === 'below' ? cy + 18 * S : cy - 17 * S;
     taEl('text', { x: lx, y: y1, 'text-anchor': anchor, class: 'marklab' }, svg, main);
     taEl('text', { x: lx, y: y1 + 12 * S, 'text-anchor': anchor, class: 'marksub' }, svg, sub);
+}
+// The taken-apart readout (2026-11-22): in Days mode it is the
+// shared readout itself. In Dates mode the date named is the
+// CHOSEN cycle's date at the inspected phase — the reading the
+// axis is showing — with the day number and the touched line's
+// own context beside it, in the shared readout's grammar. The
+// 3D view's readout path is untouched.
+function taShowReadout(pt, isLatest) {
+    if (taMode !== 'dates' || isLatest) { showReadout(pt, isLatest); return; }
+    readoutResting = false;
+    const sel = taSeries[taCycle];
+    readoutEl.innerHTML =
+        `<span class="ro-date">${fmtDate(taAddDays(sel.fl.halving.date, pt.day))}</span>` +
+        `<span class="ro-price">${fmtPrice(pt.price)}</span>` +
+        `<span class="ro-ctx">day ${pt.day} · ${pt.ctx}${KIND[pt.kind] || ''}</span>`;
+    window.__spiralReadout = readoutEl.textContent;
 }
 function taWireInspect(zv, seriesList, X, Y) {
     const { svg, vp, W, H } = zv;
@@ -2771,7 +2918,7 @@ function taWireInspect(zv, seriesList, X, Y) {
         clearTimeout(latestTimer);
         if (best) {
             cursor.setAttribute('cx', X(best.day)); cursor.setAttribute('cy', Y(best.y)); cursor.setAttribute('opacity', 0.9);
-            showReadout(best, best.kind === 'latest');
+            taShowReadout(best, best.kind === 'latest');
         } else { cursor.setAttribute('opacity', 0); showLatest(); }
     }
     // Gestures — the one system every chart on the site runs:
@@ -2800,7 +2947,7 @@ function taWireInspect(zv, seriesList, X, Y) {
             const best = pick(e);
             if (best) {
                 clearTimeout(latestTimer);
-                showReadout(best, best.kind === 'latest');
+                taShowReadout(best, best.kind === 'latest');
                 latestTimer = setTimeout(showLatest, 3200);
             }
         }
@@ -2919,6 +3066,8 @@ function buildOverlay(container, W, H, prof, svgClass, withTitle) {
         reset() { taZoom.k = 1; taZoom.tx = 0; taZoom.ty = 0; zv.applyZoom(); },
     };
     if (withTitle) taEl('text', { x: m.l + 2, y: m.t + 11 * S, class: 'axistitle' }, vp, 'price, × the halving day’s');
+    if (withTitle) taEl('text', { x: W - m.r - 4 * S, y: H - m.b - 5 * S, 'text-anchor': 'end', class: 'axistitle' }, vp,
+        taMode === 'dates' ? 'Date — ' + taSeries[taCycle].fl.label : 'Days since the halving');
     const band = (d0, d1, cls, edgeCls, num, badgeFill, badgeFg) => {
         taEl('rect', { x: X(d0), y: m.t, width: X(d1) - X(d0), height: H - m.t - m.b, class: cls }, vp);
         [d0, d1].forEach(d => taEl('line', { x1: X(d), x2: X(d), y1: m.t, y2: H - m.b, class: edgeCls }, vp));
@@ -2998,8 +3147,36 @@ else if (taPhoneMq.addListener) taPhoneMq.addListener(() => renderTaGraph());
 }
 {
     const keyColors = ['#8a94a6', '#5f8f7b', '#7a6fa0'];
-    document.getElementById('spiralTaLineKey').innerHTML = taSeries.map((s, i) =>
-        `<span><span class="k" style="border-color:${s.current ? '#f7931a' : keyColors[i]}"></span>${s.current ? s.fl.label + ' — now' : s.fl.label}</span>`).join('');
+    const keyEl = document.getElementById('spiralTaLineKey');
+    const keyRow = document.getElementById('spiralTaKeyRow');
+    const modeDaysBtn = document.getElementById('spiralTaModeDays');
+    const modeDatesBtn = document.getElementById('spiralTaModeDates');
+    const bandTopsEl = document.getElementById('taBandTops');
+    const bandBottomsEl = document.getElementById('taBandBottoms');
+    function buildTaKey() {
+        keyEl.innerHTML = taSeries.map((s, i) =>
+            `<button type="button" class="ta-chip${taMode === 'dates' && i === taCycle ? ' sel' : ''}" data-tac="${i}" aria-pressed="${taMode === 'dates' && i === taCycle}"><span class="k" style="border-color:${s.current ? '#f7931a' : keyColors[i]}"></span>${s.current ? s.fl.label + ' — now' : s.fl.label}</button>`).join('');
+        keyEl.querySelectorAll('.ta-chip').forEach(chip => chip.addEventListener('click', () => {
+            if (taMode !== 'dates') return;
+            taCycle = +chip.getAttribute('data-tac');
+            taModeSync();
+        }));
+    }
+    function taModeSync() {
+        if (modeDaysBtn) modeDaysBtn.setAttribute('aria-pressed', String(taMode === 'days'));
+        if (modeDatesBtn) modeDatesBtn.setAttribute('aria-pressed', String(taMode === 'dates'));
+        if (keyRow) keyRow.classList.toggle('dates-on', taMode === 'dates');
+        const hv = taSeries[taCycle].fl.halving.date;
+        if (bandTopsEl) bandTopsEl.textContent = taMode === 'dates'
+            ? `(${fmtDate(taAddDays(hv, 371))} – ${fmtDate(taAddDays(hv, 546))})` : '(days 371–546)';
+        if (bandBottomsEl) bandBottomsEl.textContent = taMode === 'dates'
+            ? `(${fmtDate(taAddDays(hv, 777))} – ${fmtDate(taAddDays(hv, 912))})` : '(days 777–912)';
+        buildTaKey();
+        renderTaGraph(true);
+    }
+    if (modeDaysBtn) modeDaysBtn.addEventListener('click', () => { if (taMode !== 'days') { taMode = 'days'; taModeSync(); } });
+    if (modeDatesBtn) modeDatesBtn.addEventListener('click', () => { if (taMode !== 'dates') { taMode = 'dates'; taModeSync(); } });
+    buildTaKey();
 }
 
 showLatest();
@@ -3183,6 +3360,15 @@ function draw() {
             if (dx > padL + 12 && dx < W - padR - 12) ctx.fillText(MONTHS[dd.getUTCMonth()] + " " + dd.getUTCDate(), dx, H - padB + 13);
         }
     }
+    ctx.textAlign = "left";
+
+    /* Axis titles (2026-11-22): the y title rides the plot's
+       top-left in the axis color, the x title names the axis from
+       the bottom-right corner — the model charts' own pattern. */
+    ctx.fillStyle = subCol;
+    ctx.fillText("Value of $100", padL + 6, padT + 11);
+    ctx.textAlign = "right";
+    ctx.fillText("Date", W - 6, H - 6);
     ctx.textAlign = "left";
 
     /* The plot clips to its own box, as on the model charts: zoomed
@@ -3510,7 +3696,7 @@ draw();
 <div class="btc-evcard" style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 0 20px">
         <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">Buying power of $100 of 1913, year by year</p>
         <p style="font-size:1rem;line-height:1.55;margin:0 0 12px;color:var(--text-color)">Every point on the line is one year, from 1913 to 2024: the height of the point for a year is the buying power of $100 of 1913 in that year, out of 100 &mdash; 100 &times; the Consumer Price Index of 1913 &divide; the Consumer Price Index of that year. Prices fell between 1920 and 1933, so the line rises across those years; after 1933 the line falls for the rest of the span, apart from small rises in a few single years.</p>
-        <svg viewBox="0 -36 680 398" width="100%" role="img" aria-label="Line chart. Buying power of $100 of 1913, out of 100, for every year from 1913 to 2024. 100 of 100 in 1913; about 49 of 100 in 1920; about 76 of 100 in 1933, after prices fell in the 1920s and the early 1930s; about 24 of 100 in 1971; about 3 of 100 in 2024." style="display:block;height:auto;max-width:440px;margin:0 auto"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Buying power kept out of $100 of 1913</text><line x1="58" y1="318" x2="668" y2="318" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><line x1="58" y1="248" x2="668" y2="248" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="255" font-size="23" text-anchor="end" fill="var(--subtext-color)">25</text><line x1="58" y1="178" x2="668" y2="178" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="185" font-size="23" text-anchor="end" fill="var(--subtext-color)">50</text><line x1="58" y1="108" x2="668" y2="108" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="115" font-size="23" text-anchor="end" fill="var(--subtext-color)">75</text><line x1="58" y1="38" x2="668" y2="38" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="45" font-size="23" text-anchor="end" fill="var(--subtext-color)">100</text><polygon points="70.0,38.0 75.3,41.7 80.6,44.2 85.9,63.7 91.3,102.2 96.6,134.0 101.9,158.3 107.2,179.9 112.5,163.0 117.8,152.8 123.2,155.7 128.5,156.4 133.8,160.2 139.1,161.7 144.4,158.6 149.7,156.7 155.0,156.7 160.4,152.3 165.7,136.0 171.0,115.1 176.3,104.0 181.6,111.2 186.9,116.4 192.3,118.4 197.6,125.6 202.9,121.6 208.2,119.0 213.5,120.5 218.8,130.1 224.1,148.6 229.5,158.1 234.8,160.7 240.1,164.2 245.4,176.2 250.7,194.0 256.0,202.9 261.4,201.8 266.7,203.0 272.0,211.4 277.3,213.8 282.6,214.6 287.9,214.9 293.2,214.6 298.6,216.2 303.9,219.5 309.2,222.1 314.5,223.1 319.8,224.4 325.1,225.4 330.5,226.5 335.8,227.6 341.1,228.8 346.4,230.2 351.7,232.7 357.0,235.0 362.3,238.4 367.7,242.6 373.0,246.7 378.3,249.7 383.6,251.8 388.9,255.7 394.2,261.9 399.5,266.6 404.9,269.4 410.2,272.3 415.5,275.6 420.8,279.9 426.1,284.4 431.4,287.6 436.8,289.3 442.1,290.2 447.4,291.4 452.7,292.3 458.0,292.8 463.3,293.6 468.6,294.6 474.0,295.7 479.3,296.8 484.6,297.7 489.9,298.3 495.2,298.8 500.5,299.3 505.9,299.8 511.2,300.4 516.5,300.8 521.8,301.0 527.1,301.4 532.4,301.9 537.7,302.4 543.1,302.6 548.4,303.0 553.7,303.3 559.0,303.8 564.3,304.3 569.6,304.7 575.0,305.1 580.3,305.1 585.6,305.3 590.9,305.7 596.2,305.9 601.5,306.1 606.8,306.3 612.2,306.3 617.5,306.5 622.8,306.7 628.1,307.0 633.4,307.2 638.7,307.3 644.1,307.8 649.4,308.5 654.7,308.9 660.0,309.2 660.0,318 70.0,318" fill="var(--link-color)" opacity="0.12"/><polyline points="70.0,38.0 75.3,41.7 80.6,44.2 85.9,63.7 91.3,102.2 96.6,134.0 101.9,158.3 107.2,179.9 112.5,163.0 117.8,152.8 123.2,155.7 128.5,156.4 133.8,160.2 139.1,161.7 144.4,158.6 149.7,156.7 155.0,156.7 160.4,152.3 165.7,136.0 171.0,115.1 176.3,104.0 181.6,111.2 186.9,116.4 192.3,118.4 197.6,125.6 202.9,121.6 208.2,119.0 213.5,120.5 218.8,130.1 224.1,148.6 229.5,158.1 234.8,160.7 240.1,164.2 245.4,176.2 250.7,194.0 256.0,202.9 261.4,201.8 266.7,203.0 272.0,211.4 277.3,213.8 282.6,214.6 287.9,214.9 293.2,214.6 298.6,216.2 303.9,219.5 309.2,222.1 314.5,223.1 319.8,224.4 325.1,225.4 330.5,226.5 335.8,227.6 341.1,228.8 346.4,230.2 351.7,232.7 357.0,235.0 362.3,238.4 367.7,242.6 373.0,246.7 378.3,249.7 383.6,251.8 388.9,255.7 394.2,261.9 399.5,266.6 404.9,269.4 410.2,272.3 415.5,275.6 420.8,279.9 426.1,284.4 431.4,287.6 436.8,289.3 442.1,290.2 447.4,291.4 452.7,292.3 458.0,292.8 463.3,293.6 468.6,294.6 474.0,295.7 479.3,296.8 484.6,297.7 489.9,298.3 495.2,298.8 500.5,299.3 505.9,299.8 511.2,300.4 516.5,300.8 521.8,301.0 527.1,301.4 532.4,301.9 537.7,302.4 543.1,302.6 548.4,303.0 553.7,303.3 559.0,303.8 564.3,304.3 569.6,304.7 575.0,305.1 580.3,305.1 585.6,305.3 590.9,305.7 596.2,305.9 601.5,306.1 606.8,306.3 612.2,306.3 617.5,306.5 622.8,306.7 628.1,307.0 633.4,307.2 638.7,307.3 644.1,307.8 649.4,308.5 654.7,308.9 660.0,309.2" fill="none" stroke="var(--link-color)" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/><line x1="107.2" y1="318" x2="107.2" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="160.4" y1="318" x2="160.4" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="213.5" y1="318" x2="213.5" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="266.7" y1="318" x2="266.7" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="319.8" y1="318" x2="319.8" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="373.0" y1="318" x2="373.0" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="426.1" y1="318" x2="426.1" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="479.3" y1="318" x2="479.3" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="532.4" y1="318" x2="532.4" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="585.6" y1="318" x2="585.6" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="638.7" y1="318" x2="638.7" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="107.2" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1920</text><text x="213.5" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1940</text><text x="319.8" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1960</text><text x="426.1" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1980</text><text x="532.4" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2000</text><text x="676" y="350" font-size="24" text-anchor="end" fill="var(--text-color)">2024</text><circle cx="70.0" cy="38.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="88" y="44" font-size="25" font-weight="700" fill="var(--text-color)">100 of 100 kept in 1913</text><circle cx="378.3" cy="249.7" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="366" y="284" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">24 of 100 kept in 1971</text><circle cx="660.0" cy="309.2" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="676" y="266" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">3 of 100 kept in 2024</text></svg>
+        <svg viewBox="0 -36 680 398" width="100%" role="img" aria-label="Line chart. Buying power of $100 of 1913, out of 100, for every year from 1913 to 2024. 100 of 100 in 1913; about 49 of 100 in 1920; about 76 of 100 in 1933, after prices fell in the 1920s and the early 1930s; about 24 of 100 in 1971; about 3 of 100 in 2024." style="display:block;height:auto;margin:0 auto"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Buying power kept out of $100 of 1913</text><line x1="58" y1="318" x2="668" y2="318" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><line x1="58" y1="248" x2="668" y2="248" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="255" font-size="23" text-anchor="end" fill="var(--subtext-color)">25</text><line x1="58" y1="178" x2="668" y2="178" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="185" font-size="23" text-anchor="end" fill="var(--subtext-color)">50</text><line x1="58" y1="108" x2="668" y2="108" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="115" font-size="23" text-anchor="end" fill="var(--subtext-color)">75</text><line x1="58" y1="38" x2="668" y2="38" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="45" font-size="23" text-anchor="end" fill="var(--subtext-color)">100</text><polygon points="70.0,38.0 75.3,41.7 80.6,44.2 85.9,63.7 91.3,102.2 96.6,134.0 101.9,158.3 107.2,179.9 112.5,163.0 117.8,152.8 123.2,155.7 128.5,156.4 133.8,160.2 139.1,161.7 144.4,158.6 149.7,156.7 155.0,156.7 160.4,152.3 165.7,136.0 171.0,115.1 176.3,104.0 181.6,111.2 186.9,116.4 192.3,118.4 197.6,125.6 202.9,121.6 208.2,119.0 213.5,120.5 218.8,130.1 224.1,148.6 229.5,158.1 234.8,160.7 240.1,164.2 245.4,176.2 250.7,194.0 256.0,202.9 261.4,201.8 266.7,203.0 272.0,211.4 277.3,213.8 282.6,214.6 287.9,214.9 293.2,214.6 298.6,216.2 303.9,219.5 309.2,222.1 314.5,223.1 319.8,224.4 325.1,225.4 330.5,226.5 335.8,227.6 341.1,228.8 346.4,230.2 351.7,232.7 357.0,235.0 362.3,238.4 367.7,242.6 373.0,246.7 378.3,249.7 383.6,251.8 388.9,255.7 394.2,261.9 399.5,266.6 404.9,269.4 410.2,272.3 415.5,275.6 420.8,279.9 426.1,284.4 431.4,287.6 436.8,289.3 442.1,290.2 447.4,291.4 452.7,292.3 458.0,292.8 463.3,293.6 468.6,294.6 474.0,295.7 479.3,296.8 484.6,297.7 489.9,298.3 495.2,298.8 500.5,299.3 505.9,299.8 511.2,300.4 516.5,300.8 521.8,301.0 527.1,301.4 532.4,301.9 537.7,302.4 543.1,302.6 548.4,303.0 553.7,303.3 559.0,303.8 564.3,304.3 569.6,304.7 575.0,305.1 580.3,305.1 585.6,305.3 590.9,305.7 596.2,305.9 601.5,306.1 606.8,306.3 612.2,306.3 617.5,306.5 622.8,306.7 628.1,307.0 633.4,307.2 638.7,307.3 644.1,307.8 649.4,308.5 654.7,308.9 660.0,309.2 660.0,318 70.0,318" fill="var(--link-color)" opacity="0.12"/><polyline points="70.0,38.0 75.3,41.7 80.6,44.2 85.9,63.7 91.3,102.2 96.6,134.0 101.9,158.3 107.2,179.9 112.5,163.0 117.8,152.8 123.2,155.7 128.5,156.4 133.8,160.2 139.1,161.7 144.4,158.6 149.7,156.7 155.0,156.7 160.4,152.3 165.7,136.0 171.0,115.1 176.3,104.0 181.6,111.2 186.9,116.4 192.3,118.4 197.6,125.6 202.9,121.6 208.2,119.0 213.5,120.5 218.8,130.1 224.1,148.6 229.5,158.1 234.8,160.7 240.1,164.2 245.4,176.2 250.7,194.0 256.0,202.9 261.4,201.8 266.7,203.0 272.0,211.4 277.3,213.8 282.6,214.6 287.9,214.9 293.2,214.6 298.6,216.2 303.9,219.5 309.2,222.1 314.5,223.1 319.8,224.4 325.1,225.4 330.5,226.5 335.8,227.6 341.1,228.8 346.4,230.2 351.7,232.7 357.0,235.0 362.3,238.4 367.7,242.6 373.0,246.7 378.3,249.7 383.6,251.8 388.9,255.7 394.2,261.9 399.5,266.6 404.9,269.4 410.2,272.3 415.5,275.6 420.8,279.9 426.1,284.4 431.4,287.6 436.8,289.3 442.1,290.2 447.4,291.4 452.7,292.3 458.0,292.8 463.3,293.6 468.6,294.6 474.0,295.7 479.3,296.8 484.6,297.7 489.9,298.3 495.2,298.8 500.5,299.3 505.9,299.8 511.2,300.4 516.5,300.8 521.8,301.0 527.1,301.4 532.4,301.9 537.7,302.4 543.1,302.6 548.4,303.0 553.7,303.3 559.0,303.8 564.3,304.3 569.6,304.7 575.0,305.1 580.3,305.1 585.6,305.3 590.9,305.7 596.2,305.9 601.5,306.1 606.8,306.3 612.2,306.3 617.5,306.5 622.8,306.7 628.1,307.0 633.4,307.2 638.7,307.3 644.1,307.8 649.4,308.5 654.7,308.9 660.0,309.2" fill="none" stroke="var(--link-color)" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/><line x1="107.2" y1="318" x2="107.2" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="160.4" y1="318" x2="160.4" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="213.5" y1="318" x2="213.5" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="266.7" y1="318" x2="266.7" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="319.8" y1="318" x2="319.8" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="373.0" y1="318" x2="373.0" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="426.1" y1="318" x2="426.1" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="479.3" y1="318" x2="479.3" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="532.4" y1="318" x2="532.4" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="585.6" y1="318" x2="585.6" y2="324" stroke="var(--border-color)" stroke-width="1"/><line x1="638.7" y1="318" x2="638.7" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="107.2" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1920</text><text x="213.5" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1940</text><text x="319.8" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1960</text><text x="426.1" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1980</text><text x="532.4" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2000</text><text x="676" y="350" font-size="24" text-anchor="end" fill="var(--text-color)">2024</text><circle cx="70.0" cy="38.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="88" y="44" font-size="25" font-weight="700" fill="var(--text-color)">100 of 100 kept in 1913</text><circle cx="378.3" cy="249.7" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="366" y="284" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">24 of 100 kept in 1971</text><circle cx="660.0" cy="309.2" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="676" y="266" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">3 of 100 kept in 2024</text></svg>
         <details class="disclaimer-note">
         <summary><span class="disclaimer-gist">Source</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
         <div class="disclaimer-body">
@@ -3522,7 +3708,7 @@ draw();
 <div class="btc-evcard" style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 0 20px">
         <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">Income and spending of the United States government, year by year</p>
         <p style="font-size:1rem;line-height:1.55;margin:0 0 12px;color:var(--text-color)">The blue bar is the income of the United States government in one fiscal year — the receipts, the money the United States government took in. The grey bar is the spending of the United States government in the same fiscal year — the outlays, the money the United States government paid out. A fiscal year is the 12 months from October 1 to September 30, named for the calendar year the fiscal year ends in. The red part of a spending bar is the spending above that year’s income. The dark part at the bottom of a spending bar is net interest — the interest the United States government paid on the federal debt, minus the interest the United States government received.</p>
-        <svg viewBox="0 -36 680 398" width="100%" role="img" aria-label="Bar chart. Two bars for each fiscal year from 2000 to 2025: the income of the United States government and the spending of the United States government, in trillions of dollars. The part of a spending bar above that year’s income is red. The dark bottom part of each spending bar is net interest on the federal debt. In the 2000 and 2001 fiscal years the government’s income was above the government’s spending; in every fiscal year from 2002 to 2025, spending was above income. In the 2025 fiscal year the government took in $5.23 trillion and spent $7.01 trillion, and net interest was $0.97 trillion." style="display:block;height:auto;max-width:440px;margin:0 auto"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Trillions of dollars in one fiscal year</text><line x1="58" y1="318.0" x2="668" y2="318.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325.0" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><line x1="58" y1="248.0" x2="668" y2="248.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="255.0" font-size="23" text-anchor="end" fill="var(--subtext-color)">2</text><line x1="58" y1="178.0" x2="668" y2="178.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="185.0" font-size="23" text-anchor="end" fill="var(--subtext-color)">4</text><line x1="58" y1="108.0" x2="668" y2="108.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="115.0" font-size="23" text-anchor="end" fill="var(--subtext-color)">6</text><line x1="58" y1="38.0" x2="668" y2="38.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="45.0" font-size="23" text-anchor="end" fill="var(--subtext-color)">8</text><rect x="59.2" y="247.1" width="9.6" height="70.9" fill="var(--link-color)"/><rect x="70.6" y="310.2" width="9.6" height="7.8" fill="var(--subtext-color)"/><rect x="70.6" y="255.4" width="9.6" height="54.8" fill="var(--subtext-color)" opacity="0.35"/><rect x="82.7" y="248.3" width="9.6" height="69.7" fill="var(--link-color)"/><rect x="94.1" y="310.8" width="9.6" height="7.2" fill="var(--subtext-color)"/><rect x="94.1" y="252.8" width="9.6" height="58.0" fill="var(--subtext-color)" opacity="0.35"/><rect x="106.1" y="253.1" width="9.6" height="64.9" fill="var(--link-color)"/><rect x="117.5" y="312.0" width="9.6" height="6.0" fill="var(--subtext-color)"/><rect x="117.5" y="253.1" width="9.6" height="58.9" fill="var(--subtext-color)" opacity="0.35"/><rect x="117.5" y="247.6" width="9.6" height="5.5" class="usgap-gap"/><rect x="129.6" y="255.6" width="9.6" height="62.4" fill="var(--link-color)"/><rect x="141.0" y="312.6" width="9.6" height="5.4" fill="var(--subtext-color)"/><rect x="141.0" y="255.6" width="9.6" height="57.0" fill="var(--subtext-color)" opacity="0.35"/><rect x="141.0" y="242.4" width="9.6" height="13.2" class="usgap-gap"/><rect x="153.0" y="252.2" width="9.6" height="65.8" fill="var(--link-color)"/><rect x="164.4" y="312.4" width="9.6" height="5.6" fill="var(--subtext-color)"/><rect x="164.4" y="252.2" width="9.6" height="60.2" fill="var(--subtext-color)" opacity="0.35"/><rect x="164.4" y="237.8" width="9.6" height="14.4" class="usgap-gap"/><rect x="176.5" y="242.6" width="9.6" height="75.4" fill="var(--link-color)"/><rect x="187.9" y="311.6" width="9.6" height="6.4" fill="var(--subtext-color)"/><rect x="187.9" y="242.7" width="9.6" height="68.9" fill="var(--subtext-color)" opacity="0.35"/><rect x="187.9" y="231.6" width="9.6" height="11.1" class="usgap-gap"/><rect x="200.0" y="233.8" width="9.6" height="84.2" fill="var(--link-color)"/><rect x="211.4" y="310.1" width="9.6" height="7.9" fill="var(--subtext-color)"/><rect x="211.4" y="233.8" width="9.6" height="76.3" fill="var(--subtext-color)" opacity="0.35"/><rect x="211.4" y="225.1" width="9.6" height="8.7" class="usgap-gap"/><rect x="223.4" y="228.1" width="9.6" height="89.9" fill="var(--link-color)"/><rect x="234.8" y="309.7" width="9.6" height="8.3" fill="var(--subtext-color)"/><rect x="234.8" y="228.1" width="9.6" height="81.6" fill="var(--subtext-color)" opacity="0.35"/><rect x="234.8" y="222.5" width="9.6" height="5.6" class="usgap-gap"/><rect x="246.9" y="229.7" width="9.6" height="88.3" fill="var(--link-color)"/><rect x="258.3" y="309.2" width="9.6" height="8.8" fill="var(--subtext-color)"/><rect x="258.3" y="229.7" width="9.6" height="79.5" fill="var(--subtext-color)" opacity="0.35"/><rect x="258.3" y="213.7" width="9.6" height="16.0" class="usgap-gap"/><rect x="270.4" y="244.3" width="9.6" height="73.7" fill="var(--link-color)"/><rect x="281.8" y="311.5" width="9.6" height="6.5" fill="var(--subtext-color)"/><rect x="281.8" y="244.4" width="9.6" height="67.1" fill="var(--subtext-color)" opacity="0.35"/><rect x="281.8" y="195.0" width="9.6" height="49.4" class="usgap-gap"/><rect x="293.8" y="242.3" width="9.6" height="75.7" fill="var(--link-color)"/><rect x="305.2" y="311.1" width="9.6" height="6.9" fill="var(--subtext-color)"/><rect x="305.2" y="242.3" width="9.6" height="68.8" fill="var(--subtext-color)" opacity="0.35"/><rect x="305.2" y="197.0" width="9.6" height="45.3" class="usgap-gap"/><rect x="317.3" y="237.4" width="9.6" height="80.6" fill="var(--link-color)"/><rect x="328.7" y="309.9" width="9.6" height="8.1" fill="var(--subtext-color)"/><rect x="328.7" y="237.3" width="9.6" height="72.6" fill="var(--subtext-color)" opacity="0.35"/><rect x="328.7" y="191.8" width="9.6" height="45.5" class="usgap-gap"/><rect x="340.7" y="232.2" width="9.6" height="85.8" fill="var(--link-color)"/><rect x="352.1" y="310.3" width="9.6" height="7.7" fill="var(--subtext-color)"/><rect x="352.1" y="232.3" width="9.6" height="78.0" fill="var(--subtext-color)" opacity="0.35"/><rect x="352.1" y="194.6" width="9.6" height="37.7" class="usgap-gap"/><rect x="364.2" y="220.9" width="9.6" height="97.1" fill="var(--link-color)"/><rect x="375.6" y="310.3" width="9.6" height="7.7" fill="var(--subtext-color)"/><rect x="375.6" y="220.9" width="9.6" height="89.4" fill="var(--subtext-color)" opacity="0.35"/><rect x="375.6" y="197.1" width="9.6" height="23.8" class="usgap-gap"/><rect x="387.7" y="212.2" width="9.6" height="105.8" fill="var(--link-color)"/><rect x="399.1" y="310.0" width="9.6" height="8.0" fill="var(--subtext-color)"/><rect x="399.1" y="212.3" width="9.6" height="97.7" fill="var(--subtext-color)" opacity="0.35"/><rect x="399.1" y="195.3" width="9.6" height="17.0" class="usgap-gap"/><rect x="411.1" y="204.3" width="9.6" height="113.7" fill="var(--link-color)"/><rect x="422.5" y="310.2" width="9.6" height="7.8" fill="var(--subtext-color)"/><rect x="422.5" y="204.3" width="9.6" height="105.9" fill="var(--subtext-color)" opacity="0.35"/><rect x="422.5" y="188.9" width="9.6" height="15.4" class="usgap-gap"/><rect x="434.6" y="203.7" width="9.6" height="114.3" fill="var(--link-color)"/><rect x="446.0" y="309.6" width="9.6" height="8.4" fill="var(--subtext-color)"/><rect x="446.0" y="203.7" width="9.6" height="105.9" fill="var(--subtext-color)" opacity="0.35"/><rect x="446.0" y="183.1" width="9.6" height="20.6" class="usgap-gap"/><rect x="458.0" y="202.0" width="9.6" height="116.0" fill="var(--link-color)"/><rect x="469.4" y="308.8" width="9.6" height="9.2" fill="var(--subtext-color)"/><rect x="469.4" y="202.0" width="9.6" height="106.8" fill="var(--subtext-color)" opacity="0.35"/><rect x="469.4" y="178.7" width="9.6" height="23.3" class="usgap-gap"/><rect x="481.5" y="201.5" width="9.6" height="116.5" fill="var(--link-color)"/><rect x="492.9" y="306.6" width="9.6" height="11.4" fill="var(--subtext-color)"/><rect x="492.9" y="201.5" width="9.6" height="105.1" fill="var(--subtext-color)" opacity="0.35"/><rect x="492.9" y="174.2" width="9.6" height="27.3" class="usgap-gap"/><rect x="505.0" y="196.8" width="9.6" height="121.2" fill="var(--link-color)"/><rect x="516.4" y="304.9" width="9.6" height="13.1" fill="var(--subtext-color)"/><rect x="516.4" y="196.9" width="9.6" height="108.0" fill="var(--subtext-color)" opacity="0.35"/><rect x="516.4" y="162.4" width="9.6" height="34.5" class="usgap-gap"/><rect x="528.4" y="198.3" width="9.6" height="119.7" fill="var(--link-color)"/><rect x="539.8" y="305.9" width="9.6" height="12.1" fill="var(--subtext-color)"/><rect x="539.8" y="198.3" width="9.6" height="107.6" fill="var(--subtext-color)" opacity="0.35"/><rect x="539.8" y="88.7" width="9.6" height="109.6" class="usgap-gap"/><rect x="551.9" y="176.4" width="9.6" height="141.6" fill="var(--link-color)"/><rect x="563.3" y="305.7" width="9.6" height="12.3" fill="var(--subtext-color)"/><rect x="563.3" y="176.4" width="9.6" height="129.3" fill="var(--subtext-color)" opacity="0.35"/><rect x="563.3" y="79.4" width="9.6" height="97.0" class="usgap-gap"/><rect x="575.4" y="146.6" width="9.6" height="171.4" fill="var(--link-color)"/><rect x="586.8" y="301.4" width="9.6" height="16.6" fill="var(--subtext-color)"/><rect x="586.8" y="146.7" width="9.6" height="154.7" fill="var(--subtext-color)" opacity="0.35"/><rect x="586.8" y="98.6" width="9.6" height="48.1" class="usgap-gap"/><rect x="598.8" y="162.6" width="9.6" height="155.4" fill="var(--link-color)"/><rect x="610.2" y="294.9" width="9.6" height="23.1" fill="var(--subtext-color)"/><rect x="610.2" y="162.6" width="9.6" height="132.3" fill="var(--subtext-color)" opacity="0.35"/><rect x="610.2" y="103.3" width="9.6" height="59.3" class="usgap-gap"/><rect x="622.3" y="145.8" width="9.6" height="172.2" fill="var(--link-color)"/><rect x="633.7" y="287.1" width="9.6" height="30.9" fill="var(--subtext-color)"/><rect x="633.7" y="145.8" width="9.6" height="141.3" fill="var(--subtext-color)" opacity="0.35"/><rect x="633.7" y="81.6" width="9.6" height="64.2" class="usgap-gap"/><rect x="645.7" y="134.8" width="9.6" height="183.2" fill="var(--link-color)"/><rect x="657.1" y="284.0" width="9.6" height="34.0" fill="var(--subtext-color)"/><rect x="657.1" y="134.8" width="9.6" height="149.2" fill="var(--subtext-color)" opacity="0.35"/><rect x="657.1" y="72.7" width="9.6" height="62.1" class="usgap-gap"/><line x1="69.7" y1="318" x2="69.7" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="69.7" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2000</text><line x1="187.0" y1="318" x2="187.0" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="187.0" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2005</text><line x1="304.3" y1="318" x2="304.3" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="304.3" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2010</text><line x1="421.6" y1="318" x2="421.6" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="421.6" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2015</text><line x1="538.9" y1="318" x2="538.9" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="538.9" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2020</text><line x1="656.2" y1="318" x2="656.2" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="656.2" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2025</text></svg>
+        <svg viewBox="0 -36 680 398" width="100%" role="img" aria-label="Bar chart. Two bars for each fiscal year from 2000 to 2025: the income of the United States government and the spending of the United States government, in trillions of dollars. The part of a spending bar above that year’s income is red. The dark bottom part of each spending bar is net interest on the federal debt. In the 2000 and 2001 fiscal years the government’s income was above the government’s spending; in every fiscal year from 2002 to 2025, spending was above income. In the 2025 fiscal year the government took in $5.23 trillion and spent $7.01 trillion, and net interest was $0.97 trillion." style="display:block;height:auto;margin:0 auto"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Trillions of dollars in one fiscal year</text><line x1="58" y1="318.0" x2="668" y2="318.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325.0" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><line x1="58" y1="248.0" x2="668" y2="248.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="255.0" font-size="23" text-anchor="end" fill="var(--subtext-color)">2</text><line x1="58" y1="178.0" x2="668" y2="178.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="185.0" font-size="23" text-anchor="end" fill="var(--subtext-color)">4</text><line x1="58" y1="108.0" x2="668" y2="108.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="115.0" font-size="23" text-anchor="end" fill="var(--subtext-color)">6</text><line x1="58" y1="38.0" x2="668" y2="38.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="45.0" font-size="23" text-anchor="end" fill="var(--subtext-color)">8</text><rect x="59.2" y="247.1" width="9.6" height="70.9" fill="var(--link-color)"/><rect x="70.6" y="310.2" width="9.6" height="7.8" fill="var(--subtext-color)"/><rect x="70.6" y="255.4" width="9.6" height="54.8" fill="var(--subtext-color)" opacity="0.35"/><rect x="82.7" y="248.3" width="9.6" height="69.7" fill="var(--link-color)"/><rect x="94.1" y="310.8" width="9.6" height="7.2" fill="var(--subtext-color)"/><rect x="94.1" y="252.8" width="9.6" height="58.0" fill="var(--subtext-color)" opacity="0.35"/><rect x="106.1" y="253.1" width="9.6" height="64.9" fill="var(--link-color)"/><rect x="117.5" y="312.0" width="9.6" height="6.0" fill="var(--subtext-color)"/><rect x="117.5" y="253.1" width="9.6" height="58.9" fill="var(--subtext-color)" opacity="0.35"/><rect x="117.5" y="247.6" width="9.6" height="5.5" class="usgap-gap"/><rect x="129.6" y="255.6" width="9.6" height="62.4" fill="var(--link-color)"/><rect x="141.0" y="312.6" width="9.6" height="5.4" fill="var(--subtext-color)"/><rect x="141.0" y="255.6" width="9.6" height="57.0" fill="var(--subtext-color)" opacity="0.35"/><rect x="141.0" y="242.4" width="9.6" height="13.2" class="usgap-gap"/><rect x="153.0" y="252.2" width="9.6" height="65.8" fill="var(--link-color)"/><rect x="164.4" y="312.4" width="9.6" height="5.6" fill="var(--subtext-color)"/><rect x="164.4" y="252.2" width="9.6" height="60.2" fill="var(--subtext-color)" opacity="0.35"/><rect x="164.4" y="237.8" width="9.6" height="14.4" class="usgap-gap"/><rect x="176.5" y="242.6" width="9.6" height="75.4" fill="var(--link-color)"/><rect x="187.9" y="311.6" width="9.6" height="6.4" fill="var(--subtext-color)"/><rect x="187.9" y="242.7" width="9.6" height="68.9" fill="var(--subtext-color)" opacity="0.35"/><rect x="187.9" y="231.6" width="9.6" height="11.1" class="usgap-gap"/><rect x="200.0" y="233.8" width="9.6" height="84.2" fill="var(--link-color)"/><rect x="211.4" y="310.1" width="9.6" height="7.9" fill="var(--subtext-color)"/><rect x="211.4" y="233.8" width="9.6" height="76.3" fill="var(--subtext-color)" opacity="0.35"/><rect x="211.4" y="225.1" width="9.6" height="8.7" class="usgap-gap"/><rect x="223.4" y="228.1" width="9.6" height="89.9" fill="var(--link-color)"/><rect x="234.8" y="309.7" width="9.6" height="8.3" fill="var(--subtext-color)"/><rect x="234.8" y="228.1" width="9.6" height="81.6" fill="var(--subtext-color)" opacity="0.35"/><rect x="234.8" y="222.5" width="9.6" height="5.6" class="usgap-gap"/><rect x="246.9" y="229.7" width="9.6" height="88.3" fill="var(--link-color)"/><rect x="258.3" y="309.2" width="9.6" height="8.8" fill="var(--subtext-color)"/><rect x="258.3" y="229.7" width="9.6" height="79.5" fill="var(--subtext-color)" opacity="0.35"/><rect x="258.3" y="213.7" width="9.6" height="16.0" class="usgap-gap"/><rect x="270.4" y="244.3" width="9.6" height="73.7" fill="var(--link-color)"/><rect x="281.8" y="311.5" width="9.6" height="6.5" fill="var(--subtext-color)"/><rect x="281.8" y="244.4" width="9.6" height="67.1" fill="var(--subtext-color)" opacity="0.35"/><rect x="281.8" y="195.0" width="9.6" height="49.4" class="usgap-gap"/><rect x="293.8" y="242.3" width="9.6" height="75.7" fill="var(--link-color)"/><rect x="305.2" y="311.1" width="9.6" height="6.9" fill="var(--subtext-color)"/><rect x="305.2" y="242.3" width="9.6" height="68.8" fill="var(--subtext-color)" opacity="0.35"/><rect x="305.2" y="197.0" width="9.6" height="45.3" class="usgap-gap"/><rect x="317.3" y="237.4" width="9.6" height="80.6" fill="var(--link-color)"/><rect x="328.7" y="309.9" width="9.6" height="8.1" fill="var(--subtext-color)"/><rect x="328.7" y="237.3" width="9.6" height="72.6" fill="var(--subtext-color)" opacity="0.35"/><rect x="328.7" y="191.8" width="9.6" height="45.5" class="usgap-gap"/><rect x="340.7" y="232.2" width="9.6" height="85.8" fill="var(--link-color)"/><rect x="352.1" y="310.3" width="9.6" height="7.7" fill="var(--subtext-color)"/><rect x="352.1" y="232.3" width="9.6" height="78.0" fill="var(--subtext-color)" opacity="0.35"/><rect x="352.1" y="194.6" width="9.6" height="37.7" class="usgap-gap"/><rect x="364.2" y="220.9" width="9.6" height="97.1" fill="var(--link-color)"/><rect x="375.6" y="310.3" width="9.6" height="7.7" fill="var(--subtext-color)"/><rect x="375.6" y="220.9" width="9.6" height="89.4" fill="var(--subtext-color)" opacity="0.35"/><rect x="375.6" y="197.1" width="9.6" height="23.8" class="usgap-gap"/><rect x="387.7" y="212.2" width="9.6" height="105.8" fill="var(--link-color)"/><rect x="399.1" y="310.0" width="9.6" height="8.0" fill="var(--subtext-color)"/><rect x="399.1" y="212.3" width="9.6" height="97.7" fill="var(--subtext-color)" opacity="0.35"/><rect x="399.1" y="195.3" width="9.6" height="17.0" class="usgap-gap"/><rect x="411.1" y="204.3" width="9.6" height="113.7" fill="var(--link-color)"/><rect x="422.5" y="310.2" width="9.6" height="7.8" fill="var(--subtext-color)"/><rect x="422.5" y="204.3" width="9.6" height="105.9" fill="var(--subtext-color)" opacity="0.35"/><rect x="422.5" y="188.9" width="9.6" height="15.4" class="usgap-gap"/><rect x="434.6" y="203.7" width="9.6" height="114.3" fill="var(--link-color)"/><rect x="446.0" y="309.6" width="9.6" height="8.4" fill="var(--subtext-color)"/><rect x="446.0" y="203.7" width="9.6" height="105.9" fill="var(--subtext-color)" opacity="0.35"/><rect x="446.0" y="183.1" width="9.6" height="20.6" class="usgap-gap"/><rect x="458.0" y="202.0" width="9.6" height="116.0" fill="var(--link-color)"/><rect x="469.4" y="308.8" width="9.6" height="9.2" fill="var(--subtext-color)"/><rect x="469.4" y="202.0" width="9.6" height="106.8" fill="var(--subtext-color)" opacity="0.35"/><rect x="469.4" y="178.7" width="9.6" height="23.3" class="usgap-gap"/><rect x="481.5" y="201.5" width="9.6" height="116.5" fill="var(--link-color)"/><rect x="492.9" y="306.6" width="9.6" height="11.4" fill="var(--subtext-color)"/><rect x="492.9" y="201.5" width="9.6" height="105.1" fill="var(--subtext-color)" opacity="0.35"/><rect x="492.9" y="174.2" width="9.6" height="27.3" class="usgap-gap"/><rect x="505.0" y="196.8" width="9.6" height="121.2" fill="var(--link-color)"/><rect x="516.4" y="304.9" width="9.6" height="13.1" fill="var(--subtext-color)"/><rect x="516.4" y="196.9" width="9.6" height="108.0" fill="var(--subtext-color)" opacity="0.35"/><rect x="516.4" y="162.4" width="9.6" height="34.5" class="usgap-gap"/><rect x="528.4" y="198.3" width="9.6" height="119.7" fill="var(--link-color)"/><rect x="539.8" y="305.9" width="9.6" height="12.1" fill="var(--subtext-color)"/><rect x="539.8" y="198.3" width="9.6" height="107.6" fill="var(--subtext-color)" opacity="0.35"/><rect x="539.8" y="88.7" width="9.6" height="109.6" class="usgap-gap"/><rect x="551.9" y="176.4" width="9.6" height="141.6" fill="var(--link-color)"/><rect x="563.3" y="305.7" width="9.6" height="12.3" fill="var(--subtext-color)"/><rect x="563.3" y="176.4" width="9.6" height="129.3" fill="var(--subtext-color)" opacity="0.35"/><rect x="563.3" y="79.4" width="9.6" height="97.0" class="usgap-gap"/><rect x="575.4" y="146.6" width="9.6" height="171.4" fill="var(--link-color)"/><rect x="586.8" y="301.4" width="9.6" height="16.6" fill="var(--subtext-color)"/><rect x="586.8" y="146.7" width="9.6" height="154.7" fill="var(--subtext-color)" opacity="0.35"/><rect x="586.8" y="98.6" width="9.6" height="48.1" class="usgap-gap"/><rect x="598.8" y="162.6" width="9.6" height="155.4" fill="var(--link-color)"/><rect x="610.2" y="294.9" width="9.6" height="23.1" fill="var(--subtext-color)"/><rect x="610.2" y="162.6" width="9.6" height="132.3" fill="var(--subtext-color)" opacity="0.35"/><rect x="610.2" y="103.3" width="9.6" height="59.3" class="usgap-gap"/><rect x="622.3" y="145.8" width="9.6" height="172.2" fill="var(--link-color)"/><rect x="633.7" y="287.1" width="9.6" height="30.9" fill="var(--subtext-color)"/><rect x="633.7" y="145.8" width="9.6" height="141.3" fill="var(--subtext-color)" opacity="0.35"/><rect x="633.7" y="81.6" width="9.6" height="64.2" class="usgap-gap"/><rect x="645.7" y="134.8" width="9.6" height="183.2" fill="var(--link-color)"/><rect x="657.1" y="284.0" width="9.6" height="34.0" fill="var(--subtext-color)"/><rect x="657.1" y="134.8" width="9.6" height="149.2" fill="var(--subtext-color)" opacity="0.35"/><rect x="657.1" y="72.7" width="9.6" height="62.1" class="usgap-gap"/><line x1="69.7" y1="318" x2="69.7" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="69.7" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2000</text><line x1="187.0" y1="318" x2="187.0" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="187.0" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2005</text><line x1="304.3" y1="318" x2="304.3" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="304.3" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2010</text><line x1="421.6" y1="318" x2="421.6" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="421.6" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2015</text><line x1="538.9" y1="318" x2="538.9" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="538.9" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2020</text><line x1="656.2" y1="318" x2="656.2" y2="324" stroke="var(--border-color)" stroke-width="1"/><text x="656.2" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2025</text></svg>
         <p style="font-size:0.86rem;line-height:1.5;margin:10px 0 0;color:var(--text-muted, #94a3b8)"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--link-color);margin-right:5px"></span>Income<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--subtext-color);opacity:.35;margin:0 5px 0 14px"></span>Spending<span class="usgap-chip" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 5px 0 14px"></span>Spending above income<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--subtext-color);margin:0 5px 0 14px"></span>Net interest, part of spending</p>
         <p style="font-size:1rem;line-height:1.55;margin:10px 0 0;color:var(--text-color)">The United States government last took in more than the United States government spent in the 2001 fiscal year. In the 2025 fiscal year, the United States government took in $5.23 trillion and spent $7.01 trillion, and $0.97 trillion of the spending was net interest on the federal debt.</p>
         <details class="disclaimer-note">
@@ -3559,7 +3745,7 @@ draw();
         <div class="btc-evcard" style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 0 20px">
             <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">Parts of silver in every 100 parts of Roman coin metal</p>
             <p style="font-size:1rem;line-height:1.55;margin:0 0 12px;color:var(--text-color)">The graph plots the silver content of Rome&rsquo;s standard silver coin &mdash; parts of silver in every 100 parts of coin metal. The number under each date is the pure silver in one coin, in grams; the AD 215 coin held about 2.6 grams of silver and was valued at 2 denarii, so the number under AD 215 is the silver for one denarius of face value, about 1.3 grams. Where the record gives a range for the silver content, the point is plotted at the middle of the range. Every point on the graph is one row of the table in the full record below the graph.</p>
-            <svg viewBox="0 -36 680 422" width="100%" role="img" aria-label="Line graph. Silver content of Rome’s standard silver coin, in parts of silver in every 100 parts of coin metal: about 98 parts under Augustus, with about 3.8 grams of pure silver in one coin; about 93 parts in AD 64, about 3.2 grams; about 50 to 57 parts around AD 200, about 1.7 grams; about 50 parts in AD 215, about 2.6 grams of silver in the coin, about 1.3 grams for each denarius of face value; about 15 parts around AD 260, about 0.45 grams; about 2.5 to 5 parts in the AD 260s, about 0.08 to 0.14 grams." style="display:block;height:auto;max-width:440px;margin:0 auto"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Parts of silver in every 100 parts of coin metal</text><line x1="58" y1="318" x2="668" y2="318" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="248" x2="668" y2="248" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="178" x2="668" y2="178" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="108" x2="668" y2="108" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="38" x2="668" y2="38" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><text x="50" y="185" font-size="23" text-anchor="end" fill="var(--subtext-color)">50</text><text x="50" y="45" font-size="23" text-anchor="end" fill="var(--subtext-color)">100</text><polyline points="70.0,43.6 188.0,57.6 306.0,168.2 424.0,178.0 542.0,276.0 660.0,307.5" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="var(--link-color)"/><text x="676" y="68" font-size="22" font-weight="700" text-anchor="end" fill="var(--text-color)">About 97% of the silver</text><text x="676" y="94" font-size="22" text-anchor="end" fill="var(--text-color)">removed across 250 years</text><circle cx="70" cy="43.6" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="90" y="40" font-size="25" font-weight="700" fill="var(--text-color)">~98%</text><text x="70" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">Augustus</text><text x="70" y="376" font-size="21" text-anchor="middle" fill="var(--subtext-color)">3.8 g</text><circle cx="188" cy="57.6" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="198" y="36" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">~93%</text><text x="188" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">AD 64</text><text x="188" y="376" font-size="21" text-anchor="middle" fill="var(--subtext-color)">3.2 g</text><circle cx="306" cy="168.2" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="306" y="148.2" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">~50–57%</text><text x="306" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">c. AD 200</text><text x="306" y="376" font-size="21" text-anchor="middle" fill="var(--subtext-color)">1.7 g</text><circle cx="424" cy="178.0" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="424" y="158.0" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">~50%</text><text x="424" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">AD 215</text><text x="424" y="376" font-size="21" text-anchor="middle" fill="var(--subtext-color)">1.3 g</text><circle cx="542" cy="276.0" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="542" y="256.0" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">~15%</text><text x="542" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">c. AD 260</text><text x="542" y="376" font-size="21" text-anchor="middle" fill="var(--subtext-color)">0.45 g</text><circle cx="660" cy="307.5" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="676" y="287.5" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">~2.5–5%</text><text x="676" y="350" font-size="24" text-anchor="end" fill="var(--text-color)">AD 260s</text><text x="676" y="376" font-size="21" text-anchor="end" fill="var(--subtext-color)">0.08–0.14 g</text></svg>
+            <svg viewBox="0 -36 680 422" width="100%" role="img" aria-label="Line graph. Silver content of Rome’s standard silver coin, in parts of silver in every 100 parts of coin metal: about 98 parts under Augustus, with about 3.8 grams of pure silver in one coin; about 93 parts in AD 64, about 3.2 grams; about 50 to 57 parts around AD 200, about 1.7 grams; about 50 parts in AD 215, about 2.6 grams of silver in the coin, about 1.3 grams for each denarius of face value; about 15 parts around AD 260, about 0.45 grams; about 2.5 to 5 parts in the AD 260s, about 0.08 to 0.14 grams." style="display:block;height:auto;margin:0 auto"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Parts of silver in every 100 parts of coin metal</text><line x1="58" y1="318" x2="668" y2="318" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="248" x2="668" y2="248" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="178" x2="668" y2="178" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="108" x2="668" y2="108" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="38" x2="668" y2="38" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><text x="50" y="185" font-size="23" text-anchor="end" fill="var(--subtext-color)">50</text><text x="50" y="45" font-size="23" text-anchor="end" fill="var(--subtext-color)">100</text><polyline points="70.0,43.6 188.0,57.6 306.0,168.2 424.0,178.0 542.0,276.0 660.0,307.5" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="var(--link-color)"/><text x="676" y="68" font-size="22" font-weight="700" text-anchor="end" fill="var(--text-color)">About 97% of the silver</text><text x="676" y="94" font-size="22" text-anchor="end" fill="var(--text-color)">removed across 250 years</text><circle cx="70" cy="43.6" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="90" y="40" font-size="25" font-weight="700" fill="var(--text-color)">~98%</text><text x="70" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">Augustus</text><text x="70" y="376" font-size="21" text-anchor="middle" fill="var(--subtext-color)">3.8 g</text><circle cx="188" cy="57.6" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="198" y="36" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">~93%</text><text x="188" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">AD 64</text><text x="188" y="376" font-size="21" text-anchor="middle" fill="var(--subtext-color)">3.2 g</text><circle cx="306" cy="168.2" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="306" y="148.2" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">~50–57%</text><text x="306" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">c. AD 200</text><text x="306" y="376" font-size="21" text-anchor="middle" fill="var(--subtext-color)">1.7 g</text><circle cx="424" cy="178.0" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="424" y="158.0" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">~50%</text><text x="424" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">AD 215</text><text x="424" y="376" font-size="21" text-anchor="middle" fill="var(--subtext-color)">1.3 g</text><circle cx="542" cy="276.0" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="542" y="256.0" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">~15%</text><text x="542" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">c. AD 260</text><text x="542" y="376" font-size="21" text-anchor="middle" fill="var(--subtext-color)">0.45 g</text><circle cx="660" cy="307.5" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="var(--link-color)"/><text x="676" y="287.5" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">~2.5–5%</text><text x="676" y="350" font-size="24" text-anchor="end" fill="var(--text-color)">AD 260s</text><text x="676" y="376" font-size="21" text-anchor="end" fill="var(--subtext-color)">0.08–0.14 g</text></svg>
         </div>
         <p class="btc-record-fact">Across roughly 250 years, the silver in Rome's standard silver coin fell from about 98 parts in 100 to about 2.5 parts in 100 — a loss of roughly 97% of the coin's fine silver per unit of face value. The first cut was Nero's, in AD 64; the collapse to a silver-washed bronze coin came in the AD 260s.</p>
         <details class="disclaimer-note">
@@ -3591,7 +3777,7 @@ draw();
         <div class="btc-evcard" style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 0 20px">
             <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">Gold content of the solidus, in carats out of 24</p>
             <p style="font-size:1rem;line-height:1.55;margin:0 0 12px;color:var(--text-color)">The solidus held about 24 carats from AD 312 to the 1030s &mdash; roughly 700 years &mdash; then fell to 8 carats by 1081. Every point on the graph is one row of the table in the full record below the graph, except the table&rsquo;s last row: Alexios I (1081&ndash;1092) is not plotted, because the table gives that row as a range, 0 to 8 carats, and the solidus was abolished in 1092.</p>
-            <svg viewBox="0 -36 680 406" width="100%" role="img" aria-label="Step graph. Gold content of the solidus, in carats out of 24: about 24 carats from AD 312 to the 1030s, then about 21 carats in 1042, about 18 in 1059, about 16 in 1068, about 14 in 1071, and about 8 in 1078." style="display:block;height:auto;max-width:440px;margin:0 auto"><text x="104" y="-12" font-size="21" fill="var(--subtext-color)">Gold content, in carats out of 24</text><line x1="104" y1="326.0" x2="668" y2="326.0" stroke="var(--border-color)" stroke-width="1"/><text x="96" y="333.0" font-size="21" text-anchor="end" fill="var(--subtext-color)">0 carats</text><line x1="104" y1="229.3" x2="668" y2="229.3" stroke="var(--border-color)" stroke-width="1"/><text x="96" y="236.3" font-size="21" text-anchor="end" fill="var(--subtext-color)">8 carats</text><line x1="104" y1="132.7" x2="668" y2="132.7" stroke="var(--border-color)" stroke-width="1"/><text x="96" y="139.7" font-size="21" text-anchor="end" fill="var(--subtext-color)">16 carats</text><line x1="104" y1="36.0" x2="668" y2="36.0" stroke="var(--border-color)" stroke-width="1"/><text x="96" y="43.0" font-size="21" text-anchor="end" fill="var(--subtext-color)">24 carats</text><path d="M 108 42.0 H 201 V 42.0 H 294 V 72.2 H 387 V 108.5 H 480 V 132.7 H 573 V 156.8 H 666 V 229.3" fill="none" stroke="var(--link-color)" stroke-width="3.5" stroke-linejoin="round"/><circle cx="108" cy="42.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="108" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">c. 312</text><circle cx="201" cy="42.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="201" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">1030s</text><circle cx="294" cy="72.2" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="294" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">1042</text><circle cx="387" cy="108.5" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="387" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">1059</text><circle cx="480" cy="132.7" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="480" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">1068</text><circle cx="573" cy="156.8" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="573" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">1071</text><circle cx="666" cy="229.3" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="676" y="358" font-size="23" text-anchor="end" fill="var(--text-color)">1078</text><text x="150" y="70.0" font-size="24" font-weight="700" fill="var(--text-color)">~24</text><text x="312" y="100.2" font-size="24" font-weight="700" fill="var(--text-color)">~21</text><text x="405" y="136.5" font-size="24" font-weight="700" fill="var(--text-color)">~18</text><text x="498" y="160.7" font-size="24" font-weight="700" fill="var(--text-color)">~16</text><text x="591" y="184.8" font-size="24" font-weight="700" fill="var(--text-color)">~14</text><text x="650" y="236.3" font-size="24" font-weight="700" text-anchor="end" fill="var(--text-color)">~8</text></svg>
+            <svg viewBox="0 -36 680 406" width="100%" role="img" aria-label="Step graph. Gold content of the solidus, in carats out of 24: about 24 carats from AD 312 to the 1030s, then about 21 carats in 1042, about 18 in 1059, about 16 in 1068, about 14 in 1071, and about 8 in 1078." style="display:block;height:auto;margin:0 auto"><text x="104" y="-12" font-size="21" fill="var(--subtext-color)">Gold content, in carats out of 24</text><line x1="104" y1="326.0" x2="668" y2="326.0" stroke="var(--border-color)" stroke-width="1"/><text x="96" y="333.0" font-size="21" text-anchor="end" fill="var(--subtext-color)">0 carats</text><line x1="104" y1="229.3" x2="668" y2="229.3" stroke="var(--border-color)" stroke-width="1"/><text x="96" y="236.3" font-size="21" text-anchor="end" fill="var(--subtext-color)">8 carats</text><line x1="104" y1="132.7" x2="668" y2="132.7" stroke="var(--border-color)" stroke-width="1"/><text x="96" y="139.7" font-size="21" text-anchor="end" fill="var(--subtext-color)">16 carats</text><line x1="104" y1="36.0" x2="668" y2="36.0" stroke="var(--border-color)" stroke-width="1"/><text x="96" y="43.0" font-size="21" text-anchor="end" fill="var(--subtext-color)">24 carats</text><path d="M 108 42.0 H 201 V 42.0 H 294 V 72.2 H 387 V 108.5 H 480 V 132.7 H 573 V 156.8 H 666 V 229.3" fill="none" stroke="var(--link-color)" stroke-width="3.5" stroke-linejoin="round"/><circle cx="108" cy="42.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="108" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">c. 312</text><circle cx="201" cy="42.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="201" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">1030s</text><circle cx="294" cy="72.2" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="294" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">1042</text><circle cx="387" cy="108.5" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="387" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">1059</text><circle cx="480" cy="132.7" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="480" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">1068</text><circle cx="573" cy="156.8" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="573" y="358" font-size="23" text-anchor="middle" fill="var(--text-color)">1071</text><circle cx="666" cy="229.3" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="676" y="358" font-size="23" text-anchor="end" fill="var(--text-color)">1078</text><text x="150" y="70.0" font-size="24" font-weight="700" fill="var(--text-color)">~24</text><text x="312" y="100.2" font-size="24" font-weight="700" fill="var(--text-color)">~21</text><text x="405" y="136.5" font-size="24" font-weight="700" fill="var(--text-color)">~18</text><text x="498" y="160.7" font-size="24" font-weight="700" fill="var(--text-color)">~16</text><text x="591" y="184.8" font-size="24" font-weight="700" fill="var(--text-color)">~14</text><text x="650" y="236.3" font-size="24" font-weight="700" text-anchor="end" fill="var(--text-color)">~8</text></svg>
         </div>
         <p class="btc-record-fact">The solidus held its weight and its near-pure gold fineness for roughly 700 years — the longest-lived sound coin in this record. Debasement began only in the 1030s–1040s, and once debasement began, the coin lost about two-thirds of its gold fineness in about 50 years. The money that was not debased did not lose value; the losses start in the same decade the cutting starts.</p>
         <details class="disclaimer-note">
@@ -3646,7 +3832,7 @@ draw();
         <div class="btc-evcard" style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 0 20px">
             <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">Parts of silver in every 100 parts of English coin metal</p>
             <p style="font-size:1rem;line-height:1.55;margin:0 0 12px;color:var(--text-color)">English coin held the sterling standard — 92.5 parts of silver in every 100 parts of coin metal — from the 12th century until 1544. From 1544 to 1551 the silver in English coin fell to 25 parts in every 100 parts of coin metal. Every point on the graph is one row of the table in the full record below the graph.</p>
-            <svg viewBox="0 -36 680 398" width="100%" role="img" aria-label="Line graph. Silver content of English coin, in parts of silver in every 100 parts of coin metal: 92.5 parts before 1544, about 75 parts in 1544, 50 parts in 1545, 33.3 parts in 1546, and 25 parts in 1551." style="display:block;height:auto;max-width:440px;margin:0 auto"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Parts of silver in every 100 parts of coin metal</text><line x1="58" y1="318" x2="668" y2="318" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="248" x2="668" y2="248" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="178" x2="668" y2="178" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="108" x2="668" y2="108" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="38" x2="668" y2="38" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><text x="50" y="185" font-size="23" text-anchor="end" fill="var(--subtext-color)">50</text><text x="50" y="45" font-size="23" text-anchor="end" fill="var(--subtext-color)">100</text><polyline points="70,59.0 217.5,108.0 365,178.0 512.5,224.8 660,248.0" fill="none" stroke="var(--link-color)" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/><text x="676" y="68" font-size="22" font-weight="700" text-anchor="end" fill="var(--text-color)">About three quarters of the silver</text><text x="676" y="94" font-size="22" text-anchor="end" fill="var(--text-color)">removed in seven years</text><circle cx="70" cy="59.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="88" y="45" font-size="25" font-weight="700" fill="var(--text-color)">92.5%</text><text x="70" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">Before 1544</text><circle cx="217.5" cy="108.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="217.5" y="88.0" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">~75%</text><text x="217.5" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1544</text><circle cx="365" cy="178.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="365" y="158.0" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">50%</text><text x="365" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1545</text><circle cx="512.5" cy="224.8" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="512.5" y="204.8" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">33.3%</text><text x="512.5" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1546</text><circle cx="660" cy="248.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="676" y="228.0" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">25%</text><text x="676" y="350" font-size="24" text-anchor="end" fill="var(--text-color)">1551</text></svg>
+            <svg viewBox="0 -36 680 398" width="100%" role="img" aria-label="Line graph. Silver content of English coin, in parts of silver in every 100 parts of coin metal: 92.5 parts before 1544, about 75 parts in 1544, 50 parts in 1545, 33.3 parts in 1546, and 25 parts in 1551." style="display:block;height:auto;margin:0 auto"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Parts of silver in every 100 parts of coin metal</text><line x1="58" y1="318" x2="668" y2="318" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="248" x2="668" y2="248" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="178" x2="668" y2="178" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="108" x2="668" y2="108" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="38" x2="668" y2="38" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><text x="50" y="185" font-size="23" text-anchor="end" fill="var(--subtext-color)">50</text><text x="50" y="45" font-size="23" text-anchor="end" fill="var(--subtext-color)">100</text><polyline points="70,59.0 217.5,108.0 365,178.0 512.5,224.8 660,248.0" fill="none" stroke="var(--link-color)" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/><text x="676" y="68" font-size="22" font-weight="700" text-anchor="end" fill="var(--text-color)">About three quarters of the silver</text><text x="676" y="94" font-size="22" text-anchor="end" fill="var(--text-color)">removed in seven years</text><circle cx="70" cy="59.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="88" y="45" font-size="25" font-weight="700" fill="var(--text-color)">92.5%</text><text x="70" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">Before 1544</text><circle cx="217.5" cy="108.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="217.5" y="88.0" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">~75%</text><text x="217.5" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1544</text><circle cx="365" cy="178.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="365" y="158.0" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">50%</text><text x="365" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1545</text><circle cx="512.5" cy="224.8" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="512.5" y="204.8" font-size="25" font-weight="700" text-anchor="middle" fill="var(--text-color)">33.3%</text><text x="512.5" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1546</text><circle cx="660" cy="248.0" r="5.5" fill="var(--link-color)" stroke="var(--bg-color)" stroke-width="1.5"/><text x="676" y="228.0" font-size="25" font-weight="700" text-anchor="end" fill="var(--text-color)">25%</text><text x="676" y="350" font-size="24" text-anchor="end" fill="var(--text-color)">1551</text></svg>
         </div>
         <p class="btc-record-fact">In seven years the English Crown cut the silver in England's coins from 92.5 percent to 25 percent — the coins kept the same face value and the same royal portrait while about three quarters of the silver was removed.</p>
         <details class="disclaimer-note">
@@ -3698,7 +3884,7 @@ draw();
         <div class="btc-evcard" style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 0 20px">
             <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">Buying power kept out of 100 since 1971 &mdash; the yen and the Swiss franc</p>
             <p style="font-size:1rem;line-height:1.55;margin:0 0 12px;color:var(--text-color)">Each line is one currency&rsquo;s buying power, out of 100 in 1971: 100 &times; the currency&rsquo;s consumer price index in 1971 &divide; the consumer price index of the year. The yen&rsquo;s index is the Statistics Bureau of Japan&rsquo;s Consumer Price Index (2020 = 100); the franc&rsquo;s index is the Swiss Federal Statistical Office&rsquo;s National Consumer Price Index (2015 = 100). The pound and the euro are in the table in the full record below the graph.</p>
-            <svg viewBox="0 0 680 362" width="100%" role="img" aria-label="Line chart. Buying power kept out of 100 in 1971, for every year from 1971 to 2024. Both lines start at 100 of 100 in 1971. The Swiss franc kept 33.7 of 100 by 2024. The Japanese yen kept 30.3 of 100 by 2024." style="display:block;height:auto;max-width:440px;margin:0 auto"><line x1="58" y1="318" x2="668" y2="318" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="248" x2="668" y2="248" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="178" x2="668" y2="178" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="108" x2="668" y2="108" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="38" x2="668" y2="38" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><text x="50" y="185" font-size="23" text-anchor="end" fill="var(--subtext-color)">50</text><text x="50" y="45" font-size="23" text-anchor="end" fill="var(--subtext-color)">100</text><polyline points="58.0,38.0 65.2,51.0 72.4,79.3 79.6,124.1 86.8,144.5 94.0,159.4 101.2,171.3 108.5,177.4 115.7,182.3 122.9,192.2 130.1,197.9 137.3,201.2 144.5,203.3 151.7,205.9 158.9,208.1 166.1,208.7 173.3,208.9 180.5,209.6 187.7,212.0 194.9,215.2 202.2,218.5 209.4,220.1 216.6,221.4 223.8,222.0 231.0,221.9 238.2,222.0 245.4,223.7 252.6,224.3 259.8,224.0 267.0,223.3 274.2,222.7 281.4,221.8 288.6,221.5 295.8,221.5 303.1,221.2 310.3,221.5 317.5,221.5 324.7,222.8 331.9,221.5 339.1,220.8 346.3,220.5 353.5,220.5 360.7,220.9 367.9,223.5 375.1,224.2 382.3,224.1 389.5,224.6 396.8,225.4 404.0,225.9 411.2,225.9 418.4,225.7 425.6,228.0 432.8,230.8 440.0,233.1" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#f59e0b"/><polyline points="58.0,38.0 65.2,55.5 72.4,76.6 79.6,98.1 86.8,111.9 94.0,115.4 101.2,118.0 108.5,120.0 115.7,127.0 122.9,134.4 130.1,145.5 137.3,154.8 144.5,159.5 151.7,164.0 158.9,169.1 166.1,170.2 173.3,172.3 180.5,175.0 187.7,179.3 194.9,186.5 202.2,193.7 209.4,198.6 216.6,202.4 223.8,203.3 231.0,205.4 238.2,206.3 245.4,206.9 252.6,206.9 259.8,207.8 267.0,209.5 274.2,210.5 281.4,211.2 288.6,211.9 295.8,212.7 303.1,213.9 310.3,215.0 317.5,215.8 324.7,218.2 331.9,217.7 339.1,218.4 346.3,218.6 353.5,217.9 360.7,217.7 367.9,217.7 375.1,216.6 382.3,216.1 389.5,216.7 396.8,217.6 404.0,218.0 411.2,217.2 418.4,217.8 425.6,220.6 432.8,222.6 440.0,223.6" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#38bdf8"/><circle cx="58" cy="38" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="#38bdf8"/><text x="78" y="46" font-size="22" font-weight="700" fill="var(--text-color)">100 of 100 kept in 1971</text><circle cx="440" cy="223.6" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="#38bdf8"/><circle cx="440" cy="233.1" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="#f59e0b"/><text x="452" y="206" font-size="22" font-weight="700" fill="#38bdf8">Swiss franc</text><text x="452" y="230" font-size="20" fill="var(--text-color)">33.7 of 100 kept in 2024</text><text x="452" y="262" font-size="22" font-weight="700" fill="#f59e0b">Japanese yen</text><text x="452" y="286" font-size="20" fill="var(--text-color)">30.3 of 100 kept in 2024</text><text x="58.0" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1971</text><text x="158.9" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1985</text><text x="267.0" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2000</text><text x="339.1" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2010</text><text x="440.0" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2024</text></svg>
+            <svg viewBox="0 0 680 362" width="100%" role="img" aria-label="Line chart. Buying power kept out of 100 in 1971, for every year from 1971 to 2024. Both lines start at 100 of 100 in 1971. The Swiss franc kept 33.7 of 100 by 2024. The Japanese yen kept 30.3 of 100 by 2024." style="display:block;height:auto;margin:0 auto"><line x1="58" y1="318" x2="668" y2="318" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="248" x2="668" y2="248" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="178" x2="668" y2="178" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="108" x2="668" y2="108" stroke="var(--border-color)" stroke-width="1"/><line x1="58" y1="38" x2="668" y2="38" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="325" font-size="23" text-anchor="end" fill="var(--subtext-color)">0</text><text x="50" y="185" font-size="23" text-anchor="end" fill="var(--subtext-color)">50</text><text x="50" y="45" font-size="23" text-anchor="end" fill="var(--subtext-color)">100</text><polyline points="58.0,38.0 65.2,51.0 72.4,79.3 79.6,124.1 86.8,144.5 94.0,159.4 101.2,171.3 108.5,177.4 115.7,182.3 122.9,192.2 130.1,197.9 137.3,201.2 144.5,203.3 151.7,205.9 158.9,208.1 166.1,208.7 173.3,208.9 180.5,209.6 187.7,212.0 194.9,215.2 202.2,218.5 209.4,220.1 216.6,221.4 223.8,222.0 231.0,221.9 238.2,222.0 245.4,223.7 252.6,224.3 259.8,224.0 267.0,223.3 274.2,222.7 281.4,221.8 288.6,221.5 295.8,221.5 303.1,221.2 310.3,221.5 317.5,221.5 324.7,222.8 331.9,221.5 339.1,220.8 346.3,220.5 353.5,220.5 360.7,220.9 367.9,223.5 375.1,224.2 382.3,224.1 389.5,224.6 396.8,225.4 404.0,225.9 411.2,225.9 418.4,225.7 425.6,228.0 432.8,230.8 440.0,233.1" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#f59e0b"/><polyline points="58.0,38.0 65.2,55.5 72.4,76.6 79.6,98.1 86.8,111.9 94.0,115.4 101.2,118.0 108.5,120.0 115.7,127.0 122.9,134.4 130.1,145.5 137.3,154.8 144.5,159.5 151.7,164.0 158.9,169.1 166.1,170.2 173.3,172.3 180.5,175.0 187.7,179.3 194.9,186.5 202.2,193.7 209.4,198.6 216.6,202.4 223.8,203.3 231.0,205.4 238.2,206.3 245.4,206.9 252.6,206.9 259.8,207.8 267.0,209.5 274.2,210.5 281.4,211.2 288.6,211.9 295.8,212.7 303.1,213.9 310.3,215.0 317.5,215.8 324.7,218.2 331.9,217.7 339.1,218.4 346.3,218.6 353.5,217.9 360.7,217.7 367.9,217.7 375.1,216.6 382.3,216.1 389.5,216.7 396.8,217.6 404.0,218.0 411.2,217.2 418.4,217.8 425.6,220.6 432.8,222.6 440.0,223.6" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#38bdf8"/><circle cx="58" cy="38" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="#38bdf8"/><text x="78" y="46" font-size="22" font-weight="700" fill="var(--text-color)">100 of 100 kept in 1971</text><circle cx="440" cy="223.6" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="#38bdf8"/><circle cx="440" cy="233.1" r="5.5" stroke="var(--bg-color)" stroke-width="1.5" fill="#f59e0b"/><text x="452" y="206" font-size="22" font-weight="700" fill="#38bdf8">Swiss franc</text><text x="452" y="230" font-size="20" fill="var(--text-color)">33.7 of 100 kept in 2024</text><text x="452" y="262" font-size="22" font-weight="700" fill="#f59e0b">Japanese yen</text><text x="452" y="286" font-size="20" fill="var(--text-color)">30.3 of 100 kept in 2024</text><text x="58.0" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1971</text><text x="158.9" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">1985</text><text x="267.0" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2000</text><text x="339.1" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2010</text><text x="440.0" y="350" font-size="24" text-anchor="middle" fill="var(--text-color)">2024</text></svg>
         </div>
         <p class="btc-record-fact">Since 1971, every major currency in this table lost the majority of its buying power, including the strongest: the Swiss franc, the best-performing major currency of the period, kept only about one third of the franc's 1971 buying power. The pound kept about 6 percent of the pound's 1971 buying power. No major currency in the table kept more than the Swiss franc's third.</p>
         <details class="disclaimer-note">
@@ -3754,7 +3940,7 @@ draw();
     <div class="btc-evcard" style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 0 20px">
         <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">The price of six weekly-basket items, year by year</p>
         <p style="font-size:1rem;line-height:1.55;margin:0 0 12px;color:var(--text-color)">Each line is one item&rsquo;s price, set to 100 in the first year the Bureau of Labor Statistics recorded the item&rsquo;s price &mdash; 1980 for eggs, bread, gasoline, and electricity, 1984 for ground beef, and 1996 for whole milk &mdash; and rising from there: a line at 300 means the item costs 3 times the item&rsquo;s first recorded price. Every point is the Bureau&rsquo;s annual average of the Bureau&rsquo;s monthly recorded prices for that item. The table in the full record below the graph gives the first recorded price and the 2024 price of each item.</p>
-        <svg viewBox="0 -36 680 428" width="100%" role="img" aria-label="Line chart. The price of six weekly-basket items, each item set to 100 in the first year the Bureau of Labor Statistics recorded the item’s price, for every year to 2024. Ground beef, from 1984, ends at about 419, 4.2 times its 1984 price. White bread ends at about 387, 3.9 times its 1980 price. Eggs end at about 376, 3.8 times the 1980 price. Electricity ends at about 293, 2.9 times the 1980 price. Gasoline ends at about 277, 2.8 times the 1980 price. Whole milk, from 1996, ends at about 152, 1.5 times its 1996 price." style="display:block;height:auto;max-width:440px;margin:0 auto"><text x="70" y="-12" font-size="21" fill="var(--subtext-color)">Each item&rsquo;s price, set to 100 in its first recorded year</text><line x1="70" y1="330.0" x2="470" y2="330.0" stroke="var(--border-color)" stroke-width="1"/><text x="62" y="337.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">0</text><line x1="70" y1="268.0" x2="470" y2="268.0" stroke="var(--border-color)" stroke-width="1"/><text x="62" y="275.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">100</text><line x1="70" y1="206.0" x2="470" y2="206.0" stroke="var(--border-color)" stroke-width="1"/><text x="62" y="213.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">200</text><line x1="70" y1="144.0" x2="470" y2="144.0" stroke="var(--border-color)" stroke-width="1"/><text x="62" y="151.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">300</text><line x1="70" y1="82.0" x2="470" y2="82.0" stroke="var(--border-color)" stroke-width="1"/><text x="62" y="89.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">400</text><polyline points="70.0,268.0 79.1,264.0 88.2,266.3 97.3,264.3 106.4,256.2 115.5,271.0 124.5,266.1 133.6,272.5 142.7,272.0 151.8,256.7 160.9,255.5 170.0,257.3 179.1,266.8 188.2,263.0 197.3,266.6 206.4,262.1 215.5,248.7 224.5,252.2 233.6,253.8 242.7,259.5 251.8,262.9 260.9,261.7 270.0,254.2 279.1,238.6 288.2,231.6 297.3,240.5 306.4,234.0 315.5,206.8 324.5,184.0 333.6,207.7 342.7,208.1 351.8,200.0 360.9,195.0 370.0,189.7 379.1,181.7 388.2,148.6 397.3,206.2 406.4,222.2 415.5,202.0 424.5,227.4 433.6,219.4 442.7,207.0 451.8,120.1 460.9,124.5 470.0,97.0" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#f59e0b"/><circle cx="70.0" cy="268.0" r="5" fill="#f59e0b" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="97.0" r="5" fill="#f59e0b" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="70.0,268.0 79.1,266.0 88.2,265.1 97.3,264.0 106.4,264.0 115.5,262.6 124.5,261.2 133.6,263.3 142.7,255.3 151.8,248.9 160.9,245.4 170.0,243.5 179.1,238.6 188.2,238.4 197.3,237.3 206.4,233.6 215.5,223.3 224.5,223.7 233.6,225.2 242.7,221.9 251.8,216.7 260.9,208.3 270.0,206.2 279.1,208.0 288.2,211.9 297.3,203.2 306.4,198.3 315.5,182.9 324.5,163.5 333.6,160.9 342.7,162.7 351.8,154.0 360.9,157.2 370.0,158.6 379.1,159.3 388.2,154.4 397.3,162.9 406.4,167.6 415.5,173.3 424.5,171.9 433.6,153.1 442.7,144.3 451.8,122.8 460.9,91.2 470.0,89.9" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#38bdf8"/><circle cx="70.0" cy="268.0" r="5" fill="#38bdf8" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="89.9" r="5" fill="#38bdf8" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="106.4,268.0 115.5,270.4 124.5,270.7 133.6,266.9 142.7,264.3 151.8,260.6 160.9,253.5 170.0,253.2 179.1,255.8 188.2,254.4 197.3,258.9 206.4,264.1 215.5,264.1 224.5,262.7 233.6,262.0 242.7,260.0 251.8,254.4 260.9,247.4 270.0,247.5 279.1,236.1 288.2,226.0 297.3,219.4 306.4,223.0 315.5,219.3 324.5,217.1 333.6,223.0 342.7,216.0 351.8,196.3 360.9,184.1 370.0,166.2 379.1,142.3 388.2,129.3 397.3,149.4 406.4,154.5 415.5,151.0 424.5,146.7 433.6,131.8 442.7,121.5 451.8,98.3 460.9,88.2 470.0,70.2" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#fb7185"/><circle cx="106.4" cy="268.0" r="5" fill="#fb7185" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="70.2" r="5" fill="#fb7185" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="70.0,268.0 79.1,261.4 88.2,265.5 97.3,268.2 106.4,269.6 115.5,270.2 124.5,283.8 133.6,282.8 142.7,282.9 151.8,279.1 160.9,272.0 170.0,273.2 179.1,273.9 188.2,274.8 197.3,274.6 206.4,272.9 215.5,268.7 224.5,268.6 233.6,277.3 242.7,272.0 251.8,254.8 260.9,257.3 270.0,262.4 279.1,250.8 288.2,236.4 297.3,215.7 306.4,201.1 315.5,190.6 324.5,167.4 333.6,213.0 342.7,191.2 351.8,154.4 360.9,148.6 370.0,154.4 379.1,162.3 388.2,208.1 397.3,223.4 406.4,210.1 415.5,193.8 424.5,198.7 433.6,221.7 442.7,178.1 451.8,126.2 460.9,147.9 470.0,158.3" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#a78bfa"/><circle cx="70.0" cy="268.0" r="5" fill="#a78bfa" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="158.3" r="5" fill="#a78bfa" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="70.0,268.0 79.1,258.4 88.2,251.4 97.3,249.1 106.4,245.5 115.5,246.0 124.5,250.8 133.6,248.4 142.7,247.3 151.8,245.5 160.9,243.5 170.0,240.4 179.1,239.0 188.2,235.3 197.3,234.9 206.4,233.3 215.5,232.7 224.5,232.6 233.6,240.3 242.7,240.8 251.8,239.9 260.9,234.6 270.0,235.9 279.1,234.1 288.2,232.6 297.3,226.7 306.4,214.0 315.5,209.4 324.5,202.6 333.6,198.6 342.7,198.0 351.8,195.9 360.9,196.1 370.0,193.4 379.1,188.3 388.2,187.3 397.3,190.3 406.4,187.6 415.5,189.2 424.5,189.2 433.6,190.2 442.7,184.5 451.8,166.2 460.9,156.2 470.0,148.4" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#2dd4bf"/><circle cx="70.0" cy="268.0" r="5" fill="#2dd4bf" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="148.4" r="5" fill="#2dd4bf" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="215.5,268.0 224.5,268.2 233.6,266.1 242.7,262.8 251.8,264.3 260.9,261.8 270.0,264.8 279.1,264.7 288.2,255.4 297.3,254.7 306.4,257.2 315.5,247.2 324.5,240.3 333.6,256.5 342.7,253.0 351.8,245.6 360.9,247.5 370.0,248.2 379.1,242.7 388.2,249.2 397.3,254.3 406.4,253.8 415.5,261.6 424.5,258.3 433.6,251.6 442.7,246.2 451.8,233.3 460.9,234.8 470.0,235.8" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#22c55e"/><circle cx="215.5" cy="268.0" r="5" fill="#22c55e" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="235.8" r="5" fill="#22c55e" stroke="var(--bg-color)" stroke-width="1.5"/><text x="474" y="122" font-size="21" font-weight="700" fill="#f59e0b">Eggs · 3.8×</text><text x="474" y="98" font-size="21" font-weight="700" fill="#38bdf8">White bread · 3.9×</text><text x="474" y="74" font-size="21" font-weight="700" fill="#fb7185">Ground beef · 4.2×</text><text x="474" y="176" font-size="21" font-weight="700" fill="#a78bfa">Gasoline · 2.8×</text><text x="474" y="152" font-size="21" font-weight="700" fill="#2dd4bf">Electricity · 2.9×</text><text x="474" y="240" font-size="21" font-weight="700" fill="#22c55e">Whole milk · 1.5×</text><text x="70.0" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">1980</text><text x="160.9" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">1990</text><text x="251.8" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2000</text><text x="342.7" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2010</text><text x="470.0" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2024</text><text x="106.4" y="384" font-size="19" text-anchor="middle" fill="var(--subtext-color)">1984</text><text x="215.5" y="384" font-size="19" text-anchor="middle" fill="var(--subtext-color)">1996</text></svg>
+        <svg viewBox="0 -36 680 428" width="100%" role="img" aria-label="Line chart. The price of six weekly-basket items, each item set to 100 in the first year the Bureau of Labor Statistics recorded the item’s price, for every year to 2024. Ground beef, from 1984, ends at about 419, 4.2 times its 1984 price. White bread ends at about 387, 3.9 times its 1980 price. Eggs end at about 376, 3.8 times the 1980 price. Electricity ends at about 293, 2.9 times the 1980 price. Gasoline ends at about 277, 2.8 times the 1980 price. Whole milk, from 1996, ends at about 152, 1.5 times its 1996 price." style="display:block;height:auto;margin:0 auto"><text x="70" y="-12" font-size="21" fill="var(--subtext-color)">Each item&rsquo;s price, set to 100 in its first recorded year</text><line x1="70" y1="330.0" x2="470" y2="330.0" stroke="var(--border-color)" stroke-width="1"/><text x="62" y="337.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">0</text><line x1="70" y1="268.0" x2="470" y2="268.0" stroke="var(--border-color)" stroke-width="1"/><text x="62" y="275.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">100</text><line x1="70" y1="206.0" x2="470" y2="206.0" stroke="var(--border-color)" stroke-width="1"/><text x="62" y="213.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">200</text><line x1="70" y1="144.0" x2="470" y2="144.0" stroke="var(--border-color)" stroke-width="1"/><text x="62" y="151.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">300</text><line x1="70" y1="82.0" x2="470" y2="82.0" stroke="var(--border-color)" stroke-width="1"/><text x="62" y="89.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">400</text><polyline points="70.0,268.0 79.1,264.0 88.2,266.3 97.3,264.3 106.4,256.2 115.5,271.0 124.5,266.1 133.6,272.5 142.7,272.0 151.8,256.7 160.9,255.5 170.0,257.3 179.1,266.8 188.2,263.0 197.3,266.6 206.4,262.1 215.5,248.7 224.5,252.2 233.6,253.8 242.7,259.5 251.8,262.9 260.9,261.7 270.0,254.2 279.1,238.6 288.2,231.6 297.3,240.5 306.4,234.0 315.5,206.8 324.5,184.0 333.6,207.7 342.7,208.1 351.8,200.0 360.9,195.0 370.0,189.7 379.1,181.7 388.2,148.6 397.3,206.2 406.4,222.2 415.5,202.0 424.5,227.4 433.6,219.4 442.7,207.0 451.8,120.1 460.9,124.5 470.0,97.0" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#f59e0b"/><circle cx="70.0" cy="268.0" r="5" fill="#f59e0b" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="97.0" r="5" fill="#f59e0b" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="70.0,268.0 79.1,266.0 88.2,265.1 97.3,264.0 106.4,264.0 115.5,262.6 124.5,261.2 133.6,263.3 142.7,255.3 151.8,248.9 160.9,245.4 170.0,243.5 179.1,238.6 188.2,238.4 197.3,237.3 206.4,233.6 215.5,223.3 224.5,223.7 233.6,225.2 242.7,221.9 251.8,216.7 260.9,208.3 270.0,206.2 279.1,208.0 288.2,211.9 297.3,203.2 306.4,198.3 315.5,182.9 324.5,163.5 333.6,160.9 342.7,162.7 351.8,154.0 360.9,157.2 370.0,158.6 379.1,159.3 388.2,154.4 397.3,162.9 406.4,167.6 415.5,173.3 424.5,171.9 433.6,153.1 442.7,144.3 451.8,122.8 460.9,91.2 470.0,89.9" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#38bdf8"/><circle cx="70.0" cy="268.0" r="5" fill="#38bdf8" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="89.9" r="5" fill="#38bdf8" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="106.4,268.0 115.5,270.4 124.5,270.7 133.6,266.9 142.7,264.3 151.8,260.6 160.9,253.5 170.0,253.2 179.1,255.8 188.2,254.4 197.3,258.9 206.4,264.1 215.5,264.1 224.5,262.7 233.6,262.0 242.7,260.0 251.8,254.4 260.9,247.4 270.0,247.5 279.1,236.1 288.2,226.0 297.3,219.4 306.4,223.0 315.5,219.3 324.5,217.1 333.6,223.0 342.7,216.0 351.8,196.3 360.9,184.1 370.0,166.2 379.1,142.3 388.2,129.3 397.3,149.4 406.4,154.5 415.5,151.0 424.5,146.7 433.6,131.8 442.7,121.5 451.8,98.3 460.9,88.2 470.0,70.2" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#fb7185"/><circle cx="106.4" cy="268.0" r="5" fill="#fb7185" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="70.2" r="5" fill="#fb7185" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="70.0,268.0 79.1,261.4 88.2,265.5 97.3,268.2 106.4,269.6 115.5,270.2 124.5,283.8 133.6,282.8 142.7,282.9 151.8,279.1 160.9,272.0 170.0,273.2 179.1,273.9 188.2,274.8 197.3,274.6 206.4,272.9 215.5,268.7 224.5,268.6 233.6,277.3 242.7,272.0 251.8,254.8 260.9,257.3 270.0,262.4 279.1,250.8 288.2,236.4 297.3,215.7 306.4,201.1 315.5,190.6 324.5,167.4 333.6,213.0 342.7,191.2 351.8,154.4 360.9,148.6 370.0,154.4 379.1,162.3 388.2,208.1 397.3,223.4 406.4,210.1 415.5,193.8 424.5,198.7 433.6,221.7 442.7,178.1 451.8,126.2 460.9,147.9 470.0,158.3" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#a78bfa"/><circle cx="70.0" cy="268.0" r="5" fill="#a78bfa" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="158.3" r="5" fill="#a78bfa" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="70.0,268.0 79.1,258.4 88.2,251.4 97.3,249.1 106.4,245.5 115.5,246.0 124.5,250.8 133.6,248.4 142.7,247.3 151.8,245.5 160.9,243.5 170.0,240.4 179.1,239.0 188.2,235.3 197.3,234.9 206.4,233.3 215.5,232.7 224.5,232.6 233.6,240.3 242.7,240.8 251.8,239.9 260.9,234.6 270.0,235.9 279.1,234.1 288.2,232.6 297.3,226.7 306.4,214.0 315.5,209.4 324.5,202.6 333.6,198.6 342.7,198.0 351.8,195.9 360.9,196.1 370.0,193.4 379.1,188.3 388.2,187.3 397.3,190.3 406.4,187.6 415.5,189.2 424.5,189.2 433.6,190.2 442.7,184.5 451.8,166.2 460.9,156.2 470.0,148.4" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#2dd4bf"/><circle cx="70.0" cy="268.0" r="5" fill="#2dd4bf" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="148.4" r="5" fill="#2dd4bf" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="215.5,268.0 224.5,268.2 233.6,266.1 242.7,262.8 251.8,264.3 260.9,261.8 270.0,264.8 279.1,264.7 288.2,255.4 297.3,254.7 306.4,257.2 315.5,247.2 324.5,240.3 333.6,256.5 342.7,253.0 351.8,245.6 360.9,247.5 370.0,248.2 379.1,242.7 388.2,249.2 397.3,254.3 406.4,253.8 415.5,261.6 424.5,258.3 433.6,251.6 442.7,246.2 451.8,233.3 460.9,234.8 470.0,235.8" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#22c55e"/><circle cx="215.5" cy="268.0" r="5" fill="#22c55e" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="470.0" cy="235.8" r="5" fill="#22c55e" stroke="var(--bg-color)" stroke-width="1.5"/><text x="474" y="122" font-size="21" font-weight="700" fill="#f59e0b">Eggs · 3.8×</text><text x="474" y="98" font-size="21" font-weight="700" fill="#38bdf8">White bread · 3.9×</text><text x="474" y="74" font-size="21" font-weight="700" fill="#fb7185">Ground beef · 4.2×</text><text x="474" y="176" font-size="21" font-weight="700" fill="#a78bfa">Gasoline · 2.8×</text><text x="474" y="152" font-size="21" font-weight="700" fill="#2dd4bf">Electricity · 2.9×</text><text x="474" y="240" font-size="21" font-weight="700" fill="#22c55e">Whole milk · 1.5×</text><text x="70.0" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">1980</text><text x="160.9" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">1990</text><text x="251.8" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2000</text><text x="342.7" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2010</text><text x="470.0" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2024</text><text x="106.4" y="384" font-size="19" text-anchor="middle" fill="var(--subtext-color)">1984</text><text x="215.5" y="384" font-size="19" text-anchor="middle" fill="var(--subtext-color)">1996</text></svg>
     </div>
     <details class="disclaimer-note">
     <summary><span class="disclaimer-gist">The full record</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
@@ -3788,7 +3974,7 @@ draw();
     <div class="btc-evcard" style="border:1px solid var(--border-color);border-radius:12px;padding:16px 18px;margin:0 0 20px">
         <p style="font-size:1.06rem;font-weight:700;line-height:1.35;margin:0 0 4px;color:var(--text-color)">The big costs of a life, year by year</p>
         <p style="font-size:1rem;line-height:1.55;margin:0 0 12px;color:var(--text-color)">Each line is one cost, set to 100 in the first year of the line &mdash; 1970 for a new house, for household income, and for public college tuition, and 2000 for private nonprofit college tuition &mdash; and rising from there: a line at 1,000 means the cost is 10 times the cost in the line&rsquo;s first year. The dashed grey line is median household income, the middle household&rsquo;s income, drawn as the comparison. Rent, medical care, and the family health-insurance premium are in the table in the full record below the graph.</p>
-        <svg viewBox="-14 -36 694 428" width="100%" role="img" aria-label="Line chart. The big costs of a life, each cost set to 100 in the first year of its line and drawn for every year of the line. Tuition and required fees at a public four-year college, from 1970, end at about 2,505 in 2023-24, 25.1 times the 1970-71 charge. The median price of a new house, from 1970, ends at about 1,796 in 2024, 18.0 times the 1970 price. Median household income, from 1970, ends at about 952 in 2024, 9.5 times the 1970 income. Tuition and required fees at a private nonprofit four-year college, from 2000, end at about 249 in 2023-24, 2.5 times the 2000-01 charge." style="display:block;height:auto;max-width:440px;margin:0 auto"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Each cost, set to 100 in its first year</text><line x1="58" y1="330.0" x2="420" y2="330.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="337.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">0</text><line x1="58" y1="268.0" x2="420" y2="268.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="275.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">500</text><line x1="58" y1="206.0" x2="420" y2="206.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="213.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">1,000</text><line x1="58" y1="144.0" x2="420" y2="144.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="151.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">1,500</text><line x1="58" y1="82.0" x2="420" y2="82.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="89.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">2,000</text><line x1="58" y1="20.0" x2="420" y2="20.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="27.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">2,500</text><polyline points="58.0,317.6 64.7,316.6 71.4,315.4 78.1,312.8 84.8,311.0 91.5,309.2 98.2,306.6 104.9,304.1 111.6,300.5 118.3,296.7 125.0,295.8 131.7,293.5 138.4,293.3 145.1,290.1 151.9,287.7 158.6,285.3 165.3,281.2 172.0,274.6 178.7,270.4 185.4,266.4 192.1,264.9 198.8,266.4 205.5,265.6 212.2,263.0 218.9,261.1 225.6,259.0 232.3,255.8 239.0,252.6 245.7,249.2 252.4,244.7 259.1,240.4 265.8,237.2 272.5,230.6 279.2,226.7 285.9,212.9 292.6,202.3 299.3,199.4 306.0,198.6 312.7,207.0 319.4,215.2 326.1,212.5 332.9,209.6 339.6,200.1 346.3,187.5 353.0,177.1 359.7,174.1 366.4,166.9 373.1,158.8 379.8,157.0 386.5,159.6 393.2,154.7 399.9,126.8 406.6,99.8 413.3,102.9 420.0,107.3" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#38bdf8"/><circle cx="58.0" cy="317.6" r="5" fill="#38bdf8" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="420.0" cy="107.3" r="5" fill="#38bdf8" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="58.0,317.6 64.7,317.2 71.4,316.2 78.1,315.1 84.8,314.1 91.5,313.2 98.2,312.0 104.9,310.7 111.6,308.6 118.3,306.6 125.0,304.9 131.7,302.9 138.4,301.4 145.1,300.3 151.9,298.2 158.6,296.5 165.3,294.6 172.0,293.0 178.7,291.3 185.4,289.0 192.1,287.5 198.8,287.2 205.5,286.5 212.2,285.6 218.9,284.2 225.6,281.6 232.3,279.6 239.0,277.5 245.7,274.8 252.4,272.2 259.1,270.4 265.8,270.0 272.5,269.8 279.2,268.5 285.9,267.1 292.6,264.2 299.3,261.6 306.0,258.7 312.7,258.6 319.4,259.3 326.1,260.0 332.9,258.9 339.6,257.6 346.3,256.3 353.0,253.8 359.7,249.8 366.4,246.2 373.1,242.9 379.8,240.3 386.5,232.5 393.2,233.4 399.9,229.5 406.6,224.1 413.3,215.6 420.0,211.9" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#94a3b8" stroke-dasharray="7 5"/><circle cx="58.0" cy="317.6" r="5" fill="#94a3b8" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="420.0" cy="211.9" r="5" fill="#94a3b8" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="58.0,317.6 64.7,316.5 71.4,314.2 78.1,313.8 84.8,313.9 91.5,312.9 98.2,310.6 104.9,309.4 111.6,308.3 118.3,306.8 125.0,304.7 131.7,301.4 138.4,297.6 145.1,293.9 151.9,291.4 158.6,288.5 165.3,285.5 172.0,281.6 178.7,278.2 185.4,274.0 192.1,270.6 198.8,263.4 205.5,256.1 212.2,250.2 218.9,245.6 225.6,240.4 232.3,236.0 239.0,232.1 245.7,228.4 252.4,224.6 259.1,219.8 265.8,212.5 272.5,202.7 279.2,185.6 285.9,171.8 292.6,161.6 299.3,151.7 306.0,143.0 312.7,131.3 319.4,118.6 326.1,105.5 332.9,87.3 339.6,76.0 346.3,68.4 353.0,61.1 359.7,53.7 366.4,52.9 373.1,45.6 379.8,40.1 386.5,35.8 393.2,35.0 399.9,28.0 406.6,23.1 413.3,19.3" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#22c55e"/><circle cx="58.0" cy="317.6" r="5" fill="#22c55e" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="413.3" cy="19.3" r="5" fill="#22c55e" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="259.1,317.6 265.8,317.0 272.5,316.3 279.2,315.4 285.9,314.6 292.6,313.7 299.3,312.8 306.0,311.7 312.7,310.7 319.4,310.0 326.1,309.2 332.9,308.3 339.6,307.5 346.3,306.6 353.0,305.9 359.7,305.2 366.4,304.3 373.1,303.5 379.8,302.7 386.5,301.9 393.2,301.9 399.9,300.8 406.6,299.9 413.3,299.1" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#a78bfa"/><circle cx="259.1" cy="317.6" r="5" fill="#a78bfa" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="413.3" cy="299.1" r="5" fill="#a78bfa" stroke="var(--bg-color)" stroke-width="1.5"/><text x="432" y="30" font-size="21" font-weight="700" fill="#22c55e">Public college tuition</text><text x="432" y="54" font-size="18" fill="var(--text-color)">25.1 times the 1970-71 charge</text><text x="432" y="100" font-size="21" font-weight="700" fill="#38bdf8">A new house</text><text x="432" y="124" font-size="18" fill="var(--text-color)">18.0 times the 1970 price</text><text x="432" y="204" font-size="21" font-weight="700" fill="#94a3b8">Household income</text><text x="432" y="228" font-size="18" fill="var(--text-color)">9.5 times the 1970 income</text><text x="432" y="292" font-size="21" font-weight="700" fill="#a78bfa">Private college tuition</text><text x="432" y="316" font-size="18" fill="var(--text-color)">2.5 times the 2000-01 charge</text><text x="58.0" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">1970</text><text x="158.6" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">1985</text><text x="259.1" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2000</text><text x="359.7" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2015</text><text x="420.0" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2024</text></svg>
+        <svg viewBox="-14 -36 694 428" width="100%" role="img" aria-label="Line chart. The big costs of a life, each cost set to 100 in the first year of its line and drawn for every year of the line. Tuition and required fees at a public four-year college, from 1970, end at about 2,505 in 2023-24, 25.1 times the 1970-71 charge. The median price of a new house, from 1970, ends at about 1,796 in 2024, 18.0 times the 1970 price. Median household income, from 1970, ends at about 952 in 2024, 9.5 times the 1970 income. Tuition and required fees at a private nonprofit four-year college, from 2000, end at about 249 in 2023-24, 2.5 times the 2000-01 charge." style="display:block;height:auto;margin:0 auto"><text x="58" y="-12" font-size="21" fill="var(--subtext-color)">Each cost, set to 100 in its first year</text><line x1="58" y1="330.0" x2="420" y2="330.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="337.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">0</text><line x1="58" y1="268.0" x2="420" y2="268.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="275.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">500</text><line x1="58" y1="206.0" x2="420" y2="206.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="213.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">1,000</text><line x1="58" y1="144.0" x2="420" y2="144.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="151.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">1,500</text><line x1="58" y1="82.0" x2="420" y2="82.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="89.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">2,000</text><line x1="58" y1="20.0" x2="420" y2="20.0" stroke="var(--border-color)" stroke-width="1"/><text x="50" y="27.0" font-size="22" text-anchor="end" fill="var(--subtext-color)">2,500</text><polyline points="58.0,317.6 64.7,316.6 71.4,315.4 78.1,312.8 84.8,311.0 91.5,309.2 98.2,306.6 104.9,304.1 111.6,300.5 118.3,296.7 125.0,295.8 131.7,293.5 138.4,293.3 145.1,290.1 151.9,287.7 158.6,285.3 165.3,281.2 172.0,274.6 178.7,270.4 185.4,266.4 192.1,264.9 198.8,266.4 205.5,265.6 212.2,263.0 218.9,261.1 225.6,259.0 232.3,255.8 239.0,252.6 245.7,249.2 252.4,244.7 259.1,240.4 265.8,237.2 272.5,230.6 279.2,226.7 285.9,212.9 292.6,202.3 299.3,199.4 306.0,198.6 312.7,207.0 319.4,215.2 326.1,212.5 332.9,209.6 339.6,200.1 346.3,187.5 353.0,177.1 359.7,174.1 366.4,166.9 373.1,158.8 379.8,157.0 386.5,159.6 393.2,154.7 399.9,126.8 406.6,99.8 413.3,102.9 420.0,107.3" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#38bdf8"/><circle cx="58.0" cy="317.6" r="5" fill="#38bdf8" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="420.0" cy="107.3" r="5" fill="#38bdf8" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="58.0,317.6 64.7,317.2 71.4,316.2 78.1,315.1 84.8,314.1 91.5,313.2 98.2,312.0 104.9,310.7 111.6,308.6 118.3,306.6 125.0,304.9 131.7,302.9 138.4,301.4 145.1,300.3 151.9,298.2 158.6,296.5 165.3,294.6 172.0,293.0 178.7,291.3 185.4,289.0 192.1,287.5 198.8,287.2 205.5,286.5 212.2,285.6 218.9,284.2 225.6,281.6 232.3,279.6 239.0,277.5 245.7,274.8 252.4,272.2 259.1,270.4 265.8,270.0 272.5,269.8 279.2,268.5 285.9,267.1 292.6,264.2 299.3,261.6 306.0,258.7 312.7,258.6 319.4,259.3 326.1,260.0 332.9,258.9 339.6,257.6 346.3,256.3 353.0,253.8 359.7,249.8 366.4,246.2 373.1,242.9 379.8,240.3 386.5,232.5 393.2,233.4 399.9,229.5 406.6,224.1 413.3,215.6 420.0,211.9" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#94a3b8" stroke-dasharray="7 5"/><circle cx="58.0" cy="317.6" r="5" fill="#94a3b8" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="420.0" cy="211.9" r="5" fill="#94a3b8" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="58.0,317.6 64.7,316.5 71.4,314.2 78.1,313.8 84.8,313.9 91.5,312.9 98.2,310.6 104.9,309.4 111.6,308.3 118.3,306.8 125.0,304.7 131.7,301.4 138.4,297.6 145.1,293.9 151.9,291.4 158.6,288.5 165.3,285.5 172.0,281.6 178.7,278.2 185.4,274.0 192.1,270.6 198.8,263.4 205.5,256.1 212.2,250.2 218.9,245.6 225.6,240.4 232.3,236.0 239.0,232.1 245.7,228.4 252.4,224.6 259.1,219.8 265.8,212.5 272.5,202.7 279.2,185.6 285.9,171.8 292.6,161.6 299.3,151.7 306.0,143.0 312.7,131.3 319.4,118.6 326.1,105.5 332.9,87.3 339.6,76.0 346.3,68.4 353.0,61.1 359.7,53.7 366.4,52.9 373.1,45.6 379.8,40.1 386.5,35.8 393.2,35.0 399.9,28.0 406.6,23.1 413.3,19.3" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#22c55e"/><circle cx="58.0" cy="317.6" r="5" fill="#22c55e" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="413.3" cy="19.3" r="5" fill="#22c55e" stroke="var(--bg-color)" stroke-width="1.5"/><polyline points="259.1,317.6 265.8,317.0 272.5,316.3 279.2,315.4 285.9,314.6 292.6,313.7 299.3,312.8 306.0,311.7 312.7,310.7 319.4,310.0 326.1,309.2 332.9,308.3 339.6,307.5 346.3,306.6 353.0,305.9 359.7,305.2 366.4,304.3 373.1,303.5 379.8,302.7 386.5,301.9 393.2,301.9 399.9,300.8 406.6,299.9 413.3,299.1" fill="none" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke="#a78bfa"/><circle cx="259.1" cy="317.6" r="5" fill="#a78bfa" stroke="var(--bg-color)" stroke-width="1.5"/><circle cx="413.3" cy="299.1" r="5" fill="#a78bfa" stroke="var(--bg-color)" stroke-width="1.5"/><text x="432" y="30" font-size="21" font-weight="700" fill="#22c55e">Public college tuition</text><text x="432" y="54" font-size="18" fill="var(--text-color)">25.1 times the 1970-71 charge</text><text x="432" y="100" font-size="21" font-weight="700" fill="#38bdf8">A new house</text><text x="432" y="124" font-size="18" fill="var(--text-color)">18.0 times the 1970 price</text><text x="432" y="204" font-size="21" font-weight="700" fill="#94a3b8">Household income</text><text x="432" y="228" font-size="18" fill="var(--text-color)">9.5 times the 1970 income</text><text x="432" y="292" font-size="21" font-weight="700" fill="#a78bfa">Private college tuition</text><text x="432" y="316" font-size="18" fill="var(--text-color)">2.5 times the 2000-01 charge</text><text x="58.0" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">1970</text><text x="158.6" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">1985</text><text x="259.1" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2000</text><text x="359.7" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2015</text><text x="420.0" y="362" font-size="22" text-anchor="middle" fill="var(--text-color)">2024</text></svg>
     </div>
     <details class="disclaimer-note">
     <summary><span class="disclaimer-gist">The full record</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
@@ -4235,6 +4421,7 @@ draw();
         <li><a href="https://bitcoin.org/en/" target="_blank">Bitcoin.org</a> – Foundational guides & developer resources</li>
         <li><a href="https://river.com/learn/" target="_blank">River Learn</a> – Educational guides & research</li>
         <li><a href="https://glassnode.com/" target="_blank">Glassnode</a> – On-chain market intelligence</li>
+        <li><a href="https://www.coinglass.com/LiquidationHeatMap/BTC?model=2" target="_blank">CoinGlass</a> – Derivatives data & liquidation heatmaps</li>
         <li><a href="https://mempool.space/" target="_blank">mempool.space</a> – On-chain & blockchain explorer</li>
         <li><a href="https://www.microstrategy.com/" target="_blank">Strategy (formerly MicroStrategy)</a> – Enterprise bitcoin treasury company</li>
         <li><a href="https://strive.com/" target="_blank">Strive</a> – Asset management & preferred stock strategies</li>
@@ -4457,6 +4644,16 @@ draw();
                     lastLabelX = x;
                 }
             });
+
+            /* axis titles (2026-11-22): the y title rides the plot's
+               top-left in the axis color, the x title names the axis
+               from the bottom-right corner — every chart carries
+               both, in the axis labels' own type. */
+            ctx.fillStyle = cAxis;
+            ctx.textAlign = 'left';
+            ctx.fillText('Price', g.padL + 6, g.padT + 11);
+            ctx.textAlign = 'right';
+            ctx.fillText('Date', w - 6, h - 6);
 
             /* plot content, clipped to the plot box so zoomed lines never
                spill over the axis labels */
@@ -5234,6 +5431,16 @@ draw();
                 }
             });
 
+            /* axis titles (2026-11-22): the y title rides the plot's
+               top-left in the axis color, the x title names the axis
+               from the bottom-right corner — every chart carries
+               both, in the axis labels' own type. */
+            ctx.fillStyle = cAxis;
+            ctx.textAlign = 'left';
+            ctx.fillText('Price', g.padL + 6, g.padT + 11);
+            ctx.textAlign = 'right';
+            ctx.fillText('Date', w - 6, h - 6);
+
             /* plot content, clipped to the plot box */
             ctx.save();
             ctx.beginPath(); ctx.rect(g.padL, g.padT, g.iw, g.ih); ctx.clip();
@@ -5925,6 +6132,16 @@ draw();
                     lastLabelX = x;
                 }
             });
+
+            /* axis titles (2026-11-22): the y title rides the plot's
+               top-left in the axis color, the x title names the axis
+               from the bottom-right corner — every chart carries
+               both, in the axis labels' own type. */
+            ctx.fillStyle = cAxis;
+            ctx.textAlign = 'left';
+            ctx.fillText('Mayer Multiple', g.padL + 6, g.padT + 11);
+            ctx.textAlign = 'right';
+            ctx.fillText('Date', w - 6, h - 6);
 
             /* plot content, clipped to the plot box */
             ctx.save();
@@ -6632,6 +6849,16 @@ draw();
                 }
             });
 
+            /* axis titles (2026-11-22): the y title rides the plot's
+               top-left in the axis color, the x title names the axis
+               from the bottom-right corner — every chart carries
+               both, in the axis labels' own type. */
+            ctx.fillStyle = cAxis;
+            ctx.textAlign = 'left';
+            ctx.fillText('MVRV Z-Score', g.padL + 6, g.padT + 11);
+            ctx.textAlign = 'right';
+            ctx.fillText('Date', w - 6, h - 6);
+
             /* plot content, clipped to the plot box */
             ctx.save();
             ctx.beginPath(); ctx.rect(g.padL, g.padT, g.iw, g.ih); ctx.clip();
@@ -7116,7 +7343,12 @@ draw();
         var X0 = 1947, X1 = 2025;
         var Y0 = 0, Y1 = 560;
         function geom(w, h) {
-            var padL = w < 520 ? 42 : 50, padR = 14, padT = 30, padB = 26;
+            /* padR (2026-11-22): on wide layouts it reserves the
+               end-label band — the two end labels sit in it,
+               left-aligned beside their dots, so no label can be
+               cut at the right edge; on narrow layouts a 20px pad
+               and the labels stay right-aligned inside. */
+            var padL = w < 520 ? 42 : 50, padR = w < 520 ? 20 : 152, padT = 30, padB = 26;
             var iw = w - padL - padR, ih = h - padT - padB;
             return {
                 padL: padL, padR: padR, padT: padT, padB: padB, iw: iw, ih: ih,
@@ -7194,20 +7426,37 @@ draw();
             var sx = g.x(1947), sy = g.y(100);
             ctx.fillStyle = cInk;
             ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fill();
-            /* the two ends labelled with what each line reached */
+            /* the two ends dotted where each line reached */
             var px2 = g.x(2025), py2 = g.y(PROD[PROD.length - 1][1]);
             ctx.fillStyle = cBuy;
             ctx.beginPath(); ctx.arc(px2, py2, 3, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = cInk;
-            ctx.textAlign = 'right';
-            ctx.fillText('an hour of work: \u00d75.3', px2 - 8, py2);
             var bx = g.x(2025), by = g.y(BUY[BUY.length - 1][1]);
             ctx.fillStyle = cSky;
             ctx.beginPath(); ctx.arc(bx, by, 3, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = cInk;
-            ctx.textAlign = 'right';
-            ctx.fillText('$1 buys: 7\u00a2', bx - 6, by - 11);
             ctx.restore();
+            /* The ends labelled with what each line reached
+               (2026-11-22): on wide layouts the labels sit in the
+               band geom() reserves at the right — left-aligned
+               beside their dots, drawn outside the clip, so no
+               label can ever be cut at the edge; on narrow
+               layouts they stay right-aligned inside, as before.
+               The x axis title rides the bottom-left corner: at
+               these widths the right corner is the last year
+               tick's own ground. */
+            ctx.fillStyle = cInk;
+            if (small) {
+                ctx.textAlign = 'right';
+                ctx.fillText('an hour of work: \u00d75.3', px2 - 8, py2);
+                ctx.fillText('$1 buys: 7\u00a2', bx - 6, by - 11);
+            } else {
+                ctx.textAlign = 'left';
+                ctx.fillText('an hour of work: \u00d75.3', px2 + 8, py2);
+                ctx.fillText('$1 buys: 7\u00a2', bx + 8, by);
+            }
+            ctx.fillStyle = cAxis;
+            ctx.font = '12px system-ui, -apple-system, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('Year', 6, h - 6);
         }
         draw();
         var rt;
@@ -7223,6 +7472,16 @@ draw();
                 wasLight = nowLight;
                 draw();
             }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
+        /* Redraw when an owning details opens (2026-11-22):
+           closed, the canvas has no size and draw() returns
+           early; the toggle of any ancestor details is the
+           moment it gains one, so the draw always matches the
+           displayed size. */
+        var ancD = cv.closest('details');
+        while (ancD) {
+            ancD.addEventListener('toggle', function () { requestAnimationFrame(draw); });
+            ancD = ancD.parentElement && ancD.parentElement.closest ? ancD.parentElement.closest('details') : null;
         }
     })();
     </script>
@@ -7334,7 +7593,13 @@ draw();
         var X0 = di(PTS[0][0]), X1 = di(PTS[PTS.length - 1][0]);
         var Y0 = 0, Y1 = 800000;
         function geom(w, h) {
-            var padL = w < 520 ? 42 : 50, padR = 14, padT = 30, padB = 26;
+            /* padR (2026-11-22): on wide layouts it reserves the
+               end-label band — the end label sits in it,
+               left-aligned beside the line's end, so it can never
+               crowd the line or be cut at the edge; on narrow
+               layouts a 20px pad and the label stays
+               right-aligned inside, as before. */
+            var padL = w < 520 ? 42 : 50, padR = w < 520 ? 20 : 136, padT = 30, padB = 26;
             var iw = w - padL - padR, ih = h - padT - padB;
             return {
                 padL: padL, padR: padR, padT: padT, padB: padB, iw: iw, ih: ih,
@@ -7401,13 +7666,29 @@ draw();
                 if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
             }
             ctx.stroke();
-            /* the line's end, labelled with what it reached */
+            /* the line's end, labelled with what it reached
+               (2026-11-22): on wide layouts the label sits in the
+               band geom() reserves at the right — left-aligned
+               beside the line's end at its own height, drawn
+               after the restore, outside the clip; on narrow
+               layouts it stays right-aligned inside, below the
+               end, as before. The x axis title rides the
+               bottom-left corner: at these widths the right
+               corner is the last year tick's own ground. */
             var lp = PTS[PTS.length - 1];
-            ctx.fillStyle = cInk;
-            ctx.textAlign = 'right';
-            ctx.font = '12px system-ui, -apple-system, sans-serif';
-            ctx.fillText('about 620,000 a day', w - g.padR, g.y(lp[1]) + 16);
             ctx.restore();
+            ctx.fillStyle = cInk;
+            ctx.font = '12px system-ui, -apple-system, sans-serif';
+            if (small) {
+                ctx.textAlign = 'right';
+                ctx.fillText('about 620,000 a day', w - g.padR, g.y(lp[1]) + 16);
+            } else {
+                ctx.textAlign = 'left';
+                ctx.fillText('about 620,000 a day', g.x(X1) + 8, g.y(lp[1]));
+            }
+            ctx.fillStyle = cAxis;
+            ctx.textAlign = 'left';
+            ctx.fillText('Year', 6, h - 6);
         }
         draw();
         var rt;
@@ -7423,6 +7704,16 @@ draw();
                 wasLight = nowLight;
                 draw();
             }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
+        /* Redraw when an owning details opens (2026-11-22):
+           closed, the canvas has no size and draw() returns
+           early; the toggle of any ancestor details is the
+           moment it gains one, so the draw always matches the
+           displayed size. */
+        var ancD = cv.closest('details');
+        while (ancD) {
+            ancD.addEventListener('toggle', function () { requestAnimationFrame(draw); });
+            ancD = ancD.parentElement && ancD.parentElement.closest ? ancD.parentElement.closest('details') : null;
         }
     })();
     </script>
