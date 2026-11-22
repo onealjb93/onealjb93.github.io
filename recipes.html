@@ -9439,9 +9439,8 @@
        denominator and the sodium cause cap; the grade itself is
        frame-invariant, because density does not know what a frame is. --- */
     var VERDICT_LABELS = ['', 'Very low', 'Low', 'Middle of the road', 'Genuinely healthy', 'Hard to beat'];
-    var VERDICT_RULE = 'The verdict grades quality, not quantity: protein, fiber and micronutrient density earn up to 50, and sugar, sodium and saturated fat \u2014 each measured against the selection\u2019s own calories \u2014 cost up to 50; saturated fat past 16% of the calories keeps costing, up to 10 more at 20%. The same food earns the same grade at any serving count; how much of a day or meal it makes is shown separately. Sugar is total sugars \u2014 the only sugar figure the data carries.';
     var VERDICT_STAKES = 'Why the grade matters: the verdict measures a pattern \u2014 protein, fiber and micronutrients against sugar, sodium and saturated fat \u2014 and patterns at the low end are associated over years with cognitive aging and with cardiovascular and metabolic decline. One measured example: a study published in Neurology followed 12,772 adults for about 8 years; among adults under 60, the group that consumed the most artificial sweeteners showed cognitive decline 63% faster than the group that consumed the least, about 1.6 extra years of cognitive aging. The Neurology study is observational \u2014 an association, not proof that the sweeteners caused the decline. The grade measures the pattern going in; the grade does not predict any one person\u2019s outcome.';
-    var VERDICT_BASIS = 'The grade grades the food itself \u2014 how much protein, fiber and vitamins a food packs into every 1,000 calories, and how little sugar, sodium and saturated fat those calories carry \u2014 so the grade never changes when servings change. Servings change a different number: how much of the day the food covers.';
+    var VERDICT_BASIS = 'The grade grades the food, not the amount: servings change how much of the day the food covers \u2014 never the grade.';
     function nameOf(rid) {
         var rec = RECIPES.find(function (x) { return x.id === rid; });
         if (rec) return rec.name;
@@ -9739,10 +9738,16 @@
         var v = (totals && ids && ids.length) ? verdictFromTotals(totals, ids, null, 'combiner') : null;
         var row = document.getElementById('verdictRow');
         if (row) { row.hidden = !v; if (v) document.getElementById('verdictMain').innerHTML = verdictLineHTML(v); }
-        var rule = document.getElementById('verdictRule');
-        if (rule) rule.hidden = !v;
         var basis = document.getElementById('verdictBasis');
         if (basis) basis.hidden = !v;
+        /* The selection briefing rides in the panel too -- the same
+           selectionBriefingHTML the in-page results render, so the
+           scorecard bubble Johnny actually opens carries the same
+           why / honest cost / keep-healthy language. Servings come
+           from servMult here, the same source the results' dish
+           list is built from, so the two surfaces agree. */
+        var bf = document.getElementById('combinerBarBriefing');
+        if (bf) { var bh = v ? selectionBriefingHTML(ids, null, totals) : ''; bf.innerHTML = bh; bf.hidden = !bh; }
         var fr = document.getElementById('verdictFrame');
         if (fr) { var fh = v ? verdictFrameHTML(v) : ''; fr.innerHTML = fh; fr.hidden = !fh; }
         var ck = document.getElementById('verdictChecks');
@@ -9769,7 +9774,7 @@
         var h = '';
         h += '<p class="cook-score-total"><strong>' + r.kcal.toLocaleString('en-US') + ' kcal \u00b7 ' + r.protein + ' g protein</strong></p>';
         var vv = verdictFromTotals(r.totals, ids, null, 'cook');
-        if (vv) { h += '<p class="verdict-line">' + verdictLineHTML(vv) + '</p><p class="verdict-basis">' + VERDICT_BASIS + '</p><p class="verdict-rule">' + VERDICT_RULE + '</p><p class="verdict-rule">' + VERDICT_STAKES + '</p>' + verdictFrameHTML(vv) + '<div class="verdict-checks">' + verdictCheckRows(vv) + '</div>'; }
+        if (vv) { h += '<p class="verdict-line">' + verdictLineHTML(vv) + '</p><p class="verdict-basis">' + VERDICT_BASIS + '</p><p class="verdict-rule">' + VERDICT_STAKES + '</p>' + verdictFrameHTML(vv) + '<div class="verdict-checks">' + verdictCheckRows(vv) + '</div>'; }
         if (dishes.length) {
             h += '<div class="combiner-dishes">';
             dishes.forEach(function (d) {
@@ -10341,11 +10346,11 @@
             <div class="combiner-profile-row"><span class="profile-day" data-profile-day></span><button type="button" class="profile-chip" data-profile-edit>Edit</button></div>
             <div class="frame-toggle-row"><div class="frame-toggle" role="tablist" aria-label="Judge the verdict as a meal or as a full day" data-frame-toggle="combiner"><button type="button" role="tab" data-frame-value="meal" aria-selected="false">Meal</button><button type="button" role="tab" data-frame-value="day" aria-selected="false">Full day</button></div></div>
             <div class="verdict-row" id="verdictRow" hidden><span id="verdictMain"></span></div>
-            <p class="verdict-basis" id="verdictBasis" hidden>The grade grades the food itself — how much protein, fiber and vitamins a food packs into every 1,000 calories, and how little sugar, sodium and saturated fat those calories carry — so the grade never changes when servings change. Servings change a different number: how much of the day the food covers.</p>
-            <p class="verdict-rule" id="verdictRule" hidden>The verdict grades quality, not quantity: protein, fiber and micronutrient density earn up to 50, and sugar, sodium and saturated fat — each measured against the selection’s own calories — cost up to 50; saturated fat past 16% of the calories keeps costing, up to 10 more at 20%. The same food earns the same grade at any serving count; how much of a day or meal it makes is shown separately. Sugar is total sugars — the only sugar figure the data carries.</p>
+            <p class="verdict-basis" id="verdictBasis" hidden>The grade grades the food, not the amount: servings change how much of the day the food covers — never the grade.</p>
             <div id="verdictFrame" hidden></div>
             <div class="verdict-checks" id="verdictChecks" hidden></div>
             <div class="combiner-dishes" id="combinerBarDishes"></div>
+            <div id="combinerBarBriefing" hidden></div>
             <div class="combiner-panel-grid" id="combinerBarGrid"></div>
         </div>
         <div id="combinerBarRow">
