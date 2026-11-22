@@ -93,6 +93,24 @@ than the page's baked copy. The key is additive — every other key
 is computed and written exactly as before, and no other reader of
 this file (the headers, the indicator, golden_alert.py) reads it.
 
+"cycle_extremes" is the current halving cycle's extremes, from
+Yahoo Finance's BTC-USD daily OHLC — the real traded highs and
+lows, which the CoinMetrics closes behind "spiral_series" cannot
+see (a close-only series once let the Spiral's fine print call the
+Jun 30, 2026 close the cycle's bottom weeks after the real traded
+low had undercut it). The object carries the cycle top — the
+highest intraday high and the highest close of the cycle, each
+with its date and its cycle day (the halving day, 2024-04-20, is
+day 1, the Spiral's own counting) — and the bottom of the decline
+from that top: the lowest intraday low and the lowest close since
+the top's day, likewise dated. The bottom is measured from the
+top because that is the bottom the Spiral claims — the low that
+follows the top; the cycle's early months dipped lower on the way
+up (Aug 2024), before the top existed, and the object's "basis"
+field says so in the published file. Like every other feed here,
+a Yahoo failure fails the run and writes nothing: stale extremes
+must never be published as fresh.
+
 The state also carries a "record" object — the all-four record,
 still published unchanged (the alert emails state the score's
 record, under "score_record"): {"weeks", "golden_weeks",
@@ -170,6 +188,12 @@ COST_TOP_RATIO = 10
 # daily record — 2.0% of days per side.
 SCORE_BUY = 7.79
 SCORE_SELL = 92.91
+
+# The current halving cycle, for "cycle_extremes" (2026-11-22): the
+# fourth halving fell on 2024-04-20, and the Spiral counts the
+# halving day itself as day 1 of the cycle, so a date's cycle day
+# is (date - CYCLE_HALVING).days + 1.
+CYCLE_HALVING = date(2024, 4, 20)
 
 TIMEOUT = 30
 
@@ -382,6 +406,81 @@ def fetch_closes(today):
     except Exception:
         pass
     fail("daily closes unavailable from Coinbase and Kraken")
+
+
+def fetch_cycle_extremes():
+    """The current halving cycle's extremes from Yahoo Finance's
+    BTC-USD daily OHLC: the cycle top (highest intraday high and
+    highest close since the 2024-04-20 halving) and the bottom of
+    the decline from that top (lowest intraday low and lowest close
+    since the top's day). Dates carry their cycle day, the halving
+    day itself counting as day 1 — the Spiral's own counting. Any
+    Yahoo failure or implausible payload fails the run, like every
+    other feed here."""
+    start = datetime(CYCLE_HALVING.year, CYCLE_HALVING.month,
+                     CYCLE_HALVING.day, tzinfo=timezone.utc)
+    end = datetime.now(timezone.utc) + timedelta(days=1)
+    try:
+        j = get_json(
+            "https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD",
+            params={"period1": int(start.timestamp()),
+                    "period2": int(end.timestamp()),
+                    "interval": "1d"})
+        result = j["chart"]["result"][0]
+        stamps = result["timestamp"]
+        quote = result["indicators"]["quote"][0]
+        rows = []
+        for t, hi, lo, cl in zip(stamps, quote["high"], quote["low"],
+                                 quote["close"]):
+            if hi is None or lo is None or cl is None:
+                continue
+            hi, lo, cl = float(hi), float(lo), float(cl)
+            if hi > 0 and lo > 0 and cl > 0:
+                rows.append((datetime.fromtimestamp(t, timezone.utc).date(),
+                             hi, lo, cl))
+    except Exception as exc:
+        fail("Yahoo cycle extremes unavailable: %s" % exc)
+    rows.sort()
+    today_utc = datetime.now(timezone.utc).date()
+    if (len(rows) < 400 or rows[0][0] != CYCLE_HALVING
+            or rows[-1][0] < today_utc - timedelta(days=2)):
+        fail("implausible Yahoo cycle extremes payload: %d rows, "
+             "%s to %s" % (len(rows),
+                           rows[0][0] if rows else None,
+                           rows[-1][0] if rows else None))
+    top_high = max(rows, key=lambda r: r[1])
+    top_close = max(rows, key=lambda r: r[3])
+    since_top = [r for r in rows if r[0] >= top_close[0]]
+    bottom_low = min(since_top, key=lambda r: r[2])
+    bottom_close = min(since_top, key=lambda r: r[3])
+    for v in (top_high[1], top_close[3], bottom_low[2], bottom_close[3]):
+        if not (1000 < v < 10_000_000):
+            fail("implausible cycle extreme %r" % v)
+
+    def cyc_day(d):
+        return (d - CYCLE_HALVING).days + 1
+
+    return {
+        "source": "Yahoo Finance BTC-USD daily OHLC",
+        "halving": str(CYCLE_HALVING),
+        "top": {
+            "high": round(top_high[1], 2),
+            "high_date": str(top_high[0]),
+            "high_day": cyc_day(top_high[0]),
+            "close": round(top_close[3], 2),
+            "close_date": str(top_close[0]),
+            "close_day": cyc_day(top_close[0]),
+        },
+        "bottom": {
+            "basis": "since the cycle top",
+            "low": round(bottom_low[2], 2),
+            "low_date": str(bottom_low[0]),
+            "low_day": cyc_day(bottom_low[0]),
+            "close": round(bottom_close[3], 2),
+            "close_date": str(bottom_close[0]),
+            "close_day": cyc_day(bottom_close[0]),
+        },
+    }
 
 
 GENESIS_EPOCH = 1230940800  # 2009-01-03T00:00:00Z, in seconds
@@ -1128,6 +1227,11 @@ def main():
         "last": spiral_closes[-1][0],
         "closes": spiral_closes,
     }
+    # The current cycle's extremes (2026-11-22): Yahoo daily OHLC,
+    # the real traded highs and lows the closes above cannot see,
+    # so the Spiral's top and bottom claims refresh with the same
+    # bake instead of going stale. Additive only, like the series.
+    cycle_extremes = fetch_cycle_extremes()
     state = {
         "golden": golden,
         "top": top,
@@ -1145,6 +1249,7 @@ def main():
         "score_record": score_record,
         "score_series": series,
         "spiral_series": spiral_series,
+        "cycle_extremes": cycle_extremes,
     }
     tmp = OUT_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
