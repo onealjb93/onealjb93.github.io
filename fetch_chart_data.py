@@ -103,6 +103,7 @@ import json
 import os
 import sys
 import time
+from collections import deque
 from datetime import date, datetime, timedelta, timezone
 
 import requests
@@ -611,14 +612,23 @@ def compute_pe(bars, facts, splits):
 # ------------------------------------------------- Johnny's indicator
 # Buy/sell signal dates for the Finance chart, computed nightly here
 # (added 2026-11-22; formula settled by Johnny, 2026-11-22, after two
-# research rounds against this file's own history). Pure Python: the
-# workflow installs only `requests`.
+# research rounds against this file's own history; the buy side's
+# price condition was revised later the same day — see BUY below).
+# Pure Python: the workflow installs only `requests`.
 #
 # BUY (every condition, the same day):
-#   stocks:          RSI(14) <= 30, VIX >= 30, close <= 200-week MA,
+#   stocks:          RSI(14) <= 30, VIX >= 30, drawdown <= -30%,
 #                    PEG <= 1
 #   SPX/IXIC/GOLD/BTC (no earnings exist, no P/E array): the same
 #                    without PEG — never presented as PEG-checked.
+# Drawdown is the close against the trailing 2-year high — close /
+# max(close over the trailing 504 bars, today included) - 1. It
+# replaced the buy side's close <= 200-week MA condition on
+# 2026-11-22 (Johnny's D1 adoption, after the drawdown study): on
+# 2015-2026 the D1 form fired 112 buy episodes at a +51.1% median
+# 1y forward return, against the settled form's 100 episodes at
+# +46.7%. The SELL side below is unchanged and still uses the
+# 200-week average, which is still computed for it.
 # SELL (every condition held for 5 consecutive trading days; the
 # signal is live from the 5th day through the end of the run):
 #   stocks:          RSI(14) > 70, VIX < 15, PEG >= 2,
@@ -646,6 +656,22 @@ def _sig_ma200w(closes):
             total -= closes[i - 1000]
         if i >= 999:
             out[i] = total / 1000.0
+    return out
+
+
+def _sig_drawdown(closes):
+    """Drawdown from the trailing 2-year high, per bar: closes[i] /
+    max(close over the trailing 504 bars, today included) - 1.
+    Defined on every bar (early bars use the bars available)."""
+    out = [None] * len(closes)
+    window = deque()
+    for i, v in enumerate(closes):
+        while window and closes[window[-1]] <= v:
+            window.pop()
+        window.append(i)
+        if window[0] <= i - 504:
+            window.popleft()
+        out[i] = v / closes[window[0]] - 1.0
     return out
 
 
@@ -711,6 +737,7 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
     n = len(closes)
     ma = _sig_ma200w(closes)
     rsi = _sig_rsi(closes)
+    dd = _sig_drawdown(closes)
     peg = None if key in _SIGNAL_NO_PEG_KEYS else _sig_peg(bars, pe)
     buy = []
     sell = []
@@ -725,13 +752,13 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
             continue
         vix = vix_closes[j]
         if key in _SIGNAL_NO_PEG_KEYS:
-            is_buy = rsi[i] <= 30 and vix >= 30 and closes[i] <= ma[i]
+            is_buy = rsi[i] <= 30 and vix >= 30 and dd[i] <= -0.30
             is_sell = rsi[i] > 70 and vix < 15 and closes[i] >= ma[i] * 1.50
         else:
             if peg[i] is None:
                 run = 0
                 continue
-            is_buy = (rsi[i] <= 30 and vix >= 30 and closes[i] <= ma[i]
+            is_buy = (rsi[i] <= 30 and vix >= 30 and dd[i] <= -0.30
                       and peg[i] <= 1)
             is_sell = (rsi[i] > 70 and vix < 15
                        and closes[i] >= ma[i] * 1.50 and peg[i] >= 2)
