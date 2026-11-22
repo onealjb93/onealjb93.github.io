@@ -792,10 +792,33 @@ def attach_indicator_signals(d_series, d_previous):
 
     The VIX series built in this same run is the input; if it is
     somehow absent, the previous file's signals stand untouched.
-    A stock whose P/E is missing this run (an EDGAR failure with no
-    carried-over pe) keeps its previous signals, filtered to dates
-    its current bars still carry — the same spirit as the P/E
-    carry-over above."""
+    A stock with no P/E this run is handled by WHY it has none,
+    judged against the previous file:
+
+    - The previous file HAD a pe for it: this run's absence reads
+      as a transient EDGAR failure. The previous signals carry,
+      filtered to dates its current bars still carry, for THIS
+      RUN ONLY, under a WARNING — the file this run writes holds
+      no pe for the series, so if the P/E is still missing next
+      run the absence reads as structural (below) and the signals
+      recompute. The carry can never silently repeat.
+    - The previous file had no pe either (or there is no previous
+      entry): the absence is structural — the filer's EDGAR facts
+      carry no usable USD/shares diluted EPS (an IFRS filer whose
+      companyfacts hold totals only, a reported per-share basis
+      that does not match the listed price, earnings never
+      positive, too little filed history to form a TTM). PEG
+      genuinely cannot compute, so the freshly computed signals
+      stand: on the buy side they already use the formula's own
+      stand-in leg (the deeper -40% drawdown in place of the PEG
+      check, inside compute_indicator_signals); no sell can fire
+      without a defined PEG, exactly as the formula defines.
+
+    The earlier rule carried the previous signals in BOTH cases,
+    which froze a structurally P/E-less series' dots at whatever
+    an older input vintage had produced, indefinitely and almost
+    silently — TSM served 9 buy days against the 19 the formula
+    computes (found 2026-11-22, graded-score study)."""
     vix_entry = d_series.get("VIX") or {}
     vix_bars = vix_entry.get("bars") or []
     if not vix_bars:
@@ -805,6 +828,7 @@ def attach_indicator_signals(d_series, d_previous):
     vix_closes = [float(b[4]) for b in vix_bars]
     total_buy = 0
     total_sell = 0
+    standin = []
     for key, entry in d_series.items():
         if key == "VIX":
             continue
@@ -815,18 +839,31 @@ def attach_indicator_signals(d_series, d_previous):
             key, bars, entry.get("pe"), vix_dates, vix_closes)
         if key not in _SIGNAL_NO_PEG_KEYS and not entry.get("pe"):
             prev = d_previous.get(key) or {}
-            if prev.get("buy") or prev.get("sell"):
+            if prev.get("pe"):
                 have = {b[0] for b in bars}
                 buy = [d for d in (prev.get("buy") or []) if d in have]
                 sell = [d for d in (prev.get("sell") or []) if d in have]
-                log("  indicator: %s has no P/E this run — previous "
-                    "signals carried" % key)
+                log("  WARNING indicator: %s had a P/E last run but "
+                    "none this run — previous signals carried for "
+                    "THIS RUN ONLY; if the P/E is still missing "
+                    "next run, its signals recompute on the "
+                    "stand-in leg" % key)
+            else:
+                standin.append(key)
+                log("  indicator: %s has no P/E (none last run "
+                    "either) — signals computed on the stand-in "
+                    "leg (drawdown <= -40%% stands in for PEG)"
+                    % key)
         entry["buy"] = buy
         entry["sell"] = sell
         total_buy += len(buy)
         total_sell += len(sell)
     log("Indicator signals: %d buy days, %d sell days across %d series."
         % (total_buy, total_sell, len(d_series) - 1))
+    if standin:
+        log("Indicator: %d series computed on the stand-in leg "
+            "(no P/E): %s"
+            % (len(standin), ", ".join(sorted(standin))))
 
 
 # ------------------------------------------------------------- share snapshots
