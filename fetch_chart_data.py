@@ -617,7 +617,7 @@ def compute_pe(bars, facts, splits):
 # Pure Python: the workflow installs only `requests`.
 #
 # BUY (every condition, the same day):
-#   stocks:          RSI(14) <= 30, VIX >= 30, drawdown <= -30%,
+#   stocks:          RSI(14) <= 30, VIX >= 25, drawdown <= -30%,
 #                    PEG <= 1 — and where PEG is undefined, a
 #                    deeper drawdown <= -40% stands in for the
 #                    PEG check
@@ -762,7 +762,7 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
             continue
         vix = vix_closes[j]
         if key in _SIGNAL_NO_PEG_KEYS:
-            is_buy = rsi[i] <= 30 and vix >= 30 and dd[i] <= -0.30
+            is_buy = rsi[i] <= 30 and vix >= 25 and dd[i] <= -0.30
             is_sell = rsi[i] > 70 and vix < 15 and closes[i] >= ma[i] * 1.50
         else:
             if peg[i] is not None:
@@ -777,7 +777,7 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
                 # no sell can fire or persist through this day.
                 peg_ok = dd[i] <= -0.40
                 is_sell = False
-            is_buy = (rsi[i] <= 30 and vix >= 30 and dd[i] <= -0.30
+            is_buy = (rsi[i] <= 30 and vix >= 25 and dd[i] <= -0.30
                       and peg_ok)
         if is_buy:
             buy.append(dates[i])
