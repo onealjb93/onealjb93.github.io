@@ -604,6 +604,10 @@
     #combinerBarPanel .nutri-dots, #cookScorePanel .nutri-dots { display: flex; margin: 0.15rem 0 0.1rem; }
     #combinerBarPanel .nutri-dot, #cookScorePanel .nutri-dot { width: 9px; height: 9px; }
     #combinerBarPanel .nutri-pct, #cookScorePanel .nutri-pct { text-align: left; }
+    /* Selection briefing (added 2026-11-21): the cards' briefing cluster,
+       rendered in the combiner results -- same classes, same type. */
+    .combiner-briefing { margin-top: 0.85rem; }
+    .combiner-briefing-dish { color: var(--subtext-color); }
     /* Combiner results: the percent column takes 7.75rem so the longest Custom-mode
        string the tool can render ("11028% of your target", 119.1px measured) fits
        inside the card with a few px to spare; the extra width comes out of the dots
@@ -8310,6 +8314,7 @@
         if (halfway.length) h += '<p><strong>Halfway or more:</strong> ' + esc(halfway.join(', ')) + '.</p>';
         if (low.length) h += '<p><strong>Still low:</strong> ' + esc(low.join(', ')) + '.</p>';
         h += '</div>';
+        h += selectionBriefingHTML(ids, dishes, totals);
         if (checked.length === 1) h += pairsHTML(checked[0].getAttribute('data-recipe'));
         h += '<p class="nutrition-note">' + (anyScaled ? 'Combined values are the sum of the selected servings of each ' + (vitCount ? 'item' : 'recipe') + '. ' : 'Combined values are the sum of one serving of each selected ' + (vitCount ? 'item' : 'recipe') + '. ') + esc(NUTRI.method) + '</p>';
         var barLabel = null;
@@ -9493,6 +9498,197 @@
         if (!v || !v.frame) return '';
         return '<p class="verdict-frame">This selection is ' + v.frame.kcal.toLocaleString('en-US') + ' of ~' + v.frame.frameKcal.toLocaleString('en-US') + ' kcal \u2014 ' + v.frame.pct + '% of ' + (v.frameName === 'meal' ? 'a meal' : 'a full day') + '.</p>';
     }
+    /* --- Selection briefing: the cards' briefing language for the
+       combiner's current selection (added 2026-11-21). Three beats under
+       the cards' own heads -- why it's healthy, the honest cost, keep it
+       healthy -- and make it healthier. Facts come only from the selected
+       recipes' own card briefings (read from the DOM, deep-layer Details
+       text excluded) and from the combined totals this script already
+       computed; nothing from an unselected recipe can appear, and no
+       claim is invented. Every number scales with the servings on
+       screen; the claims are the same kind at any size, so this block
+       can never contradict the grade block's quantity rule. --- */
+    function briefSentences(t) {
+        if (!t) return [];
+        return t.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+/).filter(function (s) { return !!s; });
+    }
+    function briefText(el) { return el ? el.textContent.replace(/\s+/g, ' ').trim() : ''; }
+    function briefFacts(rid) {
+        var body = document.getElementById(rid + '-benefits');
+        if (!body) return null;
+        var clone = body.cloneNode(true);
+        Array.prototype.slice.call(clone.querySelectorAll('button, .deep-text')).forEach(function (n) { n.remove(); });
+        var why = null, cost = null, leads = [];
+        Array.prototype.slice.call(clone.querySelectorAll('.honest-cost-head')).forEach(function (hd) {
+            var txt = briefText(hd);
+            var next = hd.nextElementSibling;
+            if (/^Why it/.test(txt)) {
+                while (next && next.tagName !== 'P') next = next.nextElementSibling;
+                if (next) why = briefText(next);
+            } else if (/^Keep it healthy/.test(txt)) {
+                while (next && next.tagName !== 'UL') next = next.nextElementSibling;
+                if (next) Array.prototype.slice.call(next.querySelectorAll('li')).forEach(function (li) {
+                    var b = li.querySelector('strong');
+                    if (b) leads.push(briefText(b));
+                });
+            }
+        });
+        var costDiv = clone.querySelector('.honest-cost');
+        if (costDiv) Array.prototype.slice.call(costDiv.querySelectorAll('p')).forEach(function (p) {
+            if (cost === null && !p.classList.contains('honest-cost-head')) cost = briefText(p);
+        });
+        return { why: why, cost: cost, leads: leads };
+    }
+    function andJoin(parts) {
+        if (parts.length <= 1) return parts.join('');
+        return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+    }
+    function amtStr(v, unit) {
+        /* One decimal, trailing .0 dropped -- the same rounding the
+           tool's own grid shows, so the two can never disagree. */
+        var n = Math.round(v * 10) / 10;
+        return (n % 1 === 0 ? String(Math.round(n)) : String(n)) + ' ' + unit;
+    }
+    function selectionBriefingHTML(ids, dishes, totals) {
+        if (!ids || !ids.length || !totals) return '';
+        var targets = activeTargets();
+        var kcal = totals['208'] || 0;
+        if (!(kcal > 0)) return '';
+        var rows = [];
+        ids.forEach(function (rid) {
+            var facts = briefFacts(rid);
+            if (!facts) return;
+            var d = NUTRI.recipes[dataKey(rid)] || null;
+            if (!d || !d.perServing) return;
+            var m = servMult[rid] || 1;
+            if (dishes) dishes.forEach(function (x) { if (x.id === rid) m = x.mult; });
+            rows.push({ id: rid, name: nameOf(rid), kcal: (d.perServing['208'] ? d.perServing['208'].value : 0) * m, facts: facts, data: d, mult: m });
+        });
+        if (!rows.length) return '';
+        rows.sort(function (a, b) { return b.kcal - a.kcal; });
+        var single = rows.length === 1;
+        var lead = rows[0];
+        /* Why it's healthy: the lead dish's own topic sentence when it is
+           a short one, then the selection's goods from the totals. */
+        var goods = [];
+        var prot = Math.round(totals['203'] || 0);
+        if (prot >= 15) goods.push(prot + ' g of protein');
+        var fib = totals['291'] || 0;
+        if (fib >= 5) goods.push(amtStr(fib, 'g') + ' of fiber');
+        var micros = [];
+        ['401', '324', '320', '301', '303', '306'].forEach(function (num) {
+            var t = targets[num];
+            if (!t) return;
+            var pct = Math.round((totals[num] || 0) / t * 100);
+            if (pct < 50) return;
+            var label = NUTRI.dailyValues[num].label;
+            label = label.charAt(0).toLowerCase() + label.slice(1);
+            micros.push(pct >= 100
+                ? amtStr(totals[num], NUTRI.dailyValues[num].unit) + ' of ' + label + ' \u2014 more than a day\u2019s worth'
+                : label + ' at ' + pct + '% of the day');
+        });
+        goods = goods.concat(micros).slice(0, 3);
+        var whyS = briefSentences(lead.facts.why);
+        var carrier = (whyS.length && whyS[0].split(' ').length <= 12) ? whyS[0] : null;
+        var why;
+        if (goods.length) {
+            var leadIn = single
+                ? (lead.mult === 1 ? 'One serving brings ' : fmtServQty(lead.mult) + ' servings bring ')
+                : 'Together, these bring ';
+            why = (carrier ? carrier + ' ' : '') + leadIn + andJoin(goods) + '.';
+        } else if (single && whyS.length) {
+            why = whyS[0];
+        } else {
+            why = 'By the numbers: ' + Math.round(kcal) + ' kcal, ' + prot + ' g of protein and ' + amtStr(fib, 'g') + ' of fiber \u2014 the cards carry each dish\u2019s own story.';
+        }
+        /* The honest cost: the moderation line that bites hardest (the
+           grade's own credits pick it), stated the briefing way -- share
+           of the day's limit, and the dish that brings most of it. */
+        var q = qualityFromTotals(totals);
+        var compByKey = {};
+        if (q) q.components.forEach(function (c) { compByKey[c.key] = c; });
+        var satG = totals['606'] || 0, sodMg = totals['307'] || 0, sugG = totals['269'] || 0;
+        var satPct = targets['606'] ? Math.round(satG / targets['606'] * 100) : 0;
+        var sodPct = targets['307'] ? Math.round(sodMg / targets['307'] * 100) : 0;
+        var sugShare = kcal ? Math.round(sugG * 4 / kcal * 100) : 0;
+        var cands = [
+            { credit: compByKey.satfat ? compByKey.satfat.credit : 1, num: '606', amt: amtStr(satG, 'g') + ' of saturated fat \u2014 ' + satPct + '% of a day\u2019s limit' },
+            { credit: compByKey.sodium ? compByKey.sodium.credit : 1, num: '307', amt: Math.round(sodMg).toLocaleString('en-US') + ' mg of sodium \u2014 ' + sodPct + '% of the day\u2019s ceiling' },
+            { credit: compByKey.sugar ? compByKey.sugar.credit : 1, num: '269', amt: amtStr(sugG, 'g') + ' of sugar \u2014 ' + sugShare + '% of the calories' }
+        ];
+        cands.sort(function (a, b) { return a.credit - b.credit; });
+        var worst = cands[0];
+        function topContributor(num) {
+            var best = null, bestV = 0, total = 0;
+            rows.forEach(function (r) {
+                var v = (r.data.perServing[num] ? r.data.perServing[num].value : 0) * r.mult;
+                total += v;
+                if (v > bestV) { bestV = v; best = r; }
+            });
+            return (best && total > 0 && bestV / total >= 0.5) ? best : null;
+        }
+        var costLine, lever = '';
+        if (worst.credit >= 1) {
+            costLine = 'The cost is small: saturated fat at ' + satPct + '% of the day\u2019s limit, sodium at ' + sodPct + '% of the day\u2019s ceiling, sugar ' + amtStr(sugG, 'g') + ' \u2014 nothing here crowds the day.';
+        } else {
+            var tc = topContributor(worst.num);
+            costLine = 'The honest cost: ' + worst.amt + (tc ? ', most of it from ' + tc.name : ', spread across the selection') + '.';
+            /* The lever answers the cost named: the pasture-raised /
+               grass-fed sentence from the cards' own cost paragraphs,
+               combined once when two or more dishes share the dairy one. */
+            var leverRows = rows.filter(function (r) { return r.facts.cost && /(pasture-raised|grass-fed)/i.test(r.facts.cost); });
+            var dairyRows = leverRows.filter(function (r) { return /(butter|milk|cream|cheese|dairy)/i.test(r.facts.cost); });
+            if (dairyRows.length >= 2) {
+                lever = 'The shared lever, named on the cards: pasture-raised dairy \u2014 grass-fed fat carries more omega-3s and CLA than conventional, in the same spoonful.';
+            } else if (tc) {
+                var pick = null;
+                leverRows.forEach(function (r) { if (r.id === tc.id) pick = r; });
+                if (pick) {
+                    var ls = briefSentences(pick.facts.cost).filter(function (s) { return /(pasture-raised|grass-fed)/i.test(s); });
+                    if (ls.length) lever = ls[0];
+                }
+            }
+        }
+        /* Keep it healthy: the cards' own bullet leads -- the single dish
+           shows its first two; a combined selection shows one per dish,
+           deduplicated and capped at three, each attributed. */
+        var keepItems = [];
+        if (single) {
+            lead.facts.leads.slice(0, 2).forEach(function (l) { keepItems.push({ lead: l, name: lead.name }); });
+        } else {
+            var seenK = {};
+            rows.forEach(function (r) {
+                if (keepItems.length >= 3) return;
+                var l = r.facts.leads[0];
+                if (!l) return;
+                var key = l.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).slice(0, 3).join(' ');
+                if (seenK[key]) return;
+                seenK[key] = 1;
+                keepItems.push({ lead: l, name: r.name });
+            });
+        }
+        var h = '<div class="combiner-briefing">';
+        h += '<p class="honest-cost-head"><strong>Why it\u2019s healthy</strong></p><p>' + esc(why) + '</p>';
+        h += '<div class="honest-cost"><p class="honest-cost-head"><strong>The honest cost</strong></p><p>' + esc(costLine) + (lever ? ' ' + esc(lever) : '') + '</p></div>';
+        if (keepItems.length) {
+            h += '<p class="honest-cost-head"><strong>Keep it healthy \u2014 and make it healthier</strong></p><ul class="recipe-list">';
+            keepItems.forEach(function (it) {
+                h += '<li><strong>' + esc(it.lead) + '</strong>' + (single ? '' : ' <span class="combiner-briefing-dish">(' + esc(it.name) + ')</span>') + '</li>';
+            });
+            h += '</ul>';
+        }
+        h += '</div>';
+        return h;
+    }
+    window.__jboBriefingFor = function (ids, multMap) {
+        if (!ids || !ids.length) return '';
+        var r = comboCore(ids, multMap || null);
+        if (!r || !r.count) return '';
+        var dishes = ids.map(function (rid) {
+            return { id: rid, name: nameOf(rid), mult: (multMap && multMap[rid] != null) ? multMap[rid] : (servMult[rid] || 1) };
+        });
+        return selectionBriefingHTML(ids, dishes, r.totals);
+    };
     /* Compare was removed in the 2026-11-14 scorecard cut; clear
        any parked day a returning visitor still has stored. */
     try { localStorage.removeItem('jbo-compare-v1'); } catch (e) {}
