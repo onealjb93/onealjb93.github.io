@@ -335,8 +335,15 @@
         0%, 100% { box-shadow: 0 0 3px 2px transparent, 0 0 12px 2px transparent; }
         50% { box-shadow: 0 0 3px 6px color-mix(in srgb, color-mix(in srgb, var(--link-color) 85%, var(--text-color) 15%) 70%, transparent 30%), 0 0 24px 10px color-mix(in srgb, color-mix(in srgb, var(--link-color) 85%, var(--text-color) 15%) 28%, transparent 72%); }
     }
+    /* Dismissal (Johnny's pulse rule, 2026-11-22): the first
+       press of a visit ends the glow by FADING it — the script
+       freezes the glow's current shadow on the track and this
+       transition eases it out over a second, a spectrum rather
+       than a cut. Under reduced motion there is no fade. */
+    .fin-ind-switch.fin-ind-glow-fading .fin-ind-track { animation: none; transition: box-shadow 1s ease-out; }
     @media (prefers-reduced-motion: reduce) {
         .fin-ind-switch.fin-ind-glow .fin-ind-track { animation: none; }
+        .fin-ind-switch.fin-ind-glow-fading .fin-ind-track { animation: none; transition: none; }
     }
     #chart:fullscreen .fin-ind-btcnote, #chart:-webkit-full-screen .fin-ind-btcnote, #chart.chart-fs .fin-ind-btcnote { display: none; }
     .fin-ind-btcnote a { color: var(--link-color); }
@@ -1432,7 +1439,7 @@
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-rsi" aria-hidden="true"></span><span id="keyRsi"><strong>Violet &mdash; the weekly RSI</strong>. How stretched the price is &mdash; pushed too far, too fast, in either direction. Dashed lines mark 70 and 30: above 70, overbought; below 30, oversold.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-pe" aria-hidden="true"></span><span><strong>Teal &mdash; the P/E ratio</strong>. The price divided by the last twelve months of earnings per share &mdash; how many dollars investors pay for one dollar of profit. Where the line breaks, the company was losing money: there is no P/E without earnings. The dashed line is the stock's own median P/E: above it, expensive for itself; below it, cheap for itself.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span id="keyVolma"><strong>Grey &mdash; the 20-week volume average</strong>. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
-            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-buy"></span><span class="tv-key-dot tv-key-dot-sell"></span></span><span><strong>Green and red dots &mdash; Johnny&rsquo;s indicator</strong>. A green dot marks a buy day: the RSI at or under 30, the VIX at or over 30, the price at or under its 200-week average and PEG at or under 1, all on the same day. A red dot marks a sell day: the RSI over 70, the VIX under 15, PEG at 2 or more and the price at least 50% above its 200-week average, all of it held for five straight days. The S&amp;P 500, the Nasdaq, gold and Bitcoin have no earnings of their own, so their dots use the same rules without PEG.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-buy"></span><span class="tv-key-dot tv-key-dot-sell"></span></span><span><strong>Green and red dots &mdash; Johnny&rsquo;s indicator</strong>. A green dot marks a buy day: the RSI at or under 30, the VIX at or over 30, the price at least 30% down from its highest price of the last two years and PEG at or under 1, all on the same day. A red dot marks a sell day: the RSI over 70, the VIX under 15, PEG at 2 or more and the price at least 50% above its 200-week average, all of it held for five straight days. The S&amp;P 500, the Nasdaq, gold and Bitcoin have no earnings of their own, so their dots use the same rules without PEG.</span></span>
         </div>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         <p class="chart-intro">Tap a pick above, or choose from my 19 stocks and the Nasdaq-100 in the box above. The chart is drawn from this page&rsquo;s own daily and weekly data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-day moving average, the 50-day moving average for the trend, and the daily RSI &mdash; in the Weekly view, the same three by the week: the 200-week average, the 50-week average, and the weekly RSI. A stock with under four years of trading history has no 200-day line yet; the note under the chart says so when that is the case.</p>
@@ -5958,14 +5965,16 @@ if (typeof module !== "undefined") {
         // Pane toggles: Volume and RSI start on (the shipped look),
         // P/E starts off; a stored "0"/"1" overrides per pane.
         var peOn = false, volOn = true, rsiOn = true;
-        // Johnny's indicator: starts off, persists like the panes;
-        // indTouched records that a choice exists at all — until
-        // one does, the switch's track glows (see syncInd).
-        var indOn = false, indTouched = false;
+        // Johnny's indicator: starts off, persists like the panes.
+        // The invitation glow follows Johnny's pulse rule
+        // (2026-11-22): it runs on every load while the switch is
+        // off — no stored choice retires it — and the first press
+        // of a visit dismisses it, with a fade (see syncInd).
+        // indPressed and indFading live only for the visit.
+        var indOn = false, indPressed = false, indFading = false;
         try {
             peOn = window.localStorage.getItem(PE_KEY) === "1";
             indOn = window.localStorage.getItem(IND_KEY) === "1";
-            indTouched = window.localStorage.getItem(IND_KEY) !== null;
             volOn = window.localStorage.getItem(VOL_KEY) !== "0";
             rsiOn = window.localStorage.getItem(RSI_KEY) !== "0";
             // The mode persists like the pane choices: a visitor
@@ -6904,16 +6913,39 @@ if (typeof module !== "undefined") {
         // Turning it on needs the daily file (the pipeline's
         // signal dates live there), so the first flip starts that
         // load in either mode; ensureDaily's arrival re-renders
-        // when the switch is on. The knob shows the state; the
-        // stored choice ends the glow for good.
+        // when the switch is on. The knob shows the state. The
+        // glow is an invitation, not a state: it runs on every
+        // load while the switch is off, and the first press of a
+        // visit ends it — by fading, never by cutting.
         var indBtn = document.getElementById("finIndBtn");
+        var indReduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        function dismissIndGlow() {
+            if (!indBtn || indFading || !indBtn.classList.contains("fin-ind-glow")) return;
+            var track = indBtn.querySelector(".fin-ind-track");
+            if (!track || indReduce) { indBtn.classList.remove("fin-ind-glow"); return; }
+            indFading = true;
+            // Freeze the glow where it stands, then let the
+            // fading rule's transition ease that exact shadow out.
+            track.style.boxShadow = window.getComputedStyle(track).boxShadow;
+            indBtn.classList.add("fin-ind-glow-fading");
+            void track.offsetWidth;
+            track.style.boxShadow = "0 0 3px 2px transparent, 0 0 12px 2px transparent";
+            setTimeout(function () {
+                indBtn.classList.remove("fin-ind-glow");
+                indBtn.classList.remove("fin-ind-glow-fading");
+                track.style.boxShadow = "";
+                indFading = false;
+            }, 1100);
+        }
         function syncInd() {
             if (!indBtn) return;
             indBtn.setAttribute("aria-checked", indOn ? "true" : "false");
-            indBtn.classList.toggle("fin-ind-glow", !indTouched);
+            if (indFading) return;
+            if (!indOn && !indPressed) indBtn.classList.add("fin-ind-glow");
+            else dismissIndGlow();
         }
         if (indBtn) indBtn.addEventListener("click", function () {
-            indOn = !indOn; indTouched = true;
+            indOn = !indOn; indPressed = true;
             storePane(IND_KEY, indOn);
             syncInd();
             if (indOn && !dailyData) ensureDaily(); else render();
