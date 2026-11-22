@@ -316,6 +316,17 @@
            underneath; the dealt picture rides above it. Fly and
            settle use the site's own durations and easings. */
         .gen-img, .gen-quote, .gen-fs-img, .gen-fs-quote { touch-action: none; -webkit-user-drag: none; -webkit-touch-callout: none; }
+        /* VIEWER ZOOM (fix, 2026-11-21): in the fullscreen viewer a
+           two-finger pinch belongs to the browser again — pinch-zoom
+           hands one-finger drags to the swipe wiring below (they
+           still deal) but lets the browser take a pinch, exactly as
+           the viewer behaved before the swipe build claimed its
+           touches. While the viewer stands zoomed, the zoom
+           arbitration block in the swipe script hands the viewer's
+           elements auto touch handling, so one finger pans the
+           zoomed view instead of dealing. The stage keeps
+           touch-action: none — the picture there is the deck. */
+        .gen-fs-img, .gen-fs-quote { touch-action: pinch-zoom; }
         .gen-img, .gen-quote, .gen-fs-img, .gen-fs-quote { position: relative; z-index: 1; }
         .gen-img-behind, .gen-quote-behind, .gen-fs-img-behind, .gen-fs-quote-behind { position: absolute; pointer-events: none; z-index: 0; }
         .gen-img-behind[hidden], .gen-quote-behind[hidden], .gen-fs-img-behind[hidden], .gen-fs-quote-behind[hidden] { display: none !important; }
@@ -3490,6 +3501,7 @@
             var g = null;
             el.addEventListener('pointerdown', function (e) {
                 if (g) { return; }
+                if (opt.isFs && fsZoomed) { return; } // viewer zoomed: one finger pans the view, never deals
                 if (e.pointerType === 'mouse' && e.button !== 0) { return; }
                 if (el.hidden) { return; }
                 if (opt.isFs) {
@@ -3570,6 +3582,34 @@
             }
             el.addEventListener('pointerup', function (e) { end(e, false); });
             el.addEventListener('pointercancel', function (e) { end(e, true); });
+        }
+
+        // VIEWER ZOOM ARBITRATION (fix, 2026-11-21): the viewer's
+        // picture carries touch-action: pinch-zoom (see the CSS), so
+        // a one-finger drag still deals — the browser does not take
+        // single-finger pans under pinch-zoom — while a two-finger
+        // pinch is the browser's own zoom: it cancels the pointer
+        // stream, and the cancelled drag settles back undealt via
+        // the same end() path as any cancelled swipe. While the
+        // visual viewport stands zoomed, one finger must pan the
+        // zoomed view rather than deal, so the viewer's elements
+        // get auto touch handling for exactly that state and the
+        // swipe wiring stands down (fsZoomed, checked on
+        // pointerdown). Back at scale 1, both restore.
+        var fsZoomed = false;
+        function syncFsZoom() {
+            var vv = window.visualViewport;
+            var zoomed = !!(vv && vv.scale > 1.01);
+            if (zoomed === fsZoomed) { return; }
+            fsZoomed = zoomed;
+            ['gen-fs-img', 'gen-fs-quote'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) { el.style.touchAction = zoomed ? 'auto' : ''; }
+            });
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', syncFsZoom);
+            syncFsZoom();
         }
 
         PREFIXES.forEach(function (p) {
