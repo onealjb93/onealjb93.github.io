@@ -285,20 +285,22 @@
         #chart-body .jbo-chart-datanote { position: absolute; top: calc(100% + 0.4rem); left: 0; right: 0; }
         .chart-intro { margin-top: 2.2rem; }
     }
-    /* Hover readout (2026-11-16): a glass tooltip inside the frame
-       that tracks the crosshair — the week's values live here and
-       nowhere else (the static line under the chart is gone). Same
-       glass-bubble material as the page's other popovers;
-       pointer-events: none so it never steals the pointer from the
-       canvas underneath it. */
-    #jboChartTip { position: absolute; left: 6px; top: 6px; z-index: 5; display: none; pointer-events: none; padding: 0.6rem 0.75rem; font-size: 0.83rem; line-height: 1.5; color: var(--subtext-color); min-width: 172px; max-width: calc(100% - 12px); }
-    #jboChartTip.open { display: block; }
-    #jboChartTip .jbo-tip-head strong { display: block; color: var(--text-color); font-size: 0.92rem; }
-    #jboChartTip .jbo-tip-head span { display: block; }
-    .jbo-tip-row { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.18rem; }
-    .jbo-tip-chip { width: 14px; height: 3px; border-radius: 2px; flex: none; background: var(--subtext-color); }
-    .jbo-tip-chip.chip-close { background: var(--text-color); height: 2px; }
-    .jbo-tip-val { margin-left: auto; padding-left: 0.9rem; color: var(--text-color); font-weight: 600; white-space: nowrap; }
+    /* Readout strip (2026-11-22): the chart's inspection values
+       live in a strip above the frame — at rest the latest bar in
+       the window, while the pointer inspects a bar that bar's own
+       values, and back to the latest bar on release. Nothing
+       overlays the graph. The strip speaks the Bitcoin chart
+       strip's language: label over value, hairline under. */
+    .fin-readout { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 10px 0 12px; padding: 0 2px 10px; border-bottom: 1px solid var(--border-color); }
+    .fin-stat { display: flex; flex-direction: column; min-width: 110px; }
+    .fin-stat-label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtext-color); }
+    .fin-stat-value { font-size: 1.25rem; font-weight: 700; line-height: 1.3; color: var(--text-color); }
+    .fin-chart-status { margin: 10px 0 12px; padding: 0 2px 10px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; color: var(--subtext-color); }
+    @media (max-width: 768px) {
+        .fin-readout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+        .fin-stat { min-width: 0; }
+        .fin-stat-value { font-size: 1.1rem; line-height: 1.2; }
+    }
     .jbo-chart-note { margin-top: 0.75rem; font-size: 0.85rem; color: var(--subtext-color); }
     .jbo-chart-datanote { margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--subtext-color); }
     /* Johnny's indicator switch (2026-11-22): the Bitcoin overlay
@@ -1521,7 +1523,9 @@
             </div>
         </div>
         </div>
-        <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"></canvas><div class="glass-bubble" id="jboChartTip"></div></div>
+        <div class="fin-readout" id="finReadout" aria-live="polite" hidden></div>
+        <p class="fin-chart-status" id="finChartStatus" hidden></p>
+        <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"></canvas></div>
         <p class="jbo-chart-note" id="jboChartNote" hidden></p>
         <p class="jbo-chart-note fin-ind-btcnote" id="finIndBtcNote" hidden>A deeper Bitcoin indicator lives on the <a href="bitcoin.html">Bitcoin page</a>.</p>
         </div>
@@ -6586,68 +6590,47 @@ if (typeof module !== "undefined") {
             updateTip();
         }
 
-        // ---- the in-chart tooltip ----
-        function fillTip(v, idx) {
-            var tip = document.getElementById("jboChartTip");
-            if (!tip) return;
-            tip.textContent = "";
-            var head = document.createElement("div");
-            head.className = "jbo-tip-head";
-            var nm = document.createElement("strong");
-            nm.textContent = v.s.name;
-            var dt = document.createElement("span");
-            dt.textContent = (mode === "daily" ? "" : "Week ending ") + fmtDate(v.s.bars[idx][0]);
-            head.appendChild(nm); head.appendChild(dt);
-            tip.appendChild(head);
-            tipRows(v, idx).forEach(function (r) {
-                var row = document.createElement("div");
-                row.className = "jbo-tip-row";
-                var chip = document.createElement("span");
-                chip.className = "jbo-tip-chip" + (r.chip ? " chip-" + r.chip : "");
-                chip.setAttribute("aria-hidden", "true");
-                if (r.color) chip.style.background = r.color;
-                var lab = document.createElement("span");
-                lab.textContent = r.label;
-                var val = document.createElement("span");
-                val.className = "jbo-tip-val";
-                val.textContent = r.value;
-                row.appendChild(chip); row.appendChild(lab); row.appendChild(val);
-                tip.appendChild(row);
-            });
-        }
+        // ---- the readout strip above the chart ----
+        // The bar's values live in the strip, never in a bubble
+        // over the graph: at rest the strip shows the latest bar
+        // in the window; while the pointer inspects a bar it shows
+        // that bar; when the inspection ends it returns to the
+        // latest bar. The values are tipRows' own — the same rows,
+        // formats and conditions the in-chart tooltip carried.
         function updateTip() {
-            var tip = document.getElementById("jboChartTip");
-            if (!tip) return;
-            if (!view || !layout || hover < view.start || hover > view.end) {
-                tip.classList.remove("open");
-                return;
+            var strip = document.getElementById("finReadout");
+            if (!strip) return;
+            if (!view || !view.s || !view.s.bars.length) { strip.hidden = true; return; }
+            var status = document.getElementById("finChartStatus");
+            if (status) status.hidden = true;
+            strip.hidden = false;
+            var idx = (hover >= view.start && hover <= view.end) ? hover : view.end;
+            var b = view.s.bars[idx];
+            strip.textContent = "";
+            function stat(label, value) {
+                var cell = document.createElement("div");
+                cell.className = "fin-stat";
+                var lab = document.createElement("span");
+                lab.className = "fin-stat-label";
+                lab.textContent = label;
+                var val = document.createElement("span");
+                val.className = "fin-stat-value";
+                val.textContent = value;
+                cell.appendChild(lab); cell.appendChild(val);
+                strip.appendChild(cell);
             }
-            fillTip(view, hover);
-            tip.classList.add("open");
-            var frame = document.getElementById("jboChartFrame");
-            var W = frame ? frame.clientWidth : 0, H = frame ? frame.clientHeight : 0;
-            if (!W || !H) return;
-            var n = layout.end - layout.start + 1;
-            var x = 6 + (n <= 1 ? layout.plotW / 2 : (hover - layout.start) / (n - 1) * layout.plotW);
-            var pointY = layout.priceY + (layout.hi - view.closes[hover]) / (layout.hi - layout.lo) * layout.priceH;
-            var pos = tipPos(W, H, tip.offsetWidth, tip.offsetHeight, x, pointY, lastPtr);
-            tip.style.left = pos.left + "px";
-            tip.style.top = pos.top + "px";
+            stat(mode === "weekly" ? "Week ending" : "Date", fmtDate(b[0]));
+            tipRows(view, idx).forEach(function (r) { stat(r.label, r.value); });
         }
-        // Loading / failure / no-data states speak through the same
-        // bubble, centred at the top of the frame — the honesty the
-        // old readout line carried, in the one place chart text lives.
+        // Loading / failure / no-data states speak through the
+        // status line in the strip's place above the frame — the
+        // honesty the old readout line carried, in the one place
+        // chart text lives.
         function showTipStatus(msg) {
-            var tip = document.getElementById("jboChartTip");
-            if (!tip) return;
-            tip.textContent = msg;
-            tip.classList.add("open");
-            var frame = document.getElementById("jboChartFrame");
-            var W = frame ? frame.clientWidth : 0;
-            if (W > 0) {
-                tip.style.left = Math.max(6, Math.round((W - tip.offsetWidth) / 2)) + "px";
-                tip.style.top = "10px";
-            }
+            var status = document.getElementById("finChartStatus");
+            var strip = document.getElementById("finReadout");
+            if (status) { status.textContent = msg; status.hidden = false; }
+            if (strip) strip.hidden = true;
         }
 
         // ---- axis ladders (2026-11-22) ----
@@ -7838,12 +7821,11 @@ if (typeof module !== "undefined") {
             },
             tipPos: tipPos,
             state: function () {
-                var tip = document.getElementById("jboChartTip");
                 return {
                     key: cur.key, range: cur.range, style: cur.style, pe: peOn, vol: volOn, rsi: rsiOn,
                     mode: mode, dailyLoaded: !!dailyData, modeNote: modeNote,
                     loaded: !!chartData, failed: loadFailed, hover: hover,
-                    tipOpen: !!(tip && tip.classList.contains("open")),
+                    tipOpen: hover >= 0,
                     fs: fsOn,
                     dd: { open: ddOpen, mine: listsOpen.mine, ndx: listsOpen.ndx, value: ddValue },
                     zoom: zoom ? { start: zoom.start, end: zoom.end } : null,
