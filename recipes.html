@@ -642,6 +642,26 @@
        mid-flow placement needed goes away in both lead positions. */
     #combinerBarBriefing .combiner-briefing { margin-top: 0.1rem; }
     #combiner-results > .combiner-briefing:first-child { margin-top: 0; }
+    /* Tool header + readout tail (2026-11-22): one subline under the
+       title; the scoring key in two sentences under the readout, with
+       the exact bands behind one expander. Key and expander stand
+       only while a selection stands. */
+    .nutrition-subline { color: var(--subtext-color); margin: 0.15rem 0 0; }
+    .combiner-key { color: var(--subtext-color); margin: 0.9rem 0 0; }
+    #combinerKey[hidden], #combinerHow[hidden] { display: none; }
+    .combiner-bands { border-collapse: collapse; margin: 0.2rem 0 0.1rem; }
+    .combiner-bands th, .combiner-bands td { text-align: left; padding: 0.14rem 0.9rem 0.14rem 0; font-weight: 400; }
+    .combiner-bands th { color: var(--subtext-color); font-weight: 600; }
+    .combiner-bands td:first-child { font-weight: 700; }
+    /* Pairing actions (2026-11-22): the reading view's Pairs well with
+       entry carries its own cook actions in the cook system's face;
+       the cook view answers with one slim row under its head. */
+    .pair-actions { display: flex; gap: 0.45rem; margin-top: 0.45rem; flex-wrap: nowrap; }
+    .pair-cook-btn { font-size: 0.75rem; font-weight: 700; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--glass-bg-solid); color: var(--text-color); cursor: pointer; white-space: nowrap; }
+    #cookPairRow { flex: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.9rem; font-size: 0.85rem; color: var(--text-color); }
+    #cookPairRow[hidden] { display: none; }
+    #cookPairRow .cook-pair-label { flex: 1 1 auto; min-width: 0; }
+    #cookPairBtn { font-size: 0.75rem; font-weight: 700; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--link-color); background: var(--link-color); color: #fff; cursor: pointer; white-space: nowrap; flex: none; }
     /* Dish-row serving steppers in the bubble: the combiner list's own
        stepper, always shown here (the list reveals its own only on
        checked rows); the qty span doubles as the tap-to-reset control. */
@@ -7520,8 +7540,7 @@
         <div id="nutritionCalcAnchor" hidden></div>
         <div class="explainer-card" id="nutritionToolCard">
             <h4>What each recipe covers — and what it doesn't</h4>
-            <p>Every recipe now shows estimated nutrition per serving, scored 0–5 against your daily target, with the exact % alongside. By default the target is the FDA Daily Values (2,000 kcal reference) — enter your details below to personalize it. Pick the recipes you're eating below \u2014 and how many servings of each \u2014 to see the combined intake — what the meal covers for the day, and what it doesn't.</p>
-            <p class="nutrition-legend">How to read the scores: 0–5 dots per nutrient — 0 is under 5% of your daily target, 1 is 5–19%, 2 is 20–49%, 3 is 50–79%, 4 is 80–119%, 5 is 120% or more. The exact % sits next to the dots. For sodium, saturated fat and cholesterol the target is a daily limit — more dots means closer to the limit, not better.</p>
+            <p class="nutrition-subline">Estimates per serving, scored against your whole day.</p>
             <div class="nutrition-profile" id="nutrition-profile">
                 <h5>Your daily targets</h5>
                 <p class="nutrition-profile-intro">By default, scores use FDA Daily Values (2,000 kcal). Enter your details for targets matched to you — saved only in your browser, never sent anywhere.</p>
@@ -7568,9 +7587,26 @@
             <div class="combiner-layout">
                 <div class="combiner-list" id="combiner-list" aria-label="Choose recipes to combine"></div>
                 <div class="combiner-results" id="combiner-results">
-                    <p class="combiner-empty">Select one or more recipes to see the combined intake for one serving of each.</p>
+                    <p class="combiner-empty">Pick the dishes you're eating — the meal describes itself here first, in plain words, then the numbers.</p>
                 </div>
             </div>
+            <p class="combiner-key" id="combinerKey" hidden>Dots run 0 to 5: 0 is barely any of your day, 5 is a full day or more. Sodium, saturated fat, and cholesterol are limits — a high score there means close to the cap.</p>
+            <details class="disclaimer-note combiner-how" id="combinerHow" hidden>
+                <summary><span class="disclaimer-gist">How the scores work</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
+                <div class="disclaimer-body">
+                    <table class="combiner-bands">
+                        <thead><tr><th scope="col">Score</th><th scope="col">Share of your day</th></tr></thead>
+                        <tbody>
+                            <tr><td>0</td><td>Under 5%</td></tr>
+                            <tr><td>1</td><td>5–19%</td></tr>
+                            <tr><td>2</td><td>20–49%</td></tr>
+                            <tr><td>3</td><td>50–79%</td></tr>
+                            <tr><td>4</td><td>80–119%</td></tr>
+                            <tr><td>5</td><td>120% or more</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </details>
             <div class="daily-meals" id="dailyMeals">
                 <div class="daily-head">
                     <button type="button" id="dailyGenerate">Generate a meal combination for me</button>
@@ -8293,7 +8329,7 @@
         if (data.notes && data.notes.length) parts.push(data.notes.join(' '));
         return '<p class="nutrition-note">' + esc(parts.join(' ')) + '</p>';
     }
-    function pairsHTML(recipeId) {
+    function pairsHTML(recipeId, withActions) {
         var data = NUTRI.recipes[dataKey(recipeId)];
         if (!data || !data.pairs || !data.pairs.length) return '';
         var h = '<div class="nutrition-pairs"><div class="recipe-section-title">Pairs well with</div>';
@@ -8302,7 +8338,9 @@
             RECIPES.forEach(function (x) { if (x.id === p.id) r = x; });
             var name = r ? r.name : p.id;
             var tag = p.classic ? 'Classic pairing' : 'Nutrition pairing';
-            h += '<p><strong><a href="#" class="pair-link" data-pair="' + esc(p.id) + '">' + esc(name) + '</a></strong> <span class="pair-tag">\u00b7 ' + tag + '</span> \u2014 ' + esc(p.reason) + '</p>';
+            h += '<p><strong><a href="#" class="pair-link" data-pair="' + esc(p.id) + '">' + esc(name) + '</a></strong> <span class="pair-tag">\u00b7 ' + tag + '</span> \u2014 ' + esc(p.reason);
+            if (withActions) h += '<span class="pair-actions"><button type="button" class="pair-cook-btn" data-pair-cook="both" data-host="' + esc(recipeId) + '" data-pair="' + esc(p.id) + '">Cook both</button><button type="button" class="pair-cook-btn" data-pair-cook="pair" data-host="' + esc(recipeId) + '" data-pair="' + esc(p.id) + '">Cook the pairing</button></span>';
+            h += '</p>';
         });
         return h + '</div>';
     }
@@ -8319,7 +8357,7 @@
         h += '<p class="nutrition-serving">' + esc(data.servingNote) + '</p>';
         h += '<p class="nutrition-legend">Dots score this serving against ' + esc(targetNoun()) + ' — 0 is under 5%, 1 is 5–19%, 2 is 20–49%, 3 is 50–79%, 4 is 80–119%, 5 is 120% or more. Exact % is shown.</p>';
         h += '<div class="nutrition-summary">' + summaryHTML(data) + '</div>';
-        h += pairsHTML(recipeId);
+        h += pairsHTML(recipeId, true);
         h += '<div class="nutri-bars">';
         DV_ORDER.forEach(function (num) { h += dotRow(num, data.perServing[num]); });
         h += '</div>' + notesHTML(data) + '</div>';
@@ -8355,6 +8393,17 @@
         return h;
     }
     window.__jboPanePanel = function (recipeId, m) { return panelHTMLScaled(recipeId, m); };
+    /* The cook system's window into the pairing data: a recipe's
+       pairings as id + display name, or null when it has none. */
+    window.__jboPairFor = function (recipeId) {
+        var data = NUTRI.recipes[dataKey(recipeId)];
+        if (!data || !data.pairs || !data.pairs.length) return null;
+        return data.pairs.map(function (p) {
+            var r = null;
+            RECIPES.forEach(function (x) { if (x.id === p.id) r = x; });
+            return { id: p.id, name: r ? r.name : p.id };
+        });
+    };
     function renderAllPanels() {
         RECIPES.forEach(function (r) {
             if (panelWraps[r.id]) panelWraps[r.id].innerHTML = panelHTML(r.id);
@@ -8392,6 +8441,8 @@
     /* Combiner. */
     var listEl = document.getElementById('combiner-list');
     var resultsEl = document.getElementById('combiner-results');
+    var combinerKeyEl = document.getElementById('combinerKey');
+    var combinerHowEl = document.getElementById('combinerHow');
     if (listEl && resultsEl) {
         RECIPES.forEach(function (r) {
             var label = document.createElement('label');
@@ -8465,7 +8516,9 @@
         var checked = listEl.querySelectorAll('input[type="checkbox"]:checked');
         syncServSteppers();
         if (!checked.length) {
-            resultsEl.innerHTML = '<p class="combiner-empty">Select one or more recipes to see the combined intake \u2014 set servings with the \u2212 / + buttons next to each recipe.</p>';
+            resultsEl.innerHTML = '<p class="combiner-empty">Pick the dishes you\u2019re eating \u2014 the meal describes itself here first, in plain words, then the numbers.</p>';
+            if (combinerKeyEl) combinerKeyEl.hidden = true;
+            if (combinerHowEl) combinerHowEl.hidden = true;
             updateCombinerBar(0, null);
             return;
         }
@@ -8532,6 +8585,8 @@
         var barLabel = null;
         if (vitCount) { barLabel = selParts.join(' \u00b7 '); if (totalServings > names.length) barLabel += ' \u00b7 ' + totalServings + ' serving' + (totalServings > 1 ? 's' : ''); }
         updateCombinerBar(names.length, totals, totalServings, hdIds, barLabel, allOne, dishes);
+        if (combinerKeyEl) combinerKeyEl.hidden = false;
+        if (combinerHowEl) combinerHowEl.hidden = false;
         resultsEl.innerHTML = h;
     }
 
@@ -10775,6 +10830,7 @@
             </div>
             <div class="cook-head-meta"><span class="cook-score" id="cookScore" aria-live="polite" title="The verdict scores everything selected, at the servings shown, against a full day's nutrition targets."></span><span class="cook-head-btns"><button type="button" id="cookIngBtn" hidden aria-expanded="false" aria-controls="cookIngPop">Ingredients</button><button type="button" id="cookScoreToggle" aria-expanded="false" aria-controls="cookScorePanel">Scorecard</button></span></div>
         </div>
+        <div id="cookPairRow" hidden><span class="cook-pair-label">Pairs well with <strong id="cookPairName"></strong></span><button type="button" id="cookPairBtn">Cook both</button></div>
         <div id="cookNav" hidden>
             <div class="cook-nav-row">
                 <div class="cook-nav-chips" id="cookNavChips" data-grab-scroll></div>
@@ -11273,6 +11329,13 @@
            every exit, so leaving the view lands exactly where the user
            was -- the pin bar's own saved position covers only its path. */
         var cookReturnY = null;
+        /* Pairing excursions (2026-11-22): a reading-view pairing
+           action loads its own dishes over the reader's selection.
+           The session remembers the selection it replaced, and
+           closeCook hands it back -- unless the reader grew the set
+           while inside, which is their own change and stands. The
+           excursion itself never resets state. */
+        var pairSession = null;
         var cookViewClear = document.getElementById('cookViewClear');
         var cookNav = document.getElementById('cookNav');
         var cookNavChips = document.getElementById('cookNavChips');
@@ -12117,6 +12180,100 @@
         });
         refreshCardSplits();
 
+        /* One dish's pane, built exactly as openCook builds it; the
+           pairing row's add calls this on its own, so the second
+           bubble lands in place beside the first, untouched. */
+        function buildCookPane(id) {
+            var content = document.getElementById(id);
+            if (!content) return null;
+            var wrapper = content.closest('.recipe-wrapper');
+            if (!wrapper) return null;
+            var clone = wrapper.cloneNode(true);
+            var ct = clone.querySelector('.cook-toggle');
+            if (ct) ct.remove();
+            /* Cooking-only panes: standout combination notes, the
+               single-dish standout notes, and the Pairs well with
+               block stay on the cards. */
+            clone.querySelectorAll('.recipe-tip').forEach(function (p) {
+                if (p.textContent.indexOf('Standout combination') !== -1 || p.textContent.indexOf('Standout recipe') !== -1) p.remove();
+            });
+            clone.querySelectorAll('.nutrition-pairs').forEach(function (p) { p.remove(); });
+            clone.querySelectorAll('.deep-text').forEach(function (p) { p.setAttribute('hidden', ''); });
+            clone.querySelectorAll('.pulse-flash').forEach(function (p) { p.classList.remove('pulse-flash'); });
+            clone.querySelectorAll('.deep-toggle').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+            var tog = clone.querySelector('.recipe-toggle');
+            if (tog) {
+                var div = document.createElement('div');
+                div.className = tog.className;
+                div.innerHTML = tog.innerHTML;
+                tog.replaceWith(div);
+            }
+            var cookHead = null;
+            var paneHead = clone.querySelector('.recipe-toggle');
+            if (paneHead) {
+                paneHead.classList.add('cook-pane-head');
+                var panePhoto = paneHead.querySelector('.recipe-card-photo');
+                var paneContent = clone.querySelector('.recipe-content');
+                if (panePhoto && paneContent) paneContent.insertBefore(panePhoto, paneContent.firstChild);
+                cookHead = paneHead;
+                paneHead.remove();
+            }
+            if (cookHead && window.__jboServGet) {
+                var titleEl = cookHead.querySelector('.recipe-card-title');
+                var m0 = window.__jboServGet(id);
+                var servRow = document.createElement('div');
+                servRow.className = 'cook-pane-servrow';
+                servRow.innerHTML = '<span class="cook-pane-servlabel">Servings</span>' +
+                    '<span class="serv-stepper cook-pane-serv" data-recipe="' + id + '" role="group">' +
+                    '<button type="button" class="serv-step" data-d="-1" aria-label="One fewer serving">−</button>' +
+                    '<button type="button" class="serv-mult" title="Tap to reset to 1 serving">' + fmtPaneServ(m0) + '</button>' +
+                    '<button type="button" class="serv-step" data-d="1" aria-label="One more serving">+</button></span>';
+                servRow.querySelector('.serv-stepper').setAttribute('aria-label', 'Servings of ' + (titleEl ? titleEl.textContent : 'this recipe'));
+                servRow.querySelector('.serv-mult').setAttribute('aria-label', 'Servings: ' + fmtPaneQty(m0) + '. Tap to reset to 1 serving');
+                var paneBody = cookHead.querySelector('.recipe-card-body');
+                (paneBody || cookHead).appendChild(servRow);
+                var servNote = document.createElement('p');
+                servNote.className = 'cook-pane-servnote';
+                servNote.textContent = servSentence(m0);
+                (paneBody || cookHead).appendChild(servNote);
+            }
+            clone.querySelectorAll('[id]').forEach(function (el) { el.removeAttribute('id'); });
+            clone.querySelectorAll('a').forEach(function (a) {
+                var parent = a.parentNode;
+                while (a.firstChild) parent.insertBefore(a.firstChild, a);
+                parent.removeChild(a);
+            });
+            /* The pane's nutrition panel shows this pane's servings
+               count (the card's per-serving panel stays on the card):
+               swap the cloned panel for the scaled build at the
+               current count. */
+            if (window.__jboPanePanel) {
+                var oldPanel = clone.querySelector('.nutrition-panel');
+                if (oldPanel) {
+                    var panelHolder = document.createElement('div');
+                    panelHolder.innerHTML = window.__jboPanePanel(id, window.__jboServGet ? window.__jboServGet(id) : 1);
+                    if (panelHolder.firstElementChild) oldPanel.replaceWith(panelHolder.firstElementChild);
+                }
+            }
+            var cc = clone.querySelector('.recipe-content');
+            if (cc) cc.classList.add('active');
+            var tc = clone.querySelector('.recipe-topcluster');
+            if (tc) {
+                var tbody = tc.querySelector('.topcluster-body');
+                var tbtn = tc.querySelector('.topcluster-toggle');
+                if (tbody && tbtn) {
+                    var bid = 'cook-' + id + '-benefits';
+                    tbody.setAttribute('id', bid);
+                    tbtn.setAttribute('aria-controls', bid);
+                }
+            }
+            if (window.__jboHealthBenefitsSync) window.__jboHealthBenefitsSync();
+            var section = document.createElement('section');
+            section.className = 'cook-recipe glass-bubble';
+            section.appendChild(clone);
+            if (cookHead) section.insertBefore(cookHead, clone);
+            return section;
+        }
         function openCook() {
             if (selected.length === 0 || !cookView) return;
             cookReturnY = window.scrollY;
@@ -12125,95 +12282,8 @@
             cookRecipes.innerHTML = '';
             unsplitAllCards();
             selected.forEach(function (id) {
-                var content = document.getElementById(id);
-                if (!content) return;
-                var wrapper = content.closest('.recipe-wrapper');
-                if (!wrapper) return;
-                var clone = wrapper.cloneNode(true);
-                var ct = clone.querySelector('.cook-toggle');
-                if (ct) ct.remove();
-                /* Cooking-only panes: standout combination notes, the
-                   single-dish standout notes, and the Pairs well with
-                   block stay on the cards. */
-                clone.querySelectorAll('.recipe-tip').forEach(function (p) {
-                    if (p.textContent.indexOf('Standout combination') !== -1 || p.textContent.indexOf('Standout recipe') !== -1) p.remove();
-                });
-                clone.querySelectorAll('.nutrition-pairs').forEach(function (p) { p.remove(); });
-                clone.querySelectorAll('.deep-text').forEach(function (p) { p.setAttribute('hidden', ''); });
-                clone.querySelectorAll('.pulse-flash').forEach(function (p) { p.classList.remove('pulse-flash'); });
-                clone.querySelectorAll('.deep-toggle').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
-                var tog = clone.querySelector('.recipe-toggle');
-                if (tog) {
-                    var div = document.createElement('div');
-                    div.className = tog.className;
-                    div.innerHTML = tog.innerHTML;
-                    tog.replaceWith(div);
-                }
-                var cookHead = null;
-                var paneHead = clone.querySelector('.recipe-toggle');
-                if (paneHead) {
-                    paneHead.classList.add('cook-pane-head');
-                    var panePhoto = paneHead.querySelector('.recipe-card-photo');
-                    var paneContent = clone.querySelector('.recipe-content');
-                    if (panePhoto && paneContent) paneContent.insertBefore(panePhoto, paneContent.firstChild);
-                    cookHead = paneHead;
-                    paneHead.remove();
-                }
-                if (cookHead && window.__jboServGet) {
-                    var titleEl = cookHead.querySelector('.recipe-card-title');
-                    var m0 = window.__jboServGet(id);
-                    var servRow = document.createElement('div');
-                    servRow.className = 'cook-pane-servrow';
-                    servRow.innerHTML = '<span class="cook-pane-servlabel">Servings</span>' +
-                        '<span class="serv-stepper cook-pane-serv" data-recipe="' + id + '" role="group">' +
-                        '<button type="button" class="serv-step" data-d="-1" aria-label="One fewer serving">−</button>' +
-                        '<button type="button" class="serv-mult" title="Tap to reset to 1 serving">' + fmtPaneServ(m0) + '</button>' +
-                        '<button type="button" class="serv-step" data-d="1" aria-label="One more serving">+</button></span>';
-                    servRow.querySelector('.serv-stepper').setAttribute('aria-label', 'Servings of ' + (titleEl ? titleEl.textContent : 'this recipe'));
-                    servRow.querySelector('.serv-mult').setAttribute('aria-label', 'Servings: ' + fmtPaneQty(m0) + '. Tap to reset to 1 serving');
-                    var paneBody = cookHead.querySelector('.recipe-card-body');
-                    (paneBody || cookHead).appendChild(servRow);
-                    var servNote = document.createElement('p');
-                    servNote.className = 'cook-pane-servnote';
-                    servNote.textContent = servSentence(m0);
-                    (paneBody || cookHead).appendChild(servNote);
-                }
-                clone.querySelectorAll('[id]').forEach(function (el) { el.removeAttribute('id'); });
-                clone.querySelectorAll('a').forEach(function (a) {
-                    var parent = a.parentNode;
-                    while (a.firstChild) parent.insertBefore(a.firstChild, a);
-                    parent.removeChild(a);
-                });
-                /* The pane's nutrition panel shows this pane's servings
-                   count (the card's per-serving panel stays on the card):
-                   swap the cloned panel for the scaled build at the
-                   current count. */
-                if (window.__jboPanePanel) {
-                    var oldPanel = clone.querySelector('.nutrition-panel');
-                    if (oldPanel) {
-                        var panelHolder = document.createElement('div');
-                        panelHolder.innerHTML = window.__jboPanePanel(id, window.__jboServGet ? window.__jboServGet(id) : 1);
-                        if (panelHolder.firstElementChild) oldPanel.replaceWith(panelHolder.firstElementChild);
-                    }
-                }
-                var cc = clone.querySelector('.recipe-content');
-                if (cc) cc.classList.add('active');
-                var tc = clone.querySelector('.recipe-topcluster');
-                if (tc) {
-                    var tbody = tc.querySelector('.topcluster-body');
-                    var tbtn = tc.querySelector('.topcluster-toggle');
-                    if (tbody && tbtn) {
-                        var bid = 'cook-' + id + '-benefits';
-                        tbody.setAttribute('id', bid);
-                        tbtn.setAttribute('aria-controls', bid);
-                    }
-                }
-                if (window.__jboHealthBenefitsSync) window.__jboHealthBenefitsSync();
-                var section = document.createElement('section');
-                section.className = 'cook-recipe glass-bubble';
-                section.appendChild(clone);
-                if (cookHead) section.insertBefore(cookHead, clone);
-                cookRecipes.appendChild(section);
+                var pane = buildCookPane(id);
+                if (pane) cookRecipes.appendChild(pane);
             });
             setupCookSingle();
             setupCookPaneSplits();
@@ -12228,6 +12298,7 @@
             document.body.style.overflow = 'hidden';
             cookView.scrollTop = 0;
             if (cookViewClose) cookViewClose.focus();
+            syncCookPairRow();
         }
         window.__jboOpenCook = openCook;
         function closeCook() {
@@ -12245,11 +12316,88 @@
             document.body.style.overflow = '';
             if (isDesktop.matches) { if (cookOpen) cookOpen.focus(); }
             else if (window.__jboMobileCookReturn) window.__jboMobileCookReturn();
+            if (pairSession) {
+                if (!pairSession.grew) {
+                    selected = pairSession.snapshot;
+                    cookToggles.forEach(refreshToggle);
+                    updateBar();
+                }
+                pairSession = null;
+            }
+            syncCookPairRow();
             /* The restore is the last word on every exit: whatever the
                entry path saved (or failed to save), the user lands back
                at the exact scroll position openCook captured. */
             if (cookReturnY !== null) { window.scrollTo(0, cookReturnY); cookReturnY = null; }
         }
+        /* ---- Pairing actions (2026-11-22) ----
+           The reading view's Pairs well with entry carries Cook both /
+           Cook the pairing; the cook view answers a lone dish that has
+           a pairing with one slim row under its head. Everything runs
+           through the cook system's own selection and open path, so a
+           pairing press is never a navigation: the view opens and
+           closes over the reading view exactly as it always does. */
+        var cookPairRow = document.getElementById('cookPairRow');
+        var cookPairName = document.getElementById('cookPairName');
+        var cookPairBtn = document.getElementById('cookPairBtn');
+        var cookPairTarget = null;
+        function syncCookPairRow() {
+            if (!cookPairRow) return;
+            cookPairTarget = null;
+            var target = null;
+            if (cookView && cookView.classList.contains('open') && selected.length === 1 && window.__jboPairFor) {
+                var pairs = window.__jboPairFor(selected[0]);
+                if (pairs) for (var i = 0; i < pairs.length; i++) {
+                    if (selected.indexOf(pairs[i].id) === -1) { target = pairs[i]; break; }
+                }
+            }
+            if (!target) { cookPairRow.hidden = true; return; }
+            cookPairTarget = target.id;
+            if (cookPairName) cookPairName.textContent = target.name;
+            cookPairRow.hidden = false;
+        }
+        function addCookDish(id) {
+            if (!cookView || selected.indexOf(id) !== -1 || selected.length >= MAX_COOK) return;
+            selected.push(id);
+            cookToggles.forEach(refreshToggle);
+            updateBar();
+            if (pairSession) pairSession.grew = true;
+            if (cookView.classList.contains('open')) {
+                cookView.classList.toggle('cook-two', selected.length === 2);
+                unsplitAllCards();
+                var pane = buildCookPane(id);
+                if (pane) cookRecipes.appendChild(pane);
+                setupCookSingle();
+                setupCookPaneSplits();
+                if (window.__jboTsSetup) window.__jboTsSetup();
+                cookViewTitle.textContent = 'Cooking ' + selected.length + ' recipe' + (selected.length === 1 ? '' : 's');
+                if (window.__jboRenderCookScore) window.__jboRenderCookScore(selected);
+                buildCookNav();
+                window.requestAnimationFrame(updateCookNav);
+            }
+            syncCookPairRow();
+        }
+        if (cookPairBtn) cookPairBtn.addEventListener('click', function () {
+            if (cookPairTarget) addCookDish(cookPairTarget);
+        });
+        function startPairCook(ids) {
+            if (!cookView || !ids.length) return;
+            pairSession = { snapshot: selected.slice(), grew: false };
+            selected = ids.slice();
+            cookToggles.forEach(refreshToggle);
+            updateBar();
+            openCook();
+        }
+        document.addEventListener('click', function (ev) {
+            var t = ev.target;
+            var b = t && t.closest ? t.closest('[data-pair-cook]') : null;
+            if (!b) return;
+            var host = b.getAttribute('data-host');
+            var pair = b.getAttribute('data-pair');
+            if (!host || !pair) return;
+            ev.preventDefault();
+            startPairCook(b.getAttribute('data-pair-cook') === 'both' ? [host, pair] : [pair]);
+        });
         if (cookIngBtn) cookIngBtn.addEventListener('click', function () {
             if (cookIngPop && !cookIngPop.hidden) closeCookIng(false);
             else openCookIng();
@@ -13471,12 +13619,72 @@
             var word = d.btn.querySelector('.door-card-word');
             if (word) word.textContent = open ? 'Close' : 'Open';
         }
+        /* The stack the glide must clear is taller than the header +
+           this bar whenever a section row sits in the slot: gliding to
+           the tool crosses the open Recipes section, whose head row is
+           stuck under the header with the Targets bar stacked below it
+           (placeTargetsBar), so that row's height belongs in the
+           offset. The row that will hold the slot is the last
+           sticky-applied section row before the target -- the same
+           candidates placeTargetsBar measures. */
+        function slotRowHeightBefore(wrap) {
+            var rows = document.querySelectorAll('.info-toggle, .recipes-head-row, .tips-outer > summary, .tip-group > summary');
+            var h = 0;
+            for (var i = 0; i < rows.length; i++) {
+                if (window.getComputedStyle(rows[i]).position !== 'sticky') continue;
+                if (wrap.compareDocumentPosition(rows[i]) & 2) h = rows[i].offsetHeight || 0;
+            }
+            return h;
+        }
+        /* The stack reaches its final shape only once the glide ends
+           (the slot row finishes sticking; the bar restacks beneath
+           it), so a computed offset can still land a few px off. Once
+           the scroll and the bar are both still, correct the remainder
+           by measurement: the wrap's top comes to rest exactly 4px
+           below the bar's bottom edge. A wheel or a touch cancels --
+           the reader's own scroll always wins. */
+        var glideSettle = null;
+        function settleGlide(wrap) {
+            if (glideSettle) glideSettle.cancelled = true;
+            var state = { cancelled: false };
+            glideSettle = state;
+            var tries = 0, stable = 0, frames = 0;
+            var startY = window.scrollY, lastY = window.scrollY, lastBar = null, sawMove = false;
+            function cancel() { state.cancelled = true; }
+            window.addEventListener('wheel', cancel, { passive: true });
+            window.addEventListener('touchstart', cancel, { passive: true });
+            function done() {
+                window.removeEventListener('wheel', cancel);
+                window.removeEventListener('touchstart', cancel);
+                if (glideSettle === state) glideSettle = null;
+            }
+            function step() {
+                if (state.cancelled || frames++ > 240) { done(); return; }
+                var y = window.scrollY;
+                if (Math.abs(y - startY) > 2) sawMove = true;
+                var barB = targetsBar ? targetsBar.getBoundingClientRect().bottom : 55;
+                var moved = Math.abs(y - lastY) > 0.5 || (lastBar !== null && Math.abs(barB - lastBar) > 0.5);
+                lastY = y; lastBar = barB;
+                stable = moved ? 0 : stable + 1;
+                if (stable >= 3 && sawMove) {
+                    var delta = wrap.getBoundingClientRect().top - (barB + 4);
+                    if (Math.abs(delta) <= 0.5 || Math.abs(delta) > 80 || tries >= 6) { done(); return; }
+                    tries++;
+                    window.scrollBy(0, delta);
+                    stable = 0;
+                    lastY = window.scrollY;
+                }
+                window.requestAnimationFrame(step);
+            }
+            window.requestAnimationFrame(step);
+        }
         function glideTo(cardEl) {
             var wrap = cardEl.closest('.explainer-wrapper');
             if (!wrap) return;
-            var offset = 55 + (targetsBar ? targetsBar.offsetHeight : 0) + 4;
+            var offset = 55 + slotRowHeightBefore(wrap) + (targetsBar ? targetsBar.offsetHeight : 0) + 4;
             var y = wrap.getBoundingClientRect().top + window.scrollY - offset;
             window.scrollTo({ top: Math.max(0, y), behavior: reduce ? 'auto' : 'smooth' });
+            settleGlide(wrap);
         }
         doors.forEach(function (d) {
             if (!d.btn || !d.card || !d.toggle) return;
