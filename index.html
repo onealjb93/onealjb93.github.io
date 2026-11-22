@@ -3288,30 +3288,35 @@
 
         /* --- Live update: this page is a static file with no server, so it
            refreshes its own numbers in the visitor's browser on every load.
-           Spot comes from Coinbase (Kraken as fallback); recent daily closes
-           come from Coinbase's candle feed (Kraken's as fallback) and extend
-           the chart's tail. If every fetch fails, the
+           The spot is the page's one live price — window.BTC_LIVE,
+           fed only by the header's Coinbase spot poller; this chart
+           keeps no price fetch of its own, so its readout and final
+           point always show the header's price. Recent daily closes
+           come from Coinbase's candle feed (Kraken's as fallback) and
+           extend the chart's tail behind the live point. If the live
+           price never lands, the
            baked figures above stand exactly as published, date included —
            the page never shows stale numbers under a fresh date. --- */
         var todayDays = Math.floor((Date.now() - GENESIS) / DAY);
+        /* One live price (2026-11-21): window.BTC_LIVE is the page's
+           single live-price registry, fed only by the Coinbase spot
+           poller. whenLive subscribes a consumer to it (waiting for
+           the registry itself if this block runs first); if no live
+           value ever lands, the baked figures below stand, date
+           included. */
+        function whenLive(fn) {
+            if (window.BTC_LIVE) { window.BTC_LIVE.onChange(fn); return; }
+            var tries = 0;
+            var t = setInterval(function () {
+                tries++;
+                if (window.BTC_LIVE) { clearInterval(t); window.BTC_LIVE.onChange(fn); }
+                else if (tries > 80) { clearInterval(t); }
+            }, 250);
+        }
         function fetchJSON(url) {
             return fetch(url).then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
-            });
-        }
-        function getSpot() {
-            return fetchJSON('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(function (j) {
-                var v = parseFloat(j && j.data && j.data.amount);
-                if (!(v > 0)) throw new Error('unexpected Coinbase payload');
-                return { price: v, source: 'Coinbase' };
-            }).catch(function () {
-                return fetchJSON('https://api.kraken.com/0/public/Ticker?pair=XBTUSD').then(function (j) {
-                    var res = j && j.result, key = res ? Object.keys(res)[0] : null;
-                    var v = key ? parseFloat(res[key].c[0]) : NaN;
-                    if (!(v > 0)) throw new Error('unexpected Kraken payload');
-                    return { price: v, source: 'Kraken' };
-                });
             });
         }
         function getCloses() {
@@ -3356,18 +3361,24 @@
             }
             draw();
         }
-        if (window.fetch && todayDays > SPOT.days) {
-            getSpot().then(function (spot) {
-                SPOT = { days: todayDays, price: Math.round(spot.price), label: dateStr(todayDays), source: spot.source };
-                renderReadout();
-                set('pl-fine-spot', '~' + money(SPOT.price) + ' on ' + SPOT.label + ' (' + SPOT.source + ')');
-                return getCloses().then(function (closes) {
+        var tailStarted = false;
+        function applyLivePrice(v) {
+            SPOT = { days: todayDays, price: Math.round(v), label: dateStr(todayDays), source: 'Coinbase' };
+            renderReadout();
+            set('pl-fine-spot', '~' + money(SPOT.price) + ' on ' + SPOT.label + ' (Coinbase)');
+            if (!tailStarted) {
+                tailStarted = true;
+                getCloses().then(function (closes) {
                     mergeTail(closes, SPOT.price);
                 }, function () {
                     mergeTail(null, SPOT.price);
                 });
-            }).catch(function () { /* offline or blocked: the baked figures stand */ });
+            } else {
+                var lastPt = PTS[PTS.length - 1];
+                if (lastPt && lastPt[0] === todayDays) { lastPt[1] = SPOT.price; draw(); }
+            }
         }
+        if (todayDays > SPOT.days) { whenLive(applyLivePrice); }
     })();
     </script>
 
@@ -3967,8 +3978,11 @@
         draw();
         draw();
 
-        /* --- Live update: same pattern as the power-law chart. Spot and
-           daily closes come from Coinbase (Kraken fallbacks); the current
+        /* --- Live update: same pattern as the power-law chart. The spot
+           is the page's one live price (window.BTC_LIVE, fed only
+           by the header's Coinbase spot poller — this chart keeps no
+           price fetch of its own); daily closes come from Coinbase
+           (Kraken fallback); the current
            difficulty — and, through its adjustment ratio, the previous
            period's — comes from mempool.space. The tail is rebuilt day by
            day: each completed day pairs its close with that day's cost
@@ -3976,24 +3990,25 @@
            last baked fees stand in for the tail's). If the spot fetch
            fails, the baked figures stand exactly as published. --- */
         var todayDays = Math.floor((Date.now() - GENESIS) / DAY);
+        /* One live price (2026-11-21): window.BTC_LIVE is the page's
+           single live-price registry, fed only by the Coinbase spot
+           poller. whenLive subscribes a consumer to it (waiting for
+           the registry itself if this block runs first); if no live
+           value ever lands, the baked figures below stand, date
+           included. */
+        function whenLive(fn) {
+            if (window.BTC_LIVE) { window.BTC_LIVE.onChange(fn); return; }
+            var tries = 0;
+            var t = setInterval(function () {
+                tries++;
+                if (window.BTC_LIVE) { clearInterval(t); window.BTC_LIVE.onChange(fn); }
+                else if (tries > 80) { clearInterval(t); }
+            }, 250);
+        }
         function fetchJSON(url) {
             return fetch(url).then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
-            });
-        }
-        function getSpot() {
-            return fetchJSON('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(function (j) {
-                var v = parseFloat(j && j.data && j.data.amount);
-                if (!(v > 0)) throw new Error('unexpected Coinbase payload');
-                return { price: v, source: 'Coinbase' };
-            }).catch(function () {
-                return fetchJSON('https://api.kraken.com/0/public/Ticker?pair=XBTUSD').then(function (j) {
-                    var res = j && j.result, key = res ? Object.keys(res)[0] : null;
-                    var v = key ? parseFloat(res[key].c[0]) : NaN;
-                    if (!(v > 0)) throw new Error('unexpected Kraken payload');
-                    return { price: v, source: 'Kraken' };
-                });
             });
         }
         function getCloses() {
@@ -4059,10 +4074,12 @@
             }
             draw();
         }
-        if (window.fetch && todayDays > SPOT.days) {
-            getSpot().then(function (spot) {
-                SPOT = { days: todayDays, price: Math.round(spot.price), label: dateStr(todayDays), source: spot.source };
-                return getDifficulty().then(function (dinfo) {
+        var tailStarted = false;
+        function applyLivePrice(v) {
+            SPOT = { days: todayDays, price: Math.round(v), label: dateStr(todayDays), source: 'Coinbase' };
+            if (!tailStarted) {
+                tailStarted = true;
+                getDifficulty().then(function (dinfo) {
                     DIN = dinfo;
                     renderReadout();
                     return getCloses().then(function (closes) {
@@ -4071,8 +4088,13 @@
                         mergeTail(null, SPOT.price, dinfo);
                     });
                 });
-            }).catch(function () { /* offline or blocked: the baked figures stand */ });
+            } else {
+                renderReadout();
+                var lastPt = PTS[PTS.length - 1];
+                if (lastPt && lastPt[0] === todayDays) { lastPt[1] = SPOT.price; draw(); }
+            }
         }
+        if (todayDays > SPOT.days) { whenLive(applyLivePrice); }
     })();
 
     </script>
@@ -4616,7 +4638,9 @@
         draw();
         draw();
 
-        /* --- Live update: spot from Coinbase (Kraken fallback); the daily
+        /* --- Live update: the spot is the page's one live price
+           (window.BTC_LIVE, fed only by the header's Coinbase spot
+           poller — this chart keeps no price fetch of its own); the daily
            closes are Coinbase Exchange candles, paginated in 300-day
            windows back to the feed's start, with Kraken OHLC (its last
            ~720 days) as the fallback. The series is rebuilt from the raw
@@ -4627,24 +4651,25 @@
            runs on the day of the baked snapshot too: the multiple moves
            with the spot price intraday. --- */
         var todayDays = Math.floor((Date.now() - GENESIS) / DAY);
+        /* One live price (2026-11-21): window.BTC_LIVE is the page's
+           single live-price registry, fed only by the Coinbase spot
+           poller. whenLive subscribes a consumer to it (waiting for
+           the registry itself if this block runs first); if no live
+           value ever lands, the baked figures below stand, date
+           included. */
+        function whenLive(fn) {
+            if (window.BTC_LIVE) { window.BTC_LIVE.onChange(fn); return; }
+            var tries = 0;
+            var t = setInterval(function () {
+                tries++;
+                if (window.BTC_LIVE) { clearInterval(t); window.BTC_LIVE.onChange(fn); }
+                else if (tries > 80) { clearInterval(t); }
+            }, 250);
+        }
         function fetchJSON(url) {
             return fetch(url).then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
-            });
-        }
-        function getSpot() {
-            return fetchJSON('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(function (j) {
-                var v = parseFloat(j && j.data && j.data.amount);
-                if (!(v > 0)) throw new Error('unexpected Coinbase payload');
-                return { price: v, source: 'Coinbase' };
-            }).catch(function () {
-                return fetchJSON('https://api.kraken.com/0/public/Ticker?pair=XBTUSD').then(function (j) {
-                    var res = j && j.result, key = res ? Object.keys(res)[0] : null;
-                    var v = key ? parseFloat(res[key].c[0]) : NaN;
-                    if (!(v > 0)) throw new Error('unexpected Kraken payload');
-                    return { price: v, source: 'Kraken' };
-                });
             });
         }
         function coinbaseCloses() {
@@ -4724,13 +4749,17 @@
             renderReadout();
             draw();
         }
+        var closesRes = null, liveSpot = null;
+        function tryRebuild() {
+            if (!closesRes || !liveSpot) return;
+            rebuild(closesRes.rows, closesRes.source, liveSpot);
+        }
         if (window.fetch && todayDays >= SPOT.days) {
-            getSpot().then(function (spot) {
-                var sp = { day: todayDays, price: Math.round(spot.price), source: spot.source };
-                return getCloses().then(function (res) {
-                    rebuild(res.rows, res.source, sp);
-                });
-            }).catch(function () { /* offline or blocked: the baked figures stand */ });
+            getCloses().then(function (res) { closesRes = res; tryRebuild(); }, function () { /* closes feed down: the baked figures stand */ });
+            whenLive(function (v) {
+                liveSpot = { day: todayDays, price: Math.round(v), source: 'Coinbase' };
+                tryRebuild();
+            });
         }
     })();
 
@@ -5800,41 +5829,55 @@
             fetchOnChainDonations();
         });
 
-        let lastPrice = 0;
-        function fetchLiveBtcPrice() {
-            fetch('https://mempool.space/api/v1/prices')
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (data && data.USD) { updatePriceDisplay(data.USD); }
-                })
-                .catch(function() {
-                    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
-                        .then(function(res) { return res.json(); })
-                        .then(function(cgData) {
-                            if (cgData && cgData.bitcoin && cgData.bitcoin.usd) { updatePriceDisplay(cgData.bitcoin.usd); }
-                        })
-                        .catch(function() {
-                            const p = document.getElementById('btc-price');
-                            if (p) p.innerText = "Live price unavailable";
-                        });
-                });
-        }
-
-        function updatePriceDisplay(newUsdPrice) {
-            const priceElement = document.getElementById('btc-price');
-            if (!priceElement) return;
-            const formattedPrice = newUsdPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            priceElement.innerText = '$' + formattedPrice + ' USD';
-            if (lastPrice !== 0 && newUsdPrice !== lastPrice) {
-                priceElement.style.transition = 'color 0.3s ease';
-                priceElement.style.color = newUsdPrice > lastPrice ? '#2ea043' : '#f85149';
-                setTimeout(function() { priceElement.style.color = ''; }, 1200);
+        /* One live price (2026-11-21): this page's Bitcoin price is
+           the same Coinbase spot feed the Bitcoin page's header
+           polls — one feed for the whole site. The poller below
+           writes the doorway card's price in the header's own
+           format (whole dollars) and publishes every value on
+           window.BTC_LIVE for the charts further down the page,
+           which keep no price fetch of their own. (This display
+           used to poll mempool.space with a CoinGecko fallback and
+           show cents — a second price that could disagree with the
+           Bitcoin page.) A failed fetch keeps the last real price
+           on screen; the slot is only ever filled with a fetched
+           price. */
+        window.BTC_LIVE = window.BTC_LIVE || (function () {
+            var subs = [], value = null;
+            return {
+                get: function () { return value; },
+                onChange: function (fn) {
+                    subs.push(fn);
+                    if (value !== null) { try { fn(value); } catch (e) {} }
+                },
+                _set: function (v) {
+                    if (!(v > 0) || v === value) { return; }
+                    value = v;
+                    for (var i = 0; i < subs.length; i++) { try { subs[i](v); } catch (e) {} }
+                }
+            };
+        })();
+        (function () {
+            var el = document.getElementById('btc-price');
+            if (!window.fetch) { return; }
+            var last = null;
+            function tick() {
+                fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(function (r) {
+                    if (!r.ok) { throw new Error('HTTP ' + r.status); }
+                    return r.json();
+                }).then(function (j) {
+                    var v = parseFloat(j && j.data && j.data.amount);
+                    if (!(v > 0)) { return; }
+                    if (window.BTC_LIVE) { window.BTC_LIVE._set(v); }
+                    var s = '$' + Math.round(v).toLocaleString('en-US');
+                    if (el && s !== last) { last = s; el.textContent = s; }
+                }).catch(function () { /* keep the last real price */ });
             }
-            lastPrice = newUsdPrice;
-        }
-
-        fetchLiveBtcPrice();
-        setInterval(fetchLiveBtcPrice, 5000);
+            tick();
+            setInterval(function () { if (!document.hidden) { tick(); } }, 5000);
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden) { tick(); }
+            });
+        })();
 
         function copyBtcAddress() {
             const addressText = document.getElementById('btc-wallet-address').innerText;
