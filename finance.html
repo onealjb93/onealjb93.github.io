@@ -347,6 +347,31 @@
     }
     #chart:fullscreen .fin-ind-btcnote, #chart:-webkit-full-screen .fin-ind-btcnote, #chart.chart-fs .fin-ind-btcnote { display: none; }
     .fin-ind-btcnote a { color: var(--link-color); }
+    /* Latest dots (2026-11-22): the indicator's dots are rare —
+       most series show a handful across decades — so beside the
+       switch sits a finder: every series' newest buy day and
+       newest sell day from the daily file, newest first. The
+       panel is the stock dropdown's glass bubble hung under its
+       button, so opening it moves nothing on the page; the
+       button wears the Chart tools chevron. A pick loads that
+       series with the indicator on and centres the window on
+       the dot's day. The list is rebuilt from the daily file
+       whenever the panel opens, so it can never disagree with
+       the dots the chart draws. */
+    .fin-dots-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 1rem; }
+    .fin-dots { position: relative; }
+    #finDotsBtn .chart-tools-chev { display: inline-block; font-size: 0.72em; margin-left: 0.35rem; transition: transform var(--dur-1) var(--ease-out); }
+    #finDotsBtn[aria-expanded="true"] .chart-tools-chev { transform: rotate(90deg); }
+    .fin-dots-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: min(19rem, calc(100vw - 2rem)); max-height: min(24rem, 62vh); overflow-y: auto; padding: 0 0 0.35rem; }
+    .fin-dots-panel[hidden] { display: none; }
+    .fin-dots-head { position: sticky; display: flex; align-items: center; gap: 0.5rem; width: 100%; height: 2.75rem; padding: 0 0.8rem; box-sizing: border-box; background: var(--glass-bg-solid); color: var(--text-color); font-size: 0.9rem; font-weight: 700; z-index: 1; }
+    #finDotsBuyHead { top: 0; z-index: 2; border-radius: var(--glass-radius) var(--glass-radius) 0 0; }
+    #finDotsSellHead { top: 2.75rem; }
+    .fin-dots-list { display: flex; flex-direction: column; padding: 0.15rem 0.35rem 0.3rem; }
+    .fin-dots-opt { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; padding: 0.55rem 0.45rem; border: none; border-radius: 8px; background: none; color: var(--text-color); font-family: inherit; font-size: 0.95rem; text-align: left; cursor: pointer; }
+    .fin-dots-opt:hover, .fin-dots-opt:focus-visible { background: var(--badge-bg); }
+    .fin-dots-date { color: var(--subtext-color); font-size: 0.88em; white-space: nowrap; }
+    .fin-dots-note { margin: 0; padding: 0.55rem 0.45rem; color: var(--subtext-color); font-size: 0.9rem; }
     /* Chart key: the swatches are the exact colours and weights the
        in-page chart draws — amber 200-week (3px), blue 50-week (2px),
        violet weekly RSI (2px), teal P/E (2px, its pane is optional),
@@ -1426,7 +1451,18 @@
             </div>
             </div>
         </div>
+        <div class="fin-dots-row">
         <button type="button" class="fin-ind-switch" id="finIndBtn" role="switch" aria-checked="false" aria-label="Johnny’s indicator" title="Turn Johnny’s indicator on or off"><span class="fin-ind-label" aria-hidden="true">Johnny’s indicator</span><span class="fin-ind-track" aria-hidden="true"><span class="fin-ind-knob"></span></span></button>
+        <div class="fin-dots" id="finDots">
+            <button type="button" class="filter-pill" id="finDotsBtn" aria-haspopup="true" aria-expanded="false" aria-controls="finDotsPanel">Latest dots<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
+            <div class="fin-dots-panel glass-bubble" id="finDotsPanel" hidden>
+                <div class="fin-dots-head" id="finDotsBuyHead"><span class="tv-key-dot tv-key-dot-buy" aria-hidden="true"></span>Latest buy dots</div>
+                <div class="fin-dots-list" id="finDotsBuy"></div>
+                <div class="fin-dots-head" id="finDotsSellHead"><span class="tv-key-dot tv-key-dot-sell" aria-hidden="true"></span>Latest sell dots</div>
+                <div class="fin-dots-list" id="finDotsSell"></div>
+            </div>
+        </div>
+        </div>
         <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"></canvas><div class="glass-bubble" id="jboChartTip"></div></div>
         <p class="jbo-chart-note" id="jboChartNote" hidden></p>
         <p class="jbo-chart-note fin-ind-btcnote" id="finIndBtcNote" hidden>A deeper Bitcoin indicator lives on the <a href="bitcoin.html">Bitcoin page</a>.</p>
@@ -1439,7 +1475,7 @@
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-rsi" aria-hidden="true"></span><span id="keyRsi"><strong>Violet &mdash; the weekly RSI</strong>. How stretched the price is &mdash; pushed too far, too fast, in either direction. Dashed lines mark 70 and 30: above 70, overbought; below 30, oversold.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-pe" aria-hidden="true"></span><span><strong>Teal &mdash; the P/E ratio</strong>. The price divided by the last twelve months of earnings per share &mdash; how many dollars investors pay for one dollar of profit. Where the line breaks, the company was losing money: there is no P/E without earnings. The dashed line is the stock's own median P/E: above it, expensive for itself; below it, cheap for itself.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span id="keyVolma"><strong>Grey &mdash; the 20-week volume average</strong>. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
-            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-buy"></span><span class="tv-key-dot tv-key-dot-sell"></span></span><span><strong>Green and red dots &mdash; Johnny&rsquo;s indicator</strong>. A green dot marks a buy day: the RSI at or under 30, the VIX at or over 30, the price at least 30% down from its highest price of the last two years and PEG at or under 1, all on the same day. A red dot marks a sell day: the RSI over 70, the VIX under 15, PEG at 2 or more and the price at least 50% above its 200-week average, all of it held for five straight days. The S&amp;P 500, the Nasdaq, gold and Bitcoin have no earnings of their own, so their dots use the same rules without PEG.</span></span>
+            <span class="tv-key-item"><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-buy"></span><span class="tv-key-dot tv-key-dot-sell"></span></span><span><strong>Green and red dots &mdash; Johnny&rsquo;s indicator</strong>. A green dot marks a buy day: the RSI at or under 30, the VIX at or over 30, the price at least 30% down from its highest price of the last two years and PEG at or under 1 &mdash; or, where PEG can&rsquo;t be calculated, the price at least 40% down from its highest price of the last two years &mdash; all on the same day. A red dot marks a sell day: the RSI over 70, the VIX under 15, PEG at 2 or more and the price at least 50% above its 200-week average, all of it held for five straight days. The S&amp;P 500, Nasdaq, gold, and Bitcoin have no PEG to calculate, so for them the 40% drop stands in.</span></span>
         </div>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         <p class="chart-intro">Tap a pick above, or choose from my 19 stocks and the Nasdaq-100 in the box above. The chart is drawn from this page&rsquo;s own daily and weekly data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-day moving average, the 50-day moving average for the trend, and the daily RSI &mdash; in the Weekly view, the same three by the week: the 200-week average, the 50-week average, and the weekly RSI. A stock with under four years of trading history has no 200-day line yet; the note under the chart says so when that is the case.</p>
@@ -5965,16 +6001,17 @@ if (typeof module !== "undefined") {
         // Pane toggles: Volume and RSI start on (the shipped look),
         // P/E starts off; a stored "0"/"1" overrides per pane.
         var peOn = false, volOn = true, rsiOn = true;
-        // Johnny's indicator: starts off, persists like the panes.
-        // The invitation glow follows Johnny's pulse rule
-        // (2026-11-22): it runs on every load while the switch is
-        // off — no stored choice retires it — and the first press
-        // of a visit dismisses it, with a fade (see syncInd).
-        // indPressed and indFading live only for the visit.
+        // Johnny's indicator: every load starts with it OFF
+        // (Johnny, 2026-11-22) — no stored state turns it back
+        // on; within a visit it stays as he sets it. The
+        // invitation glow follows his pulse rule: it runs on
+        // every load while the switch is off — no stored choice
+        // retires it — and the first press of a visit dismisses
+        // it, with a fade (see syncInd). indPressed and
+        // indFading live only for the visit.
         var indOn = false, indPressed = false, indFading = false;
         try {
             peOn = window.localStorage.getItem(PE_KEY) === "1";
-            indOn = window.localStorage.getItem(IND_KEY) === "1";
             volOn = window.localStorage.getItem(VOL_KEY) !== "0";
             rsiOn = window.localStorage.getItem(RSI_KEY) !== "0";
             // The mode persists like the pane choices: a visitor
@@ -6951,6 +6988,130 @@ if (typeof module !== "undefined") {
             if (indOn && !dailyData) ensureDaily(); else render();
         });
         syncInd();
+        // ---- Latest dots finder (2026-11-22) ----
+        // The dots are rare — most series show a handful across
+        // decades — so the switch alone can look broken on a
+        // series whose last dot predates the visible window.
+        // This list is the way to one: for every series in the
+        // daily file, its newest buy day and newest sell day,
+        // each side newest first, twelve at most. It is rebuilt
+        // from the same buy / sell arrays the dots draw from —
+        // when the panel opens and when the daily file lands —
+        // so it follows the pipeline's nightly recomputes with
+        // no baked entries. A pick loads the series, turns the
+        // indicator on if it was off, and centres a two-year
+        // window on the dot's bar inside the smallest range
+        // whose window contains it.
+        var dotsBtn = document.getElementById("finDotsBtn");
+        var dotsPanel = document.getElementById("finDotsPanel");
+        var dotsRoot = document.getElementById("finDots");
+        var dotsOpen = false;
+        function latestDots() {
+            var buys = [], sells = [];
+            if (!dailyData || !dailyData.series) return { ready: false, buys: buys, sells: sells };
+            Object.keys(dailyData.series).forEach(function (k) {
+                var s = dailyData.series[k];
+                if (!s) return;
+                var i, d;
+                if (s.buy && s.buy.length) { d = s.buy[0]; for (i = 1; i < s.buy.length; i++) if (s.buy[i] > d) d = s.buy[i]; buys.push({ key: k, date: d }); }
+                if (s.sell && s.sell.length) { d = s.sell[0]; for (i = 1; i < s.sell.length; i++) if (s.sell[i] > d) d = s.sell[i]; sells.push({ key: k, date: d }); }
+            });
+            var newestFirst = function (a, b) { return a.date === b.date ? (a.key < b.key ? -1 : 1) : (a.date < b.date ? 1 : -1); };
+            buys.sort(newestFirst); sells.sort(newestFirst);
+            return { ready: true, buys: buys.slice(0, 12), sells: sells.slice(0, 12) };
+        }
+        function dotsOption(entry) {
+            var b = document.createElement("button");
+            b.type = "button";
+            b.className = "fin-dots-opt";
+            b.setAttribute("data-key", entry.key);
+            b.setAttribute("data-date", entry.date);
+            var sym = document.createElement("span");
+            sym.textContent = entry.key;
+            var dt = document.createElement("span");
+            dt.className = "fin-dots-date";
+            dt.textContent = fmtDate(entry.date);
+            b.appendChild(sym); b.appendChild(dt);
+            return b;
+        }
+        function dotsNote(text) {
+            var p = document.createElement("p");
+            p.className = "fin-dots-note";
+            p.textContent = text;
+            return p;
+        }
+        function populateDots() {
+            var buyEl = document.getElementById("finDotsBuy");
+            var sellEl = document.getElementById("finDotsSell");
+            if (!buyEl || !sellEl) return;
+            var d = latestDots();
+            buyEl.textContent = ""; sellEl.textContent = "";
+            if (!d.ready) { buyEl.appendChild(dotsNote("Loading the daily data…")); return; }
+            if (d.buys.length) d.buys.forEach(function (e) { buyEl.appendChild(dotsOption(e)); });
+            else buyEl.appendChild(dotsNote("No buy dots in the data yet."));
+            if (d.sells.length) d.sells.forEach(function (e) { sellEl.appendChild(dotsOption(e)); });
+            else sellEl.appendChild(dotsNote("No sell dots in the data yet."));
+        }
+        function setDotsOpen(open) {
+            dotsOpen = open;
+            if (dotsPanel) dotsPanel.hidden = !open;
+            if (dotsBtn) dotsBtn.setAttribute("aria-expanded", open ? "true" : "false");
+            if (open) { populateDots(); if (!dailyData) ensureDaily(); }
+        }
+        function goToDot(key, dateStr) {
+            if (!chartData || !chartData.series[key]) return;
+            if (!indOn) {
+                indOn = true; indPressed = true;
+                storePane(IND_KEY, indOn);
+                syncInd();
+            }
+            cur.key = key; modeNote = "";
+            var s = mode === "daily" ? (dailyData && dailyData.series ? dailyData.series[key] : null) : chartData.series[key];
+            if (!s || !s.bars || !s.bars.length) { hover = -1; zoom = null; syncControls(); if (mode === "daily") ensureDaily(); else render(); return; }
+            var n = s.bars.length;
+            var loI = 0, hiI = n - 1, ans = -1;
+            while (loI <= hiI) { var mid = (loI + hiI) >> 1; if (s.bars[mid][0] >= dateStr) { ans = mid; hiI = mid - 1; } else { loI = mid + 1; } }
+            if (ans < 0) ans = n - 1;
+            var counts = mode === "daily" ? RANGE_DAYS : RANGE_WEEKS;
+            var order = ["1Y", "5Y", "10Y", "ALL"], chosen = "ALL", ri;
+            for (ri = 0; ri < order.length; ri++) { if (ans >= n - Math.min(n, counts[order[ri]])) { chosen = order[ri]; break; } }
+            cur.range = chosen;
+            var rangeCount = Math.min(n, counts[chosen]);
+            var W = Math.min(rangeCount, mode === "daily" ? 504 : 104);
+            if (W >= rangeCount) { zoom = null; }
+            else {
+                var start = ans - Math.floor(W / 2);
+                if (start < n - rangeCount) start = n - rangeCount;
+                if (start > n - W) start = n - W;
+                zoom = { start: start, end: start + W - 1 };
+            }
+            hover = ans;
+            syncControls();
+            if (mode === "daily") ensureDaily(); else render();
+        }
+        if (dotsBtn) dotsBtn.addEventListener("click", function () { setDotsOpen(!dotsOpen); });
+        if (dotsPanel) dotsPanel.addEventListener("click", function (e) {
+            var opt = e.target && e.target.closest ? e.target.closest(".fin-dots-opt") : null;
+            if (!opt) return;
+            var key = opt.getAttribute("data-key"), dateStr = opt.getAttribute("data-date");
+            setDotsOpen(false);
+            goToDot(key, dateStr);
+        });
+        document.addEventListener("pointerdown", function (e) {
+            if (dotsOpen && dotsRoot && !dotsRoot.contains(e.target)) setDotsOpen(false);
+        });
+        // Esc closes the panel before it can reach the
+        // full-screen handler registered below — the stock
+        // dropdown's own pattern.
+        document.addEventListener("keydown", function (e) {
+            if (dotsOpen && (e.key === "Escape" || e.key === "Esc" || e.keyCode === 27)) {
+                setDotsOpen(false);
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                if (dotsBtn && dotsBtn.focus) dotsBtn.focus();
+            }
+        });
+        populateDots();
         // ---- full-screen view ----
         // The button at the right end of the section's title row
         // takes the WHOLE chart block — #chart — full screen (the
@@ -7260,6 +7421,7 @@ if (typeof module !== "undefined") {
             dailyPromise
                 .then(function (d) {
                     dailyData = d;
+                    if (typeof populateDots === "function") populateDots();
                     if (mode === "daily" || indOn) render();
                 })
                 .catch(function () {
