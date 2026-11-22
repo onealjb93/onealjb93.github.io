@@ -550,6 +550,26 @@
     #combinerBarPanel { display: block; margin: 0; padding-top: 0; border-top: 1px solid transparent; max-height: 0; overflow: hidden; visibility: hidden; opacity: 0; transition: max-height var(--dur-3) var(--ease-inout), opacity var(--dur-3) var(--ease-inout), margin var(--dur-3) var(--ease-inout), padding-top var(--dur-3) var(--ease-inout); }
     #combinerBar.expanded #combinerBarPanel { margin: 0.1rem 0 0.35rem; padding-top: 0.25rem; border-top-color: var(--border-color); max-height: min(70dvh, 720px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; visibility: visible; opacity: 1; }
         @media (prefers-reduced-motion: reduce) { #combinerBarPanel { transition: none; } }
+    /* Expanded scorecard = the site's glass popup (2026-11-22): the slim bar
+       stays a bar; only the expanded state becomes a floating glass bubble
+       over a dimmed, blurred page (the #combinerScrim below, in the
+       .glass-scrim tokens). The bubble is inset from the screen edges so
+       the dimmed page peeks around it, and the panel's height cap now
+       counts the whole screen -- top peek, the bar's own rows, and the
+       tray under the bar (--bar-tray, published from the tray's measured
+       height) -- so the bubble's head, with its Close button, is always
+       on screen and nothing pinned can slice it: the bubble paints above
+       the targets bar (z 950) like the page's other popups (z 1200). */
+    #combinerScrim { position: fixed; inset: 0; z-index: 1185; }
+    #combinerScrim[hidden] { display: none; }
+    body.cookpins-visible { --bar-tray: var(--cookpin-h, 116px); }
+    body.cook-bar-visible { --bar-tray: 86px; }
+    #combinerBar.expanded { z-index: 1195; width: min(720px, calc(100vw - 20px)); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25); backdrop-filter: blur(var(--glass-blur)) saturate(1.25); border-radius: var(--glass-radius); box-shadow: var(--glass-shadow); }
+    body.cookpins-visible #combinerBar.expanded { bottom: calc(var(--cookpin-h, 116px) + 10px); }
+    body.cook-bar-visible #combinerBar.expanded { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+    #combinerBar.expanded #combinerBarPanel { max-height: min(70dvh, 720px, calc(100dvh - 160px - var(--bar-tray, 0px))); }
+    .combiner-panel-head button { cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 999px; padding: 0.3rem 0.8rem; font: inherit; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+    #combinerBarDetails { margin-left: auto; }
     .combiner-panel-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin: 0 0 0.2rem; font-size: 0.78rem; font-weight: 700; }
     .healthy-day-note { margin: 0 0 0.35rem; font-size: 0.72rem; line-height: 1.45; opacity: 0.85; }
     .verdict-frame { font-size: 0.82rem; color: var(--subtext-color); margin: 0.1rem 0 0.4rem; }
@@ -739,18 +759,18 @@
     .cookpin-note:empty { display: none; }
     .cookpin-chips { flex: 1 1 auto; min-width: 0; display: flex; gap: 0.4rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
     .cookpin-chips::-webkit-scrollbar { display: none; }
-    .cookpin-chip { flex: none; min-height: 44px; white-space: nowrap; background: var(--badge-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 999px; padding: 0.3rem 0.8rem; font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .cookpin-chip { flex: none; min-height: 44px; max-width: 100%; white-space: normal; text-align: left; background: var(--badge-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 999px; padding: 0.3rem 0.8rem; font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
     #cookPinOpen { flex: none; min-height: 44px; border-radius: 999px; border: 1px solid var(--link-color); background: var(--link-color); color: #fff; font-weight: 700; font: inherit; font-size: 0.88rem; padding: 0.45rem 0.95rem; cursor: pointer; white-space: nowrap; }
     #cookPinClear { flex: none; min-height: 44px; border-radius: 999px; border: 1px solid var(--border-color); background: transparent; color: var(--text-color); font: inherit; font-weight: 600; font-size: 0.88rem; padding: 0.45rem 0.8rem; cursor: pointer; white-space: nowrap; }
     /* The cookpins offsets below carry the pin bar's height plus
        the nutrition summary row that now lives inside it (the row
        and one bar gap: 48px, added 2026-11-21). */
-    body.cookpins-visible { padding-bottom: calc(124px + env(safe-area-inset-bottom, 0px)); }
-    body.combiner-bar-visible.cookpins-visible { padding-bottom: calc(var(--combiner-h, 72px) + 136px + env(safe-area-inset-bottom, 0px)); }
-    body.cookpins-visible #combinerBar { bottom: calc(116px + env(safe-area-inset-bottom, 0px)); }
-    body.cookpins-visible .back-to-top { bottom: calc(136px + env(safe-area-inset-bottom, 0px)); }
+    body.cookpins-visible { padding-bottom: calc(var(--cookpin-h, 124px) + 8px); }
+    body.combiner-bar-visible.cookpins-visible { padding-bottom: calc(var(--combiner-h, 72px) + var(--cookpin-h, 116px) + 20px); }
+    body.cookpins-visible #combinerBar { bottom: var(--cookpin-h, 116px); }
+    body.cookpins-visible .back-to-top { bottom: calc(var(--cookpin-h, 116px) + 20px); }
     body.combiner-bar-visible .back-to-top { bottom: calc(var(--combiner-h, 72px) + 16px + env(safe-area-inset-bottom, 0px)); }
-    body.combiner-bar-visible.cookpins-visible .back-to-top { bottom: calc(var(--combiner-h, 72px) + 140px + env(safe-area-inset-bottom, 0px)); }
+    body.combiner-bar-visible.cookpins-visible .back-to-top { bottom: calc(var(--combiner-h, 72px) + var(--cookpin-h, 116px) + 24px); }
     #cookView.cook-mobile .cook-view-head { padding: calc(0.45rem + env(safe-area-inset-top, 0px)) 0.9rem 0.4rem; }
     #cookView.cook-mobile #cookRecipes { overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; padding: 10px 10px calc(12px + env(safe-area-inset-bottom, 0px)); }
     #cookView.cook-mobile .cook-recipe { flex: 0 0 93%; scroll-snap-align: start; scroll-snap-stop: always; }
@@ -8506,6 +8526,8 @@
     function syncBarToggle(open) {
         var jump = document.getElementById('combinerBarJump');
         if (jump) jump.setAttribute('aria-expanded', open ? 'true' : 'false');
+        var scr = document.getElementById('combinerScrim');
+        if (scr) scr.hidden = !open;
         var det = document.getElementById('combinerBarDetails');
         if (det) {
             det.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -8522,12 +8544,12 @@
         if (!bar.classList.contains('show')) { document.body.style.removeProperty('--combiner-h'); return; }
         var hh = bar.offsetHeight || 0;
         if (bar.classList.contains('expanded')) {
+            /* The expanded bar is a glass-bubble overlay, not page furniture:
+               the page's bottom padding tracks only its slim footprint (the
+               bar minus its panel), so opening the bubble never shoves the
+               page behind it. */
             var panel = document.getElementById('combinerBarPanel');
-            if (panel) {
-                var cap = Math.min(window.innerHeight * 0.7, 720);
-                var target = (bar.offsetHeight - (panel.offsetHeight || 0)) + Math.min(panel.scrollHeight || 0, cap);
-                if (target > hh) hh = target;
-            }
+            if (panel) hh = (bar.offsetHeight || 0) - (panel.offsetHeight || 0);
         }
         if (hh) document.body.style.setProperty('--combiner-h', hh + 'px');
     }
@@ -8553,6 +8575,17 @@
             }
             return;
         }
+        /* The bubble's own exits: its labeled Close button, and a tap on the
+           dimmed page around it (the scrim). Both land on the slim bar. */
+        if (t.id === 'combinerScrim' || t.closest('#combinerBarClose')) {
+            var barX = document.getElementById('combinerBar');
+            if (barX && barX.classList.contains('expanded')) {
+                barX.classList.remove('expanded');
+                syncBarToggle(false);
+                syncBarSpace();
+            }
+            return;
+        }
         var clr = t.closest('#combinerBarClear');
         if (clr && listEl) {
             listEl.querySelectorAll('input[type="checkbox"]:checked').forEach(function (c) { c.checked = false; });
@@ -8564,6 +8597,16 @@
         if (e.target && e.target.id === 'combinerBarPanel') syncBarSpace();
     });
     window.addEventListener('resize', syncBarSpace);
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        var bar = document.getElementById('combinerBar');
+        if (!bar || !bar.classList.contains('expanded')) return;
+        var cv = document.getElementById('cookView');
+        if (cv && cv.classList.contains('open')) return;
+        bar.classList.remove('expanded');
+        syncBarToggle(false);
+        syncBarSpace();
+    });
 
         /* Pair links: expand the paired recipe and scroll to it. */
     document.addEventListener('click', function (e) {
@@ -10288,10 +10331,13 @@
         <button type="button" id="cookPinOpen">Cook</button>
         <button type="button" id="cookPinClear">Clear</button>
     </div>
+    <!-- Scrim for the expanded scorecard's glass-bubble state: the dimmed,
+         blurred page behind the bubble; tapping it collapses the panel. -->
+    <div id="combinerScrim" class="glass-scrim" hidden></div>
     <!-- Sticky combiner footer: live totals while recipes are selected (mobile + desktop) -->
     <div id="combinerBar" role="group" aria-label="Combined nutrition totals">
         <div id="combinerBarPanel">
-            <div class="combiner-panel-head"><span>Combined nutrition</span></button></span></div>
+            <div class="combiner-panel-head"><span>Combined nutrition</span><button type="button" id="combinerBarClose" aria-label="Close the scorecard">&times; Close</button></div>
             <div class="combiner-profile-row"><span class="profile-day" data-profile-day></span><button type="button" class="profile-chip" data-profile-edit>Edit</button></div>
             <div class="frame-toggle-row"><div class="frame-toggle" role="tablist" aria-label="Judge the verdict as a meal or as a full day" data-frame-toggle="combiner"><button type="button" role="tab" data-frame-value="meal" aria-selected="false">Meal</button><button type="button" role="tab" data-frame-value="day" aria-selected="false">Full day</button></div></div>
             <div class="verdict-row" id="verdictRow" hidden><span id="verdictMain"></span></div>
@@ -10308,6 +10354,7 @@
         </div>
         <div id="combinerBarMeta">
             <span class="verdict-bar" id="verdictBar" hidden></span>
+            <button type="button" id="combinerBarDetails" aria-expanded="false" aria-controls="combinerBarPanel">Details <span class="combiner-details-chevron" aria-hidden="true">&#8964;</span></button>
         </div>
     </div>
     <!-- Nutrition pill + overlay calculator (added 2026-11-18): the pill
@@ -10830,6 +10877,11 @@
         var cookRecipes = document.getElementById('cookRecipes');
         var cookViewTitle = document.getElementById('cookViewTitle');
         var cookViewClose = document.getElementById('cookViewClose');
+        /* Plug and play (2026-11-22): the page's scroll position when the
+           cook view opened, captured on EVERY entry path and restored on
+           every exit, so leaving the view lands exactly where the user
+           was -- the pin bar's own saved position covers only its path. */
+        var cookReturnY = null;
         var cookViewClear = document.getElementById('cookViewClear');
         var cookNav = document.getElementById('cookNav');
         var cookNavChips = document.getElementById('cookNavChips');
@@ -11676,6 +11728,7 @@
 
         function openCook() {
             if (selected.length === 0 || !cookView) return;
+            cookReturnY = window.scrollY;
             cookView.classList.toggle('cook-mobile', !isDesktop.matches);
             cookView.classList.toggle('cook-two', selected.length === 2);
             cookRecipes.innerHTML = '';
@@ -11801,6 +11854,10 @@
             document.body.style.overflow = '';
             if (isDesktop.matches) { if (cookOpen) cookOpen.focus(); }
             else if (window.__jboMobileCookReturn) window.__jboMobileCookReturn();
+            /* The restore is the last word on every exit: whatever the
+               entry path saved (or failed to save), the user lands back
+               at the exact scroll position openCook captured. */
+            if (cookReturnY !== null) { window.scrollTo(0, cookReturnY); cookReturnY = null; }
         }
         if (cookIngBtn) cookIngBtn.addEventListener('click', function () {
             if (cookIngPop && !cookIngPop.hidden) closeCookIng(false);
@@ -12178,6 +12235,7 @@
                 bar.classList.remove('show');
                 document.body.classList.remove('cookpins-visible');
                 if (!p.length && noteEl) noteEl.textContent = '';
+                syncPinH();
                 return;
             }
             chipsEl.innerHTML = '';
@@ -12192,7 +12250,20 @@
             openBtn.textContent = 'Cook ' + p.length + ' recipe' + (p.length === 1 ? '' : 's');
             bar.classList.add('show');
             document.body.classList.add('cookpins-visible');
+            syncPinH();
         }
+        /* Publish the bar's true height as --cookpin-h: the combiner bar's
+           bottom offset, the page's bottom padding and the expanded
+           bubble's clearance all read it, so the tray stack can never
+           overlap itself no matter how many rows this bar grows (the
+           nutrition pill row, wrapped chips). Measured, never hard-coded:
+           the fixed 116px it replaces was 43px short of the real bar. */
+        function syncPinH() {
+            if (bar.classList.contains('show')) document.body.style.setProperty('--cookpin-h', bar.offsetHeight + 'px');
+            else document.body.style.removeProperty('--cookpin-h');
+        }
+        if (window.MutationObserver) new MutationObserver(syncPinH).observe(bar, { childList: true, attributes: true, attributeFilter: ['class'] });
+        window.addEventListener('resize', syncPinH);
         function openAt(index) {
             var p = pins();
             if (!p.length || !window.__jboOpenCook) return;
