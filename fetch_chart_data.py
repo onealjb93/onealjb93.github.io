@@ -618,7 +618,9 @@ def compute_pe(bars, facts, splits):
 #
 # BUY (every condition, the same day):
 #   stocks:          RSI(14) <= 30, VIX >= 30, drawdown <= -30%,
-#                    PEG <= 1
+#                    PEG <= 1 — and where PEG is undefined, a
+#                    deeper drawdown <= -40% stands in for the
+#                    PEG check
 #   SPX/IXIC/GOLD/BTC (no earnings exist, no P/E array): the same
 #                    without PEG — never presented as PEG-checked.
 # Drawdown is the close against the trailing 2-year high — close /
@@ -627,7 +629,14 @@ def compute_pe(bars, facts, splits):
 # 2026-11-22 (Johnny's D1 adoption, after the drawdown study): on
 # 2015-2026 the D1 form fired 112 buy episodes at a +51.1% median
 # 1y forward return, against the settled form's 100 episodes at
-# +46.7%. The SELL side below is unchanged and still uses the
+# +46.7%. Later the same day Johnny switched the buy side to the
+# combined form — D1's rule plus the drawdown study's D3 stand-in
+# above (the -40% line wherever PEG cannot compute): on
+# 2015-2026 the combined form fired 212 buy episodes at a +47.2%
+# median 1y forward return, capturing 13.3% of major lows
+# against D1's 6.8%; he took the breadth after living with D1's
+# sparsity (COST, LLY and TSLA hold no D1 buy in their entire
+# history). The SELL side below is unchanged and still uses the
 # 200-week average, which is still computed for it.
 # SELL (every condition held for 5 consecutive trading days; the
 # signal is live from the 5th day through the end of the run):
@@ -637,8 +646,9 @@ def compute_pe(bars, facts, splits):
 # PEG = P/E / growth, growth the mean of the three most recent
 # year-over-year EPS growth rates (252 trading days apart, EPS =
 # close / P/E), in percent, capped at 25 (Lynch's ranges unadjusted);
-# PEG is undefined unless EPS > 0 at all four points and growth > 0,
-# and where PEG is required but undefined no signal fires that day.
+# PEG is undefined unless EPS > 0 at all four points and growth > 0.
+# Where PEG is undefined no SELL fires that day; on the BUY side
+# the -40% drawdown stands in for the PEG check instead (above).
 # The 200-week average is the mean of the last 1,000 closes including
 # today; RSI(14) is Wilder's; the VIX is aligned point-in-time (the
 # last VIX close on or before the series' own date).
@@ -755,13 +765,20 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
             is_buy = rsi[i] <= 30 and vix >= 30 and dd[i] <= -0.30
             is_sell = rsi[i] > 70 and vix < 15 and closes[i] >= ma[i] * 1.50
         else:
-            if peg[i] is None:
-                run = 0
-                continue
+            if peg[i] is not None:
+                peg_ok = peg[i] <= 1
+                is_sell = (rsi[i] > 70 and vix < 15
+                           and closes[i] >= ma[i] * 1.50
+                           and peg[i] >= 2)
+            else:
+                # PEG undefined: the deeper drawdown stands in for
+                # the buy side's PEG check (the combined form); the
+                # sell side still requires a defined PEG >= 2, so
+                # no sell can fire or persist through this day.
+                peg_ok = dd[i] <= -0.40
+                is_sell = False
             is_buy = (rsi[i] <= 30 and vix >= 30 and dd[i] <= -0.30
-                      and peg[i] <= 1)
-            is_sell = (rsi[i] > 70 and vix < 15
-                       and closes[i] >= ma[i] * 1.50 and peg[i] >= 2)
+                      and peg_ok)
         if is_buy:
             buy.append(dates[i])
         run = run + 1 if is_sell else 0
