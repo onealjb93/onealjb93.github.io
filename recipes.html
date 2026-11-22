@@ -628,6 +628,28 @@
        rendered in the combiner results -- same classes, same type. */
     .combiner-briefing { margin-top: 0.85rem; }
     .combiner-briefing-dish { color: var(--subtext-color); }
+    /* The briefing leads the box (Johnny, 2026-11-22): in the scorecard
+       bubble it is the first thing under the panel head, and in the
+       in-page results it opens the readout -- the top margin the
+       mid-flow placement needed goes away in both lead positions. */
+    #combinerBarBriefing .combiner-briefing { margin-top: 0.1rem; }
+    #combiner-results > .combiner-briefing:first-child { margin-top: 0; }
+    /* Dish-row serving steppers in the bubble: the combiner list's own
+       stepper, always shown here (the list reveals its own only on
+       checked rows); the qty span doubles as the tap-to-reset control. */
+    #combinerBarPanel .serv-stepper { display: inline-flex; flex: none; }
+    #combinerBarPanel .serv-stepper .combiner-dish-qty { min-width: 3.2rem; text-align: center; font-size: 0.78rem; }
+    .combiner-bar-empty { color: var(--subtext-color); font-size: 0.85rem; margin: 0.35rem 0 0; }
+    /* Add-a-dish picker in the bubble: the combiner list's row grammar,
+       folded away until asked for; its list scrolls inside the bubble. */
+    .combiner-picker { margin: 0.45rem 0 0.55rem; }
+    .combiner-picker-toggle { display: inline-flex; align-items: center; gap: 0.25rem; background: none; border: 1px solid var(--border-color); border-radius: 999px; padding: 0.2rem 0.6rem; color: var(--link-color); font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+    .combiner-picker-toggle:hover { border-color: var(--link-color); }
+    .combiner-picker-search { width: 100%; box-sizing: border-box; margin: 0.5rem 0 0.3rem; padding: 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--badge-bg); color: var(--text-color); font: inherit; font-size: 0.85rem; }
+    .combiner-picker-list { max-height: 220px; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    .combiner-picker-list label { display: flex; align-items: center; gap: 0.45rem; padding: 0.34rem 0.1rem; border-bottom: 1px solid var(--border-color); font-size: 0.86rem; cursor: pointer; }
+    .combiner-picker-list label:last-child { border-bottom: 0; }
+    .combiner-picker-list .combiner-serving { color: var(--subtext-color); font-size: 0.78rem; }
     /* Combiner results: the percent column takes 7.75rem so the longest Custom-mode
        string the tool can render ("11028% of your target", 119.1px measured) fits
        inside the card with a few px to spare; the extra width comes out of the dots
@@ -8255,6 +8277,10 @@
         });
         updateCombiner();
     }
+    /* The scorecard bubble's add-a-dish picker is built lazily by
+       buildBarPicker() in the scorecard script below: the bubble's
+       markup sits later in the page than this script, so the picker
+       elements do not exist yet at this point in the parse. */
     function syncServSteppers() {
         if (!listEl) return;
         listEl.querySelectorAll('label').forEach(function (lab) {
@@ -8311,9 +8337,15 @@
         var selParts = [];
         if (recipeCount) selParts.push(recipeCount + ' recipe' + (recipeCount > 1 ? 's' : ''));
         if (vitCount) selParts.push(vitCount + ' vitamin' + (vitCount > 1 ? 's' : ''));
-        var h = anyScaled
-            ? '<p class="combiner-total">Your selection — <strong>' + totalServings + ' serving' + (totalServings > 1 ? 's' : '') + '</strong> from ' + selParts.join(' \u00b7 ') + ': ' + esc(names.join(' · ')) + '</p>'
-            : '<p class="combiner-total">One serving of each — <strong>' + selParts.join(' \u00b7 ') + '</strong>: ' + esc(names.join(' · ')) + '</p>';
+        /* The briefing leads the readout (Johnny, 2026-11-22): the
+           sentences say what the food is; the calculator below them is
+           the evidence. The old bookkeeping opener demotes to a compact
+           servings line, shown only when a serving count differs from
+           one dish one serving -- the dish names already stand in the
+           checked list beside the readout and in the scorecard's dish
+           rows, and the closing note already states the sum in words. */
+        var h = selectionBriefingHTML(ids, dishes, totals);
+        if (anyScaled) h += '<p class="combiner-total">Your selection — <strong>' + totalServings + ' serving' + (totalServings > 1 ? 's' : '') + '</strong> in all.</p>';
         h += '<div class="nutri-bars">';
         DV_ORDER.forEach(function (num) {
             var val = Math.round(totals[num] * 10) / 10;
@@ -8334,7 +8366,6 @@
         if (halfway.length) h += '<p><strong>Halfway or more:</strong> ' + esc(halfway.join(', ')) + '.</p>';
         if (low.length) h += '<p><strong>Still low:</strong> ' + esc(low.join(', ')) + '.</p>';
         h += '</div>';
-        h += selectionBriefingHTML(ids, dishes, totals);
         if (checked.length === 1) h += pairsHTML(checked[0].getAttribute('data-recipe'));
         h += '<p class="nutrition-note">' + (anyScaled ? 'Combined values are the sum of the selected servings of each ' + (vitCount ? 'item' : 'recipe') + '. ' : 'Combined values are the sum of one serving of each selected ' + (vitCount ? 'item' : 'recipe') + '. ') + esc(NUTRI.method) + '</p>';
         var barLabel = null;
@@ -8481,11 +8512,28 @@
         if (!bar || !txt) return;
         renderProfileChip();
         if (!count || !totals) {
-            bar.classList.remove('show', 'expanded');
-            syncBarToggle(false);
             var db0 = document.getElementById('combinerBarDishes');
             if (db0) db0.innerHTML = '';
+            var grid0 = document.getElementById('combinerBarGrid');
+            if (grid0) grid0.innerHTML = '';
             renderVerdictSurfaces(null, null);
+            syncBarPicker();
+            var emptyNote0 = document.getElementById('combinerBarEmpty');
+            if (bar.classList.contains('expanded')) {
+                /* The box is open: it stays open on its picker, so a
+                   selection can be built -- or rebuilt after clearing --
+                   without leaving the box. Collapsing the box with
+                   nothing selected hides the bar, as before. */
+                if (emptyNote0) emptyNote0.hidden = false;
+                txt.textContent = 'No dishes selected';
+                bar.classList.add('show');
+                document.body.classList.add('combiner-bar-visible');
+                syncBarSpace();
+                return;
+            }
+            if (emptyNote0) emptyNote0.hidden = true;
+            bar.classList.remove('show', 'expanded');
+            syncBarToggle(false);
             document.body.classList.remove('combiner-bar-visible');
             document.body.style.removeProperty('--combiner-h');
             return;
@@ -8510,15 +8558,83 @@
             if (dishes && dishes.length) {
                 var dh = '';
                 dishes.forEach(function (d) {
-                    dh += '<div class="combiner-dish-row"><span class="combiner-dish-name">' + esc(d.name) + '</span><span class="combiner-dish-qty">\u00d7 ' + fmtServQty(d.mult) + '</span><button type="button" class="combiner-dish-remove" data-remove-recipe="' + d.id + '" aria-label="Remove ' + esc(d.name) + ' from the selection">&times;</button></div>';
+                    dh += '<div class="combiner-dish-row"><span class="combiner-dish-name">' + esc(d.name) + '</span>' +
+                        '<span class="serv-stepper" data-recipe="' + d.id + '" role="group" aria-label="Servings of ' + esc(d.name) + '">' +
+                        '<button type="button" class="serv-step" data-d="-1" aria-label="One fewer serving">\u2212</button>' +
+                        '<button type="button" class="combiner-dish-qty serv-mult" title="Tap to reset to 1 serving" aria-label="Servings: ' + fmtServQty(d.mult) + '. Tap to reset to 1 serving">\u00d7 ' + fmtServQty(d.mult) + '</button>' +
+                        '<button type="button" class="serv-step" data-d="1" aria-label="One more serving">+</button></span>' +
+                        '<button type="button" class="combiner-dish-remove" data-remove-recipe="' + d.id + '" aria-label="Remove ' + esc(d.name) + ' from the selection">&times;</button></div>';
                 });
                 db.innerHTML = dh;
             } else db.innerHTML = '';
         }
         bar.classList.add('show');
         document.body.classList.add('combiner-bar-visible');
+        var emptyNote1 = document.getElementById('combinerBarEmpty');
+        if (emptyNote1) emptyNote1.hidden = true;
+        syncBarPicker();
         syncBarSpace();
         renderVerdictSurfaces(totals, recipeIds || []);
+    }
+
+    /* The bubble's add-a-dish picker: the same recipes in the combiner
+       list's row grammar. Built lazily on the first bar render that
+       finds the elements (the bubble's markup sits later in the page
+       than the combiner script). Its checkboxes drive the list's own
+       checkboxes -- one selection state, two views -- and the list's
+       uncheck rule (servings reset to 1) applies here too. */
+    function buildBarPicker() {
+        var pl = document.getElementById('combinerPickerList');
+        if (!pl || pl.__built || !listEl) return;
+        pl.__built = true;
+        RECIPES.forEach(function (r) {
+            var label = document.createElement('label');
+            label.innerHTML = '<input type="checkbox" data-recipe="' + r.id + '"> <span>' + esc(r.name) + '</span> <span class="combiner-serving">(' + esc(r.serving) + ')</span>';
+            pl.appendChild(label);
+        });
+        pl.addEventListener('change', function (e) {
+            var cb = e.target && e.target.closest ? e.target.closest('input[type="checkbox"]') : null;
+            if (!cb) return;
+            var rid = cb.getAttribute('data-recipe');
+            var main = listEl.querySelector('input[type="checkbox"][data-recipe="' + rid + '"]');
+            if (main) {
+                main.checked = cb.checked;
+                if (!cb.checked) servMult[rid] = 1;
+            }
+            updateCombiner();
+        });
+        var pickerToggleBtn = document.getElementById('combinerPickerToggle');
+        var pickerBodyEl = document.getElementById('combinerPickerBody');
+        if (pickerToggleBtn && pickerBodyEl) {
+            pickerToggleBtn.addEventListener('click', function () {
+                var open = pickerBodyEl.hidden;
+                pickerBodyEl.hidden = !open;
+                pickerToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                syncBarSpace();
+            });
+        }
+        var pickerSearchEl = document.getElementById('combinerPickerSearch');
+        if (pickerSearchEl) {
+            pickerSearchEl.addEventListener('input', function () {
+                var q = pickerSearchEl.value.trim().toLowerCase();
+                pl.querySelectorAll('label').forEach(function (lab) {
+                    lab.style.display = (!q || lab.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+                });
+            });
+        }
+    }
+
+    /* The picker's checkboxes mirror the combiner list: any change made
+       anywhere -- card list, picker, dish-row remove -- shows the same
+       state everywhere. Called on every bar render. */
+    function syncBarPicker() {
+        buildBarPicker();
+        var pl = document.getElementById('combinerPickerList');
+        if (!pl || !listEl) return;
+        pl.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+            var main = listEl.querySelector('input[type="checkbox"][data-recipe="' + cb.getAttribute('data-recipe') + '"]');
+            cb.checked = main ? main.checked : false;
+        });
     }
 
     /* One expansion state for the bar: the row's Details button and the row
@@ -8557,6 +8673,20 @@
     document.addEventListener('click', function (e) {
         var t = e.target;
         if (!t || !t.closest) return;
+        /* Dish-row serving steppers inside the bubble: they call the
+           existing serving hook -- the same servMult state and 1-4
+           clamp the list's steppers use, a tap on the count resetting
+           to 1 -- so servings agree everywhere by construction. */
+        var stp = t.closest('#combinerBarPanel .serv-step, #combinerBarPanel .serv-mult');
+        if (stp) {
+            var stpWrap = stp.closest('.serv-stepper');
+            var stpRid = stpWrap ? stpWrap.getAttribute('data-recipe') : null;
+            if (stpRid && window.__jboStepServ) {
+                if (stp.classList.contains('serv-mult')) window.__jboStepServ(stpRid, 0);
+                else window.__jboStepServ(stpRid, parseInt(stp.getAttribute('data-d'), 10));
+            }
+            return;
+        }
         var rm = t.closest('[data-remove-recipe]');
         if (rm && listEl) {
             var cb = listEl.querySelector('input[type="checkbox"][data-recipe="' + rm.getAttribute('data-remove-recipe') + '"]');
@@ -8572,6 +8702,10 @@
                 var open = bar.classList.toggle('expanded');
                 syncBarToggle(open);
                 syncBarSpace();
+                /* Collapsing the box with nothing selected puts the
+                   bar away entirely (its open-empty state only lives
+                   while the box is open). */
+                if (!open && listEl && !listEl.querySelector('input[type="checkbox"]:checked')) updateCombiner();
             }
             return;
         }
@@ -8583,6 +8717,7 @@
                 barX.classList.remove('expanded');
                 syncBarToggle(false);
                 syncBarSpace();
+                if (listEl && !listEl.querySelector('input[type="checkbox"]:checked')) updateCombiner();
             }
             return;
         }
@@ -8606,6 +8741,7 @@
         bar.classList.remove('expanded');
         syncBarToggle(false);
         syncBarSpace();
+        if (listEl && !listEl.querySelector('input[type="checkbox"]:checked')) updateCombiner();
     });
 
         /* Pair links: expand the paired recipe and scroll to it. */
@@ -10343,6 +10479,7 @@
     <div id="combinerBar" role="group" aria-label="Combined nutrition totals">
         <div id="combinerBarPanel">
             <div class="combiner-panel-head"><span>Combined nutrition</span><button type="button" id="combinerBarClose" aria-label="Close the scorecard">&times; Close</button></div>
+            <div id="combinerBarBriefing" hidden></div>
             <div class="combiner-profile-row"><span class="profile-day" data-profile-day></span><button type="button" class="profile-chip" data-profile-edit>Edit</button></div>
             <div class="frame-toggle-row"><div class="frame-toggle" role="tablist" aria-label="Judge the verdict as a meal or as a full day" data-frame-toggle="combiner"><button type="button" role="tab" data-frame-value="meal" aria-selected="false">Meal</button><button type="button" role="tab" data-frame-value="day" aria-selected="false">Full day</button></div></div>
             <div class="verdict-row" id="verdictRow" hidden><span id="verdictMain"></span></div>
@@ -10350,7 +10487,14 @@
             <div id="verdictFrame" hidden></div>
             <div class="verdict-checks" id="verdictChecks" hidden></div>
             <div class="combiner-dishes" id="combinerBarDishes"></div>
-            <div id="combinerBarBriefing" hidden></div>
+            <p class="combiner-bar-empty" id="combinerBarEmpty" hidden>No dishes yet — add one below and the comparison builds itself here.</p>
+            <div class="combiner-picker" id="combinerBarPicker">
+                <button type="button" class="combiner-picker-toggle" id="combinerPickerToggle" aria-expanded="false" aria-controls="combinerPickerBody">+ Add a dish</button>
+                <div id="combinerPickerBody" hidden>
+                    <input type="search" class="combiner-picker-search" id="combinerPickerSearch" placeholder="Search dishes…" aria-label="Search dishes to add">
+                    <div class="combiner-picker-list" id="combinerPickerList" aria-label="Add recipes to the comparison"></div>
+                </div>
+            </div>
             <div class="combiner-panel-grid" id="combinerBarGrid"></div>
         </div>
         <div id="combinerBarRow">
