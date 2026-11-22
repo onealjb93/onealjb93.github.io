@@ -290,17 +290,35 @@
        the window, while the pointer inspects a bar that bar's own
        values, and back to the latest bar on release. Nothing
        overlays the graph. The strip speaks the Bitcoin chart
-       strip's language: label over value, hairline under. */
-    .fin-readout { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 10px 0 12px; padding: 0 2px 10px; border-bottom: 1px solid var(--border-color); }
-    .fin-stat { display: flex; flex-direction: column; min-width: 110px; }
-    .fin-stat-label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtext-color); }
-    .fin-stat-value { font-size: 1.25rem; font-weight: 700; line-height: 1.3; color: var(--text-color); }
+       strip's language: label over value, hairline under.
+       Compact sizing (2026-11-22): the first cut carried the
+       Bitcoin strip's desktop type into a two-column phone grid
+       and ate a third of the screen — the cells now size to
+       their contents in a wrapping row, and full screen takes
+       the strip down to one slim row (see the :fullscreen
+       rules under the strip). */
+    .fin-readout { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 10px 0 12px; padding: 0 2px 10px; border-bottom: 1px solid var(--border-color); }
+    .fin-readout[hidden] { display: none; }
+    .fin-stat { display: flex; flex-direction: column; min-width: 0; }
+    .fin-stat-label { font-size: 0.72rem; font-weight: 600; line-height: 1.25; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtext-color); white-space: nowrap; }
+    .fin-stat-value { font-size: 1.05rem; font-weight: 700; line-height: 1.25; color: var(--text-color); white-space: nowrap; }
     .fin-chart-status { margin: 10px 0 12px; padding: 0 2px 10px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; color: var(--subtext-color); }
     @media (max-width: 768px) {
-        .fin-readout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
-        .fin-stat { min-width: 0; }
-        .fin-stat-value { font-size: 1.1rem; line-height: 1.2; }
+        .fin-readout { gap: 6px 14px; }
+        .fin-stat-label { font-size: 0.68rem; }
+        .fin-stat-value { font-size: 0.95rem; line-height: 1.2; }
     }
+    /* Full screen: the strip compresses to ONE slim row and the
+       graph fills the screen — the chart-fullscreen rule the
+       Bitcoin chart already follows (its readout leaves the
+       layout there; Finance's seven values stay, in one row,
+       scrolling sideways inside the strip if a narrow screen
+       ever needs it). */
+    #chart:fullscreen .fin-readout, #chart:-webkit-full-screen .fin-readout, #chart.chart-fs .fin-readout { flex-wrap: nowrap; overflow-x: auto; gap: 4px 14px; margin: 6px 0 8px; padding: 0 2px 6px; scrollbar-width: none; }
+    #chart:fullscreen .fin-readout::-webkit-scrollbar, #chart:-webkit-full-screen .fin-readout::-webkit-scrollbar, #chart.chart-fs .fin-readout::-webkit-scrollbar { display: none; }
+    #chart:fullscreen .fin-stat, #chart:-webkit-full-screen .fin-stat, #chart.chart-fs .fin-stat { flex: none; }
+    #chart:fullscreen .fin-stat-label, #chart:-webkit-full-screen .fin-stat-label, #chart.chart-fs .fin-stat-label { font-size: 0.66rem; }
+    #chart:fullscreen .fin-stat-value, #chart:-webkit-full-screen .fin-stat-value, #chart.chart-fs .fin-stat-value { font-size: 0.9rem; line-height: 1.2; }
     .jbo-chart-note { margin-top: 0.75rem; font-size: 0.85rem; color: var(--subtext-color); }
     .jbo-chart-datanote { margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--subtext-color); }
     /* Johnny's indicator switch (2026-11-22): the Bitcoin overlay
@@ -7773,6 +7791,11 @@ if (typeof module !== "undefined") {
             var body = document.getElementById("chart-body");
             if (!body || body.hidden || loadStarted) return;
             loadStarted = true;
+            // Say the wait out loud in the chart's own status line
+            // before the fetch starts — a slow file must never
+            // present as a dead, empty chart frame.
+            showTipStatus("Loading chart data…");
+            render();
             fetch("finance-chart-data.json")
                 .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
                 .then(function (d) {
