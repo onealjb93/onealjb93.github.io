@@ -702,10 +702,10 @@
     <h4>Simultaneous Attention Framework</h4>
     <div class="loop-figure">
         <style>
-    /* Three E's — TRUE 3D Venn (mock v2, 2026-11-22): three glass spheres
+    /* Three E's — TRUE 3D Venn (mock v3, 2026-11-22): three glass spheres
        rendered in WebGL (Three.js), replacing the flat SVG in the same
        .ees-venn slot (480px cap, centred — the live rule applies to the
-       wrapper). V2 is the depth pass: v1's Beer–Lambert absorption kept
+       wrapper). V2 was the depth pass: v1's Beer–Lambert absorption kept
        (pairwise lenses deeper than single glass, the triple centre
        deepest), and real depth cues laid over it — a key light with a
        bright-to-dark gradient across every face, a tight specular spot
@@ -717,8 +717,13 @@
        Label sizes are container-relative (cqw = 1% of the figure's own
        width), set from the flat SVG's unit sizes (names 36.54/720,
        definitions 29.95/720, centre word 34/720) so the type renders
-       at the flat figure's sizes at every width. If WebGL or the
-       library is unavailable, the live flat SVG shows instead. */
+       at the flat figure's sizes at every width. V3 makes the shader
+       iOS-safe (individual uniforms, no loops — v2's uniform-array
+       indexing could fail to link on iOS Safari and leave a blank
+       stage) and the fallback now also catches a program that fails
+       to compile or link, verified by a pre-flight frame. If WebGL
+       or the library is unavailable, or the program fails, the live
+       flat SVG shows instead. */
     .ees3d-wrap { position: relative; width: 100%; container-type: inline-size; --ees-halo: #12161c; }
     body.light-mode .ees3d-wrap { --ees-halo: #FBF6EA; }
     .ees3d-stage { position: relative; width: 100%; aspect-ratio: 720 / 643; touch-action: pan-y; cursor: grab; }
@@ -886,26 +891,32 @@ function boot() {
     // glass ball has an inside, and the eye reads that as volume.
     var frag = [
         'uniform vec3 uColor; uniform float uDensity; uniform float uRadius; uniform vec3 uLight;',
-        'uniform vec4 uOthers[2]; uniform float uBack; uniform float uBright; uniform float uSpecAmt;',
+        'uniform vec4 uOtherA; uniform vec4 uOtherB; uniform float uBack; uniform float uBright; uniform float uSpecAmt;',
         'varying vec3 vN; varying vec3 vW;',
         '',
         '// How much front glass the view ray crosses before this fragment:',
         '// 0 = clear view, 1 = through the thick of a sphere in front.',
-        'float frontGlass(vec3 ro, vec3 rd, float tFrag) {',
+        '// Written per sphere, unrolled — no uniform arrays, no loops:',
+        '// strict WebGL compilers (iOS Safari is the known case) can',
+        '// refuse to link a fragment shader that indexes a uniform',
+        '// array by a loop variable, and the failure is silent: the',
+        '// context lives, nothing draws. The maths is unchanged.',
+        'float glassOne(vec3 ro, vec3 rd, float tFrag, vec4 s) {',
+        '  vec3 oc = ro - s.xyz;',
+        '  float b = dot(oc, rd);',
+        '  float c = dot(oc, oc) - s.w * s.w;',
+        '  float h = b * b - c;',
         '  float occ = 0.0;',
-        '  for (int i = 0; i < 2; i++) {',
-        '    vec3 oc = ro - uOthers[i].xyz;',
-        '    float b = dot(oc, rd);',
-        '    float c = dot(oc, oc) - uOthers[i].w * uOthers[i].w;',
-        '    float h = b * b - c;',
-        '    if (h > 0.0) {',
-        '      float tN = -b - sqrt(h);',
-        '      if (tN > 0.0 && tN < tFrag - 0.03) {',
-        '        occ = max(occ, clamp(2.0 * sqrt(h) / (2.0 * uOthers[i].w), 0.0, 1.0));',
-        '      }',
+        '  if (h > 0.0) {',
+        '    float tN = -b - sqrt(h);',
+        '    if (tN > 0.0 && tN < tFrag - 0.03) {',
+        '      occ = clamp(2.0 * sqrt(h) / (2.0 * s.w), 0.0, 1.0);',
         '    }',
         '  }',
         '  return occ;',
+        '}',
+        'float frontGlass(vec3 ro, vec3 rd, float tFrag) {',
+        '  return max(glassOne(ro, rd, tFrag, uOtherA), glassOne(ro, rd, tFrag, uOtherB));',
         '}',
         '',
         'void main() {',
@@ -990,12 +1001,14 @@ function boot() {
     // world centres — the occlusion shader's input) plus a front and a
     // back material that differ only in their pass constants.
     var units = [];
+    var glassMats = [];
     DEFS.forEach(function (d, i) {
         var shared = {
             uColor: { value: accentColor() },
             uRadius: { value: d.r },
             uLight: { value: LIGHT },
-            uOthers: { value: [new THREE.Vector4(), new THREE.Vector4()] }
+            uOtherA: { value: new THREE.Vector4() },
+            uOtherB: { value: new THREE.Vector4() }
         };
         function passMat(side, back, density, bright, specAmt, order) {
             var uniforms = Object.assign({}, shared, {
@@ -1014,8 +1027,8 @@ function boot() {
             group.add(m);
             return mat;
         }
-        passMat(THREE.BackSide, 1, 0.055, 0.45, 0.12, 1);   // the dim far wall
-        passMat(THREE.FrontSide, 0, 0.085, 1.00, 1.00, 2);  // the lit front
+        glassMats.push(passMat(THREE.BackSide, 1, 0.055, 0.45, 0.12, 1));   // the dim far wall
+        glassMats.push(passMat(THREE.FrontSide, 0, 0.085, 1.00, 1.00, 2));  // the lit front
         units.push(shared);
     });
     new MutationObserver(function () {
@@ -1031,11 +1044,11 @@ function boot() {
     function updateOthers() {
         group.updateMatrixWorld();
         for (var i = 0; i < 3; i++) {
-            var entry = units[i].uOthers.value, k = 0;
+            var pair = [units[i].uOtherA.value, units[i].uOtherB.value], k = 0;
             for (var j = 0; j < 3; j++) {
                 if (j === i) continue;
                 _c.copy(DEFS[j].c).applyMatrix4(group.matrixWorld);
-                entry[k].set(_c.x, _c.y, _c.z, DEFS[j].r);
+                pair[k].set(_c.x, _c.y, _c.z, DEFS[j].r);
                 k++;
             }
         }
@@ -1082,6 +1095,60 @@ function boot() {
     }
     new ResizeObserver(fit).observe(stage);
     fit();
+
+    // Pre-flight: prove the glass actually draws before the figure
+    // commits to WebGL. A shader can fail to compile or link on a
+    // strict driver (iOS Safari is the known case) while the context
+    // itself is perfectly healthy — Three then draws nothing and
+    // throws nothing, the boot watchdog never fires, and the stage
+    // stays blank. So render one frame now, check every glass
+    // program's link and compile status where Three exposes it, and
+    // read pixels back from the middle of the frame with the shadow
+    // hidden, so only glass can register. Any failure swaps silently
+    // to the flat SVG and the animation loop never starts. A context
+    // lost later swaps the same way.
+    var gl = renderer.getContext();
+    canvas.addEventListener('webglcontextlost', function () {
+        if (window.__ees3dFallback) window.__ees3dFallback();
+    });
+    function programsOK() {
+        try {
+            for (var i = 0; i < glassMats.length; i++) {
+                var props = renderer.properties.get(glassMats[i]);
+                var prog = props && (props.currentProgram || props.__webglProgram);
+                var native = prog && prog.program ? prog.program : prog;
+                if (!native || !gl.isProgram(native)) continue; // shape not recognised — the pixel test decides
+                if (!gl.getProgramParameter(native, gl.LINK_STATUS)) return false;
+                var shaders = gl.getAttachedShaders(native) || [];
+                for (var s = 0; s < shaders.length; s++) {
+                    if (!gl.getShaderParameter(shaders[s], gl.COMPILE_STATUS)) return false;
+                }
+            }
+        } catch (e) { /* internals differ by build — the pixel test decides */ }
+        return true;
+    }
+    function frameDraws() {
+        shadow.visible = false;
+        var threw = false;
+        try { renderer.render(scene, camera); } catch (e) { threw = true; }
+        shadow.visible = true;
+        if (threw) return false;
+        if (!programsOK()) return false;
+        var gw = gl.drawingBufferWidth, gh = gl.drawingBufferHeight;
+        if (!gw || !gh) return true; // no buffer to sample — the status checks above stand
+        var px = new Uint8Array(4);
+        for (var gy = 0.38; gy <= 0.63; gy += 0.05) {
+            for (var gx = 0.32; gx <= 0.69; gx += 0.05) {
+                gl.readPixels(Math.floor(gx * gw), Math.floor(gy * gh), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+                if (px[3] > 0) return true;
+            }
+        }
+        return false;
+    }
+    if (!frameDraws()) {
+        if (window.__ees3dFallback) window.__ees3dFallback();
+        return;
+    }
 
     // Rotation: drag to turn, with inertia — a flick keeps turning and
     // glides to a stop, so the staggered depths sweep past each other
