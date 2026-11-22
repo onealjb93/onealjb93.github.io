@@ -155,7 +155,12 @@
        it, and at 259px on a phone it would crush the canvas. */
     .chart-section .section-title { margin-top: 0; padding-bottom: 2px; }
     .chart-section:has(> .section-body[hidden]) > .chart-intro { display: none; }
-    #chart-body { display: flex; flex-direction: column; gap: 0.3rem; height: calc(100vh - 175px - env(safe-area-inset-bottom, 0px)); height: calc(100dvh - 175px - env(safe-area-inset-bottom, 0px)); }
+    /* The stage budget below excludes the Chart key's closed
+       footprint (36px + one column gap): the key now sits below
+       the stage instead of inside it — see the #chartKey rules
+       at the key's own block. The canvas keeps exactly the
+       height it had when the key was a stage child. */
+    #chart-body { display: flex; flex-direction: column; gap: 0.3rem; height: calc(100vh - 175px - 36px - 0.3rem - env(safe-area-inset-bottom, 0px)); height: calc(100dvh - 175px - 36px - 0.3rem - env(safe-area-inset-bottom, 0px)); }
     #chart-body[hidden] { display: none; }
     #chart-body > * { margin-top: 0; margin-bottom: 0; flex: none; }
     #chart-body > .jbo-chart-frame { flex: 1 1 auto; min-height: 0; }
@@ -215,6 +220,20 @@
     #chartTools[hidden] { display: none; }
     #chartToolsBtn .chart-tools-chev { display: inline-block; font-size: 0.72em; margin-left: 0.35rem; transition: transform var(--dur-1) var(--ease-out); }
     #chartToolsBtn[aria-expanded="true"] .chart-tools-chev { transform: rotate(90deg); }
+    /* Toggle-anchor (Johnny's catch, 2026-11-22): the tools
+       button must not move when pressed. It rode the end of the
+       stock selector group, which is flex-grow 1: with the tools
+       hidden the group stretched the row and carried the button
+       to the right edge; with the tools open (display: contents
+       puts the chip rows in this same row) the group shrank to
+       content width and the button snapped ~551px left. The
+       group no longer grows: it is pinned to the dropdown's own
+       designed width (min(21rem, 100%), the .stock-dd token), so
+       the picker keeps its exact face in both states and the
+       button sits in one place while the tools appear around
+       it. At phone widths the group below still takes its
+       full-width row, as before. */
+    .chart-controls .selector-group { flex: none; width: min(21rem, 100%); }
     /* Verdict chip (2026-11-16): the picked stock's scoreboard
        tally beside the picker — a door to its score popover. It
        wears the pill grammar but toggles nothing. */
@@ -240,7 +259,7 @@
        chip rows share rows — the same controls, laid out for the
        width, nothing removed. */
     @media (max-width: 640px) {
-        #chart-body { gap: 0.22rem; }
+        #chart-body { gap: 0.22rem; height: calc(100vh - 175px - 36px - 0.22rem - env(safe-area-inset-bottom, 0px)); height: calc(100dvh - 175px - 36px - 0.22rem - env(safe-area-inset-bottom, 0px)); }
         #chart-body .jbo-chart-datanote { font-size: 0.8rem; line-height: 1.4; }
         .chart-controls { column-gap: 0.75rem; row-gap: 0.4rem; }
         .chart-controls .selector-group { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 0.5rem; width: 100%; }
@@ -303,6 +322,14 @@
     body.light-mode .fin-ind-track { background-color: #d3d8de; }
     .fin-ind-knob { position: absolute; left: 2.5px; top: 2.5px; width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); transition: transform var(--dur-2) var(--ease-inout); }
     .fin-ind-switch[aria-checked="true"] .fin-ind-knob { transform: translateX(13px); }
+    /* ON reads at a glance (Johnny's catch, 2026-11-22: knob
+       position alone didn't say on or off on his phone): the
+       checked track fills with the chart chips' active blue —
+       --link-color, the colour every selected chip on this
+       chart carries — in both themes. Filled blue = on, the
+       neutral track above = off; knob position is the second
+       signal, its white unchanged against the fill. */
+    .fin-ind-switch[aria-checked="true"] .fin-ind-track { background-color: var(--link-color); }
     .fin-ind-switch.fin-ind-glow .fin-ind-track { animation: fin-ind-glow 1.8s ease-in-out infinite; }
     @keyframes fin-ind-glow {
         0%, 100% { box-shadow: 0 0 3px 2px transparent, 0 0 12px 2px transparent; }
@@ -345,6 +372,20 @@
        would push the canvas under its floor, and never overrides
        a state the reader chose themselves. At short heights the
        open key first compresses its type before it comes to that. */
+    /* Toggle-anchor (Johnny's catch, 2026-11-22): the key lives
+       BELOW the stage, not inside it. Inside the fixed-height
+       #chart-body, opening the key took its whole height out of
+       the canvas frame — the frame collapsed to zero, the
+       summary was dragged up by the frame's full height, and
+       the chart lurched. Below the stage, nothing above the
+       summary can change size: the frame never resizes, the
+       scroll position and the summary's place measure identical
+       open and closed, and the key simply expands downward in
+       place. Collapsing the section hides the key with it — the
+       same :has pattern the intro line above uses. */
+    #chartKey { margin-top: 0.3rem; }
+    @media (max-width: 640px) { #chartKey { margin-top: 0.22rem; } }
+    .chart-section:has(> #chart-body[hidden]) > #chartKey { display: none; }
     .chart-key summary { display: flex; align-items: center; gap: 0.55rem; min-height: 36px; cursor: pointer; color: var(--subtext-color); font-size: 0.85rem; list-style: none; }
     .chart-key summary::-webkit-details-marker { display: none; }
     .chart-key-chev { font-size: 0.72em; flex: none; transition: transform var(--dur-1) var(--ease-out); }
@@ -1382,6 +1423,7 @@
         <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"></canvas><div class="glass-bubble" id="jboChartTip"></div></div>
         <p class="jbo-chart-note" id="jboChartNote" hidden></p>
         <p class="jbo-chart-note fin-ind-btcnote" id="finIndBtcNote" hidden>A deeper Bitcoin indicator lives on the <a href="bitcoin.html">Bitcoin page</a>.</p>
+        </div>
         <details class="chart-key" id="chartKey">
             <summary><span class="chart-key-chev" aria-hidden="true">&#9654;</span> Chart key <span class="chart-key-swatches" aria-hidden="true"><span class="tv-key-swatch tv-key-ma200"></span><span class="tv-key-swatch tv-key-ma50"></span><span class="tv-key-swatch tv-key-rsi"></span><span class="tv-key-swatch tv-key-pe"></span><span class="tv-key-swatch tv-key-volma"></span><span class="tv-key-swatch tv-key-ind"><span class="tv-key-dot tv-key-dot-buy"></span><span class="tv-key-dot tv-key-dot-sell"></span></span></span></summary>
         <div class="tv-chart-key">
@@ -1395,7 +1437,6 @@
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         <p class="chart-intro">Tap a pick above, or choose from my 19 stocks and the Nasdaq-100 in the box above. The chart is drawn from this page&rsquo;s own daily and weekly data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-day moving average, the 50-day moving average for the trend, and the daily RSI &mdash; in the Weekly view, the same three by the week: the 200-week average, the 50-week average, and the weekly RSI. A stock with under four years of trading history has no 200-day line yet; the note under the chart says so when that is the case.</p>
         </details>
-        </div>
     </div>
     <script>
     // Chart stage fit (2026-11-16): the stage's height is CSS; this
