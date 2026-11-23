@@ -2608,6 +2608,7 @@ const MEAN_LEN = (DATA.floors[1].length_days + DATA.floors[2].length_days +
 const bakedAnchor = { date: DATA.latest.date, price: DATA.latest.price,
                       day: dayDiff(DATA.latest.date, DATA.halvings[3]), live: false };
 let live = null;   // {date, price, day, live:true} once the header price is in hand
+let settledAnchor = null;   // the previous day's live point, settled at its final live value when the day rolled (2026-11-23)
 function anchorNow() {
     const a = live || bakedAnchor;
     return { date: a.date, price: a.price, day: a.day, live: !!a.live,
@@ -2691,13 +2692,43 @@ function showLatest() {
 // presents an older day as the latest.
 let applyLive3d = null;   // the 3D build registers its live refresh here
 let taReady = false;      // set once the taken-apart build has run
+/* Live tail completion (2026-11-23): the readout follows every
+   tick, but the heavy refresh (fan, 3D anchor, taken-apart
+   rebuild) is gated — it runs only when the anchor's log-price
+   moved at least 0.001 (about 0.23%, under a third of a pixel at
+   the endpoint even zoomed well in), when the day rolled, or when
+   the stage comes back on screen with a refresh pending. */
+let tailDrawn = null, tailPending = false, spiralVisible = true;
+const spiralTailStats = (window.__spiralTail = { draws: 0, price: null, day: null, halo: false });
+function publishSpiralTail(a) {
+    spiralTailStats.price = a.price; spiralTailStats.day = a.day; spiralTailStats.halo = !!a.live;
+}
+if (window.IntersectionObserver) {
+    /* the gate watches the whole Spiral view — the stage and the
+       taken-apart graph are one chart block; watching the stage
+       alone would defer refreshes while the reader is looking at
+       the taken-apart graph */
+    const spiralGateEl = document.getElementById('btc-view-spiral') || stage;
+    if (spiralGateEl) {
+        new IntersectionObserver(es => {
+            spiralVisible = es[0].isIntersecting;
+            if (spiralVisible && tailPending) { tailDrawn = null; refreshLive(); }
+        }, { rootMargin: '100%' }).observe(spiralGateEl);
+    }
+}
 function refreshLive() {
     const a = anchorNow();
+    if (readoutResting) showLatest();
+    publishSpiralTail(a);
+    if (tailDrawn && a.day === tailDrawn.day && Math.abs(a.logp - tailDrawn.logp) < 0.001) return;
+    if (!spiralVisible) { tailPending = true; return; }
+    tailDrawn = { day: a.day, logp: a.logp };
+    tailPending = false;
     FAN = computeFan(a.day, a.price);
     if (window.__spiralStats) window.__spiralStats.latest = { date: a.date, price: a.price };
     if (applyLive3d) applyLive3d();
     if (taReady) renderTaGraph(true);
-    if (readoutResting) showLatest();
+    spiralTailStats.draws++;
 }
 function nyTodayStr() {
     const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York',
@@ -2716,6 +2747,7 @@ function wireHeaderPrice() {
         if (day < bakedAnchor.day) return;
         const nl = { date: today, price: v, day, live: true };
         const changed = !live || live.price !== nl.price || live.day !== nl.day;
+        if (live && nl.day !== live.day) settledAnchor = { date: live.date, price: live.price, day: live.day };
         live = nl;
         if (changed) refreshLive();
     };
@@ -3155,6 +3187,7 @@ if (THREE) {
         const lv = polar(a.f, a.logp, topFloorY);
         latestMarker.position.copy(lv);
         latestHalo.position.copy(lv);
+        latestHalo.material.color.setHex(a.live ? (theme === 'light' ? 0xa35c06 : 0xf7931a) : 0xffffff);
         latestInspect.v.copy(lv);
         latestInspect.date = a.date;
         latestInspect.price = a.price;
@@ -3887,7 +3920,15 @@ function buildOverlay(container, W, H, prof, svgClass, withTitle) {
         if (!s.current || !aNow.live) return s;
         const pts = s.pts.slice();
         const livePt = { day: aNow.day, y: aNow.logp - hp4, date: aNow.date, price: aNow.price, kind: 'latest', ctx: s.fl.label };
-        if (aNow.day > pts[pts.length - 1].day) pts.push(livePt);
+        if (aNow.day > pts[pts.length - 1].day) {
+            /* a rolled-over day settles at its final live value,
+               between the last published close and today's point,
+               until the nightly record lands (2026-11-23) */
+            if (settledAnchor && settledAnchor.day > pts[pts.length - 1].day && settledAnchor.day < aNow.day) {
+                pts.push({ day: settledAnchor.day, y: Math.log10(settledAnchor.price) - hp4, date: settledAnchor.date, price: settledAnchor.price, kind: 'close', ctx: s.fl.label });
+            }
+            pts.push(livePt);
+        }
         else pts[pts.length - 1] = livePt;
         return { ...s, pts };
     });
@@ -3970,6 +4011,10 @@ function buildOverlay(container, W, H, prof, svgClass, withTitle) {
     }
     const lp = drawSeries[drawSeries.length - 1].pts;
     const lastPt = lp[lp.length - 1];
+    if (aNow.live && lastPt.kind === 'latest') {
+        taEl('circle', { cx: X(lastPt.day), cy: Y(lastPt.y), r: 7.5 * S, fill: 'var(--btc-orange, #f7931a)', 'fill-opacity': 0.20, class: 'livehalo', 'pointer-events': 'none' }, vp);
+        taEl('circle', { cx: X(lastPt.day), cy: Y(lastPt.y), r: 5.5 * S, fill: 'var(--btc-orange, #f7931a)', 'fill-opacity': 0.30, class: 'livehalo', 'pointer-events': 'none' }, vp);
+    }
     taEl('circle', { cx: X(lastPt.day), cy: Y(lastPt.y), r: 4 * S, fill: '#ffffff', stroke: 'var(--btc-orange, #f7931a)', 'stroke-width': 1.6 * S }, vp);
     /* In-chart labels (2026-11-22, video fix): the median label and
        the Today label used to be anchored to their subjects and sat
@@ -4616,6 +4661,7 @@ window.__spiralReady = true;
                chart keeps its original form, the price line's own
                color */
             var tx = g.x(SPOT.days), ty = g.y(SPOT.price);
+            if (liveOn) { drawLiveHalo(tx, ty); }
             ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(SPOT.price, SPOT.days) : cPrice;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = cRim; ctx.lineWidth = 2;
@@ -5047,15 +5093,81 @@ window.__spiralReady = true;
                 LAST_DAY = end;
                 set('pl-hist-end', dateStr(end));
             }
-            draw();
+            liveDraw(true);
         }
+        /* --- Live tail completion (2026-11-23): the forming point
+           wears a soft halo in the price line's own orange, so the
+           eye reads it as the living edge; the tail rolls over at
+           the UTC day boundary (yesterday's point stays in PTS at
+           its final live value — a completed day — and a fresh
+           forming point opens); and live redraws are gated: a tick
+           redraws only when the price moved at least half a pixel
+           on this chart's own scale, and only while the chart is
+           on screen. While the reader is inspecting a day, a tick
+           updates the zone reading only — the strip keeps the
+           inspected day, exactly as if no tick had come. --- */
         var tailStarted = false;
+        var liveOn = false, liveDay = -1, drawnPrice = null, pendingDraw = false, pulseStep = 0;
+        var chartVisible = true;
+        var reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        var tailStats = (window.__liveTail = window.__liveTail || {}).powerlaw = { live: false, halo: false, draws: 0, seen: null, drawn: null, day: -1, tail: [] };
+        function publishTail() {
+            tailStats.live = liveOn; tailStats.halo = liveOn;
+            tailStats.seen = SPOT.price; tailStats.drawn = drawnPrice; tailStats.day = liveDay;
+            tailStats.tail = PTS.slice(-3).map(function (p) { return [p[0], Math.round(p[1])]; });
+        }
+        function drawLiveHalo(x, y) {
+            var col = document.body.classList.contains('light-mode') ? '163,92,6' : '247,147,26';
+            var r = reducedMotion ? 18 : 17 + 2 * pulseStep;
+            var a0 = reducedMotion ? 0.26 : 0.24 + 0.06 * pulseStep;
+            var a1 = reducedMotion ? 0.13 : 0.12 + 0.03 * pulseStep;
+            var gr = ctx.createRadialGradient(x, y, 2, x, y, r);
+            gr.addColorStop(0, 'rgba(' + col + ',' + a0 + ')');
+            gr.addColorStop(0.55, 'rgba(' + col + ',' + a1 + ')');
+            gr.addColorStop(1, 'rgba(' + col + ',0)');
+            ctx.fillStyle = gr;
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        }
+        function liveDraw(force) {
+            if (!chartVisible || !cv.clientWidth) { pendingDraw = true; publishTail(); return; }
+            if (!force && drawnPrice !== null) {
+                var rect = cv.getBoundingClientRect();
+                var g = geom(rect.width, rect.height);
+                if (Math.abs(g.y(SPOT.price) - g.y(drawnPrice)) < 0.5) { publishTail(); return; }
+            }
+            pulseStep = (pulseStep + 1) % 2;
+            draw();
+            drawnPrice = SPOT.price;
+            pendingDraw = false;
+            tailStats.draws++;
+            publishTail();
+        }
+        if (window.IntersectionObserver && cv) {
+            new IntersectionObserver(function (entries) {
+                chartVisible = entries[0].isIntersecting;
+                if (chartVisible && pendingDraw) { liveDraw(true); }
+            }, { rootMargin: '100%' }).observe(cv);
+        }
+        function renderReadoutLive() {
+            if (!inspecting) { renderReadout(); return; }
+            var fv = fair(SPOT.days), fl = fv * LO, ce = fv * HI;
+            (window.BTC_ZONE = window.BTC_ZONE || {}).powerlaw = { dist: (SPOT.price / fl - 1) * 100, pos: (Math.log10(SPOT.price) - Math.log10(fl)) / (Math.log10(ce) - Math.log10(fl)) * 100, inZone: SPOT.price <= fl };
+            if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
+        }
         function applyLivePrice(v) {
+            todayDays = Math.floor((Date.now() - GENESIS) / DAY);
             SPOT = { days: todayDays, price: Math.round(v), label: dateStr(todayDays), source: 'Coinbase' };
-            renderReadout();
+            renderReadoutLive();
             set('pl-fine-spot', '~' + money(SPOT.price) + ' on ' + SPOT.label + ' (Coinbase)');
             if (!tailStarted) {
-                tailStarted = true;
+                tailStarted = true; liveOn = true; liveDay = todayDays;
+                getCloses().then(function (closes) {
+                    mergeTail(closes, SPOT.price);
+                }, function () {
+                    mergeTail(null, SPOT.price);
+                });
+            } else if (todayDays !== liveDay) {
+                liveDay = todayDays;
                 getCloses().then(function (closes) {
                     mergeTail(closes, SPOT.price);
                 }, function () {
@@ -5063,8 +5175,9 @@ window.__spiralReady = true;
                 });
             } else {
                 var lastPt = PTS[PTS.length - 1];
-                if (lastPt && lastPt[0] === todayDays) { lastPt[1] = SPOT.price; draw(); }
+                if (lastPt && lastPt[0] === todayDays) { lastPt[1] = SPOT.price; liveDraw(false); }
             }
+            publishTail();
         }
         if (todayDays > SPOT.days) { whenLive(applyLivePrice); }
     })();
@@ -5424,6 +5537,7 @@ window.__spiralReady = true;
                chart keeps its original form, the price line's own
                color */
             var tx = g.x(SPOT.days), ty = g.y(SPOT.price);
+            if (liveOn) { drawLiveHalo(tx, ty); }
             ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(SPOT.price, todayCost()) : cPrice;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = cRim; ctx.lineWidth = 2;
@@ -5849,27 +5963,90 @@ window.__spiralReady = true;
                 if (!viewTouched) { VX0 = X0; VX1 = X1; }
                 set('pc-hist-end', dateStr(end));
             }
-            draw();
+            liveDraw(true);
         }
+        /* --- Live tail completion (2026-11-23): same completion as
+           the power-law chart — the forming point wears the halo,
+           the tail rolls over at the UTC day boundary (yesterday's
+           point stays at its final live value, its cost point with
+           it), live redraws gate on half a pixel of movement and
+           on the chart being on screen, and a tick that lands
+           mid-inspection updates the zone reading only. --- */
         var tailStarted = false;
+        var liveOn = false, liveDay = -1, drawnPrice = null, pendingDraw = false, pulseStep = 0;
+        var chartVisible = true;
+        var reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        var tailStats = (window.__liveTail = window.__liveTail || {}).cost = { live: false, halo: false, draws: 0, seen: null, drawn: null, day: -1, tail: [] };
+        function publishTail() {
+            tailStats.live = liveOn; tailStats.halo = liveOn;
+            tailStats.seen = SPOT.price; tailStats.drawn = drawnPrice; tailStats.day = liveDay;
+            tailStats.tail = PTS.slice(-3).map(function (p) { return [p[0], Math.round(p[1])]; });
+        }
+        function drawLiveHalo(x, y) {
+            var col = document.body.classList.contains('light-mode') ? '163,92,6' : '247,147,26';
+            var r = reducedMotion ? 18 : 17 + 2 * pulseStep;
+            var a0 = reducedMotion ? 0.26 : 0.24 + 0.06 * pulseStep;
+            var a1 = reducedMotion ? 0.13 : 0.12 + 0.03 * pulseStep;
+            var gr = ctx.createRadialGradient(x, y, 2, x, y, r);
+            gr.addColorStop(0, 'rgba(' + col + ',' + a0 + ')');
+            gr.addColorStop(0.55, 'rgba(' + col + ',' + a1 + ')');
+            gr.addColorStop(1, 'rgba(' + col + ',0)');
+            ctx.fillStyle = gr;
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        }
+        function liveDraw(force) {
+            if (!chartVisible || !cv.clientWidth) { pendingDraw = true; publishTail(); return; }
+            if (!force && drawnPrice !== null) {
+                var rect = cv.getBoundingClientRect();
+                var g = geom(rect.width, rect.height);
+                if (Math.abs(g.y(SPOT.price) - g.y(drawnPrice)) < 0.5) { publishTail(); return; }
+            }
+            pulseStep = (pulseStep + 1) % 2;
+            draw();
+            drawnPrice = SPOT.price;
+            pendingDraw = false;
+            tailStats.draws++;
+            publishTail();
+        }
+        if (window.IntersectionObserver && cv) {
+            new IntersectionObserver(function (entries) {
+                chartVisible = entries[0].isIntersecting;
+                if (chartVisible && pendingDraw) { liveDraw(true); }
+            }, { rootMargin: '100%' }).observe(cv);
+        }
+        function renderReadoutLive() {
+            if (!inspecting) { renderReadout(); return; }
+            var c = todayCost();
+            var devPct = (SPOT.price / c - 1) * 100;
+            (window.BTC_ZONE = window.BTC_ZONE || {}).cost = { dist: devPct, pos: (SPOT.price / c - 1) / (PEAK_RATIO - 1) * 100, inZone: devPct <= 0 };
+            if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
+        }
+        function startTail() {
+            getDifficulty().then(function (dinfo) {
+                DIN = dinfo;
+                renderReadoutLive();
+                return getCloses().then(function (closes) {
+                    mergeTail(closes, SPOT.price, dinfo);
+                }, function () {
+                    mergeTail(null, SPOT.price, dinfo);
+                });
+            });
+        }
         function applyLivePrice(v) {
+            todayDays = Math.floor((Date.now() - GENESIS) / DAY);
             SPOT = { days: todayDays, price: Math.round(v), label: dateStr(todayDays), source: 'Coinbase' };
             if (!tailStarted) {
-                tailStarted = true;
-                getDifficulty().then(function (dinfo) {
-                    DIN = dinfo;
-                    renderReadout();
-                    return getCloses().then(function (closes) {
-                        mergeTail(closes, SPOT.price, dinfo);
-                    }, function () {
-                        mergeTail(null, SPOT.price, dinfo);
-                    });
-                });
+                tailStarted = true; liveOn = true; liveDay = todayDays;
+                startTail();
+            } else if (todayDays !== liveDay) {
+                liveDay = todayDays;
+                startTail();
             } else {
-                renderReadout();
+                renderReadoutLive();
                 var lastPt = PTS[PTS.length - 1];
-                if (lastPt && lastPt[0] === todayDays) { lastPt[1] = SPOT.price; draw(); }
+                if (lastPt && lastPt[0] === todayDays) { lastPt[1] = SPOT.price; liveDraw(false); }
             }
+            publishTail();
         }
         if (todayDays > SPOT.days) { whenLive(applyLivePrice); }
     })();
@@ -6180,6 +6357,7 @@ window.__spiralReady = true;
                own color */
             var last = PTS[PTS.length - 1];
             var tx = g.x(last[0]), ty = g.y(last[1]);
+            if (liveOn && liveSpot && last[0] === liveSpot.day) { drawLiveHalo(tx, ty); }
             ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(last[1]) : cAccent;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = cRim; ctx.lineWidth = 2;
@@ -6579,6 +6757,16 @@ window.__spiralReady = true;
         }
         function rebuild(closes, closesSource, spot) {
             var pts = closes.filter(function (pt) { return pt[0] <= todayDays; });
+            /* settled days (2026-11-23): a day the live tail rolled
+               over keeps its final live value until the nightly
+               record lands — the closes feed's own candle for that
+               day never replaces it inside this session */
+            Object.keys(settledDays).forEach(function (k) {
+                var d = +k, found = false;
+                for (var si = 0; si < pts.length; si++) { if (pts[si][0] === d) { pts[si] = [d, settledDays[k]]; found = true; break; } }
+                if (!found && d <= todayDays) { pts.push([d, settledDays[k]]); }
+            });
+            pts.sort(function (a, b) { return a[0] - b[0]; });
             if (spot) {
                 pts = pts.filter(function (pt) { return pt[0] < spot.day; });
                 pts.push([spot.day, spot.price]);
@@ -6601,19 +6789,116 @@ window.__spiralReady = true;
             for (var j = 0; j < PTS.length; j++) if (PTS[j][1] > mx) mx = PTS[j][1];
             Y1 = Math.max(3, Math.ceil(mx * 2) / 2);
             if (!viewTouched) { VX0 = X0; VX1 = X1; VY0 = Y0; VY1 = Y1; }
-            renderReadout();
+            if (!inspecting) { renderReadout(); } else { publishZoneFromLast(); }
             draw();
         }
         var closesRes = null, liveSpot = null;
+        /* --- Live tail completion (2026-11-23): same completion as
+           the other charts, in this chart's rebuild idiom. The
+           forming point wears the halo; at the UTC day boundary
+           yesterday's point settles at its final live value (kept
+           in settledDays, re-applied by every rebuild) and the
+           closes are re-fetched so the new day forms against fresh
+           history; and a tick rebuilds only when the price moved
+           at least half a pixel on the multiple's scale and the
+           chart is on screen — below that, the strip's numbers and
+           the zone reading still update from a cheap last-point
+           computation (the last 200 closes), the canvas rests, and
+           inspection is never disturbed. --- */
+        var liveOn = false, liveDay = -1, drawnPrice = null, drawnAvg = null, drawnDay = -1, pendingRebuild = false, pulseStep = 0;
+        var chartVisible = true;
+        var settledDays = {};
+        var reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        var tailStats = (window.__liveTail = window.__liveTail || {}).mayer = { live: false, halo: false, draws: 0, seen: null, drawn: null, day: -1, tail: [] };
+        function publishTail() {
+            tailStats.live = liveOn; tailStats.halo = liveOn;
+            tailStats.seen = liveSpot ? liveSpot.price : null;
+            tailStats.drawn = drawnPrice; tailStats.day = liveDay;
+            tailStats.tail = PTS.slice(-3).map(function (p) { return [p[0], Math.round(p[2])]; });
+        }
+        function publishZoneFromLast() {
+            var last = PTS[PTS.length - 1];
+            if (!last) return;
+            (window.BTC_ZONE = window.BTC_ZONE || {}).mayer = { dist: (last[1] - 1) * 100, band: last[1] <= 1 ? 'green' : (last[1] >= 2.4 ? 'red' : 'yellow'), inZone: last[1] <= 1 };
+            if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
+        }
+        function drawLiveHalo(x, y) {
+            var col = document.body.classList.contains('light-mode') ? '163,92,6' : '247,147,26';
+            var r = reducedMotion ? 18 : 17 + 2 * pulseStep;
+            var a0 = reducedMotion ? 0.26 : 0.24 + 0.06 * pulseStep;
+            var a1 = reducedMotion ? 0.13 : 0.12 + 0.03 * pulseStep;
+            var gr = ctx.createRadialGradient(x, y, 2, x, y, r);
+            gr.addColorStop(0, 'rgba(' + col + ',' + a0 + ')');
+            gr.addColorStop(0.55, 'rgba(' + col + ',' + a1 + ')');
+            gr.addColorStop(1, 'rgba(' + col + ',0)');
+            ctx.fillStyle = gr;
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        }
+        function cheapLast() {
+            if (!closesRes || !liveSpot) return null;
+            var byDay = {};
+            closesRes.rows.forEach(function (pt) { if (pt[0] < liveSpot.day) byDay[pt[0]] = pt[1]; });
+            Object.keys(settledDays).forEach(function (k) { if (+k < liveSpot.day) byDay[k] = settledDays[k]; });
+            var days = Object.keys(byDay).map(Number).sort(function (a, b) { return a - b; });
+            if (days.length < 199) return null;
+            var sum = liveSpot.price;
+            for (var i = days.length - 199; i < days.length; i++) sum += byDay[days[i]];
+            var avg = sum / 200;
+            return { avg: avg, mult: liveSpot.price / avg };
+        }
         function tryRebuild() {
             if (!closesRes || !liveSpot) return;
+            if (!chartVisible || !cv.clientWidth) { pendingRebuild = true; publishTail(); return; }
+            if (drawnPrice !== null && liveSpot.day === drawnDay && liveSpot.price !== drawnPrice) {
+                var cheap = cheapLast();
+                if (cheap) {
+                    var rect = cv.getBoundingClientRect();
+                    var g = geom(rect.width, rect.height);
+                    var last = PTS[PTS.length - 1];
+                    var dpx = Math.abs(g.y(cheap.mult) - g.y(drawnPrice / drawnAvg));
+                    if (dpx < 0.5 && stateLine(cheap.mult) === stateLine(last[1])) {
+                        set('mm-spot', money(liveSpot.price));
+                        set('mm-spot-date', dateStr(liveSpot.day) + ' (Coinbase)');
+                        set('mm-avg', money(cheap.avg));
+                        set('mm-mult', cheap.mult.toFixed(2));
+                        (window.BTC_ZONE = window.BTC_ZONE || {}).mayer = { dist: (cheap.mult - 1) * 100, band: cheap.mult <= 1 ? 'green' : (cheap.mult >= 2.4 ? 'red' : 'yellow'), inZone: cheap.mult <= 1 };
+                        if (window.BTC_ZONE_PING) window.BTC_ZONE_PING();
+                        publishTail();
+                        return;
+                    }
+                }
+            }
+            pulseStep = (pulseStep + 1) % 2;
             rebuild(closesRes.rows, closesRes.source, liveSpot);
+            var lp = PTS[PTS.length - 1];
+            if (lp && lp[0] === liveSpot.day && lp[2] === liveSpot.price) {
+                drawnPrice = liveSpot.price; drawnAvg = lp[3]; drawnDay = liveSpot.day;
+                tailStats.draws++;
+            }
+            pendingRebuild = false;
+            publishTail();
+        }
+        if (window.IntersectionObserver && cv) {
+            new IntersectionObserver(function (entries) {
+                chartVisible = entries[0].isIntersecting;
+                if (chartVisible && pendingRebuild) { tryRebuild(); }
+            }, { rootMargin: '100%' }).observe(cv);
         }
         if (window.fetch && todayDays >= SPOT.days) {
             getCloses().then(function (res) { closesRes = res; tryRebuild(); }, function () { /* closes feed down: the baked figures stand */ });
             whenLive(function (v) {
+                todayDays = Math.floor((Date.now() - GENESIS) / DAY);
+                liveOn = true;
+                if (liveSpot && todayDays !== liveSpot.day) {
+                    settledDays[liveSpot.day] = liveSpot.price;
+                    liveDay = todayDays;
+                    closesRes = null;
+                    getCloses().then(function (res) { closesRes = res; tryRebuild(); }, function () { /* closes feed down: the settled day stands in the series */ });
+                }
+                if (liveDay < 0) liveDay = todayDays;
                 liveSpot = { day: todayDays, price: Math.round(v), source: 'Coinbase' };
                 tryRebuild();
+                publishTail();
             });
         }
     })();
