@@ -256,7 +256,13 @@
 
         #book-list .bk-row { position: relative; }
         #book-list .bk-main { padding-right: 2.4rem; }
-        #book-list .bk-share { position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin: 0; }
+        /* Plain flow inside the scroll window (2026-11-22): the share
+           button used to centre itself with transform: translateY(-50%),
+           which put a composited layer inside every row of the nested
+           scroller — on iOS those layers mispaint mid-scroll and rows
+           land on top of each other. The button is 36px tall, so a
+           negative margin centres it with no transform at all. */
+        #book-list .bk-share { position: absolute; right: 0; top: 50%; margin: -18px 0 0; }
         .share-landed { animation: shareLanded 2.4s ease; border-radius: 6px; }
         @keyframes shareLanded { 0%, 60% { background: var(--hover-bg); } 100% { background: transparent; } }
         @media (prefers-reduced-motion: reduce) { .share-landed { animation: none; } }
@@ -269,6 +275,14 @@
            to one height. Without the pass, the windows rest at the old
            caps' content heights (346px / 318px) — the page as it was. */
         .book-list-container, .podcast-list-container { overflow: visible; }
+        /* Whole entries at every rest (2026-11-22): the window snaps its
+           scroll to entry boundaries — a row's bottom edge is the snap
+           line, so the window's bottom edge never rests mid-entry (a
+           title or star row sliced in half) after scrolling inside it.
+           In the expanded state the window does not scroll and the snap
+           is inert. */
+        .media-window { scroll-snap-type: y mandatory; }
+        .media-window .bk-row { scroll-snap-align: end; }
         /* Format lock (2026-11-21): the shared sheet gives the books
            box a 20px bottom margin the podcasts box never had, and
            the pair's columns measured 465px against 445px for it.
@@ -686,20 +700,32 @@
                 if (!btn) return;
                 var expanded = false;
                 btn.addEventListener('click', function () {
+                    // Close-restore anchor (site standard, 2026-11-22):
+                    // capture the section head's landing spot before the
+                    // collapse. The 2026-11-16 one-shot repair landed the
+                    // head ~52px high because the pair re-sync moves the
+                    // head again after the scroll; the restore therefore
+                    // repeats (immediate + rAF + 120ms + 300ms settle).
+                    var head = btn.closest('.media-box-head');
+                    var anchorTarget = null;
+                    if (expanded && head && window.scrollY > 0) {
+                        var ht = head.getBoundingClientRect().top;
+                        anchorTarget = ht > 57 ? ht : 55;
+                    }
                     expanded = !expanded;
                     apply(expanded);
                     btn.textContent = expanded ? 'Collapse all' : 'Expand all';
                     btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-                    if (!expanded) {
-                        // Collapsing from deep in the expanded list: land
-                        // back on the section heading at the 55px line when
-                        // it would otherwise be left above the viewport
-                        // (2026-11-16 pin repair; inert at rest).
-                        var head = btn.closest('.media-box-head');
-                        if (window.scrollY > 0 && head) {
-                            var r = head.getBoundingClientRect();
-                            if (r.top < 55) { window.scrollBy(0, r.top - 55); }
-                        }
+                    if (!expanded && anchorTarget !== null) {
+                        var restore = function () {
+                            if (expanded) return;
+                            var d = head.getBoundingClientRect().top - anchorTarget;
+                            if (d) window.scrollBy(0, d);
+                        };
+                        restore();
+                        requestAnimationFrame(restore);
+                        setTimeout(restore, 120);
+                        setTimeout(restore, 300);
                     }
                 });
             }
@@ -1101,6 +1127,17 @@
             s.list.addEventListener('load', schedule, true);
             s.list.addEventListener('error', schedule, true);
         });
+        // Late drift (2026-11-22): a lazy cover swapping in after the
+        // timed re-runs, or the webfont landing, moves a boundary by a
+        // few pixels and the window's bottom edge stops landing between
+        // entries — on a phone that reads as a sliced row at rest.
+        // Watching the lists' own heights catches every such change
+        // whenever it happens, so the snap and the pair equality hold
+        // for the life of the page, not just its first second.
+        if (window.ResizeObserver) {
+            var ro = new ResizeObserver(function () { schedule(); });
+            sides.forEach(function (s) { ro.observe(s.list); });
+        }
         window.addEventListener('resize', schedule);
         window.addEventListener('load', schedule);
         if (document.fonts && document.fonts.ready) { document.fonts.ready.then(schedule); }
