@@ -811,14 +811,14 @@
         .fg-play:focus-visible { outline: 2px solid #ffd98f; outline-offset: 2px; }
         .fg-slider { width: 100%; height: 40px; accent-color: #dfa63f; cursor: pointer; margin: 0; }
         .fg-step-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-        .fg-step, .fg-chip {
+        .fg-step, .fg-chip, .fg-tools-btn {
             min-height: 40px; padding: 6px 13px; border-radius: 999px;
             border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.04);
             color: #e9e6dc; font: inherit; font-size: 0.9rem; cursor: pointer;
             font-variant-numeric: tabular-nums;
         }
-        .fg-step:hover, .fg-chip:hover { border-color: #dfa63f; }
-        .fg-step:focus-visible, .fg-chip:focus-visible { outline: 2px solid #dfa63f; outline-offset: 1px; }
+        .fg-step:hover, .fg-chip:hover, .fg-tools-btn:hover { border-color: #dfa63f; }
+        .fg-step:focus-visible, .fg-chip:focus-visible, .fg-tools-btn:focus-visible { outline: 2px solid #dfa63f; outline-offset: 1px; }
         .fg-chip[aria-pressed="true"] { background: rgba(223, 166, 63, 0.18); border-color: #dfa63f; color: #ffd98f; }
         .fg-chip-label { color: rgba(233, 230, 220, 0.55); font-size: 0.82rem; margin-right: 2px; }
         .fg-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 16px; }
@@ -1073,8 +1073,29 @@
         }
         .fg-found-rail::-webkit-scrollbar { display: none; }
         .fg-found-rail .fg-slot-wrap { flex: 0 0 auto; }
+
+        /* Frequency Generator — play-first restructure (2026-11-23),
+           the same treatment Line Rider got the same day. What a
+           player touches while the tone plays stays out: the deck
+           (steppers, the readout, Play), the frequency slider and
+           volume — and the live readouts with them (status, the
+           sacred meaning line, the three facts). The preset rail,
+           the About button and the found-figures rail fold behind
+           ONE Tools button, closed by default at every width. The
+           button never moves when toggled — the panel opens below
+           it — and its state lives on the button itself: the rig's
+           gold pressed look plus the arrow. On phones the plate
+           takes the height the folded rail frees (28vh to 42vh). */
+        .fg-tools-row { display: flex; }
+        .fg-tools-btn { min-height: 44px; display: inline-flex; align-items: center; gap: 2px; }
+        .fg-tools-panel[hidden] { display: none; }
+        .fg-tools-panel { display: flex; flex-direction: column; gap: 7px; }
+        .fg-tools-btn[aria-expanded="true"] { background: rgba(223, 166, 63, 0.18); border-color: #dfa63f; color: #ffd98f; }
+        .fg-tools-arrow { display: inline-block; transition: transform 0.15s ease; }
+        .fg-tools-btn[aria-expanded="true"] .fg-tools-arrow { transform: rotate(180deg); }
+        .fg-chip { min-height: 44px; }
         @media (max-width: 480px) {
-            .fg-stage { height: clamp(210px, 28vh, 420px); }
+            .fg-stage { height: clamp(240px, 42vh, 420px); }
         }
 </style>
     <!-- Umami Analytics Script -->
@@ -1512,6 +1533,20 @@
                 <input class="fg-slider" id="fg-slider" type="range" min="30" max="1500" step="0.1" value="432.1" aria-label="Frequency">
                 <div class="fg-ticks" id="fg-ticks" aria-hidden="true"></div>
                 </div>
+                <div class="fg-status" id="fg-status" role="status"></div>
+                <div class="fg-sacred-row">
+                    <p class="fg-sacred-line" id="fg-sacredLine"></p>
+                </div>
+                <div class="fg-facts">
+                    <div class="fg-fact"><small>Nearest note</small><span id="fg-note">—</span></div>
+                    <div class="fg-fact"><small>One sound wave's length in air</small><span id="fg-wave">—</span></div>
+                    <div class="fg-fact"><small>Plate pattern (mode)</small><span id="fg-mode">—</span></div>
+                    <div class="fg-fact fg-fact-vol"><label for="fg-vol">Volume</label><input class="fg-vol" id="fg-vol" type="range" min="0" max="100" step="1" value="50"></div>
+                </div>
+                <div class="fg-tools-row">
+                    <button type="button" class="fg-tools-btn" id="fg-tools-toggle" aria-expanded="false" aria-controls="fg-tools-panel">🧰 Tools <span class="fg-tools-arrow" aria-hidden="true">▾</span></button>
+                </div>
+                <div class="fg-tools-panel" id="fg-tools-panel" hidden>
                 <div class="fg-rail" role="group" aria-label="Presets">
                     <button type="button" class="fg-chip" data-freq="432.1"><span class="fg-chip-label">star tone</span> 432.1</button>
                     <button type="button" class="fg-chip" data-freq="440"><span class="fg-chip-label">the orchestra's A</span> 440.0</button>
@@ -1529,20 +1564,31 @@
                     <span class="fg-preset"><button type="button" class="fg-chip" data-freq="852" aria-label="852 hertz">852</button><button type="button" class="fg-info-btn" data-info="preset:852" aria-label="About 852 hertz">i</button></span>
                     <span class="fg-preset"><button type="button" class="fg-chip" data-freq="963" aria-label="963 hertz">963</button><button type="button" class="fg-info-btn" data-info="preset:963" aria-label="About 963 hertz">i</button></span>
                 </div>
-                <div class="fg-status" id="fg-status" role="status"></div>
-                <div class="fg-sacred-row">
-                    <p class="fg-sacred-line" id="fg-sacredLine"></p>
+                <div class="fg-tools-about">
                     <button type="button" class="fg-info-btn fg-about-btn" data-info="about">About the physics</button>
                 </div>
-                <div class="fg-facts">
-                    <div class="fg-fact"><small>Nearest note</small><span id="fg-note">—</span></div>
-                    <div class="fg-fact"><small>One sound wave's length in air</small><span id="fg-wave">—</span></div>
-                    <div class="fg-fact"><small>Plate pattern (mode)</small><span id="fg-mode">—</span></div>
-                    <div class="fg-fact fg-fact-vol"><label for="fg-vol">Volume</label><input class="fg-vol" id="fg-vol" type="range" min="0" max="100" step="1" value="50"></div>
-                </div>
                 <div class="fg-found-row fg-found-rail" id="fg-foundRow" role="group" aria-label="Figures found on this plate"></div>
+                </div>
             </div>
         </div>
+        <script>
+        // Frequency Generator Tools expander (Johnny, 2026-11-23): the
+        // preset rail, the About button and the found-figures rail live
+        // behind this one button so the plate, the deck and the dial
+        // own the phone screen. The button never moves when toggled —
+        // the panel opens below it — and its gold pressed look plus
+        // the arrow carry the state. Closed by default at every width.
+        (function () {
+            var btn = document.getElementById('fg-tools-toggle');
+            var panel = document.getElementById('fg-tools-panel');
+            if (!btn || !panel) return;
+            btn.addEventListener('click', function () {
+                var open = panel.hidden;
+                panel.hidden = !open;
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+        })();
+        </script>
         <p class="fg-keys">Drag the plate to turn it · scroll or pinch to zoom · the tone starts only when you press play.</p>
         </div>
         </div>
