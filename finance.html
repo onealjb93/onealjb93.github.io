@@ -8184,17 +8184,21 @@ if (typeof module !== "undefined") {
         // ---- the /quote live layer for the stock rows ----
         // The futures Worker's per-symbol route (Johnny's
         // dashboard deploy turns it on; until then it answers
-        // 404). One quiet probe after the rows populate: any
-        // failure leaves the layer off for the whole visit — no
-        // retry, no error shown, the published closes stand. A
-        // good probe starts a five-second tick that walks the
-        // stock keys in slices of 24 (the full list inside half
-        // a minute), pausing while the tab is hidden; a failed
-        // symbol keeps its last good numbers. The symbol asked
-        // for is the series' own Yahoo symbol from the data
-        // file, never a guess from the key.
+        // 404). One quiet probe after the rows populate; while
+        // the layer is off, opening the panel retries the probe
+        // once per open — a visit that began before the route
+        // existed can still turn live. Probing never shows an
+        // error; the published closes stand meanwhile. While
+        // the panel is open, a five-second tick fetches every
+        // stock key, so each row can repaint on every tick;
+        // closing the panel stops the tick — nothing polls
+        // while nothing is visible. The tick pauses while the
+        // tab is hidden; a failed symbol keeps its last good
+        // numbers. The symbol asked for is the series' own
+        // Yahoo symbol from the data file, never a guess from
+        // the key.
         var QUOTE_API_URL = "https://futures.johnbryantoneal.workers.dev/quote";
-        var quoteLive = false, quoteProbed = false, quoteCursor = 0;
+        var quoteLive = false, quoteProbing = false, quoteTimer = null;
         function ddQuoteKeys() {
             var seen = {}, out = [];
             ddRows.forEach(function (r) {
@@ -8220,26 +8224,41 @@ if (typeof module !== "undefined") {
                 .catch(function () { return false; });
         }
         function ddQuoteTick() {
-            if (!quoteLive || document.hidden) return;
-            var keys = ddQuoteKeys();
-            if (!keys.length) return;
-            var n = Math.min(24, keys.length);
-            for (var i = 0; i < n; i++) fetchDdQuote(keys[(quoteCursor + i) % keys.length]);
-            quoteCursor = (quoteCursor + n) % keys.length;
+            if (!quoteLive || !ddOpen || document.hidden) return;
+            ddQuoteKeys().forEach(fetchDdQuote);
+        }
+        function startDdQuotePoll() {
+            if (quoteTimer !== null || !ddOpen) return;
+            ddQuoteTick();
+            quoteTimer = setInterval(ddQuoteTick, 5000);
+        }
+        function stopDdQuotePoll() {
+            if (quoteTimer === null) return;
+            clearInterval(quoteTimer);
+            quoteTimer = null;
         }
         function probeDdQuotes() {
-            if (quoteProbed) return;
-            quoteProbed = true;
+            if (quoteLive || quoteProbing) return;
             if (!window.fetch) return;
             var keys = ddQuoteKeys();
             if (!keys.length) return;
+            quoteProbing = true;
             fetchDdQuote(keys.indexOf("NVDA") >= 0 ? "NVDA" : keys[0]).then(function (ok) {
+                quoteProbing = false;
                 if (!ok) return; // route not deployed yet: published closes stand
                 quoteLive = true;
-                ddQuoteTick();
-                setInterval(ddQuoteTick, 5000);
+                startDdQuotePoll();
             });
         }
+        // The panel's open and close drive the layer (setDdOpen
+        // below calls these): opening starts the five-second
+        // tick when the layer is live, and retries the probe
+        // once when it is not; closing stops the tick.
+        function ddQuotesOpened() {
+            if (quoteLive) startDdQuotePoll();
+            else probeDdQuotes();
+        }
+        function ddQuotesClosed() { stopDdQuotePoll(); }
         document.addEventListener("visibilitychange", function () {
             if (!document.hidden) ddQuoteTick();
         });
@@ -8276,6 +8295,10 @@ if (typeof module !== "undefined") {
             ddOpen = open;
             if (ddPanel) ddPanel.hidden = !open;
             if (ddFace) ddFace.setAttribute("aria-expanded", open ? "true" : "false");
+            // The /quote layer polls only while the panel is
+            // open (see its block above): opening starts it —
+            // or retries its probe — and closing stops it.
+            if (open) ddQuotesOpened(); else ddQuotesClosed();
         }
         if (ddRoot) {
             Object.defineProperty(ddRoot, "value", {
