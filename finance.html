@@ -637,6 +637,14 @@
     .tv-key-dot-sell { background: #ef4444; }
     body.light-mode .tv-key-dot-buy { background: #16a34a; }
     body.light-mode .tv-key-dot-sell { background: #dc2626; }
+    /* The score dot's key swatch: the ring itself — the buy
+       green as a border, the centre hollow. */
+    .tv-key-dot-score { background: transparent; border: 2px solid #22c55e; box-sizing: border-box; }
+    body.light-mode .tv-key-dot-score { border-color: #16a34a; }
+    /* The score key item exists only while the current series
+       carries score days (the item's display rule above would
+       otherwise defeat the hidden attribute). */
+    #keyScoreItem[hidden] { display: none; }
     /* The key in the site's details pattern (2026-11-16): a slim
        summary line — a chevron, the words "Chart key" and the five
        swatches — with the full descriptions one tap down, the same
@@ -2028,6 +2036,7 @@
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-pe" aria-hidden="true"></span><span><strong>Teal &mdash; the P/E ratio</strong>. The price divided by the last twelve months of earnings per share &mdash; how many dollars investors pay for one dollar of profit. Where the line breaks, the company was losing money: there is no P/E without earnings. The dashed line is the stock's own median P/E: above it, expensive for itself; below it, cheap for itself.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span id="keyVolma"><strong>Grey &mdash; the 20-week volume average</strong>. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-buy"></span><span class="tv-key-dot tv-key-dot-sell"></span></span><span><strong>Green and red dots &mdash; Johnny&rsquo;s indicator</strong>. A green dot marks a buy day: the RSI at or under 30, the VIX at or over 25, the price at least 30% down from its highest price of the last two years and PEG at or under 1 &mdash; or, where PEG can&rsquo;t be calculated, the price at least 40% down from its highest price of the last two years &mdash; all on the same day. A green dot also marks a buy day through the second door: the RSI at or under 30, the VIX at or over 25, the price at least 20% down from its highest price of the last two years, below its 200-week average and PEG at or under 2 — and where PEG can't be calculated, the second door does not open — all on the same day. A red dot marks a sell day: the RSI over 70, the VIX under 15, PEG at 2 or more and the price at least 50% above its 200-week average, all of it held for five straight days. The S&amp;P 500, Nasdaq, gold, and Bitcoin have no PEG to calculate, so for them the 40% drop stands in.</span></span>
+            <span class="tv-key-item" id="keyScoreItem" hidden><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-score"></span></span><span>A ringed green dot marks a day that scored 85 or higher on the 100-point score but did not pass the buy gate.</span></span>
         </div>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         <p class="chart-intro">Tap a market in the strip above to chart it &mdash; tap it again to go back to the stock in the box &mdash; or choose from my 19 stocks and the Nasdaq-100 in the box above. The chart is drawn from this page&rsquo;s own daily and weekly data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-day moving average, the 50-day moving average for the trend, and the daily RSI &mdash; in the Weekly view, the same three by the week: the 200-week average, the 50-week average, and the weekly RSI. A stock with under four years of trading history has no 200-day line yet; the note under the chart says so when that is the case.</p>
@@ -7128,11 +7137,11 @@ if (typeof module !== "undefined") {
             // Weekly mode the first bar dated on or after it (the
             // week containing it). Null when the switch is off or
             // the daily file hasn't arrived yet.
-            var buySet = null, sellSet = null;
+            var buySet = null, sellSet = null, scoreSet = null;
             if (indOn) {
                 var dsig = mode === "daily" ? s : (dailyData && dailyData.series ? dailyData.series[key] : null);
-                if (dsig && (dsig.buy || dsig.sell)) {
-                    buySet = {}; sellSet = {};
+                if (dsig && (dsig.buy || dsig.sell || dsig.score_buys)) {
+                    buySet = {}; sellSet = {}; scoreSet = {};
                     var sigDates = s.bars.map(function (b) { return b[0]; });
                     var markSig = function (list, set) {
                         if (!list) return;
@@ -7144,6 +7153,11 @@ if (typeof module !== "undefined") {
                     };
                     markSig(dsig.buy, buySet);
                     markSig(dsig.sell, sellSet);
+                    // Score days (2026-11-23): the >= 85 days
+                    // that are not gate buy days ride the same
+                    // per-bar set mechanism — drawn as rings,
+                    // inspected like any other dot day.
+                    markSig(dsig.score_buys, scoreSet);
                 }
             }
             return {
@@ -7151,13 +7165,26 @@ if (typeof module !== "undefined") {
                 ma200: sma(closes, 200), ma50: sma(closes, 50), rsi: rsiWilder(closes, 14),
                 volMa: sma(volumes, 20),
                 pe: peArr, peMedian: peMedianOf(peArr, mode === "daily" ? 252 : 52),
-                buySet: buySet, sellSet: sellSet,
+                buySet: buySet, sellSet: sellSet, scoreSet: scoreSet,
                 isBench: PICK_KEYS.indexOf(key) >= 0,
                 start: n - count, end: n - 1,
                 hasVolume: s.bars.some(function (b) { return b[5] > 0; })
             };
         }
-        function computeView() { return computeViewFor(cur.key); }
+        function computeView() {
+            var v = computeViewFor(cur.key);
+            // The score key line exists only while the chart's
+            // own series carries score days in the daily file —
+            // before the pipeline first emits them, and on any
+            // series without them, the key reads exactly as it
+            // did before the score dots existed.
+            var keyScoreEl = document.getElementById("keyScoreItem");
+            if (keyScoreEl) {
+                var dcur = mode === "daily" ? (v && v.s) : (dailyData && dailyData.series ? dailyData.series[cur.key] : null);
+                keyScoreEl.hidden = !(dcur && dcur.score_buys && dcur.score_buys.length);
+            }
+            return v;
+        }
         // The tooltip's rows for one week: the same values, in the
         // same formats, the old under-chart readout produced (fmtNum /
         // fmtVol / one-decimal RSI, "—" where a gauge does not exist
@@ -7473,6 +7500,23 @@ if (typeof module !== "undefined") {
             }
             function YPE(p) { return peY + (peHi - p) / (peHi - peLo) * peH; }
             ctx.font = "11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+            // Axis labels stay inside their own pane
+            // (2026-11-23): a scale label sits centred on its
+            // tick, so at a pane's edge half its glyph box
+            // spills past the pane — about 5px over the 6px
+            // seam, straight into the next pane's edge label
+            // (on SPX the price pane's 3,000.00 and the
+            // volume pane's 10.0B landed in the same pixels).
+            // Every right-edge label's baseline is clamped so
+            // its box ends inside its own pane; the gridline
+            // still draws at the true tick, and both scales
+            // stay fully labelled. The price pane's top tick
+            // may use the canvas headroom above it — no pane
+            // sits there to collide with.
+            var AXIS_ASC = 9, AXIS_DESC = 3; // the 11px label font's rise and fall
+            function axisY(y, top, bot) {
+                return Math.max(top + AXIS_ASC, Math.min(bot - AXIS_DESC, y));
+            }
             // price gridlines + right-hand labels: one line per
             // nice tick, the pane's own edges (the domain's ends)
             // stroked first so the grid always spans the pane
@@ -7485,7 +7529,7 @@ if (typeof module !== "undefined") {
                 ctx.strokeStyle = gridC;
                 ctx.beginPath(); ctx.moveTo(6, gy); ctx.lineTo(6 + plotW, gy); ctx.stroke();
                 ctx.fillStyle = subC; ctx.textAlign = "left";
-                ctx.fillText(fmtAxis(gv), 10 + plotW, gy + 3);
+                ctx.fillText(fmtAxis(gv), 10 + plotW, axisY(gy + 3, 0, priceY + priceH));
             });
             // the price pane's name, in the same top-left spot the
             // RSI and P/E panes below carry theirs
@@ -7533,6 +7577,20 @@ if (typeof module !== "undefined") {
                     ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"; ctx.stroke();
                 }
             }
+            // Score dots (2026-11-23): the >= 85 days that are
+            // not gate buy days — the same radius as a gate dot,
+            // drawn as a ring in the buy green with a hollow
+            // centre, so the two buy classes read apart at a
+            // glance. Present only while the switch is on, like
+            // the filled dots; the pipeline keeps the two sets
+            // disjoint, so a ring never overdraws a filled dot.
+            if (indOn && v.scoreSet) {
+                ctx.lineWidth = 2; ctx.strokeStyle = BUY_COLOR;
+                for (i = v.start; i <= v.end; i++) {
+                    if (!v.scoreSet[i]) continue;
+                    ctx.beginPath(); ctx.arc(X(i), YP(v.closes[i]), 4, 0, Math.PI * 2); ctx.stroke();
+                }
+            }
             // volume pane: the bars, then the 20-week volume
             // average over them — the theme text colour at reduced
             // strength, so it reads against the bars in both
@@ -7557,7 +7615,7 @@ if (typeof module !== "undefined") {
                         ctx.strokeStyle = gridC;
                         ctx.beginPath(); ctx.moveTo(6, vy); ctx.lineTo(6 + plotW, vy); ctx.stroke();
                         ctx.fillStyle = subC; ctx.textAlign = "left";
-                        ctx.fillText(fmtVol(maxV * f), 10 + plotW, vy + 3);
+                        ctx.fillText(fmtVol(maxV * f), 10 + plotW, axisY(vy + 3, volY, volY + volH));
                     });
                     var vw = Math.max(1, plotW / n * 0.7);
                     ctx.fillStyle = subC; ctx.globalAlpha = 0.55;
@@ -7582,9 +7640,9 @@ if (typeof module !== "undefined") {
                 ctx.strokeStyle = gridC;
                 ctx.beginPath(); ctx.moveTo(6, YR(50)); ctx.lineTo(6 + plotW, YR(50)); ctx.stroke();
                 ctx.fillStyle = subC; ctx.textAlign = "left";
-                ctx.fillText("100", 10 + plotW, YR(100) + 10);
-                ctx.fillText("50", 10 + plotW, YR(50) + 3);
-                ctx.fillText("0", 10 + plotW, YR(0) - 2);
+                ctx.fillText("100", 10 + plotW, axisY(YR(100) + 10, rsiY, rsiY + rsiH));
+                ctx.fillText("50", 10 + plotW, axisY(YR(50) + 3, rsiY, rsiY + rsiH));
+                ctx.fillText("0", 10 + plotW, axisY(YR(0) - 2, rsiY, rsiY + rsiH));
                 [30, 70].forEach(function (lv) {
                     var ly = YR(lv);
                     ctx.strokeStyle = RSI_GUIDE_COLOR;
@@ -7592,7 +7650,7 @@ if (typeof module !== "undefined") {
                     ctx.beginPath(); ctx.moveTo(6, ly); ctx.lineTo(6 + plotW, ly); ctx.stroke();
                     ctx.setLineDash([]);
                     ctx.fillStyle = RSI_GUIDE_COLOR; ctx.textAlign = "left";
-                    ctx.fillText(String(lv), 10 + plotW, ly + 3);
+                    ctx.fillText(String(lv), 10 + plotW, axisY(ly + 3, rsiY, rsiY + rsiH));
                 });
                 ctx.fillStyle = subC; ctx.textAlign = "left";
                 ctx.fillText("RSI", 8, rsiY + 11);
@@ -7613,7 +7671,7 @@ if (typeof module !== "undefined") {
                         ctx.strokeStyle = gridC;
                         ctx.beginPath(); ctx.moveTo(6, ly); ctx.lineTo(6 + plotW, ly); ctx.stroke();
                         ctx.fillStyle = subC; ctx.textAlign = "left";
-                        ctx.fillText(fmtPE(val), 10 + plotW, ly + 3);
+                        ctx.fillText(fmtPE(val), 10 + plotW, axisY(ly + 3, peY, peY + peH));
                     });
                     linePath(v.pe, YPE, PE_COLOR, 2);
                     // The stock's own median P/E: one fixed figure
@@ -7629,7 +7687,7 @@ if (typeof module !== "undefined") {
                         ctx.beginPath(); ctx.moveTo(6, medY); ctx.lineTo(6 + plotW, medY); ctx.stroke();
                         ctx.setLineDash([]);
                         ctx.fillStyle = PE_GUIDE_COLOR; ctx.textAlign = "right";
-                        ctx.fillText("median " + fmtPE(v.peMedian), W - 6, medY + 3);
+                        ctx.fillText("median " + fmtPE(v.peMedian), W - 6, axisY(medY + 3, peY, peY + peH));
                     }
                 } else {
                     var pnote = v.pe
@@ -10923,21 +10981,129 @@ if (typeof module !== "undefined") {
         // the next press anywhere disarms it, so an honest
         // tap is never eaten. Touch pointers are ignored
         // outright — the strip's native pan owns touch, byte
-        // for byte. Shift+wheel folds into the pan for mice
-        // and trackpads that report only a vertical wheel; a
-        // plain horizontal wheel already pans natively and is
-        // left to the browser.
+        // for byte. A wheel over the strip — either axis,
+        // shift included — pans the strip itself, eased like
+        // a wheel; at the strip's own edge the event is left
+        // alone, so the page scrolls on and the strip never
+        // traps the reader.
         (function () {
             var TAP_SLOP_PX = 6;
             var drag = null;
             var swallowNextClick = false;
+            // Smooth motion (2026-11-23, Johnny: "it needs to
+            // feel super smooth like a wheel. not like they
+            // jump from one state to the next as i drag"):
+            // the strip's proximity snap quantised every
+            // programmatic scrollLeft to the 120px cell pitch
+            // mid-drag — measured on the shipped page, the
+            // band sat still for up to 60px of pointer travel
+            // and then lurched a full cell (held deviation
+            // max 60px, mean 33px; every landing a multiple
+            // of 120). So while a mouse drag, a momentum
+            // glide or a wheel scroll owns the strip, the
+            // snap is switched off inline and the strip
+            // tracks the pointer 1:1; when the motion ends,
+            // a short ease settles it onto the nearest cell
+            // edge and the stylesheet snap returns — the
+            // touch pan keeps it throughout, untouched.
+            var anim = null;
+            function maxScroll() {
+                return Math.max(0, cellsEl.scrollWidth - cellsEl.clientWidth);
+            }
+            function snapOff() { cellsEl.style.scrollSnapType = 'none'; }
+            function snapOn() { cellsEl.style.scrollSnapType = ''; }
+            function stopAnim() {
+                if (anim) { cancelAnimationFrame(anim.raf); anim = null; }
+            }
+            function snapPitch() {
+                var ch = cellsEl.children;
+                if (ch.length >= 2) {
+                    var p = ch[1].offsetLeft - ch[0].offsetLeft;
+                    if (p > 0) return p;
+                }
+                return 120; // the 114px cell + the 6px gap
+            }
+            function settleAlign() {
+                var from = cellsEl.scrollLeft;
+                var to = Math.max(0, Math.min(maxScroll(),
+                    Math.round(from / snapPitch()) * snapPitch()));
+                var dist = to - from;
+                if (Math.abs(dist) < 1) { snapOn(); return; }
+                var t0 = performance.now();
+                var dur = Math.min(200, 90 + Math.abs(dist) * 1.5);
+                stopAnim();
+                anim = { raf: 0 };
+                var step = function (now) {
+                    if (!anim) return;
+                    var k = Math.min(1, (now - t0) / dur);
+                    var e = 1 - Math.pow(1 - k, 3);
+                    cellsEl.scrollLeft = from + dist * e;
+                    if (k < 1) { anim.raf = requestAnimationFrame(step); }
+                    else { anim = null; snapOn(); }
+                };
+                anim.raf = requestAnimationFrame(step);
+            }
+            function glide(v) {
+                // Momentum: the release velocity (px per ms,
+                // clamped by the caller) decays exponentially
+                // — tau 300ms — until the strip rests or
+                // reaches an edge, then settles as above.
+                var last = performance.now();
+                stopAnim();
+                anim = { raf: 0 };
+                var step = function (now) {
+                    if (!anim) return;
+                    var dt = Math.min(64, now - last);
+                    last = now;
+                    var pos = cellsEl.scrollLeft + v * dt;
+                    v *= Math.exp(-dt / 300);
+                    if (pos <= 0 || pos >= maxScroll()) {
+                        cellsEl.scrollLeft = Math.max(0,
+                            Math.min(maxScroll(), pos));
+                        anim = null; settleAlign(); return;
+                    }
+                    cellsEl.scrollLeft = pos;
+                    if (Math.abs(v) < 0.02) {
+                        anim = null; settleAlign(); return;
+                    }
+                    anim.raf = requestAnimationFrame(step);
+                };
+                anim.raf = requestAnimationFrame(step);
+            }
+            var wheelTarget = null;
+            var wheelRunning = false;
+            function wheelStep() {
+                if (wheelTarget === null) { wheelRunning = false; return; }
+                var pos = cellsEl.scrollLeft;
+                var diff = wheelTarget - pos;
+                // Land inside 2px, exactly: scrollLeft is
+                // integer-quantised, so an asymptotic ease
+                // toward a sub-pixel threshold never arrives
+                // (measured: from 239 the 0.25 step wrote
+                // 239.25, read back 239, and the loop ran on,
+                // dragging later sets back to its stale target).
+                if (Math.abs(diff) <= 2) {
+                    cellsEl.scrollLeft = wheelTarget;
+                    wheelTarget = null;
+                    wheelRunning = false;
+                    settleAlign();
+                    return;
+                }
+                cellsEl.scrollLeft = pos + diff * 0.25;
+                requestAnimationFrame(wheelStep);
+            }
             cellsEl.addEventListener('pointerdown', function (e) {
                 swallowNextClick = false;
                 if (e.pointerType === 'touch') return;
                 if (e.button !== undefined && e.button > 0) return;
+                // A press catches the strip wherever it is:
+                // any glide, settle or wheel ease stops here.
+                stopAnim();
+                wheelTarget = null;
                 drag = {
                     id: e.pointerId, x: e.clientX,
-                    scroll: cellsEl.scrollLeft, moved: false
+                    scroll: cellsEl.scrollLeft, moved: false,
+                    samples: []
                 };
             });
             cellsEl.addEventListener('pointermove', function (e) {
@@ -10946,6 +11112,7 @@ if (typeof module !== "undefined") {
                 if (!drag.moved) {
                     if (Math.abs(dx) <= TAP_SLOP_PX) return;
                     drag.moved = true;
+                    snapOff();
                     cellsEl.classList.add('dragging');
                     if (cellsEl.setPointerCapture) {
                         try {
@@ -10953,12 +11120,34 @@ if (typeof module !== "undefined") {
                         } catch (err) {}
                     }
                 }
+                var now = performance.now();
+                drag.samples.push({ t: now, x: e.clientX });
+                while (drag.samples.length > 2 &&
+                       now - drag.samples[0].t > 120) {
+                    drag.samples.shift();
+                }
                 cellsEl.scrollLeft = drag.scroll - dx;
                 if (e.cancelable) e.preventDefault();
             });
             function endDrag(e) {
                 if (!drag || e.pointerId !== drag.id) return;
-                if (drag.moved) {
+                var moved = drag.moved;
+                var v = 0;
+                if (moved) {
+                    // Release velocity from the last 100ms of
+                    // the drag; a pointer held still before
+                    // letting go throws no glide.
+                    var now = performance.now();
+                    var s = drag.samples.filter(function (p) {
+                        return now - p.t <= 100;
+                    });
+                    if (s.length >= 2 && now - s[s.length - 1].t <= 60) {
+                        var dt = s[s.length - 1].t - s[0].t;
+                        if (dt >= 30) {
+                            v = -(s[s.length - 1].x - s[0].x) / dt;
+                        }
+                    }
+                    v = Math.max(-2.2, Math.min(2.2, v));
                     swallowNextClick = true;
                     // The drag's click fires in this same
                     // interaction; if none arrives (no pointer
@@ -10970,6 +11159,14 @@ if (typeof module !== "undefined") {
                 }
                 drag = null;
                 cellsEl.classList.remove('dragging');
+                if (moved) {
+                    if (Math.abs(v) >= 0.05) glide(v);
+                    else settleAlign();
+                } else {
+                    // A plain tap after a caught glide still
+                    // settles the strip gently onto its edge.
+                    settleAlign();
+                }
             }
             cellsEl.addEventListener('pointerup', endDrag);
             cellsEl.addEventListener('pointercancel', endDrag);
@@ -10980,17 +11177,29 @@ if (typeof module !== "undefined") {
                 e.preventDefault();
             }, true);
             cellsEl.addEventListener('wheel', function (e) {
-                if (!e.shiftKey) return;
-                var dy = e.deltaY || 0;
-                if (!dy || Math.abs(e.deltaX || 0) > Math.abs(dy)) return;
+                if (drag) return;
+                // Either axis pans the strip: a horizontal
+                // wheel reports deltaX (browsers fold shift
+                // into it), a vertical wheel or trackpad
+                // reports deltaY — the stronger one wins.
+                var dx = e.deltaX || 0, dy = e.deltaY || 0;
+                var d = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
+                if (!d) return;
                 var unit = e.deltaMode === 1 ? 16
                     : (e.deltaMode === 2 ? cellsEl.clientWidth : 1);
-                var max = cellsEl.scrollWidth - cellsEl.clientWidth;
-                var next = Math.max(0, Math.min(max,
-                    cellsEl.scrollLeft + dy * unit));
-                if (next === cellsEl.scrollLeft) return;
-                cellsEl.scrollLeft = next;
+                d *= unit;
+                var base = wheelTarget !== null
+                    ? wheelTarget : cellsEl.scrollLeft;
+                var next = Math.max(0, Math.min(maxScroll(), base + d));
+                if (next === base) return; // at the edge: page scrolls on
+                stopAnim();
+                snapOff();
+                wheelTarget = next;
                 e.preventDefault();
+                if (!wheelRunning) {
+                    wheelRunning = true;
+                    requestAnimationFrame(wheelStep);
+                }
             }, { passive: false });
         })();
         function fmtNum(n, d) {
