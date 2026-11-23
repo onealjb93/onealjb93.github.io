@@ -7142,6 +7142,17 @@ if (typeof module !== "undefined") {
                 s = dailyData.series[key];
                 if (!s || !s.bars || !s.bars.length) return null;
             }
+            // Intraday ranges (Daily 1D / 1W with the sessions file
+            // in): the view is 1-minute bars, and the branch returns
+            // before the indicator mapping below — Johnny's buy /
+            // sell dots are computed from daily closes, so they
+            // never draw on an intraday view. Without the file (or
+            // without this series in it) the daily bars render as
+            // usual: no error, no dead state.
+            if (mode === "daily" && INTRA_RANGES[cur.range]) {
+                var iview = buildIntraView(key);
+                if (iview) return iview;
+            }
             var closes = s.bars.map(function (b) { return b[4]; });
             var volumes = s.bars.map(function (b) { return b[5]; });
             var n = s.bars.length;
@@ -7211,6 +7222,14 @@ if (typeof module !== "undefined") {
         // takes a CSS-variable chip (the close line, the volume bars).
         function tipRows(v, idx) {
             var b = v.s.bars[idx];
+            // An intraday view carries no daily averages and no P/E:
+            // the tooltip offers what the 1-minute bars honestly hold.
+            if (v.intra) {
+                var irows = [{ label: "Close", value: fmtNum(b[4]), color: null, chip: "close" }];
+                if (rsiOn) irows.push({ label: "RSI", value: v.rsi[idx] === null ? "—" : v.rsi[idx].toFixed(1), color: RSI_COLOR, chip: "" });
+                if (v.hasVolume && volOn) irows.push({ label: "Volume", value: fmtVol(b[5]), color: null, chip: "" });
+                return irows;
+            }
             var per = mode === "daily" ? "day" : "week";
             var rows = [{ label: "Close", value: fmtNum(b[4]), color: null, chip: "close" }];
             rows.push({ label: "200-" + per, value: v.ma200[idx] === null ? "—" : fmtNum(v.ma200[idx]), color: MA200_COLOR, chip: "" });
@@ -7230,6 +7249,7 @@ if (typeof module !== "undefined") {
         // share); a stock without an array gets one with the data
         // refresh that brings the pipeline's EDGAR step.
         function peNoteText(v) {
+            if (v.intra) return "The P/E line is built from daily closes, so it steps aside on the intraday ranges and returns on 1M and longer.";
             if (!peOn || v.pe) return "";
             if (v.isBench) return v.s.name + " has no earnings per share of its own, so there is no P/E line to draw.";
             return "No P/E history for " + v.s.name + " yet — it arrives with the next data refresh.";
@@ -7255,6 +7275,9 @@ if (typeof module !== "undefined") {
             return { left: Math.round(left), top: Math.round(top) };
         }
         function noteText(v) {
+            // The "not enough history for the average lines" note is
+            // about daily bars; an intraday view never shows it.
+            if (v.intra) return "";
             var n = v.s.bars.length, per = mode === "daily" ? "day" : "week";
             if (n >= 200) return "";
             if (n < 50) return v.s.name + " has " + n + " " + per + "s of trading history — not enough yet for the 50-" + per + " or 200-" + per + " lines (they need 50 and 200 " + per + "s). The price and the RSI still draw.";
@@ -7270,6 +7293,10 @@ if (typeof module !== "undefined") {
             }
             if (!chartData) { showTipStatus("Loading chart data…"); return; }
             if (mode === "daily" && !dailyData) { showTipStatus("Loading daily data…"); return; }
+            // A 1D / 1W range waits for the intraday file the same
+            // way Daily waits for the daily file; if the file failed
+            // to arrive, the daily bars below render instead.
+            if (mode === "daily" && INTRA_RANGES[cur.range] && !intraData && !intraFailed) { ensureIntra(); showTipStatus("Loading intraday data…"); return; }
             view = computeView();
             if (!view) { showTipStatus("No chart data for this instrument yet."); return; }
             rangeStart = view.start; rangeEnd = view.end;
@@ -7289,9 +7316,16 @@ if (typeof module !== "undefined") {
             if (note) { note.textContent = nt; note.hidden = !nt; }
             var btcNote = document.getElementById("finIndBtcNote");
             if (btcNote) btcNote.hidden = !(indOn && cur.key === "BTC");
-            if (dataNote) dataNote.textContent = (modeNote ? modeNote + " " : "") + (mode === "daily" ? "Daily" : "Weekly") + " data from Yahoo Finance through " + fmtDate(view.s.bars[view.end][0]) + " — refreshed weekday evenings with the rest of this page’s data.";
+            if (dataNote) {
+                // An intraday view names its session and its clock —
+                // the file is a snapshot of completed sessions,
+                // never a live feed, and the note says so plainly.
+                if (view.intra) dataNote.textContent = (modeNote ? modeNote + " " : "") + intraNoteText(view);
+                else dataNote.textContent = (modeNote ? modeNote + " " : "") + (mode === "daily" ? "Daily" : "Weekly") + " data from Yahoo Finance through " + fmtDate(view.s.bars[view.end][0]) + " — refreshed weekday evenings with the rest of this page’s data.";
+            }
             draw();
             updateTip();
+            syncIntraKey();
         }
 
         // ---- the readout strip above the chart ----
@@ -7323,7 +7357,8 @@ if (typeof module !== "undefined") {
                 cell.appendChild(lab); cell.appendChild(val);
                 strip.appendChild(cell);
             }
-            stat(mode === "weekly" ? "Week ending" : "Date", fmtDate(b[0]));
+            if (view.intra) stat("Time", fmtIntraStamp(b));
+            else stat(mode === "weekly" ? "Week ending" : "Date", fmtDate(b[0]));
             tipRows(view, idx).forEach(function (r) { stat(r.label, r.value); });
         }
         // Loading / failure / no-data states speak through the
@@ -7517,6 +7552,20 @@ if (typeof module !== "undefined") {
                 }
             }
             function YPE(p) { return peY + (peHi - p) / (peHi - peLo) * peH; }
+            // Intraday views: the pre-market and after-hours spans
+            // wear a tint the regular session doesn't — Robinhood's
+            // session shading in this page's neutral tones, drawn
+            // under the gridlines so every number stays on top.
+            if (v.intra && v.intra.shade) {
+                ctx.fillStyle = document.body.classList.contains("light-mode") ? "rgba(101, 80, 20, 0.055)" : "rgba(148, 178, 255, 0.055)";
+                var pitch = n > 1 ? plotW / (n - 1) : plotW;
+                v.intra.shade.forEach(function (sp) {
+                    var sa = Math.max(sp.a, v.start), sb = Math.min(sp.b, v.end);
+                    if (sb < sa) return;
+                    var sx0 = Math.max(6, X(sa) - pitch / 2), sx1 = Math.min(6 + plotW, X(sb) + pitch / 2);
+                    ctx.fillRect(sx0, priceY, sx1 - sx0, botY - priceY);
+                });
+            }
             ctx.font = "11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
             // Axis labels stay inside their own pane
             // (2026-11-23): a scale label sits centred on its
@@ -7671,7 +7720,7 @@ if (typeof module !== "undefined") {
                     ctx.fillText(String(lv), 10 + plotW, axisY(ly + 3, rsiY, rsiY + rsiH));
                 });
                 ctx.fillStyle = subC; ctx.textAlign = "left";
-                ctx.fillText("RSI", 8, rsiY + 11);
+                ctx.fillText(v.intra ? "RSI · 1-min" : "RSI", 8, rsiY + 11);
                 linePath(v.rsi, YR, RSI_COLOR, 2);
             }
             // P/E pane (only when switched on): the teal line over
@@ -7730,7 +7779,10 @@ if (typeof module !== "undefined") {
             // days inside a month — so a pinch-zoomed window
             // relabels itself at its own scale.
             ctx.fillStyle = subC;
-            xTicksFor(bars, v.start, v.end).forEach(function (tk) {
+            // Intraday views label the session's clock instead:
+            // 1D carries the session boundaries (4:00 · 9:30 ·
+            // 16:00 · 20:00), 1W one date per session.
+            (v.intra ? intraTicks(v, v.start, v.end) : xTicksFor(bars, v.start, v.end)).forEach(function (tk) {
                 var lx = Math.max(24, Math.min(W - 24, X(tk.idx)));
                 ctx.textAlign = "center";
                 ctx.fillText(tk.label, lx, H - 6);
@@ -7739,7 +7791,7 @@ if (typeof module !== "undefined") {
             // corner (the last tick centres at the plot's right
             // edge, W - 64, so its label never reaches this corner)
             ctx.textAlign = "right";
-            ctx.fillText("Date", W - 6, H - 6);
+            ctx.fillText(v.intra ? "Time" : "Date", W - 6, H - 6);
             // crosshair
             if (hover >= v.start && hover <= v.end) {
                 var hx = X(hover);
@@ -7970,6 +8022,15 @@ if (typeof module !== "undefined") {
             if (cv) cv.setAttribute("aria-label", mode === "daily"
                 ? "Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"
                 : "Weekly price chart with 200-week and 50-week moving averages, volume, weekly RSI and an optional P/E pane");
+            // syncControls() runs this on every series switch, so
+            // while an intraday view is up this write would replace
+            // the intraday key wording with the mode wording and
+            // leave it there (syncIntraKey's latch would see no
+            // change and never reapply). Drop the latch instead:
+            // the render that follows every control sync calls
+            // syncIntraKey, which then puts the intraday wording
+            // back. On a daily/weekly view this is a no-op.
+            if (view && view.intra) intraKeyOn = false;
         }
         function syncControls() {
             // One dropdown for all three lists: a pick from any
@@ -8664,6 +8725,170 @@ if (typeof module !== "undefined") {
         });
 
 
+        // ---- intraday sessions: the Daily 1D / 1W ranges ----
+        // finance-intraday.json (built nightly by fetch_intraday.py
+        // in the market pipeline) carries the last five sessions of
+        // 1-minute bars inside 04:00-20:00 ET, extended hours
+        // included, for the chart's primary series. In Daily mode
+        // the 1D range draws the file's most recent session and 1W
+        // draws all five, with the pre-market and after-hours spans
+        // shaded. The file is a snapshot of completed sessions —
+        // the data note names the session date; the live futures
+        // band above stays the page's live element. Without the
+        // file, or for a series it doesn't carry, 1D / 1W fall back
+        // to the daily bars (1 / 5 of them) with no error.
+        var intraData = null, intraStarted = false, intraFailed = false;
+        var INTRA_RANGES = { "1D": true, "1W": true };
+        if (!("1D" in RANGE_DAYS)) RANGE_DAYS["1D"] = 1;
+        if (!("1W" in RANGE_DAYS)) RANGE_DAYS["1W"] = 5;
+        if (!("1D" in RANGE_WEEKS)) RANGE_WEEKS["1D"] = 1;
+        if (!("1W" in RANGE_WEEKS)) RANGE_WEEKS["1W"] = 1;
+        // The 1D / 1W buttons join the range row when the page
+        // doesn't carry them yet (a later ranges build ships its
+        // own; these are only the stand-ins until then).
+        (function () {
+            var rangesEl = document.getElementById("chartRanges");
+            if (!rangesEl || rangesEl.querySelector('button[data-range="1D"]')) return;
+            ["1D", "1W"].forEach(function (r) {
+                var b = document.createElement("button");
+                b.type = "button";
+                b.className = "filter-pill";
+                b.setAttribute("data-range", r);
+                b.textContent = r;
+                var anchor = rangesEl.querySelector('button[data-range="1Y"]');
+                rangesEl.insertBefore(b, anchor || null);
+            });
+        })();
+        function ensureIntra() {
+            if (intraData || (intraStarted && !intraFailed)) return;
+            intraStarted = true; intraFailed = false;
+            fetch("finance-intraday.json").then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+                .then(function (d) { intraData = d; if (mode === "daily" && INTRA_RANGES[cur.range]) render(); })
+                .catch(function () { intraFailed = true; });
+        }
+        // Eastern Time, always: a session is a New York session
+        // whatever timezone the visitor's device sits in.
+        var etFmt = null, etCache = {};
+        function etClock(ts) {
+            // The intraday file's bar stamps are epoch SECONDS
+            // (Yahoo's own units, kept by fetch_intraday.py);
+            // Date wants milliseconds, and the cache key is the
+            // minute — every bar in a session is a distinct one.
+            var key = Math.floor(ts / 60);
+            if (etCache[key]) return etCache[key];
+            var out;
+            try {
+                if (!etFmt) etFmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+                var p = {};
+                etFmt.formatToParts(new Date(ts * 1000)).forEach(function (part) { p[part.type] = part.value; });
+                var hh = Number(p.hour) % 24, mm = Number(p.minute);
+                var h12 = hh % 12 === 0 ? 12 : hh % 12;
+                out = { mins: hh * 60 + mm, date: p.year + "-" + p.month + "-" + p.day, label: h12 + ":" + (mm < 10 ? "0" : "") + mm + " " + (hh < 12 ? "AM" : "PM") };
+            } catch (e) {
+                var d = new Date(ts * 1000);
+                out = { mins: d.getHours() * 60 + d.getMinutes(), date: d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2), label: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) };
+            }
+            etCache[key] = out;
+            return out;
+        }
+        function fmtIntraStamp(bar) {
+            var ec = etClock(bar[0]);
+            return fmtDate(ec.date) + " · " + ec.label;
+        }
+        function buildIntraView(key) {
+            if (!intraData || !intraData.series) return null;
+            var is = intraData.series[key];
+            if (!is || !is.sessions || !is.sessions.length) return null;
+            var picked = cur.range === "1D" ? [is.sessions[is.sessions.length - 1]] : is.sessions;
+            var bars = [], shade = [], sessInfo = [];
+            picked.forEach(function (sn) {
+                var a = bars.length;
+                for (var i = 0; i < sn.bars.length; i++) bars.push(sn.bars[i]);
+                if (!sn.bars.length) return;
+                sessInfo.push({ date: sn.date, start: a, end: bars.length - 1 });
+                // This session's shaded spans: the bars before the
+                // 09:30 open and from the 16:00 close on.
+                var preA = -1, preB = -1, postA = -1, postB = -1;
+                for (var j = a; j < bars.length; j++) {
+                    var m = etClock(bars[j][0]).mins;
+                    if (m < 570) { if (preA < 0) preA = j; preB = j; }
+                    else if (m >= 960) { if (postA < 0) postA = j; postB = j; }
+                }
+                if (preA >= 0) shade.push({ a: preA, b: preB });
+                if (postA >= 0) shade.push({ a: postA, b: postB });
+            });
+            if (!bars.length || !sessInfo.length) return null;
+            var closes = bars.map(function (b) { return b[4]; });
+            var nulls = bars.map(function () { return null; });
+            return {
+                s: { name: is.name, symbol: is.symbol, bars: bars },
+                closes: closes,
+                // The averages are daily lines; an intraday view
+                // carries none (never a 200-minute average wearing
+                // the 200-day line's name).
+                ma200: nulls, ma50: nulls.slice(),
+                // The RSI honestly recomputes on 1-minute closes,
+                // and its pane is labeled "RSI · 1-min".
+                rsi: rsiWilder(closes, 14),
+                volMa: nulls.slice(),
+                pe: null, peMedian: null,
+                // The dots are computed from daily closes; the
+                // signal mapping never runs for this view.
+                buySet: null, sellSet: null,
+                isBench: PICK_KEYS.indexOf(key) >= 0,
+                start: 0, end: bars.length - 1,
+                hasVolume: bars.some(function (b) { return b[5] > 0; }),
+                intra: { kind: cur.range, sessions: sessInfo, shade: shade }
+            };
+        }
+        function intraTicks(v, start, end) {
+            var out = [], seen = {};
+            function push(idx, label) { if (idx < start || idx > end || seen[idx]) return; seen[idx] = true; out.push({ idx: idx, label: label }); }
+            if (v.intra.kind === "1W") {
+                v.intra.sessions.forEach(function (sn) { push(sn.start, fmtDate(sn.date)); });
+                return out;
+            }
+            var bars = v.s.bars;
+            [[240, "4:00"], [570, "9:30"], [960, "16:00"]].forEach(function (bd) {
+                for (var i = start; i <= end; i++) {
+                    var m = etClock(bars[i][0]).mins;
+                    if (m >= bd[0]) { if (m <= bd[0] + 5) push(i, bd[1]); break; }
+                }
+            });
+            // The 20:00 label only when the session truly reaches
+            // the close — a partial session never wears it.
+            if (etClock(bars[end][0]).mins >= 1195) push(end, "20:00");
+            if (!out.length) push(start, fmtDate(v.intra.sessions[0].date));
+            return out.sort(function (a, b) { return a.idx - b.idx; });
+        }
+        function intraNoteText(v) {
+            var bars = v.s.bars;
+            if (v.intra.kind === "1D") {
+                var dstr = v.intra.sessions[0].date, dp = dstr.split("-");
+                var wd = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date(Date.UTC(Number(dp[0]), Number(dp[1]) - 1, Number(dp[2]))).getUTCDay()];
+                return "Intraday data from Yahoo Finance — the session of " + wd + " " + fmtDate(dstr) + ", 1-minute bars from " + etClock(bars[0][0]).label + " to " + etClock(bars[bars.length - 1][0]).label + " ET — refreshed weekday evenings with the rest of this page’s data.";
+            }
+            var ns = v.intra.sessions.length;
+            return "Intraday data from Yahoo Finance — the " + (ns === 5 ? "five" : ns) + " sessions through " + fmtDate(v.intra.sessions[ns - 1].date) + ", 1-minute bars, 4:00 AM–8:00 PM ET each session — refreshed weekday evenings with the rest of this page’s data.";
+        }
+        // The chart key while an intraday view is up: the entries
+        // for the lines that step aside say so, and the two that
+        // stay (the RSI, the volume) say what they now mean.
+        var INTRA_KEY_HTML = {
+            keyMa200: "<strong>Amber — the 200-day average</strong>. It is built from daily closes, so on the intraday ranges it steps aside; it returns on 1M and longer.",
+            keyMa50: "<strong>Blue — the 50-day average</strong>. It is built from daily closes, so on the intraday ranges it steps aside; it returns on 1M and longer.",
+            keyRsi: "<strong>Violet — the RSI, on 1-minute closes</strong>. How stretched the price is inside the session — pushed too far, too fast, in either direction. Dashed lines mark 70 and 30: above 70, overbought; below 30, oversold.",
+            keyVolma: "<strong>Grey — the volume bars</strong>. Volume here is the regular session’s: the source carries no volume for the pre- and post-market bars, so the shaded spans show price only."
+        };
+        var intraKeyOn = false;
+        function syncIntraKey() {
+            var on = !!(view && view.intra);
+            if (on === intraKeyOn) return;
+            intraKeyOn = on;
+            if (on) KEY_IDS.forEach(function (id) { var el = document.getElementById(id); if (el && INTRA_KEY_HTML[id]) el.innerHTML = INTRA_KEY_HTML[id]; });
+            else syncModeText();
+        }
+
         // ---- loading the daily file (lazy: first Daily switch) ----
         function ensureDaily() {
             if (dailyData) { render(); return; }
@@ -8750,7 +8975,7 @@ if (typeof module !== "undefined") {
                 var v = computeViewFor(key);
                 if (!v) return null;
                 if (idx === undefined || idx === null || idx < 0 || idx >= v.s.bars.length) idx = v.end;
-                return { name: v.s.name, date: (mode === "daily" ? "" : "Week ending ") + fmtDate(v.s.bars[idx][0]), rows: tipRows(v, idx) };
+                return { name: v.s.name, date: v.intra ? fmtIntraStamp(v.s.bars[idx]) : (mode === "daily" ? "" : "Week ending ") + fmtDate(v.s.bars[idx][0]), rows: tipRows(v, idx) };
             },
             tipPos: tipPos,
             state: function () {
