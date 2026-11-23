@@ -791,9 +791,27 @@
         .fg-vignette {
             position: absolute; inset: 0; z-index: 2; pointer-events: none;
             background:
-                linear-gradient(180deg, rgba(255, 190, 110, 0.055) 0%, rgba(255, 190, 110, 0) 34%),
-                radial-gradient(118% 92% at 50% 42%, rgba(0, 0, 0, 0) 54%, rgba(0, 0, 0, 0.44) 100%);
+                linear-gradient(180deg, rgba(255, 190, 110, 0.05) 0%, rgba(255, 190, 110, 0) 34%),
+                radial-gradient(118% 92% at 50% 42%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.52) 100%);
         }
+        /* A whisper of film grain over the stage — the camera
+           artifact every real photograph of a rig carries and no
+           clean render does. An SVG turbulence tile, stepped
+           through six positions so it lives like sensor noise;
+           at 5% opacity it is felt, not seen. */
+        .fg-grain {
+            position: absolute; inset: -60px; z-index: 3; pointer-events: none;
+            opacity: 0.05; mix-blend-mode: overlay;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
+            animation: fg-grain-jump 0.9s steps(6) infinite;
+        }
+        @keyframes fg-grain-jump {
+            0% { transform: translate(0, 0); } 17% { transform: translate(-18px, 10px); }
+            34% { transform: translate(12px, -22px); } 51% { transform: translate(-24px, -8px); }
+            68% { transform: translate(16px, 18px); } 85% { transform: translate(-8px, -16px); }
+            100% { transform: translate(0, 0); }
+        }
+        @media (prefers-reduced-motion: reduce) { .fg-grain { animation: none; } }
         .fg-loading {
             position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             color: rgba(233, 230, 220, 0.55); font-size: 0.9rem; letter-spacing: 0.04em;
@@ -1528,6 +1546,7 @@
         <div class="fg-shell" id="fg-shell">
             <div class="fg-stage" id="fg-stage">
                 <div class="fg-vignette" aria-hidden="true"></div>
+                <div class="fg-grain" aria-hidden="true"></div>
                 <div class="fg-loading" id="fg-loading">Setting up the plate…</div>
             </div>
             <div class="fg-deck">
@@ -3436,39 +3455,81 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             gCol = new Float32Array(3 * N);
             for (var i = 0; i < N; i++) gSeed[i] = Math.random();
         }
+        // A small seeded PRNG (mulberry32). The pour is seeded by
+        // the mode and the sharpness bucket, so the same frequency
+        // re-settles to the same figure grain for grain — a real
+        // plate re-excited at the same pitch lands the same way,
+        // and the harness's reproducibility proof becomes exact
+        // instead of statistical.
+        function fgRand(seed) {
+            var a = seed >>> 0;
+            return function () {
+                a = a + 0x6D2B79F5 | 0;
+                var t = Math.imul(a ^ a >>> 15, 1 | a);
+                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
+        }
         function sampleTargets() {
             var mode = cur.mode, s = cur.s;
             var settled = Math.round(N * Math.pow(s, 0.8));
+            var rnd = fgRand((mode.m * 73856093) ^ (mode.n * 19349663) ^
+                (Math.round(s * 20) * 83492791) ^ 0x9e3779b9);
             var i, x, z, rho, th, W;
             for (i = 0; i < N; i++) {
                 if (i < settled) {
+                    if (rnd() < 0.09) {
+                        // Stray grains: on a real plate some of the
+                        // sand never reaches a line — it stops where
+                        // it fell, scattered across the whole face.
+                        rho = Math.sqrt(rnd()); th = rnd() * 6.2831853;
+                        x = rho * Math.cos(th); z = rho * Math.sin(th);
+                        W = modeVal(mode, x, z); gSet[i] = 1;
+                    } else {
                     var bx = 0, bz = 0, bW = Infinity;
                     for (var t = 0; t < 48; t++) {
-                        rho = Math.sqrt(Math.random()); th = Math.random() * 6.2831853;
+                        rho = Math.sqrt(rnd()); th = rnd() * 6.2831853;
                         x = rho * Math.cos(th); z = rho * Math.sin(th);
                         W = modeVal(mode, x, z);
                         if (Math.abs(W) < Math.abs(bW)) { bW = W; bx = x; bz = z; }
-                        if (Math.random() < Math.exp(-(W / 0.055) * (W / 0.055))) { bx = x; bz = z; bW = W; break; }
+                        if (rnd() < Math.exp(-(W / 0.105) * (W / 0.105))) { bx = x; bz = z; bW = W; break; }
                     }
-                    x = bx; z = bz; W = bW; gSet[i] = 1;
+                    x = bx; z = bz;
+                    // The line is fuzzy, not drawn: each grain stops
+                    // a little off the node it was walking to, so
+                    // density falls off around the line the way a
+                    // photograph of real sand falls off.
+                    x += (rnd() + rnd() + rnd() - 1.5) * 0.024;
+                    z += (rnd() + rnd() + rnd() - 1.5) * 0.024;
+                    rho = Math.sqrt(x * x + z * z);
+                    if (rho > 0.995) { x *= 0.995 / rho; z *= 0.995 / rho; }
+                    W = modeVal(mode, x, z); gSet[i] = 1;
+                    }
                 } else {
-                    rho = Math.sqrt(Math.random()); th = Math.random() * 6.2831853;
+                    rho = Math.sqrt(rnd()); th = rnd() * 6.2831853;
                     x = rho * Math.cos(th); z = rho * Math.sin(th);
                     W = modeVal(mode, x, z); gSet[i] = 0;
                 }
                 posTgt[3 * i] = x; posTgt[3 * i + 1] = TOPY; posTgt[3 * i + 2] = z;
                 gW[i] = W;
-                // Per-grain colour: real sand is never one colour. A
-                // brightness spread per grain, a slight warm channel
-                // drift, and grains resting in a settled pile sit a
-                // touch deeper in tone (a whisper of occlusion where
-                // the pile meets the plate).
-                var cv = 0.8 + gSeed[i] * 0.4;
-                if (gSeed[i] > 0.962) cv *= 1.5;
-                if (gSet[i]) cv *= 0.9;
-                gCol[3 * i] = cv;
-                gCol[3 * i + 1] = cv * (0.965 + gSeed[i] * 0.045);
-                gCol[3 * i + 2] = cv * (0.93 + gSeed[i] * 0.06);
+                // Per-grain colour: real sand is never one colour.
+                // A wide brightness spread, a slight warm channel
+                // drift, and whole tint families mixed through the
+                // pour — most grains mid-tan, some pale quartz, some
+                // dark brown — because a scoop of real sand is a
+                // mixture, not a dye lot. Grains resting in a settled
+                // pile sit a touch deeper in tone (a whisper of
+                // occlusion where the pile meets the plate).
+                var cv = 0.74 + gSeed[i] * 0.52;
+                if (gSeed[i] > 0.962) cv *= 1.45;
+                if (gSet[i]) cv *= 0.92;
+                var tint = gSeed[i] * 5.13 % 1;
+                var tr = 1, tg = 0.965 + gSeed[i] * 0.045, tb = 0.93 + gSeed[i] * 0.06;
+                if (tint < 0.12) { tr = 0.60; tg = 0.50; tb = 0.40; }
+                else if (tint > 0.88) { tr = 1.16; tg = 1.12; tb = 1.03; }
+                gCol[3 * i] = cv * tr;
+                gCol[3 * i + 1] = cv * tg;
+                gCol[3 * i + 2] = cv * tb;
                 var dx = posCur[3 * i] - x, dz = posCur[3 * i + 2] - z;
                 gHop[i] = 0.015 + 0.10 * Math.sqrt(dx * dx + dz * dz);
             }
@@ -3627,6 +3688,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         // ---------- renderers ----------
         var three = null, renderer = null, scene = null, camera = null;
         var plateU = null, sandU = null, wAttr = null, setAttr = null, colAttr = null, sandGeo = null;
+        var boltG = null; // the centre bolt group; rides the plate's centre in tick()
         var az = -0.65, pol = 1.10, rad = 2.85, tSec = 0;
         var c2 = null, ctx2d = null;
         var fpsAcc = 0, fpsN = 0, fpsLevel = 0;
@@ -3696,11 +3758,11 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.12;
+            renderer.toneMappingExposure = 1.06;
             stage.appendChild(renderer.domElement);
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x080707);
-            scene.fog = new THREE.Fog(0x080707, 8.5, 19);
+            scene.background = new THREE.Color(0x17120d);
+            scene.fog = new THREE.Fog(0x17120d, 7.5, 17);
             camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
 
             // A real room for the steel to reflect, built as a tiny
@@ -3713,7 +3775,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             var envScene = new THREE.Scene();
             var room = new THREE.Mesh(new THREE.BoxGeometry(26, 13, 26),
                 new THREE.MeshBasicMaterial({ side: THREE.BackSide }));
-            room.material.color.setRGB(0.07, 0.064, 0.056);
+            room.material.color.setRGB(0.05, 0.046, 0.04);
             room.position.y = 3.2;
             envScene.add(room);
             function emitter(w, h, r, g, b, x, y, z) {
@@ -3722,84 +3784,161 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 m.position.set(x, y, z); m.lookAt(0, 0, 0);
                 envScene.add(m);
             }
-            emitter(4.4, 2.7, 1.85, 1.32, 0.76, -6.2, 5.6, 3.2);   // warm softbox, upper left
-            emitter(5.0, 3.0, 0.42, 0.28, 0.15, 6.0, 1.0, -2.4);  // warm bounce, low right
-            emitter(5.5, 0.7, 0.7, 1.0, 1.6, 5.6, 6.2, -3.8);  // cool strip, upper right
+            emitter(4.4, 2.7, 1.15, 0.86, 0.55, -6.2, 5.6, 3.2);   // warm softbox, upper left
+            emitter(5.0, 3.0, 0.30, 0.20, 0.11, 6.0, 1.0, -2.4);  // warm bounce, low right
+            emitter(5.5, 0.7, 0.35, 0.45, 0.62, 5.6, 6.2, -3.8);  // cool strip, upper right
             var envFloor = new THREE.Mesh(new THREE.PlaneGeometry(22, 22), new THREE.MeshBasicMaterial());
-            envFloor.material.color.setRGB(0.13, 0.098, 0.065);
+            envFloor.material.color.setRGB(0.10, 0.075, 0.05);
             envFloor.rotation.x = -Math.PI / 2; envFloor.position.y = -2.6;
             envScene.add(envFloor);
             var pmrem = new THREE.PMREMGenerator(renderer);
             scene.environment = pmrem.fromScene(envScene, 0.04).texture;
 
-            // The visible background stays dark but present: far
-            // workshop shapes, barely lighter than the dark itself,
-            // thinned further by the fog — depth, never a void,
-            // never busy.
-            var silMat = new THREE.MeshBasicMaterial({ color: 0x0d0c0b });
-            var silGlowMat = new THREE.MeshBasicMaterial({ color: 0x2e1c0d });
-            [[3.4, 2.3, 0.8, -4.8, 0.72, -5.6, silMat], [2.3, 3.2, 0.8, 4.1, 1.15, -6.4, silMat],
-             [5.6, 1.0, 0.8, 0.3, 0.05, -7.2, silMat], [3.6, 2.1, 0.1, -4.4, 1.35, -5.5, silGlowMat]
-            ].forEach(function (s) {
-                var sil = new THREE.Mesh(new THREE.BoxGeometry(s[0], s[1], s[2]), s[6]);
-                sil.position.set(s[3], s[4], s[5]);
-                scene.add(sil);
-            });
+            // The wall behind the bench: pine boards, like the
+            // workshop wall in every real photograph of this rig.
+            // The texture is drawn small (256x128) on purpose — the
+            // upscale is the depth of field, so the wall sits soft
+            // behind the plate while the rig stays sharp, and the
+            // fog thins what light reaches it.
+            var wc = document.createElement('canvas'); wc.width = 256; wc.height = 128;
+            var wg = wc.getContext('2d');
+            wg.fillStyle = '#77603c'; wg.fillRect(0, 0, 256, 128);
+            for (var wi2 = 0; wi2 < 260; wi2++) {
+                var wy = Math.random() * 128, wl = 40 + Math.random() * 200, wx = Math.random() * 256 - 30;
+                wg.strokeStyle = Math.random() > 0.5
+                    ? 'rgba(226,192,142,' + (0.03 + Math.random() * 0.05) + ')'
+                    : 'rgba(20,12,6,' + (0.03 + Math.random() * 0.05) + ')';
+                wg.lineWidth = 0.5 + Math.random() * 1.4;
+                wg.beginPath(); wg.moveTo(wx, wy);
+                wg.bezierCurveTo(wx + wl * 0.3, wy + (Math.random() * 2 - 1),
+                    wx + wl * 0.7, wy + (Math.random() * 2 - 1), wx + wl, wy);
+                wg.stroke();
+            }
+            wg.fillStyle = 'rgba(24,14,6,0.26)';
+            wg.fillRect(0, 42, 256, 1.6); wg.fillRect(0, 86, 256, 1.6); // plank seams
+            var kx = 56, ky = 30; // one knot, drawn as soft rings
+            for (var kr = 7; kr > 0; kr--) {
+                wg.strokeStyle = 'rgba(30,18,8,' + (0.10 + (7 - kr) * 0.05) + ')';
+                wg.lineWidth = 1.1;
+                wg.beginPath(); wg.ellipse(kx, ky, kr * 1.7, kr, 0, 0, Math.PI * 2); wg.stroke();
+            }
+            wg.fillStyle = 'rgba(16,9,4,0.8)';
+            wg.beginPath(); wg.ellipse(kx, ky, 2.4, 1.5, 0, 0, Math.PI * 2); wg.fill();
+            var wallTex = new THREE.CanvasTexture(wc);
+            wallTex.colorSpace = THREE.SRGBColorSpace;
+            var wall = new THREE.Mesh(new THREE.PlaneGeometry(34, 13),
+                new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.95, metalness: 0, envMapIntensity: 0.2 }));
+            wall.position.set(0, 2.4, -6.4);
+            wall.receiveShadow = true;
+            scene.add(wall);
 
             // Light: a warm spot from the bench lamp's side with
             // physical decay (true falloff — the pool of light on
             // the bench is the falloff, not a painted vignette), a
             // cool directional fill for the far edge, and a whisper
             // of hemisphere so the shadows never go dead black.
-            var key = new THREE.SpotLight(0xffd9a8, 85, 0, 0.55, 0.5, 1.8);
-            key.position.set(2.6, 3.6, 1.8);
+            var key = new THREE.SpotLight(0xffd9a8, 62, 0, 0.62, 0.85, 1.8);
+            key.position.set(-2.7, 3.5, 2.0);
             key.target.position.set(0, -0.1, 0);
             key.castShadow = true;
             key.shadow.mapSize.set(2048, 2048);
             key.shadow.bias = -0.0004;
             key.shadow.normalBias = 0.02;
             scene.add(key); scene.add(key.target);
-            var rim = new THREE.DirectionalLight(0x8fb4ff, 0.85);
+            var rim = new THREE.DirectionalLight(0x8fb4ff, 0.3);
             rim.position.set(-3.2, 1.6, -2.6);
             scene.add(rim);
             // The lamp's warm bounce off the bench and the room —
             // a low, soft point of amber that keeps the rig's shadow
             // side alive instead of dead black.
-            var bounce = new THREE.PointLight(0xffa95e, 5, 0, 2);
-            bounce.position.set(-2.4, 0.7, 1.9);
+            var bounce = new THREE.PointLight(0xffa95e, 3, 0, 2);
+            bounce.position.set(2.6, 1.2, -2.2);
             scene.add(bounce);
             scene.add(new THREE.HemisphereLight(0x4a4034, 0x0d0b09, 0.55));
+            // A whisper of fill from the camera's side — the room
+            // itself bouncing a little light back — so the rig's
+            // shadow on the bench stays a shadow, not a black hole.
+            var fill = new THREE.DirectionalLight(0xffe6c4, 0.12);
+            fill.position.set(2.5, 1.4, -2.5);
+            scene.add(fill);
 
-            // The workbench: a wide dark wood surface (procedural
-            // grain, no asset) that catches the key's pool and the
-            // rig's shadow, then falls away into fog and darkness.
-            var bc = document.createElement('canvas'); bc.width = 512; bc.height = 512;
+            // The workbench: worn warm pine, drawn once at 1024
+            // and never tiled — one surface with long grain, two
+            // knots, plank seams, stains, scratches and a scatter
+            // of escaped sand, because a real bench under a Chladni
+            // rig has all of that. The old 3x3 repeat was one of
+            // the render's loudest tells: real wood does not repeat.
+            var bc = document.createElement('canvas'); bc.width = 1024; bc.height = 1024;
             var bg2 = bc.getContext('2d');
-            bg2.fillStyle = '#2b211a'; bg2.fillRect(0, 0, 512, 512);
-            for (var gi = 0; gi < 750; gi++) {
-                var gy = Math.random() * 512, gl = 60 + Math.random() * 380, gx = Math.random() * 512 - 40;
+            bg2.fillStyle = '#8f7150'; bg2.fillRect(0, 0, 1024, 1024);
+            for (var gi = 0; gi < 2400; gi++) {
+                var gy = Math.random() * 1024, gl = 60 + Math.random() * 400, gx = Math.random() * 1024 - 60;
                 bg2.strokeStyle = Math.random() > 0.5
-                    ? 'rgba(216,184,142,' + (0.05 + Math.random() * 0.075) + ')'
-                    : 'rgba(0,0,0,' + (0.05 + Math.random() * 0.08) + ')';
-                bg2.lineWidth = 0.6 + Math.random() * 2.2;
+                    ? 'rgba(238,208,160,' + (0.03 + Math.random() * 0.045) + ')'
+                    : 'rgba(30,20,10,' + (0.03 + Math.random() * 0.05) + ')';
+                bg2.lineWidth = 0.6 + Math.random() * 2.4;
                 bg2.beginPath(); bg2.moveTo(gx, gy);
-                bg2.bezierCurveTo(gx + gl * 0.3, gy + (Math.random() * 3 - 1.5),
-                    gx + gl * 0.7, gy + (Math.random() * 3 - 1.5), gx + gl, gy);
+                bg2.bezierCurveTo(gx + gl * 0.3, gy + (Math.random() * 8 - 4),
+                    gx + gl * 0.7, gy + (Math.random() * 8 - 4), gx + gl, gy + (Math.random() * 6 - 3));
                 bg2.stroke();
             }
-            for (var pi = 0; pi < 7; pi++) {
-                var px = Math.random() * 512, py = Math.random() * 512, pr = 40 + Math.random() * 90;
+            for (var gj = 0; gj < 700; gj++) { // short grain flecks break the comb
+                var fy = Math.random() * 1024, fx = Math.random() * 1024, fl = 16 + Math.random() * 70;
+                bg2.strokeStyle = Math.random() > 0.5
+                    ? 'rgba(238,208,160,' + (0.04 + Math.random() * 0.05) + ')'
+                    : 'rgba(30,20,10,' + (0.04 + Math.random() * 0.05) + ')';
+                bg2.lineWidth = 0.7 + Math.random() * 1.2;
+                bg2.beginPath(); bg2.moveTo(fx, fy);
+                bg2.lineTo(fx + fl, fy + (Math.random() * 4 - 2)); bg2.stroke();
+            }
+            bg2.strokeStyle = 'rgba(30,19,9,0.32)'; // plank seams, worn and not quite straight
+            bg2.lineWidth = 2;
+            [256, 512, 768].forEach(function (sy2) {
+                bg2.beginPath(); bg2.moveTo(0, sy2);
+                bg2.bezierCurveTo(300, sy2 + 3, 700, sy2 - 3, 1024, sy2 + 1); bg2.stroke();
+            });
+            [[350, 300], [700, 640]].forEach(function (kp) { // knots
+                for (var kr2 = 12; kr2 > 0; kr2--) {
+                    bg2.strokeStyle = 'rgba(34,20,9,' + (0.08 + (12 - kr2) * 0.045) + ')';
+                    bg2.lineWidth = 1.6;
+                    bg2.beginPath(); bg2.ellipse(kp[0], kp[1], kr2 * 2.6, kr2 * 1.5, 0.2, 0, Math.PI * 2); bg2.stroke();
+                }
+                bg2.fillStyle = 'rgba(18,10,4,0.85)';
+                bg2.beginPath(); bg2.ellipse(kp[0], kp[1], 4.4, 2.6, 0.2, 0, Math.PI * 2); bg2.fill();
+            });
+            for (var pi = 0; pi < 16; pi++) { // stains and wear patches
+                var px = Math.random() * 1024, py = Math.random() * 1024, pr = 60 + Math.random() * 260;
                 var pg = bg2.createRadialGradient(px, py, 2, px, py, pr);
-                pg.addColorStop(0, 'rgba(0,0,0,0.13)'); pg.addColorStop(1, 'rgba(0,0,0,0)');
+                var dark = Math.random() > 0.4;
+                pg.addColorStop(0, dark ? 'rgba(20,12,5,0.13)' : 'rgba(240,214,168,0.09)');
+                pg.addColorStop(1, 'rgba(0,0,0,0)');
                 bg2.fillStyle = pg; bg2.fillRect(px - pr, py - pr, pr * 2, pr * 2);
             }
+            for (var ni = 0; ni < 5200; ni++) { // pore noise: the fine tooth of real wood
+                var nv = Math.random();
+                bg2.fillStyle = nv > 0.5
+                    ? 'rgba(240,214,168,' + (0.03 + Math.random() * 0.05) + ')'
+                    : 'rgba(24,15,7,' + (0.03 + Math.random() * 0.05) + ')';
+                bg2.fillRect(Math.random() * 1024, Math.random() * 1024, 1.3, 1.3);
+            }
+            for (var si2 = 0; si2 < 130; si2++) { // scratches
+                var sx = Math.random() * 1024, sy = Math.random() * 1024, sa = Math.random() * Math.PI, sl = 8 + Math.random() * 60;
+                bg2.strokeStyle = 'rgba(238,214,170,' + (0.05 + Math.random() * 0.10) + ')';
+                bg2.lineWidth = 0.7;
+                bg2.beginPath(); bg2.moveTo(sx, sy);
+                bg2.lineTo(sx + Math.cos(sa) * sl, sy + Math.sin(sa) * sl); bg2.stroke();
+            }
+            for (var di = 0; di < 260; di++) { // escaped sand, denser near the middle
+                var da = Math.random() * Math.PI * 2, dr2 = Math.pow(Math.random(), 1.6) * 470;
+                var dx2 = 512 + Math.cos(da) * dr2, dy2 = 512 + Math.sin(da) * dr2;
+                bg2.fillStyle = 'rgba(226,204,160,' + (0.15 + Math.random() * 0.25) + ')';
+                bg2.fillRect(dx2, dy2, 1.2, 1.2);
+            }
             var benchTex = new THREE.CanvasTexture(bc);
-            benchTex.wrapS = benchTex.wrapT = THREE.RepeatWrapping;
-            benchTex.repeat.set(3, 3);
             benchTex.colorSpace = THREE.SRGBColorSpace;
             benchTex.anisotropy = 4;
-            var bench = new THREE.Mesh(new THREE.PlaneGeometry(36, 36),
-                new THREE.MeshStandardMaterial({ map: benchTex, roughness: 0.78, metalness: 0, envMapIntensity: 0.6 }));
+            var bench = new THREE.Mesh(new THREE.PlaneGeometry(12, 12),
+                new THREE.MeshStandardMaterial({ map: benchTex, roughness: 0.8, metalness: 0, envMapIntensity: 0.35 }));
             bench.rotation.x = -Math.PI / 2; bench.position.y = -0.42;
             bench.receiveShadow = true;
             scene.add(bench);
@@ -3810,53 +3949,72 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             var cc2 = document.createElement('canvas'); cc2.width = 256; cc2.height = 256;
             var cg = cc2.getContext('2d');
             var cgrad = cg.createRadialGradient(128, 128, 8, 128, 128, 126);
-            cgrad.addColorStop(0, 'rgba(0,0,0,0.60)'); cgrad.addColorStop(0.55, 'rgba(0,0,0,0.34)');
+            cgrad.addColorStop(0, 'rgba(0,0,0,0.42)'); cgrad.addColorStop(0.55, 'rgba(0,0,0,0.20)');
             cgrad.addColorStop(1, 'rgba(0,0,0,0)');
             cg.fillStyle = cgrad; cg.fillRect(0, 0, 256, 256);
-            var contact = new THREE.Mesh(new THREE.PlaneGeometry(3.7, 3.1),
+            var contact = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 2.3),
                 new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cc2), transparent: true, depthWrite: false }));
             contact.rotation.x = -Math.PI / 2; contact.position.y = -0.414;
             contact.renderOrder = 1;
             scene.add(contact);
+            // A second, tighter contact shadow exactly under the
+            // exciter's base — the dark seated ring where a heavy
+            // object actually meets the bench. Two soft layers read
+            // as occlusion; one alone reads as a painted blob.
+            var contact2 = new THREE.Mesh(new THREE.PlaneGeometry(1.45, 1.45),
+                new THREE.MeshBasicMaterial({ map: contact.material.map, transparent: true, depthWrite: false, opacity: 0.85 }));
+            contact2.rotation.x = -Math.PI / 2; contact2.position.y = -0.412;
+            contact2.renderOrder = 2;
+            scene.add(contact2);
 
-            // The driver unit from the video's world: a matte black
-            // equipment box under the plate — a lid with a machined
-            // overhang, two knobs and one faint amber indicator on
-            // the front face (unlabeled, tasteful), and the centre
-            // drive post a real Chladni plate is driven through.
+            // The driver, as the real apparatus has it: not a
+            // floating disc and not an electronics box — a squat
+            // centre exciter the plate is bolted onto, standing on
+            // its own round base on the bench. The plate overhangs
+            // the drum widely, a signal cable plugs into the drum's
+            // side and trails off across the bench, and the drive
+            // post carries the plate at the centre.
             var rig = new THREE.Group();
-            var boxMat = new THREE.MeshStandardMaterial({ color: 0x131316, roughness: 0.46, metalness: 0.55, envMapIntensity: 0.8 });
-            var box = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.30, 1.18), boxMat);
-            box.position.y = -0.27; box.castShadow = true; box.receiveShadow = true;
-            rig.add(box);
-            var lid = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.025, 1.24),
-                new THREE.MeshStandardMaterial({ color: 0x1c1c21, roughness: 0.3, metalness: 0.7, envMapIntensity: 1.0 }));
-            lid.position.y = -0.1075; lid.castShadow = true; lid.receiveShadow = true;
-            rig.add(lid);
-            var knobMat = new THREE.MeshStandardMaterial({ color: 0x24242b, roughness: 0.34, metalness: 0.8, envMapIntensity: 1.1 });
-            [[-0.48, 0.047], [-0.26, 0.038]].forEach(function (k) {
-                var knob = new THREE.Mesh(new THREE.CylinderGeometry(k[1], k[1] * 1.08, 0.035, 40), knobMat);
-                knob.rotation.x = Math.PI / 2;
-                knob.position.set(k[0], -0.27, -0.602);
-                knob.castShadow = true;
-                rig.add(knob);
-            });
-            var led = new THREE.Mesh(new THREE.CircleGeometry(0.012, 20),
-                new THREE.MeshBasicMaterial({ color: 0xffb648 }));
-            led.rotation.y = Math.PI;
-            led.position.set(0.52, -0.235, -0.5915);
-            rig.add(led);
-            var gc = document.createElement('canvas'); gc.width = 64; gc.height = 64;
-            var gg = gc.getContext('2d');
-            var ggrad = gg.createRadialGradient(32, 32, 1, 32, 32, 30);
-            ggrad.addColorStop(0, 'rgba(255,166,61,0.55)'); ggrad.addColorStop(1, 'rgba(255,166,61,0)');
-            gg.fillStyle = ggrad; gg.fillRect(0, 0, 64, 64);
-            var glow = new THREE.Sprite(new THREE.SpriteMaterial({
-                map: new THREE.CanvasTexture(gc), blending: THREE.AdditiveBlending,
-                depthWrite: false, transparent: true, opacity: 0.55 }));
-            glow.scale.set(0.11, 0.11, 1);
-            glow.position.set(0.52, -0.235, -0.60);
-            rig.add(glow);
+            var drumMat = new THREE.MeshStandardMaterial({ color: 0x1e1f22, roughness: 0.48, metalness: 0.6, envMapIntensity: 0.9 });
+            var foot = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.56, 0.016, 56),
+                new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.9, metalness: 0.1 }));
+            foot.position.y = -0.412; foot.receiveShadow = true;
+            rig.add(foot);
+            var base = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.50, 0.05, 56), drumMat);
+            base.position.y = -0.379; base.castShadow = true; base.receiveShadow = true;
+            rig.add(base);
+            var drum = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.355, 0.252, 56), drumMat);
+            drum.position.y = -0.228; drum.castShadow = true; drum.receiveShadow = true;
+            rig.add(drum);
+            var drumRim = new THREE.Mesh(new THREE.CylinderGeometry(0.358, 0.358, 0.02, 56),
+                new THREE.MeshStandardMaterial({ color: 0x232426, roughness: 0.4, metalness: 0.7, envMapIntensity: 1.0 }));
+            drumRim.position.y = -0.108; drumRim.castShadow = true;
+            rig.add(drumRim);
+            // The signal cable: a socket on the drum's camera side
+            // and a black lead that droops to the bench and trails
+            // away — the detail that seats the rig in a real room,
+            // because real apparatus is always plugged into
+            // something.
+            var sockMat = new THREE.MeshStandardMaterial({ color: 0x0d0d0f, roughness: 0.45, metalness: 0.6 });
+            var sockGeo = new THREE.CylinderGeometry(0.026, 0.03, 0.05, 20);
+            sockGeo.rotateX(Math.PI / 2);
+            var sock = new THREE.Mesh(sockGeo, sockMat);
+            sock.position.set(0.278, -0.21, -0.216);
+            sock.lookAt(0.556, -0.21, -0.432);
+            sock.castShadow = true;
+            rig.add(sock);
+            var cableCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(0.295, -0.21, -0.227),
+                new THREE.Vector3(0.44, -0.28, -0.34),
+                new THREE.Vector3(0.55, -0.385, -0.44),
+                new THREE.Vector3(0.86, -0.408, -0.60),
+                new THREE.Vector3(1.30, -0.41, -0.74),
+                new THREE.Vector3(1.85, -0.41, -0.83)
+            ]);
+            var cable = new THREE.Mesh(new THREE.TubeGeometry(cableCurve, 48, 0.0165, 8),
+                new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.72, metalness: 0.05 }));
+            cable.castShadow = true; cable.receiveShadow = true;
+            rig.add(cable);
             var post = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.088, 32),
                 new THREE.MeshStandardMaterial({ color: 0x0e0e11, roughness: 0.55, metalness: 0.55 }));
             post.position.y = -0.051; post.castShadow = true;
@@ -3867,49 +4025,86 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             rig.add(collar);
             scene.add(rig);
 
+            // The centre bolt, on top of the plate where the real
+            // plate is fastened: a steel washer and stud with a
+            // dark cap. It rides the plate's centre displacement in
+            // tick() — a bolted plate carries its bolt with it.
+            boltG = new THREE.Group();
+            var steelMat = new THREE.MeshStandardMaterial({ color: 0x8a8f96, roughness: 0.38, metalness: 1.0, envMapIntensity: 0.8 });
+            var washer = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.056, 0.007, 36), steelMat);
+            washer.position.y = 0.0035; washer.castShadow = true; washer.receiveShadow = true;
+            boltG.add(washer);
+            var stud = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.05, 20), steelMat);
+            stud.position.y = 0.03; stud.castShadow = true;
+            boltG.add(stud);
+            var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.0215, 0.016, 24),
+                new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.42, metalness: 0.6, envMapIntensity: 0.6 }));
+            cap.position.y = 0.06; cap.castShadow = true;
+            boltG.add(cap);
+            boltG.position.y = 0.00755;
+            scene.add(boltG);
+
             plateU = {
                 uR: { value: null }, uM: { value: 2 },
                 uAmp: { value: 0 }, uPhase: { value: 1 },
                 uSharp: { value: 1 }
             };
-            // Brushed steel: a radial-brushing texture drawn in
-            // code — thousands of concentric arc strokes with
-            // varying grey, read as the roughness map (green
-            // channel) and a whisper of bump. In the plate's
-            // planar UVs the rings land concentric with the disc,
-            // the way a lathe-finished plate is actually brushed.
-            var sc = document.createElement('canvas'); sc.width = 512; sc.height = 512;
+            // The plate's skin, drawn in code and read as the
+            // roughness map (green channel) with a whisper of bump.
+            // The real plate is blackened steel, used for years:
+            // a mid roughness base, fine brushing kept at LOW
+            // contrast so no machined pattern ever reads, broken
+            // by straight scratches (bare metal, smoother, catches
+            // the light), soft smudge blotches where hands and
+            // cloth have polished patches, dust specks, and a worn
+            // rim. Round 1's perfect concentric swirl at full
+            // contrast was the single loudest CG tell on the stage.
+            var sc = document.createElement('canvas'); sc.width = 1024; sc.height = 1024;
             var sg = sc.getContext('2d');
-            sg.fillStyle = 'rgb(70,70,70)'; sg.fillRect(0, 0, 512, 512);
-            for (var ai = 0; ai < 5200; ai++) {
-                var rr = Math.pow(Math.random(), 0.72) * 252 + 2;
+            sg.fillStyle = 'rgb(138,138,138)'; sg.fillRect(0, 0, 1024, 1024);
+            for (var ai = 0; ai < 9000; ai++) { // fine brushing, quiet
+                var rr = Math.pow(Math.random(), 0.72) * 504 + 2;
                 var a0 = Math.random() * Math.PI * 2;
-                var bv = 46 + Math.floor(Math.random() * 58);
-                sg.strokeStyle = 'rgb(' + bv + ',' + bv + ',' + bv + ')';
-                sg.lineWidth = Math.random() < 0.85 ? 1 : 2;
-                sg.beginPath(); sg.arc(256, 256, rr, a0, a0 + 0.15 + Math.random() * 1.15); sg.stroke();
-            }
-            for (var mi = 0; mi < 46; mi++) { // lathe machining bands: full, faint rings
-                var mr = 8 + Math.random() * 244;
-                var mv = 36 + Math.floor(Math.random() * 14);
-                sg.strokeStyle = 'rgba(' + mv + ',' + mv + ',' + mv + ',0.5)';
+                var bv = 122 + Math.floor(Math.random() * 34);
+                sg.strokeStyle = 'rgba(' + bv + ',' + bv + ',' + bv + ',0.5)';
                 sg.lineWidth = 1;
-                sg.beginPath(); sg.arc(256, 256, mr, 0, Math.PI * 2); sg.stroke();
+                sg.beginPath(); sg.arc(512, 512, rr, a0, a0 + 0.15 + Math.random() * 1.15); sg.stroke();
             }
-            for (var wi = 0; wi < 320; wi++) { // handling wear near the rim
-                var wr = 232 + Math.random() * 22;
+            for (var smi = 0; smi < 26; smi++) { // smudges: polished patches
+                var smx = Math.random() * 1024, smy = Math.random() * 1024, smr = 40 + Math.random() * 130;
+                var smg = sg.createRadialGradient(smx, smy, 2, smx, smy, smr);
+                var smv = Math.random() > 0.5 ? 108 : 178;
+                smg.addColorStop(0, 'rgba(' + smv + ',' + smv + ',' + smv + ',0.20)');
+                smg.addColorStop(1, 'rgba(0,0,0,0)');
+                sg.fillStyle = smg; sg.fillRect(smx - smr, smy - smr, smr * 2, smr * 2);
+            }
+            for (var sci = 0; sci < 46; sci++) { // scratches: straight, random, bare-metal smooth
+                var scx = Math.random() * 1024, scy = Math.random() * 1024;
+                var sca = Math.random() * Math.PI * 2, scl = 20 + Math.random() * 190;
+                sg.strokeStyle = 'rgba(96,96,96,' + (0.35 + Math.random() * 0.4) + ')';
+                sg.lineWidth = Math.random() < 0.8 ? 1 : 1.8;
+                sg.beginPath(); sg.moveTo(scx, scy);
+                sg.lineTo(scx + Math.cos(sca) * scl, scy + Math.sin(sca) * scl); sg.stroke();
+            }
+            for (var dui = 0; dui < 900; dui++) { // dust specks
+                var duv = 110 + Math.floor(Math.random() * 110);
+                sg.fillStyle = 'rgba(' + duv + ',' + duv + ',' + duv + ',0.5)';
+                sg.fillRect(Math.random() * 1024, Math.random() * 1024, 1.4, 1.4);
+            }
+            for (var wi = 0; wi < 500; wi++) { // rim wear: the edge gets handled
+                var wr = 486 + Math.random() * 34;
                 var wa = Math.random() * Math.PI * 2;
-                var wv = 104 + Math.floor(Math.random() * 34);
-                sg.strokeStyle = 'rgb(' + wv + ',' + wv + ',' + wv + ')';
+                var wv = 96 + Math.floor(Math.random() * 30);
+                sg.strokeStyle = 'rgba(' + wv + ',' + wv + ',' + wv + ',0.6)';
                 sg.lineWidth = 1;
-                sg.beginPath(); sg.arc(256, 256, wr, wa, wa + 0.2 + Math.random() * 0.7); sg.stroke();
+                sg.beginPath(); sg.arc(512, 512, wr, wa, wa + 0.2 + Math.random() * 0.7); sg.stroke();
             }
             var brushTex = new THREE.CanvasTexture(sc);
             brushTex.anisotropy = 4;
             var plateMat = new THREE.MeshPhysicalMaterial({
-                color: 0x9fa6b1, metalness: 1.0, roughness: 1.0,
-                roughnessMap: brushTex, bumpMap: brushTex, bumpScale: 0.08,
-                envMapIntensity: 1.15, clearcoat: 0.35, clearcoatRoughness: 0.42
+                color: 0x232427, metalness: 0.88, roughness: 1.0,
+                roughnessMap: brushTex, bumpMap: brushTex, bumpScale: 0.02,
+                envMapIntensity: 0.7, clearcoat: 0.06, clearcoatRoughness: 0.6
             });
             plateMat.onBeforeCompile = function (shader) {
                 shader.uniforms.uR = plateU.uR; shader.uniforms.uM = plateU.uM;
@@ -3930,8 +4125,8 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                     'float fgRF = texture2D(uR, vec2(clamp(fgRhoF, 0.0, 1.0), 0.5)).r * 2.0 - 1.0;\n' +
                     'float fgWF = fgRF * cos(uM * atan(vFgXZ.y, vFgXZ.x));\n' +
                     'float fgPile = exp(-pow(fgWF / 0.09, 2.0)) * uSharp;\n' +
-                    'diffuseColor.rgb *= (1.0 - 0.34 * fgPile);\n' +
-                    'diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.03, 0.96, 0.85), fgPile * 0.55);\n');
+                    'diffuseColor.rgb *= (1.0 - 0.20 * fgPile);\n' +
+                    'diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.03, 0.96, 0.85), fgPile * 0.3);\n');
                 shader.vertexShader = shader.vertexShader.replace('#include <beginnormal_vertex>',
                     '#include <beginnormal_vertex>\n' +
                     'float fgRho = length(position.xz);\n' +
@@ -3954,14 +4149,10 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             var plate = new THREE.Mesh(plateGeometry(THREE, 0.0151), plateMat);
             plate.castShadow = true; plate.receiveShadow = true;
             scene.add(plate);
-            // A polished rim ring around the disc's edge: turned
-            // steel catches the key as one bright line, the edge
-            // every photograph of a real plate reads first.
-            var rimRing = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.0135, 20, 160),
-                new THREE.MeshStandardMaterial({ color: 0xc3c9d2, metalness: 1.0, roughness: 0.16, envMapIntensity: 1.35 }));
-            rimRing.rotation.x = Math.PI / 2;
-            rimRing.receiveShadow = true;
-            scene.add(rimRing);
+            // No rim ring: the real plate's edge is its own thin
+            // dark side, worn like the face. Round 1's polished
+            // torus read as jewellery — a product-render accent no
+            // workshop plate has.
 
             // Sand: one instanced octahedron per grain. Base positions
             // live in iPos (CPU-resampled on retargets); the shader
@@ -3986,7 +4177,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             sandGeo.setAttribute('iColor', colAttr);
             sandGeo.setAttribute('iSeed', seedAttr);
             sandGeo.instanceCount = N;
-            var sandMat = new THREE.MeshStandardMaterial({ color: 0xdbb264, roughness: 0.52, metalness: 0.28, envMapIntensity: 0.9 });
+            var sandMat = new THREE.MeshStandardMaterial({ color: 0xd9c096, roughness: 0.62, metalness: 0.0, envMapIntensity: 0.7 });
             sandMat.onBeforeCompile = function (shader) {
                 shader.uniforms.uTime = sandU.uTime; shader.uniforms.uAmp = sandU.uAmp;
                 shader.uniforms.uPhase = sandU.uPhase; shader.uniforms.uAgit = sandU.uAgit;
@@ -4013,8 +4204,11 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                     'float fgJit = uAgit * (1.0 - iSet * uSharp);\n' +
                     'transformed.x += sin(uTime * 12.7 + iSeed * 41.0) * 0.005 * fgJit;\n' +
                     'transformed.z += cos(uTime * 10.9 + iSeed * 53.0) * 0.005 * fgJit;\n' +
-                    'transformed.y += iW * uAmp * uPhase + abs(sin(uTime * 6.3 + iSeed * 29.0)) * 0.007 * fgJit + (fract(iSeed * 13.73) * 0.0042 + fract(iSeed * 5.39) * 0.0024) * iSet * uSharp;\n' +
-                    'vec3 fgP = position * (0.7 + 0.65 * fract(iSeed * 7.31));\n' +
+                    'float fgNode = exp(-pow(iW / 0.085, 2.0));\n' +
+                    'vec2 fgCell = floor(iPos.xz / 0.075);\n' +
+                    'float fgClump = 0.35 + 1.15 * fract(sin(dot(fgCell, vec2(127.1, 311.7))) * 43758.5453);\n' +
+                    'transformed.y += iW * uAmp * uPhase + abs(sin(uTime * 6.3 + iSeed * 29.0)) * 0.007 * fgJit + (fract(iSeed * 13.73) * 0.0042 + fract(iSeed * 5.39) * 0.0024) * iSet * uSharp * (0.25 + 0.75 * fgNode) * fgClump;\n' +
+                    'vec3 fgP = position * (0.5 + 1.2 * pow(fract(iSeed * 7.31), 1.5));\n' +
                     'fgP = vec3(fgP.x * fgCa - fgP.z * fgSa, fgP.y, fgP.x * fgSa + fgP.z * fgCa);\n' +
                     'fgP = vec3(fgP.x, fgP.y * fgCb - fgP.z * fgSb, fgP.y * fgSb + fgP.z * fgCb);\n' +
                     'transformed += fgP;\n');
@@ -4039,13 +4233,13 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             var cx = w / 2, cy = h / 2, Rp = Math.min(w, h) * 0.435;
             ctx2d.clearRect(0, 0, w, h);
             var g = ctx2d.createRadialGradient(cx, cy, Rp * 0.1, cx, cy, Rp);
-            g.addColorStop(0, '#454c58'); g.addColorStop(0.7, '#23272f'); g.addColorStop(1, '#101216');
+            g.addColorStop(0, '#33343a'); g.addColorStop(0.7, '#1d1e21'); g.addColorStop(1, '#0c0c0e');
             ctx2d.fillStyle = g;
             ctx2d.beginPath(); ctx2d.arc(cx, cy, Rp, 0, 6.2831853); ctx2d.fill();
-            ctx2d.strokeStyle = 'rgba(255,255,255,0.14)'; ctx2d.lineWidth = Math.max(1, Rp * 0.006);
+            ctx2d.strokeStyle = 'rgba(255,255,255,0.10)'; ctx2d.lineWidth = Math.max(1, Rp * 0.006);
             ctx2d.beginPath(); ctx2d.arc(cx, cy, Rp, 0, 6.2831853); ctx2d.stroke();
             var gs = Math.max(1.3, Rp * 0.0075);
-            ctx2d.fillStyle = '#dbb264';
+            ctx2d.fillStyle = '#d9c096';
             for (var i = 0; i < N; i++) {
                 var j = reduce ? 0 : (1 - gSet[i] * cur.s);
                 var ox = Math.sin(tSec * 11 + gSeed[i] * 43) * 0.9 * j;
@@ -4168,6 +4362,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 plateU.uAmp.value = ampCur;
                 plateU.uSharp.value = cur.s;
                 plateU.uPhase.value = reduce ? 0.9 : 0.76 + 0.24 * Math.cos(phase);
+                if (boltG) boltG.position.y = 0.00755 + (cur.mode.R[0] || 0) * ampCur * plateU.uPhase.value;
                 sandU.uTime.value = tSec;
                 sandU.uAgit.value = reduce ? 0 : (1 - cur.s) * 0.95;
                 sandU.uSharp.value = cur.s;
