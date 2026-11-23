@@ -39,12 +39,15 @@
         .share-toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(6px); background: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 999px; padding: 7px 15px; font-size: 0.82rem; line-height: 1.25; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease; z-index: 3000; }
         .share-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-        .gen-share-chip { position: absolute; right: calc(0.6rem + 36px + 0.5rem + 36px + 0.5rem); bottom: 0.6rem; z-index: 5; }
-        /* Notes & questions chip: second in the stage's bottom-right
-           cluster (share · notes · love, one row where the right thumb
-           rests), same glass chip language as Love and Share. */
-        .gen-notes-chip { position: absolute; right: calc(0.6rem + 36px + 0.5rem); bottom: 0.6rem; z-index: 5; }
-        .gen-notes-fs { position: absolute; right: calc(12px + 0.55rem + 36px + 0.5rem); bottom: calc(12px + env(safe-area-inset-bottom) + 0.55rem); z-index: 2; }
+        .gen-share-chip { order: 1; }
+        /* Notes & questions chip: second in the action-row cluster
+           (share · notes · love, one row where the right thumb
+           rests), same glass chip language as Love and Share. The
+           cluster lives in a fixed row below the photo — never on
+           the photo (2026-11-23) — so the chips are plain row
+           items and their place in the row is set by order. */
+        .gen-notes-chip { order: 2; }
+        .gen-notes-fs { order: 2; }
         /* The notes bubble: the site's one glass popup standard
            (.glass-scrim + .glass-bubble from style.css), sized by this
            surface with safe-area insets. Sits above the fullscreen
@@ -60,7 +63,7 @@
         .notes-close:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         .notes-sub { margin: 0.5rem 0 0.5rem; color: var(--subtext-color); font-size: 0.85rem; }
         .notes-embed { min-height: 120px; }
-        .gen-share-fs { position: absolute; right: calc(12px + 0.55rem + 36px + 0.5rem + 36px + 0.5rem); bottom: calc(12px + env(safe-area-inset-bottom) + 0.55rem); z-index: 2; }
+        .gen-share-fs { order: 1; }
     </style>
 </head>
 <body>
@@ -210,17 +213,22 @@
         .gen-topbar-text { display: flex; align-items: center; column-gap: 0.6rem; }
         .gen-topbar-text .gen-topbar-names { order: 1; flex: 1 1 auto; min-width: 0; display: block; }
         .gen-topbar-text .rg-fs-btn { order: 2; flex: none; }
-        /* Heart toggle: lives ON the photo, not in the topbar — a
-           glass chip at the stage's bottom-right corner (the same
-           chrome as the back-to-top button: translucent card
-           background, blur, hairline border), so loving an entry
-           happens where the eyes already are, the way it does on
-           Instagram or X. It floats over the stage, so it costs the
-           fixed frame nothing, and it is shown only while a photo is
-           on stage (the JS at the end keeps its [hidden] in step
-           with the image's). The fullscreen view carries a twin at
-           the same corner (.gen-love-fs, below). */
+        /* Heart toggle: a glass chip in the fixed action row BELOW
+           the photo (the same chrome as the back-to-top button:
+           translucent card background, blur, hairline border), so
+           loving an entry happens where the right thumb rests. It
+           never sits on the photo (2026-11-23, Johnny: the cluster
+           was on the photo in the page view and off it in the
+           viewer, and its corner moved with the photo) — the row
+           under the photo box holds it in both views, and the
+           fullscreen view carries a twin in its own row below its
+           photo (.gen-love-fs, below). It is shown only while a
+           photo is on stage (the JS at the end keeps its [hidden]
+           in step with the image's). position: relative anchors
+           the 44px hit-area pseudo-element to the chip itself,
+           now that the chip is a plain row item. */
         .gen-love {
+            position: relative;
             flex: none;
             width: 36px;
             height: 36px;
@@ -246,7 +254,17 @@
         .gen-love:hover { border-color: var(--link-color); }
         .gen-love:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         .gen-love.loved { color: #e0245e; }
-        .gen-love-chip { position: absolute; right: 0.6rem; bottom: 0.6rem; z-index: 5; }
+        .gen-love-chip { order: 3; }
+        /* THE ACTION ROW (2026-11-23): share · notes · love live
+           here — a fixed row directly under the photo box, right-
+           aligned, in the section's own grid (row 3 in the stacked
+           template, the stage's column in the rail templates, set
+           with the grid rules below). The photo box keeps its one
+           fixed size and every photo letterboxes inside it, so
+           this row's position never moves from photo to photo.
+           Nothing of the cluster touches the photo itself. */
+        .gen-actions { display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem 0.15rem; }
+        .gen-actions [hidden] { display: none !important; }
         /* A small bounce the moment an entry is loved: JS adds .pop
            on the tap and removes it on animationend. Static under
            reduced motion. */
@@ -390,11 +408,11 @@
             .gen-section:not(.deep-open) > .gen-body > .gen-stage { align-self: stretch; }
             #gen-quotes:not(.deep-open) > .gen-body > .gen-stage { align-self: stretch; }
         }
-        .gen-fs-img-behind { left: 12px; top: calc(12px + env(safe-area-inset-top)); right: auto; bottom: auto; width: calc(100% - 24px); height: calc(100% - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+        .gen-fs-img-behind { left: 0; top: 0; right: auto; bottom: auto; width: 100%; height: 100%; }
         .gen-fs .gen-fs-quote { width: 100%; height: 100%; max-width: none; box-sizing: border-box; margin: 0; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; border-radius: 20px; box-shadow: var(--glass-shadow); }
         .gen-fs [hidden] { display: none !important; }
         .gen-fs .gen-fs-quotetext, .gen-fs .gen-fs-quoteattrib { max-width: 48ch; }
-        .gen-fs .gen-fs-quote-behind { left: 12px; top: calc(12px + env(safe-area-inset-top)); right: auto; bottom: auto; width: calc(100% - 24px); height: calc(100% - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); transform: none; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+        .gen-fs .gen-fs-quote-behind { left: 0; top: 0; right: auto; bottom: auto; width: 100%; height: 100%; transform: none; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
         /* Deep-open is the reading state: its stage sizes to the
            photo by design (no fixed frame there), so the deck
            rests hidden in that state — the waiting card would
@@ -762,18 +780,31 @@
            screen. iPhone Safari cannot fullscreen arbitrary elements,
            so there the overlay is simply fixed inset:0 — identical
            behaviour from the visitor's side. */
-        .gen-fs { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; cursor: zoom-out; box-sizing: border-box; padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom)); }
+        .gen-fs { position: fixed; inset: 0; z-index: 3000; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; cursor: zoom-out; box-sizing: border-box; padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom)); }
+        /* VIEWER LAYOUT (2026-11-23): the photo lives in its own
+           stage box (flexible height, one fixed size per viewport)
+           and the action cluster lives in a fixed row BELOW it —
+           the same arrangement as the page view, so the cluster
+           sits in the analogous place in both views and never
+           moves from photo to photo. Everything that used to be
+           positioned against the whole overlay (the photo, the
+           waiting card behind it, the control row, the credit,
+           the exit icon) is now positioned against this stage box,
+           at the same offsets from the photo's own edges. */
+        .gen-fs-stage { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; }
+        .gen-fs-actions { flex: none; display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; padding-top: 0.6rem; }
         .gen-fs[hidden] { display: none !important; }
         .gen-fs:fullscreen { width: 100%; height: 100%; }
         .gen-fs-img { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; background: #000; border-radius: 20px; box-shadow: var(--glass-shadow); }
-        /* Credit line (2026-11-22): bottom-left and left-aligned now —
-           it leaves the centre so it can never run under the action
-           cluster at the bottom-right (share · notes · love). Its left
-           edge takes the cluster's own inset (12px + 0.55rem, mirrored),
-           and its right edge is capped 16px short of the share chip's
-           left edge in the chips' own arithmetic; long credits wrap
-           inside the left zone instead of extending under the chips. */
-        .gen-fs-credit { position: absolute; left: calc(12px + 0.55rem); right: calc(12px + 0.55rem + 36px + 0.5rem + 36px + 0.5rem + 36px + 16px); bottom: calc(12px + env(safe-area-inset-bottom)); margin: 0; padding: 1.6rem 1rem 0.7rem; font-size: 0.78rem; line-height: 1.35; text-align: left; color: rgba(255, 255, 255, 0.8); background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent); border-radius: 0 0 0 20px; }
+        /* Credit line (2026-11-22): bottom-left and left-aligned —
+           it leaves the centre so it can never run under the
+           action cluster. Its left edge takes the cluster's own
+           inset (0.55rem inside the photo box, mirrored), and its
+           right edge keeps the measure it had when the cluster
+           rode the photo's bottom-right corner, so the credit
+           wraps exactly where it always has; the cluster itself
+           now lives in the row below the photo (2026-11-23). */
+        .gen-fs-credit { position: absolute; left: 0.55rem; right: calc(0.55rem + 36px + 0.5rem + 36px + 0.5rem + 36px + 16px); bottom: 0; margin: 0; padding: 1.6rem 1rem 0.7rem; font-size: 0.78rem; line-height: 1.35; text-align: left; color: rgba(255, 255, 255, 0.8); background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent); border-radius: 0 0 0 20px; }
         .gen-fs-credit a { color: rgba(255, 255, 255, 0.9); }
         /* Draw button inside the photo fullscreen (2026-11-20): the
            stage's draw, carried into the viewer — ONE glass pill,
@@ -812,9 +843,9 @@
            overlaps or leaves the screen. */
         .gen-fs-bar {
             position: absolute;
-            left: 12px;
-            right: 12px;
-            bottom: calc(12px + env(safe-area-inset-bottom) + 4.9rem);
+            left: 0;
+            right: 0;
+            bottom: 4.9rem;
             z-index: 2;
             height: 52px;
         }
@@ -896,9 +927,10 @@
            above the photo and the control row. */
         .gen-fs-cat-menu { z-index: 2600; }
         .gen-fs-cat-scrim { z-index: 2599; }
-        /* The fullscreen twin of the stage heart chip: same corner,
-           same state — bottom-right, beside the credit line. */
-        .gen-love-fs { position: absolute; right: calc(12px + 0.55rem); bottom: calc(12px + env(safe-area-inset-bottom) + 0.55rem); z-index: 2; }
+        /* The fullscreen twin of the stage heart chip: same state,
+           same row — in the viewer's action row below the photo,
+           beside the credit line's row (2026-11-23). */
+        .gen-love-fs { order: 3; }
         /* EXIT FULL SCREEN (2026-11-23): the Full screen icon
            stays visible inside the viewer — the site rule that a
            fullscreen control stays on screen as the exit, its
@@ -907,7 +939,7 @@
            circle in the chips' own material at the top-right,
            mirroring the love chip's corner insets at the bottom;
            it runs the same closeFS() as a tap anywhere or Esc. */
-        .gen-fs-exit { position: absolute; top: calc(12px + env(safe-area-inset-top) + 0.55rem); right: calc(12px + 0.55rem); z-index: 2; width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--card-bg); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); color: var(--text-color); cursor: pointer; }
+        .gen-fs-exit { position: absolute; top: 0.55rem; right: 0.55rem; z-index: 2; width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--card-bg); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); color: var(--text-color); cursor: pointer; }
         .gen-fs-exit svg { width: 20px; height: 20px; display: block; }
         .gen-fs-exit:hover { border-color: var(--link-color); }
         .gen-fs-exit:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
@@ -1018,13 +1050,14 @@
            one): there the stage tops its row at the photo's own
            height, capped by the row itself (max-height below). */
         .gen-body { display: grid;
-            grid-template-rows: auto auto auto minmax(0, 1fr);
+            grid-template-rows: auto auto auto auto minmax(0, 1fr);
             grid-template-columns: minmax(0, 1fr);
             padding: 0; }
         .gen-topbar { grid-row: 1; grid-column: 1; padding: 0.3rem 1rem; }
         .gen-stage { grid-row: 2; grid-column: 1; min-width: 0; }
         .gen-section:not(.deep-open) .gen-stage { align-self: start; max-height: 100%; }
-        .gen-info { grid-row: 3; grid-column: 1; padding: 0.45rem 1rem 0.5rem; }
+        .gen-actions { grid-row: 3; grid-column: 1; }
+        .gen-info { grid-row: 4; grid-column: 1; padding: 0.45rem 1rem 0.5rem; }
         /* PHOTO HERO (2026-11-16): in the stacked layout the stage sits
            directly under the topbar and the brief zone moves BELOW the
            photo. The stage keeps a dominant share of the frame: when
@@ -1076,11 +1109,11 @@
         .gen-section.deep-open .gen-overview { max-height: none; overflow: visible; }
         .gen-section.deep-open .gen-overview.is-capped { -webkit-mask-image: none; mask-image: none; }
         @media (min-width: 900px) {
-            .gen-body { grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) 300px; }
+            .gen-body { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr) 300px; }
             .gen-topbar { grid-column: 1 / -1; }
             .gen-stage { grid-row: 2; grid-column: 1; }
             .gen-img { max-height: 100%; }
-            .gen-info { grid-row: 2; grid-column: 2; border-left: 1px solid var(--border-color); padding: 0.9rem 1rem; overflow-y: auto; min-height: 0; }
+            .gen-info { grid-row: 2 / -1; grid-column: 2; border-left: 1px solid var(--border-color); padding: 0.9rem 1rem; overflow-y: auto; min-height: 0; }
             .gen-overview { max-height: none; overflow: visible; }
             .gen-details { max-height: none; overflow: visible; }
             .gen-info .rg-tucked { display: block; }
@@ -1090,11 +1123,11 @@
             .gen-body { grid-template-columns: minmax(0, 1fr) 340px; }
         }
         @media (max-height: 560px) and (min-width: 640px) {
-            .gen-body { grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) 300px; }
+            .gen-body { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr) 300px; }
             .gen-topbar { grid-column: 1 / -1; }
             .gen-stage { grid-row: 2; grid-column: 1; }
             .gen-img { max-height: 100%; }
-            .gen-info { grid-row: 2; grid-column: 2; border-left: 1px solid var(--border-color); padding: 0.7rem 0.9rem; overflow-y: auto; min-height: 0; }
+            .gen-info { grid-row: 2 / -1; grid-column: 2; border-left: 1px solid var(--border-color); padding: 0.7rem 0.9rem; overflow-y: auto; min-height: 0; }
             .gen-overview { max-height: none; overflow: visible; }
             .gen-details { max-height: none; overflow: visible; }
             .gen-info .rg-tucked { display: block; }
@@ -1296,10 +1329,12 @@
                 <p class="gen-empty" id="animals-empty">Tap 🎲 New animal to meet your first one.</p>
                 <p class="gen-empty" id="animals-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="animals-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
+                <div class="gen-img-error" id="animals-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+            </div>
+            <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="animals-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <button class="gen-love gen-share-chip" id="animals-share" type="button" aria-label="Share this entry" title="Share this entry" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="gen-love gen-notes-chip" id="animals-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
-                <div class="gen-img-error" id="animals-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
     </section>
@@ -1331,10 +1366,12 @@
                 <p class="gen-empty" id="art-empty">Tap 🎲 New painting to see your first one.</p>
                 <p class="gen-empty" id="art-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="art-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
+                <div class="gen-img-error" id="art-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+            </div>
+            <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="art-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <button class="gen-love gen-share-chip" id="art-share" type="button" aria-label="Share this entry" title="Share this entry" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="gen-love gen-notes-chip" id="art-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
-                <div class="gen-img-error" id="art-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
     </section>
@@ -1366,10 +1403,12 @@
                 <p class="gen-empty" id="arch-empty">Tap 🎲 New building to see your first one.</p>
                 <p class="gen-empty" id="arch-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="arch-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
+                <div class="gen-img-error" id="arch-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+            </div>
+            <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="arch-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <button class="gen-love gen-share-chip" id="arch-share" type="button" aria-label="Share this entry" title="Share this entry" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="gen-love gen-notes-chip" id="arch-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
-                <div class="gen-img-error" id="arch-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
     </section>
@@ -1401,10 +1440,12 @@
                 <p class="gen-empty" id="space-empty">Tap 🎲 New wonder to see your first one.</p>
                 <p class="gen-empty" id="space-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="space-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
+                <div class="gen-img-error" id="space-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+            </div>
+            <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="space-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <button class="gen-love gen-share-chip" id="space-share" type="button" aria-label="Share this entry" title="Share this entry" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="gen-love gen-notes-chip" id="space-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
-                <div class="gen-img-error" id="space-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
     </section>
@@ -1442,10 +1483,12 @@
                     <blockquote class="gen-quote-text" id="quotes-quotetext"></blockquote>
                     <figcaption class="gen-quote-attrib" id="quotes-quoteattrib"></figcaption>
                 </figure>
+                <div class="gen-img-error" id="quotes-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+            </div>
+            <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="quotes-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <button class="gen-love gen-share-chip" id="quotes-share" type="button" aria-label="Share this entry" title="Share this entry" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="gen-love gen-notes-chip" id="quotes-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
-                <div class="gen-img-error" id="quotes-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
     </section>
@@ -1479,10 +1522,12 @@
                 <p class="gen-empty" id="engineering-loading" hidden>Loading engineering…</p>
                 <p class="gen-empty" id="engineering-loaderror" hidden>Engineering didn't load — <button type="button" class="gen-retry" id="engineering-retry">tap to try again</button>.</p>
                 <img class="gen-img" id="engineering-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
+                <div class="gen-img-error" id="engineering-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+            </div>
+            <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="engineering-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <button class="gen-love gen-share-chip" id="engineering-share" type="button" aria-label="Share this entry" title="Share this entry" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="gen-love gen-notes-chip" id="engineering-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
-                <div class="gen-img-error" id="engineering-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
     </section>
@@ -1517,10 +1562,12 @@
                 <p class="gen-empty" id="websites-loading" hidden>Loading websites…</p>
                 <p class="gen-empty" id="websites-loaderror" hidden>Websites didn't load — <button type="button" class="gen-retry" id="websites-retry">tap to try again</button>.</p>
                 <img class="gen-img" id="websites-img" alt="" hidden tabindex="0" role="button" aria-label="View preview full screen">
+                <div class="gen-img-error" id="websites-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+            </div>
+            <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="websites-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <button class="gen-love gen-share-chip" id="websites-share" type="button" aria-label="Share this entry" title="Share this entry" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="gen-love gen-notes-chip" id="websites-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
-                <div class="gen-img-error" id="websites-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
     </section>
@@ -1554,24 +1601,29 @@
                 <p class="gen-empty" id="scifi-loading" hidden>Loading sci-fi…</p>
                 <p class="gen-empty" id="scifi-loaderror" hidden>Sci-Fi didn't load — <button type="button" class="gen-retry" id="scifi-retry">tap to try again</button>.</p>
                 <img class="gen-img" id="scifi-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
+                <div class="gen-img-error" id="scifi-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+            </div>
+            <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="scifi-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
                 <button class="gen-love gen-share-chip" id="scifi-share" type="button" aria-label="Share this entry" title="Share this entry" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="gen-love gen-notes-chip" id="scifi-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
-                <div class="gen-img-error" id="scifi-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
             </div>
         </div>
     </section>
 
     <div class="gen-fs glass-scrim" id="gen-fs" hidden role="dialog" aria-modal="true" aria-label="Photo, full screen">
+        <!-- Viewer layout (2026-11-23): the photo and everything
+             positioned against it (waiting card, control row,
+             credit, exit icon) live in .gen-fs-stage; the action
+             cluster lives in .gen-fs-actions, a fixed row below
+             the photo — never on the photo, in either view. -->
+        <div class="gen-fs-stage">
         <img class="gen-fs-img" id="gen-fs-img" alt="">
         <figure class="gen-fs-quote qlen-2" id="gen-fs-quote" hidden>
             <blockquote class="gen-fs-quotetext" id="gen-fs-quotetext"></blockquote>
             <figcaption class="gen-fs-quoteattrib" id="gen-fs-quoteattrib"></figcaption>
         </figure>
 
-        <button class="gen-love gen-love-fs" id="gen-fs-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry">♡</button>
-        <button class="gen-love gen-share-fs" id="gen-fs-share" type="button" aria-label="Share this entry" title="Share this entry"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-        <button class="gen-love gen-notes-fs" id="gen-fs-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
         <button class="gen-fs-exit" id="gen-fs-exit" type="button" aria-label="Exit full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button>
         <!-- The viewer's control row (2026-11-20): the stage's
              control row carried into fullscreen — category dropdown
@@ -1587,6 +1639,14 @@
             <button class="gen-fs-pick" id="gen-fs-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category">&#9662;</button>
             <button class="gen-fs-draw" id="gen-fs-draw" type="button">&#127922; New animal</button>
             <span class="gen-fs-navpair"><button class="gen-nav-btn gen-fs-nav" id="gen-fs-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button><button class="gen-nav-btn gen-fs-nav" id="gen-fs-next" type="button" aria-label="Next photo" disabled>&#8250;</button></span>
+        </div>
+        <p class="gen-fs-credit" id="gen-fs-pcredit">Photo: <a id="gen-fs-credit" href="#" target="_blank" rel="noopener"></a></p>
+        <p class="gen-fs-credit" id="gen-fs-qcredit" hidden>Source: <a id="gen-fs-qsource" href="#" target="_blank" rel="noopener"></a></p>
+        </div>
+        <div class="gen-fs-actions">
+        <button class="gen-love gen-love-fs" id="gen-fs-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry">♡</button>
+        <button class="gen-love gen-share-fs" id="gen-fs-share" type="button" aria-label="Share this entry" title="Share this entry"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
+        <button class="gen-love gen-notes-fs" id="gen-fs-notes" type="button" aria-label="Notes &amp; questions for this entry" title="Notes &amp; questions"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></button>
         </div>
         <div class="gen-cat-scrim gen-fs-cat-scrim" id="gen-fs-cat-scrim" hidden></div>
         <div class="gen-cat-menu gen-fs-cat-menu" id="gen-fs-cat-menu" role="menu" aria-label="Choose a category" hidden>
@@ -1606,8 +1666,6 @@
             <div class="gen-cat-div" role="separator"></div>
             <button type="button" class="gen-cat-row gen-cat-loved" id="gen-fs-loved-row" title="View the photos you have loved"><span class="lt-heart">♥</span> Loved <span class="lt-count">(<span id="gen-fs-loved-count">0</span>)</span></button>
         </div>
-        <p class="gen-fs-credit" id="gen-fs-pcredit">Photo: <a id="gen-fs-credit" href="#" target="_blank" rel="noopener"></a></p>
-        <p class="gen-fs-credit" id="gen-fs-qcredit" hidden>Source: <a id="gen-fs-qsource" href="#" target="_blank" rel="noopener"></a></p>
     </div>
 
     <div class="gen-gallery glass-scrim" id="gen-gallery" hidden role="dialog" aria-modal="true" aria-label="Loved photos">
@@ -3862,7 +3920,11 @@
             bImg.alt = '';
             bImg.setAttribute('aria-hidden', 'true');
             bImg.hidden = true;
-            ov.insertBefore(bImg, fImg);
+            // The photo now sits inside .gen-fs-stage (2026-11-23),
+            // so the waiting card is inserted through the photo's
+            // own parent — the same node the overlay was, before
+            // the stage box existed.
+            fImg.parentNode.insertBefore(bImg, fImg);
             var bQuote = document.createElement('figure');
             bQuote.className = 'gen-fs-quote gen-fs-quote-behind';
             bQuote.id = 'gen-fs-nextquote';
@@ -3874,7 +3936,7 @@
             bf.className = 'gen-fs-quoteattrib';
             bQuote.appendChild(bq);
             bQuote.appendChild(bf);
-            ov.insertBefore(bQuote, fImg);
+            fImg.parentNode.insertBefore(bQuote, fImg);
             fsBehind.img = bImg;
             fsBehind.quote = bQuote;
             fsBehind.text = bq;
