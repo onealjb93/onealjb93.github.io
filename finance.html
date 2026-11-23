@@ -1512,6 +1512,35 @@
 
         .chart-share { align-self: center; }
     </style>
+<style>
+    /* ===== Liveness (2026-11-22): every section wears the band's frame
+       and states its own freshest fact in a pulse line of real data.
+       The Chart opens on arrival; its title is a label, not a door
+       (the approved Chart-section mock, rolled down the whole page). */
+    #futStrip { margin-top: 24px; margin-bottom: 24px; }
+    .collapsible-section { border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); padding: 2px 16px 16px; margin-top: 24px; margin-bottom: 0; }
+    .collapsible-section > .section-title { background: var(--card-bg); padding-top: 12px; }
+    #chart { margin-top: 0; }
+    #legend { margin-bottom: 24px; }
+    #chart .section-chevron { display: none; }
+    #chart .section-toggle { pointer-events: none; cursor: default; }
+    .pulse-line { font-size: 1rem; font-weight: 600; line-height: 1.35; color: var(--text-color); margin: 4px 0 12px; }
+    .pulse-line .pulse-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #22c55e; vertical-align: baseline; }
+    .pulse-line .pulse-dot.sell { background: #ef4444; }
+    body.light-mode .pulse-line .pulse-dot { background: #16a34a; }
+    body.light-mode .pulse-line .pulse-dot.sell { background: #dc2626; }
+    /* Fullscreen keeps its pre-frame look exactly: no frame edges, and
+       the pulse lines hide like the glosses they replaced. */
+    #chart:fullscreen, #chart:-webkit-full-screen, #chart.chart-fs,
+    #scoreboard:fullscreen, #scoreboard:-webkit-full-screen, #scoreboard.sb-fs,
+    #screener:fullscreen, #screener:-webkit-full-screen, #screener.sc-fs,
+    #committee:fullscreen, #committee:-webkit-full-screen, #committee.cm-fs,
+    #backtest:fullscreen, #backtest:-webkit-full-screen, #backtest.bt-fs { border: none; border-radius: 0; }
+    #chart:fullscreen > .pulse-line, #chart:-webkit-full-screen > .pulse-line, #chart.chart-fs > .pulse-line,
+    #scoreboard:fullscreen > .pulse-line, #scoreboard:-webkit-full-screen > .pulse-line, #scoreboard.sb-fs > .pulse-line,
+    #screener:fullscreen > .pulse-line, #screener:-webkit-full-screen > .pulse-line, #screener.sc-fs > .pulse-line,
+    #backtest:fullscreen > .pulse-line, #backtest:-webkit-full-screen > .pulse-line, #backtest.bt-fs > .pulse-line { display: none; }
+</style>
 </head>
 <body>
     <script>
@@ -1569,13 +1598,13 @@
          their own titles pin as you scroll. -->
 <!-- Chart: the page's own weekly chart over the 24 instruments its data
      pipeline carries — one fixed set of long-term gauges -->
+    <div class="fut-strip" id="futStrip" aria-label="Live indexes and futures">
+        <div class="fut-mode" id="futMode">Futures</div>
+        <div class="fut-cells" id="futCells"></div>
+    </div>
     <div class="chart-section collapsible-section" id="chart">
-        <div class="fut-strip" id="futStrip" aria-label="Live indexes and futures">
-            <div class="fut-mode" id="futMode">Futures</div>
-            <div class="fut-cells" id="futCells"></div>
-        </div>
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="chart" aria-expanded="true" aria-controls="chart-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> The Chart</button><button type="button" class="filter-pill chart-share-btn" id="chartShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg>Share</button><button type="button" class="filter-pill chart-fs-btn" id="chartFsTitleBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="chart-fs-label-enter">Full screen</span><span class="chart-fs-label-exit">Exit</span></button></h2>
-        <p class="chart-front-door">Pick a stock &mdash; see its chart, and how it grades.</p>
+        <p class="pulse-line" id="chartPulse" hidden></p>
         <div class="section-body" id="chart-body">
         <div class="chip-row" id="chartPicks" role="group" aria-label="Chart quick picks">
             <button type="button" class="filter-pill active" data-key="SPX">S&amp;P 500</button>
@@ -1740,7 +1769,7 @@
     <!-- Investment Scoreboard -->
     <div class="scoreboard-section collapsible-section" id="scoreboard">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="true" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> Investment Scoreboard</button><button type="button" class="filter-pill chart-fs-btn" id="scoreboardFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="chart-fs-label-enter">Full screen</span><span class="chart-fs-label-exit">Exit</span></button></h2>
-        <p class="section-gloss">One grade per investor for each of my stocks.</p>
+        <p class="pulse-line" id="scoreboardPulse" hidden></p>
         <div class="section-body" id="scoreboard-body">
                     <div class="chip-row" id="scoreboardInvestors" role="group" aria-label="Investors to score against">
                         <!-- Investor chips are rendered from SCOREBOARD_RULES below: only investors with a scored leg appear. -->
@@ -1872,7 +1901,7 @@
 <!-- Johnny's Drill Down: The Stack -->
     <div class="screener-section collapsible-section" id="screener">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="screener" aria-expanded="false" aria-controls="screener-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> Johnny&rsquo;s Drill Down: The Stack</button><button type="button" class="filter-pill chart-fs-btn" id="screenerFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="chart-fs-label-enter">Full screen</span><span class="chart-fs-label-exit">Exit</span></button></h2>
-        <p class="section-gloss">The scoreboard grades every stock by all 18 methods at once. The drill down runs one stock through the Stack &mdash; five steps in order &mdash; and shows the stock&rsquo;s own number at every rule.</p>
+        <p class="pulse-line" id="screenerPulse" hidden></p>
         <div class="section-body" id="screener-body" hidden>
         <p>My checklist for any stock, in order &mdash; a stock has to clear each step to stay in.</p>
         <div class="stack-runner" id="stackRunner">
@@ -3288,7 +3317,7 @@
 <!-- Portfolio Backtest -->
     <div class="backtest-section collapsible-section" id="backtest">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="backtest" aria-expanded="false" aria-controls="backtest-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> Portfolio Backtest</button><button type="button" class="filter-pill chart-fs-btn" id="backtestFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="chart-fs-label-enter">Full screen</span><span class="chart-fs-label-exit">Exit</span></button></h2>
-        <p class="section-gloss">What these picks would have earned if you&rsquo;d held them.</p>
+        <p class="pulse-line" id="backtestPulse" hidden></p>
         <div class="section-body" id="backtest-body" hidden>
         <details class="disclaimer-note">
           <summary><span class="disclaimer-gist">What the backtest does</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
@@ -3371,7 +3400,7 @@
         </div>
     </div>
 <!-- Curated Financial Resources Section Positioned Below the Stock Table -->
-    <div class="resources-section collapsible-section" id="resources" style="margin-top: 3rem; margin-bottom: 3rem;">
+    <div class="resources-section collapsible-section" id="resources">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="resources" aria-expanded="false" aria-controls="resources-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> Curated Financial Resources & Tools</button></h2>
         <div class="section-body" id="resources-body" hidden>
         <div class="resource-grid">
@@ -10188,5 +10217,155 @@ if (typeof module !== "undefined") {
         });
     })();
     </script>
+<script>
+    /* ===== Liveness pulse lines (2026-11-22) =====
+       Each framed section states its own freshest fact, computed at
+       runtime from the same data the section already loads. A line
+       stays hidden until its fact exists — nothing is ever invented. */
+    (function () {
+        "use strict";
+        var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        function fmtDay(iso) { // "2026-11-20" -> "Nov 20"
+            if (!iso) return "";
+            var p = String(iso).split("-");
+            if (p.length < 3) return "";
+            var m = parseInt(p[1], 10), d = parseInt(p[2], 10);
+            if (!m || m < 1 || m > 12 || !d) return "";
+            return MONTHS[m - 1] + " " + d;
+        }
+        function fmtPrice(v) {
+            if (typeof v !== "number" || !isFinite(v)) return "";
+            return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        function esc(s) {
+            return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+        function setPulse(id, html) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            if (html) { el.innerHTML = html; el.hidden = false; }
+            else { el.innerHTML = ""; el.hidden = true; }
+        }
+
+        /* ---- The Chart: the selected instrument's latest daily close
+           and date (the daily file the chart itself loads), then the
+           freshest indicator dot in the whole universe. ---- */
+        var daily = null, freshestDot = null;
+        function computeFreshestDot(d) {
+            var best = null;
+            var series = (d && d.series) || {};
+            Object.keys(series).forEach(function (k) {
+                var s = series[k];
+                ["buy", "sell"].forEach(function (side) {
+                    var arr = s[side];
+                    if (arr && arr.length) {
+                        var dt = arr[arr.length - 1];
+                        if (!best || dt > best.date) best = { date: dt, side: side, name: s.name };
+                    }
+                });
+            });
+            return best;
+        }
+        function renderChartPulse() {
+            if (!daily) return;
+            var key = "SPX";
+            try { if (window.jboChart && typeof window.jboChart.state === "function") key = window.jboChart.state().key || key; } catch (e) { /* keep default */ }
+            var s = daily.series && daily.series[key];
+            if (!s && key !== "SPX") s = daily.series && daily.series.SPX;
+            if (!s || !s.bars || !s.bars.length) return;
+            var bar = s.bars[s.bars.length - 1];
+            var html = esc(s.name) + " &middot; " + fmtPrice(bar[4]) + " &middot; " + fmtDay(bar[0]);
+            if (freshestDot) {
+                html += " &mdash; <span class=\"pulse-dot" + (freshestDot.side === "sell" ? " sell" : "") + "\" aria-hidden=\"true\"></span> latest "
+                    + freshestDot.side + " dot: " + esc(freshestDot.name) + ", " + fmtDay(freshestDot.date);
+            }
+            setPulse("chartPulse", html);
+        }
+        if (typeof window.jboLoadDailyData === "function") {
+            window.jboLoadDailyData().then(function (d) {
+                daily = d;
+                freshestDot = computeFreshestDot(d);
+                renderChartPulse();
+            }).catch(function () { /* no data, no line */ });
+        }
+        if (typeof window.jboLoadChartSymbol === "function") {
+            var lcsOrig = window.jboLoadChartSymbol;
+            window.jboLoadChartSymbol = function (sym) { var r = lcsOrig.apply(this, arguments); setTimeout(renderChartPulse, 0); return r; };
+        }
+        var picksEl = document.getElementById("chartPicks");
+        if (picksEl) {
+            picksEl.addEventListener("click", function () { setTimeout(renderChartPulse, 0); });
+            if (window.MutationObserver) new MutationObserver(function () { renderChartPulse(); }).observe(picksEl, { attributes: true, attributeFilter: ["class"], subtree: true });
+        }
+        var stockDd = document.getElementById("chartStock");
+        if (stockDd) stockDd.addEventListener("change", function () { setTimeout(renderChartPulse, 0); });
+        var stockPanel = document.getElementById("chartStockPanel");
+        if (stockPanel) stockPanel.addEventListener("click", function () { setTimeout(renderChartPulse, 0); });
+
+        /* ---- Investment Scoreboard: the board's leader in its newest
+           week, from grades-history.json — the scoreboard chart's own
+           data file (combined score = investors passing the stock out
+           of those whose tests could grade it, as a percentage). ---- */
+        fetch("grades-history.json").then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).then(function (d) {
+            var series = (d && d.series) || {};
+            var week = null;
+            Object.keys(series).forEach(function (t) {
+                var w = series[t].weeks;
+                if (w && w.length) { var last = w[w.length - 1]; if (!week || last > week) week = last; }
+            });
+            if (!week) return;
+            var leader = null;
+            Object.keys(series).forEach(function (t) {
+                var e = series[t], w = e.weeks;
+                if (!w || !w.length || w[w.length - 1] !== week) return;
+                var c = e.combined;
+                if (!c || !c.length) return;
+                var v = c[c.length - 1];
+                if (typeof v === "number" && (!leader || v > leader.value)) leader = { ticker: t, value: v };
+            });
+            if (!leader) return;
+            setPulse("scoreboardPulse", "Week of " + fmtDay(week) + " &mdash; " + esc(leader.ticker) + " leads the board &middot; combined score " + leader.value);
+        }).catch(function () { /* no data, no line */ });
+
+        /* ---- Johnny's Drill Down: mirrors the Stack runner's own
+           verdict line, following the stock the runner last graded. ---- */
+        var runnerOut = document.getElementById("runnerResults");
+        function renderScreenerPulse() {
+            if (!runnerOut) return;
+            var v = runnerOut.querySelector(".runner-verdict");
+            if (!v) { setPulse("screenerPulse", null); return; }
+            var p = v.querySelector(".rv-pass"), f = v.querySelector(".rv-fail"), n = v.querySelector(".rv-na");
+            var m = (v.textContent || "").match(/^\s*(\S+)\s+—/);
+            if (!p || !f || !n || !m) { setPulse("screenerPulse", null); return; }
+            setPulse("screenerPulse", esc(m[1]) + " &mdash; passes " + p.textContent.trim() + " &middot; fails " + f.textContent.trim() + " &middot; can&rsquo;t check " + n.textContent.trim());
+        }
+        if (runnerOut && window.MutationObserver) new MutationObserver(renderScreenerPulse).observe(runnerOut, { childList: true, subtree: true });
+
+        /* ---- Portfolio Backtest: the headline the stats table has
+           already computed — your portfolio vs the benchmark, total
+           return, for the selected time frame. ---- */
+        function renderBacktestPulse() {
+            var body = document.getElementById("backtestStats");
+            if (!body) return;
+            var rows = body.querySelectorAll("tr");
+            if (rows.length < 2) return;
+            var c0 = rows[0].querySelectorAll("td"), c1 = rows[1].querySelectorAll("td");
+            if (c0.length < 2 || c1.length < 2) return;
+            var portPct = c0[1].textContent.trim(), benchPct = c1[1].textContent.trim();
+            if (portPct.indexOf("%") === -1 || benchPct.indexOf("%") === -1) return;
+            var benchName = c1[0].textContent.replace(/\(benchmark\)\s*$/, "").trim();
+            var tf = "";
+            var active = document.querySelector("#backtestTimeframes .filter-pill.active");
+            if (active) tf = active.textContent.trim();
+            setPulse("backtestPulse", (tf ? esc(tf) + " &middot; " : "") + "Your portfolio " + esc(portPct) + " &middot; " + esc(benchName) + " " + esc(benchPct) + " &middot; total return");
+        }
+        var statsBody = document.getElementById("backtestStats");
+        if (statsBody && window.MutationObserver) new MutationObserver(renderBacktestPulse).observe(statsBody, { childList: true });
+        if (typeof window.btRender === "function") {
+            var btOrig = window.btRender;
+            window.btRender = function () { var r = btOrig.apply(this, arguments); renderBacktestPulse(); return r; };
+        }
+    })();
+</script>
 </body>
 </html>
