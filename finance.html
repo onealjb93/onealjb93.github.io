@@ -1295,6 +1295,12 @@
     .sb-legend-line { display: inline-block; width: 22px; height: 0; border-top: 3px solid var(--subtext-color); border-radius: 2px; }
     .sb-legend-line.price { border-top-width: 2px; opacity: 0.75; }
     #sbChartNote { font-size: 0.85rem; color: var(--subtext-color); margin: 0; }
+    /* Scoreboard indicator switch row (2026-11-23): the price
+       chart's indicator switch — the same .fin-ind-* construction —
+       in its own always-present row above the chart box, so
+       flipping it moves nothing; in full screen the row stays with
+       the chart while the canvas flexes under it. */
+    .sb-ind-row { margin-bottom: 0.5rem; }
     /* Fixed footprint (2026-11-20): the chart frame holds its height
        in every state — no stock selected, one selected, selection
        cleared — so nothing below it ever moves. The status line
@@ -2236,6 +2242,9 @@
         <div id="sbAddedList"></div>
         <div class="chip-row" id="sbAddedChips" role="group" aria-label="Added stocks waiting for their first grades"></div>
         <div id="scoreboardChartWrap" hidden>
+            <div class="fin-dots-row sb-ind-row">
+                <button type="button" class="fin-ind-switch" id="sbIndBtn" role="switch" aria-checked="false" aria-label="Johnny’s indicator" title="Turn Johnny’s indicator on or off"><span class="fin-ind-label" aria-hidden="true">Johnny’s indicator</span><span class="fin-ind-track" aria-hidden="true"><span class="fin-ind-knob"></span></span></button>
+            </div>
             <div class="sb-chart-box"><canvas id="sbChartCanvas" role="img" aria-label="Line chart: each stock's combined score, week by week"></canvas><div class="glass-bubble" id="sbChartTip" aria-hidden="true"></div><p id="sbChartStatus" style="font-size: 0.85rem; color: var(--subtext-color);" hidden></p></div>
             <div class="sb-chart-sub"><div id="sbChartLegend" hidden></div><p id="sbChartNote" hidden></p></div>
             <p style="font-size: 0.85rem; color: var(--subtext-color);">Each line is one stock&rsquo;s combined score: the investors who pass the stock, out of the investors whose tests could grade the stock that week, as a percentage. Before the week of November 18, 2026, each combined score rests on the 8 investors whose methods are formulas; the 10 judgment investors join the count from that week.</p>
@@ -9698,6 +9707,69 @@ if (typeof module !== "undefined") {
             try { window.localStorage.setItem(PRICE_KEY, priceOn ? "1" : "0"); } catch (e) { /* storage unavailable */ }
             draw();
         });
+        // ---- Johnny's indicator on the scoreboard graph (2026-11-23) ----
+        // The price chart's switch, restated for this graph: the
+        // same .fin-ind-* unit, its own state, off at every page
+        // open, its glow an invitation until the first press of a
+        // visit ends it by fading. The dots it controls are the
+        // pipeline's buy / sell / score days for the one series
+        // whose price line this graph draws (a single selection),
+        // read from the same daily file the price chart reads —
+        // the shared loader, so the file crosses the wire once and
+        // the two graphs can never disagree. A series the daily
+        // file doesn't carry, or a file that never arrives, simply
+        // draws no dots; the lines stand.
+        var sbIndBtn = document.getElementById("sbIndBtn");
+        var sbIndOn = false, sbIndPressed = false, sbIndFading = false;
+        var sbDaily = null, sbDailyStarted = false;
+        function ensureSbDaily() {
+            if (sbDaily || sbDailyStarted) return;
+            sbDailyStarted = true;
+            var p = (typeof window.jboLoadDailyData === "function")
+                ? window.jboLoadDailyData()
+                : fetch("finance-chart-daily.json").then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+            p.then(function (d) { sbDaily = d; requestDraw(); })
+             .catch(function () { /* no dots; the lines stand */ });
+        }
+        function sbSigFor(t) {
+            var s = sbDaily && sbDaily.series ? sbDaily.series[t] : null;
+            if (!s || (!s.buy && !s.sell && !s.score_buys)) return null;
+            return s;
+        }
+        var sbIndReduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        function dismissSbIndGlow() {
+            if (!sbIndBtn || sbIndFading || !sbIndBtn.classList.contains("fin-ind-glow")) return;
+            var track = sbIndBtn.querySelector(".fin-ind-track");
+            if (!track || sbIndReduce) { sbIndBtn.classList.remove("fin-ind-glow"); return; }
+            sbIndFading = true;
+            // The price chart's dismissal, line for line: freeze
+            // the glow where it stands, then let the fading rule's
+            // transition ease that exact shadow out.
+            track.style.boxShadow = window.getComputedStyle(track).boxShadow;
+            sbIndBtn.classList.add("fin-ind-glow-fading");
+            void track.offsetWidth;
+            track.style.boxShadow = "0 0 3px 2px transparent, 0 0 12px 2px transparent";
+            setTimeout(function () {
+                sbIndBtn.classList.remove("fin-ind-glow");
+                sbIndBtn.classList.remove("fin-ind-glow-fading");
+                track.style.boxShadow = "";
+                sbIndFading = false;
+            }, 1100);
+        }
+        function syncSbInd() {
+            if (!sbIndBtn) return;
+            sbIndBtn.setAttribute("aria-checked", sbIndOn ? "true" : "false");
+            if (sbIndFading) return;
+            if (!sbIndOn && !sbIndPressed) sbIndBtn.classList.add("fin-ind-glow");
+            else dismissSbIndGlow();
+        }
+        if (sbIndBtn) sbIndBtn.addEventListener("click", function () {
+            sbIndOn = !sbIndOn; sbIndPressed = true;
+            syncSbInd();
+            if (sbIndOn) ensureSbDaily();
+            requestDraw();
+        });
+        syncSbInd();
         if (!toggleEl || !tableWrap || !chartWrap || !canvas) return;
         chartWrap.removeAttribute("hidden");
         chartWrap.style.display = "none";
@@ -9955,17 +10027,24 @@ if (typeof module !== "undefined") {
             var ms = Date.parse(iso);
             var x = sbGeom.leftPad + ((ms - sbGeom.minMs) / (sbGeom.maxMs - sbGeom.minMs)) * sbGeom.plotW;
             var y = sbGeom.topPad + (1 - v / 100) * sbGeom.plotH;
-            var price = null;
+            var price = null, dot = null;
             if (sbGeom.overlayOn && sbGeom.pY && sbGeom.priceBars && sbGeom.singleTicker === sbHover.ticker) {
                 var bar = sbPriceNear(sbGeom.priceBars, ms);
                 if (bar) {
                     var bms = Date.parse(bar[0]);
                     price = { v: bar[1], x: sbGeom.leftPad + ((bms - sbGeom.minMs) / (sbGeom.maxMs - sbGeom.minMs)) * sbGeom.plotW, y: sbGeom.pY(bar[1]) };
+                    // The dot days mapped to that bar, while the
+                    // indicator's dots are drawn: the readout names
+                    // them under the price (2026-11-23).
+                    if (sbGeom.dotMap) {
+                        var bi2 = sbGeom.priceBars.indexOf(bar);
+                        if (bi2 >= 0 && sbGeom.dotMap[bi2]) dot = sbGeom.dotMap[bi2];
+                    }
                 }
             }
             var baked = sbData && sbData.series ? sbData.series[sbHover.ticker] : null;
             var isToday = !baked || sbHover.idx >= (baked.weeks || []).length;
-            return { ticker: sbHover.ticker, idx: sbHover.idx, dateISO: iso, value: v, x: x, y: y, price: price, isToday: isToday };
+            return { ticker: sbHover.ticker, idx: sbHover.idx, dateISO: iso, value: v, x: x, y: y, price: price, isToday: isToday, dot: dot };
         }
         // The markers, drawn last so they ride on top of every
         // line: the guide at the hovered week, a dot on the score
@@ -10033,12 +10112,22 @@ if (typeof module !== "undefined") {
             var cnt = sbCountFor(hp.ticker, hp.idx);
             mkRow(sbGeom.lineColors[hp.ticker] || null, "Combined score", hp.value + "%" + (cnt ? " — " + cnt.passed + " of " + cnt.graded + " tested" : ""));
             if (hp.price) mkRow(sbGeom.subC, hp.ticker + " price", sbFmtPrice(hp.price.v));
+            // A dot week names its days in the Chart key's own
+            // words — "Buy day", "Sell day" — each with the day
+            // itself, and a ring week by what the ring means.
+            if (hp.dot) {
+                var tipLight = document.body.classList.contains("light-mode");
+                var tipBuyC = tipLight ? "#16a34a" : "#22c55e", tipSellC = tipLight ? "#dc2626" : "#ef4444";
+                hp.dot.buy.forEach(function (d) { mkRow(tipBuyC, "Buy day", sbFmtDate(d)); });
+                hp.dot.sell.forEach(function (d) { mkRow(tipSellC, "Sell day", sbFmtDate(d)); });
+                hp.dot.score.forEach(function (d) { mkRow(tipBuyC, "Scored 85 or higher", sbFmtDate(d)); });
+            }
         }
         function updateSbTip() {
             if (!tipEl) return;
             var hp = sbHoverPoint();
             if (!hp || view !== "chart") { tipEl.classList.remove("open"); sbTipKey = ""; return; }
-            var key = hp.ticker + "|" + hp.idx + "|" + (hp.price ? hp.price.v : "");
+            var key = hp.ticker + "|" + hp.idx + "|" + (hp.price ? hp.price.v : "") + (hp.dot ? "|d" + hp.dot.buy.join(",") + "/" + hp.dot.sell.join(",") + "/" + hp.dot.score.join(",") : "");
             if (key !== sbTipKey) { sbTipKey = key; fillSbTip(hp); }
             tipEl.classList.add("open");
             var W = canvas.clientWidth, H = canvas.clientHeight;
@@ -10564,6 +10653,56 @@ if (typeof module !== "undefined") {
                 }
                 ctx.restore();
             }
+            // Johnny's indicator dots (2026-11-23): while the
+            // switch above the chart is on, the displayed series'
+            // buy days in the site's buy green and its sell days
+            // in the sell red — its score days (85 or higher, not
+            // gate buys) as rings in the buy green — on the price
+            // line's close at the week's own bar: the price chart's
+            // exact drawing, radius, rim and colours. Each daily
+            // date maps to the first weekly bar dated on or after
+            // it, the price chart's weekly rule, so a dot here is
+            // a dot there. The per-bar map is kept for the readout,
+            // which names a dot week by its own days.
+            var dotMap = null;
+            if (sbIndOn && pY && singleTicker) {
+                var sig = sbSigFor(singleTicker);
+                if (sig) {
+                    dotMap = {};
+                    var barMsArr = priceBars.map(function (b) { return Date.parse(b[0]); });
+                    var markBar = function (list, side) {
+                        if (!list) return;
+                        for (var k = 0; k < list.length; k++) {
+                            var dms = Date.parse(list[k]), loI = 0, hiI = barMsArr.length - 1, ans = -1;
+                            while (loI <= hiI) { var mid = (loI + hiI) >> 1; if (barMsArr[mid] >= dms) { ans = mid; hiI = mid - 1; } else { loI = mid + 1; } }
+                            if (ans >= 0) {
+                                if (!dotMap[ans]) dotMap[ans] = { buy: [], sell: [], score: [] };
+                                dotMap[ans][side].push(list[k]);
+                            }
+                        }
+                    };
+                    markBar(sig.buy, "buy");
+                    markBar(sig.sell, "sell");
+                    markBar(sig.score_buys, "score");
+                    var sbBuyC = document.body.classList.contains("light-mode") ? "#16a34a" : "#22c55e";
+                    var sbSellC = document.body.classList.contains("light-mode") ? "#dc2626" : "#ef4444";
+                    Object.keys(dotMap).forEach(function (bi) {
+                        var b = priceBars[bi];
+                        if (barMsArr[bi] < vMin || barMsArr[bi] > vMax) return;
+                        var dx = X(barMsArr[bi]), dy = pY(b[1]), dm = dotMap[bi];
+                        if (dm.score.length) {
+                            ctx.lineWidth = 2; ctx.strokeStyle = sbBuyC;
+                            ctx.beginPath(); ctx.arc(dx, dy, 4, 0, Math.PI * 2); ctx.stroke();
+                        }
+                        var fc = dm.buy.length ? sbBuyC : (dm.sell.length ? sbSellC : null);
+                        if (fc) {
+                            ctx.beginPath(); ctx.arc(dx, dy, 4, 0, Math.PI * 2);
+                            ctx.fillStyle = fc; ctx.fill();
+                            ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"; ctx.stroke();
+                        }
+                    });
+                }
+            }
             ctx.restore(); // the plot clip the lines were drawn under
             // The legend names both lines while the overlay is drawn.
             if (legendEl) {
@@ -10595,7 +10734,7 @@ if (typeof module !== "undefined") {
             // The hover readout rides on this draw's geometry:
             // cache it for the pointer handlers, draw the markers
             // over the finished lines, and place the readout.
-            sbGeom = { minMs: vMin, maxMs: vMax, leftPad: leftPad, topPad: topPad, plotW: plotW, plotH: plotH, overlayOn: overlayOn, singleTicker: singleTicker, priceBars: priceBars, allSeries: allSeries, lineColors: lineColors, pY: pY, subC: subC };
+            sbGeom = { minMs: vMin, maxMs: vMax, leftPad: leftPad, topPad: topPad, plotW: plotW, plotH: plotH, overlayOn: overlayOn, singleTicker: singleTicker, priceBars: priceBars, allSeries: allSeries, lineColors: lineColors, pY: pY, subC: subC, dotMap: dotMap };
             drawSbHover(ctx);
             updateSbTip();
             ctx.lineWidth = 1;
