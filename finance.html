@@ -354,46 +354,61 @@
        "Should it be centered instead of left justified?") */
     .fut-mode { font-size: 1rem; font-weight: 700; line-height: 1.3; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-color); margin-bottom: 12px; text-align: center; }
     /* Compact pass (2026-11-22, Johnny: "Can it be more
-       compact?"): the five cells ride ONE row at every width,
-       ticker-style. The change shows its percent only — the
-       points were what forced the wrap — and the names are the
-       short plain forms in both modes, because the mode word
-       already says which set it is. (The mode word first moved
-       inline at the row's left on wider screens to save its
-       line; the centring pass below put it back on its own
-       centred line at every width.) The row never wraps and
-       the type never shrinks past the
-       strips' smallest comfortable size; on a screen too
-       narrow for the numbers it scrolls inside itself — the
-       fullscreen readout's own safety valve. The cells
-       container wears the cells' own negative-margin trick one
-       level up, so the first and last cells' tick flashes keep
-       their full width inside the scroll box. */
+       compact?"): the cells ride ONE row, ticker-style. The
+       change shows its percent only — the points were what
+       forced the wrap — and the names are the short plain
+       forms in both modes, because the mode word already says
+       which set it is. The mode word keeps its own centred
+       line at every width (centring pass), and each cell's
+       name, price and change centre within the cell. */
     /* Spacing pass (2026-11-22, Johnny: "still a little cramped.
        Title small. And numbers touching each other. Spacing and
        sizing is key for this box to be great."): the mode word is
-       now the box's title (1rem, bold, full text colour); the
-       cells ride a PROPORTIONAL grid instead of equal flex shares
-       — Nasdaq's long price gets the widest column, so no price
-       can overflow its cell into its neighbour (measured with
-       worst-case strings 7,175.83 / 26,517.10 / 49,097 / 2,655.1 /
-       35.89: minimum adjacent price gap 19.8px at 393); prices
-       and percents take tabular numerals; the old negative-margin
-       flash trick is gone (cell padding alone carries the flash);
-       and the rows breathe — bigger strip padding, a 12px gap
-       under the title, 4px between name / price / percent. */
-    .fut-cells { display: grid; grid-template-columns: minmax(0, 1.07fr) minmax(0, 1.27fr) minmax(0, 0.87fr) minmax(0, 0.99fr) minmax(0, 1fr); column-gap: 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+       the box's title (1rem, bold, full text colour); prices
+       and percents take tabular numerals; cell padding alone
+       carries the tick flash; and the rows breathe — bigger
+       strip padding, a 12px gap under the title, 4px between
+       name / price / percent. */
+    /* Expansion pass (2026-11-22, Johnny: "show 4 instead of
+       5? With more space between them. And add more to scroll
+       like swipe your finger from right to left to view
+       others?"): the board grows from five instruments to
+       sixteen — the four indexes, the VIX, the 10-year yield,
+       the dollar and the euro, gold, silver and copper, oil,
+       Brent and natural gas, corn and wheat (no Bitcoin: it
+       has the header and its own page) — and the cells ride a
+       horizontally scrolling strip, one cell per scroll-snap.
+       The sizing teaches the swipe with no hint text: the
+       per-view count (--fut-pv) is fractional at every width
+       below the widest — 4.3 of the strip's width on a phone —
+       so the next cell always PEEKS at the right edge, the
+       cook view's peek carried into the band. On a wide
+       desktop all sixteen fit the frame in one row and
+       nothing scrolls. Prices render at the decimals each
+       instrument carries (one decimal for most, the Dow
+       whole, the 10-year yield at two with its % sign, the
+       euro at three) — the shorter strings are what buy the
+       air. Where all sixteen fit, they share the row
+       PROPORTIONALLY, weighted by each instrument's widest
+       string (the spacing pass's trick, carried to sixteen):
+       the 10-year yield's long name and Nasdaq's long price
+       get the wide cells, so no string touches its neighbour.
+       The strip scrolls inside its own frame, so the
+       page never scrolls sideways; touch keeps both pans
+       native, so a vertical drag scrolls the page and only a
+       clearly horizontal one rides the strip — the browser's
+       own direction lock arbitrates, the way it does for
+       every native scroller. */
+    .fut-cells { --fut-gap: 6px; --fut-pv: 10.3; display: flex; gap: var(--fut-gap); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; touch-action: pan-x pan-y; }
     .fut-cells::-webkit-scrollbar { display: none; }
-    /* Centring pass: on wide screens the word used to sit
-       inline at the row's left to save its line; measured both
-       ways, the centred composition won — the word keeps its
-       own centred line at every width and the cells spread
-       beneath it, one system across phone and desktop. */
-    /* Centring pass: the five cells take equal shares of the
-       band's full width, edge to edge, and each cell's name,
-       price and change centre within the cell — no left-packed
-       cluster, no dead margin at the right. */
-    .fut-cell { display: flex; flex-direction: column; align-items: center; min-width: 0; gap: 4px; padding: 7px 4px 6px; border-radius: 8px; transition: background-color 1s ease; }
+    @media (max-width: 1099px) {
+        .fut-cells { --fut-pv: 7.3; }
+    }
+    .fut-cell { flex: 0 0 calc((100% + var(--fut-gap)) / var(--fut-pv) - var(--fut-gap)); scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; min-width: 0; gap: 4px; padding: 7px 4px 6px; border-radius: 8px; transition: background-color 1s ease; }
+    @media (min-width: 1400px) {
+        .fut-cells { --fut-gap: 4px; overflow-x: hidden; scroll-snap-type: none; }
+        .fut-cell { flex: var(--w, 1) 1 0; padding-left: 3px; padding-right: 3px; }
+    }
     .fut-cell.tick-up { background-color: rgba(34, 197, 94, 0.13); }
     .fut-cell.tick-down { background-color: rgba(239, 68, 68, 0.13); }
     body.light-mode .fut-cell.tick-up { background-color: rgba(22, 163, 74, 0.12); }
@@ -412,7 +427,7 @@
     @media (max-width: 768px) {
         .fut-strip { padding: 18px 10px 16px; }
         .fut-mode { font-size: 0.95rem; margin-bottom: 10px; }
-        .fut-cells { column-gap: 4px; }
+        .fut-cells { --fut-pv: 4.3; }
         .fut-cell { padding: 6px 2px 5px; gap: 3px; }
         .fut-name { font-size: 0.67rem; letter-spacing: 0.02em; }
         .fut-price { font-size: 0.92rem; line-height: 1.25; }
@@ -9970,19 +9985,40 @@ if (typeof module !== "undefined") {
     // mode — "Market" or "Futures" — and it is the only text that
     // changes with the mode; the cells carry the short plain
     // names in both modes. A mode switch lands on the next poll,
-    // with no reload.
+    // with no reload. The board carries sixteen instruments
+    // (expansion pass, 2026-11-22): the strip is data-driven —
+    // the cells are built from the Worker's own entries, in
+    // the Worker's order, with each entry's name and decimal
+    // count — and the strip scrolls sideways with scroll-snap
+    // where the sixteen do not fit, the next cell peeking at
+    // the right edge.
     (function () {
         var FUTURES_API_URL = 'https://futures.johnbryantoneal.workers.dev/';
-        var ORDER = ['spx', 'ndx', 'dow', 'rut', 'vix'];
-        // The short plain names, the same in both modes — the
-        // mode word already says which set the cells are showing
-        // (compact pass, 2026-11-22).
-        var NAMES = {
-            spx: 'S&P 500',
-            ndx: 'Nasdaq',
-            dow: 'Dow',
-            rut: 'Russell',
-            vix: 'VIX'
+        // The board's lineup, in the Worker's display order.
+        // This list builds only the pre-data skeleton, so the
+        // strip shows its dashes before the first fetch lands;
+        // every name, price and decimal count that renders
+        // after that comes from the Worker's own entries, and
+        // an instrument the Worker adds joins the strip on the
+        // next poll without a page change.
+        var LINEUP = [
+            ['spx', 'S&P 500'], ['ndx', 'Nasdaq'], ['dow', 'Dow'],
+            ['rut', 'Russell'], ['vix', 'VIX'],
+            ['tnx', '10-Yr Yield'], ['dollar', 'Dollar'],
+            ['euro', 'Euro'], ['gold', 'Gold'], ['silver', 'Silver'],
+            ['copper', 'Copper'], ['oil', 'Oil'], ['brent', 'Brent'],
+            ['natgas', 'Nat Gas'], ['corn', 'Corn'],
+            ['wheat', 'Wheat']
+        ];
+        // Desktop row weights: where all sixteen fit in one
+        // row, each cell's share follows its widest string —
+        // name or price, measured at the desktop sizes — so
+        // the long names and long prices get the wide cells.
+        var WEIGHTS = {
+            spx: 61, ndx: 70, dow: 57, rut: 68, vix: 40,
+            tnx: 88, dollar: 64, euro: 48, gold: 61, silver: 56,
+            copper: 62, oil: 40, brent: 53, natgas: 65,
+            corn: 48, wheat: 57
         };
         // The mode, by the New York clock: cash hours are Monday
         // to Friday, 9:30 to 16:00 America/New_York. Everything
@@ -10022,27 +10058,35 @@ if (typeof module !== "undefined") {
         var reduceMotion = window.matchMedia &&
             window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var cells = {};
-        ORDER.forEach(function (key) {
+        var cellOrder = [];
+        function makeCell(key, name) {
             var cell = document.createElement('div');
             cell.className = 'fut-cell';
-            var name = document.createElement('span');
-            name.className = 'fut-name';
-            name.textContent = NAMES[key];
+            cell.style.setProperty('--w', WEIGHTS[key] || 1);
+            var nameEl = document.createElement('span');
+            nameEl.className = 'fut-name';
+            nameEl.textContent = name;
             var price = document.createElement('span');
             price.className = 'fut-price';
             price.textContent = '—';
             var chg = document.createElement('span');
             chg.className = 'fut-chg';
             chg.textContent = '—';
-            cell.appendChild(name);
+            cell.appendChild(nameEl);
             cell.appendChild(price);
             cell.appendChild(chg);
             cellsEl.appendChild(cell);
-            cells[key] = {
-                cell: cell, name: name, price: price, chg: chg,
+            var c = {
+                cell: cell, name: nameEl, price: price, chg: chg,
                 shown: null, target: null, prevClose: null,
-                decimals: 2, raf: null
+                decimals: 2, unit: null, raf: null
             };
+            cells[key] = c;
+            cellOrder.push(key);
+            return c;
+        }
+        LINEUP.forEach(function (pair) {
+            makeCell(pair[0], pair[1]);
         });
         function fmtNum(n, d) {
             return n.toLocaleString('en-US', {
@@ -10054,7 +10098,11 @@ if (typeof module !== "undefined") {
         }
         function paint(c) {
             var d = c.decimals;
-            c.price.textContent = fmtNum(c.shown, d);
+            // The 10-year yield IS a percent: its price wears
+            // the % sign (the entry's own unit says so). Every
+            // other price is a plain number.
+            c.price.textContent = fmtNum(c.shown, d) +
+                (c.unit === 'pct' ? '%' : '');
             var change = c.shown - c.prevClose;
             // The change shows its percent only — the points
             // were what forced the band onto two rows (compact
@@ -10127,7 +10175,7 @@ if (typeof module !== "undefined") {
                     modeEl.textContent =
                         mode === 'market' ? 'Market' : 'Futures';
                 }
-                ORDER.forEach(function (key) {
+                Object.keys(cells).forEach(function (key) {
                     var c = cells[key];
                     if (c.raf) cancelAnimationFrame(c.raf);
                     c.raf = null;
@@ -10139,21 +10187,46 @@ if (typeof module !== "undefined") {
                 });
                 lastMoveAt = null;
             }
+            var entries = data[mode] || [];
             var byKey = {};
-            (data[mode] || []).forEach(function (q) { byKey[q.key] = q; });
+            entries.forEach(function (q) { byKey[q.key] = q; });
+            // The strip's order is the Worker's order: if the
+            // response's sequence ever differs from the cells
+            // on the strip — the first data landing, an
+            // instrument added — the cells are re-dealt to
+            // match, once, on that poll. Polls that change
+            // nothing leave the DOM (and any swipe in progress)
+            // untouched.
+            var seq = entries.map(function (q) { return q.key; });
+            if (seq.join() !== cellOrder.join()) {
+                entries.forEach(function (q) {
+                    var c = cells[q.key] ||
+                        makeCell(q.key, q.name);
+                    cellsEl.appendChild(c.cell);
+                });
+                cellOrder = seq;
+            }
+            // A cell whose instrument is missing from this
+            // response goes back to dashes rather than holding
+            // a stale price.
+            Object.keys(cells).forEach(function (key) {
+                if (byKey[key]) return;
+                var c = cells[key];
+                if (c.raf) cancelAnimationFrame(c.raf);
+                c.raf = null;
+                c.shown = null;
+                c.target = null;
+                c.price.textContent = '—';
+                c.chg.textContent = '—';
+                c.chg.className = 'fut-chg';
+            });
             var moved = false;
-            ORDER.forEach(function (key) {
-                var q = byKey[key], c = cells[key];
-                if (!q) {
-                    if (c.raf) cancelAnimationFrame(c.raf);
-                    c.raf = null;
-                    c.shown = null;
-                    c.target = null;
-                    c.price.textContent = '—';
-                    c.chg.textContent = '—';
-                    c.chg.className = 'fut-chg';
-                    return;
+            entries.forEach(function (q) {
+                var c = cells[q.key];
+                if (q.name && c.name.textContent !== q.name) {
+                    c.name.textContent = q.name;
                 }
+                c.unit = q.unit || null;
                 c.decimals = typeof q.decimals === 'number'
                     ? q.decimals : 2;
                 c.prevClose = q.prev_close;
