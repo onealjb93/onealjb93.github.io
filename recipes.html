@@ -7996,6 +7996,31 @@
         function toggleExplainer(cardId, arrowId) {
             const card = document.getElementById(cardId);
             const arrow = document.getElementById(arrowId);
+            /* Close-restore anchor (site standard, 2026-11-22): closing a
+               tall section collapses the document at once and the browser
+               clamps the scroll to the new bottom — the reader lands at
+               the end of the page instead of where they opened the
+               section. Capture the landing anchor before the collapse and
+               restore it after (immediate + rAF + settle). The two door
+               sections hide their own header row while closed, so their
+               anchor is the door that opened them, restored to the 55px
+               line under the site header; the nested DGA card's toggle
+               stays visible, so it anchors on itself. */
+            let anchorEl = null;
+            let anchorTarget = 0;
+            if (card.classList.contains('active')) {
+                if (cardId === 'recipeCard' || cardId === 'nutritionToolCard') {
+                    anchorEl = document.getElementById(cardId === 'recipeCard' ? 'doorRecipes' : 'doorTool');
+                    anchorTarget = 55;
+                } else {
+                    const tog = arrow ? arrow.closest('button') : null;
+                    if (tog) {
+                        const tt = tog.getBoundingClientRect().top;
+                        anchorEl = tog;
+                        anchorTarget = tt > 99 ? tt : 97;
+                    }
+                }
+            }
             if (card.classList.contains('active')) {
                 card.classList.remove('active');
                 arrow.textContent = '▶';
@@ -8003,12 +8028,38 @@
                 card.classList.add('active');
                 arrow.textContent = '▼';
             }
+            if (anchorEl) {
+                const restore = function () {
+                    if (card.classList.contains('active')) return;
+                    if (anchorEl.id === 'doorRecipes' || anchorEl.id === 'doorTool') {
+                        const other = document.querySelector('.explainer-card.active');
+                        if (other) return;
+                    }
+                    const d = anchorEl.getBoundingClientRect().top - anchorTarget;
+                    if (d) window.scrollBy(0, d);
+                };
+                restore();
+                requestAnimationFrame(restore);
+                setTimeout(restore, 120);
+            }
         }
         function toggleNestedRecipe(recipeId, arrowId) {
             const recipe = document.getElementById(recipeId);
             const arrow = document.getElementById(arrowId);
             const button = arrow ? arrow.closest('.recipe-toggle') : null;
             const wrapper = button ? button.closest('.recipe-wrapper') : null;
+            /* Close-restore anchor (site standard, 2026-11-22): a card's
+               header block is taller while the recipe is open, so closing
+               shifts the recipe's own toggle up the page (~206px) even
+               when nothing else moves. When the toggle is on screen at
+               close time, hold it at the exact spot it was tapped
+               (immediate + rAF + settle). Off-screen closes (the sticky
+               name bar's own glide path) are left to that path. */
+            let anchorTarget = null;
+            if (recipe.classList.contains('active') && button) {
+                const t = button.getBoundingClientRect().top;
+                if (t > -50 && t < window.innerHeight) anchorTarget = t > 101 ? t : 99;
+            }
             if (recipe.classList.contains('active')) {
                 recipe.classList.remove('active');
                 arrow.textContent = '▶';
@@ -8019,6 +8070,16 @@
                 arrow.textContent = '▼';
                 if (wrapper) wrapper.classList.add('expanded');
                 if (button) button.setAttribute('aria-expanded', 'true');
+            }
+            if (anchorTarget !== null && button) {
+                const restore = function () {
+                    if (recipe.classList.contains('active')) return;
+                    const d = button.getBoundingClientRect().top - anchorTarget;
+                    if (d) window.scrollBy(0, d);
+                };
+                restore();
+                requestAnimationFrame(restore);
+                setTimeout(restore, 120);
             }
         }
 
