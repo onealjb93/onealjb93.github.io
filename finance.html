@@ -602,17 +602,35 @@
        the right end of the indicator row, so a left-anchored panel
        ran ~100px off the phone's right edge and its rows' dates —
        right-aligned inside each row — were off-screen with it. */
-    .fin-dots-panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; width: min(19rem, calc(100vw - 2rem)); max-height: min(24rem, 62vh); overflow-y: auto; padding: 0 0 0.35rem; }
+    .fin-dots-panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; width: min(24rem, calc(100vw - 2rem)); max-height: min(24rem, 62vh); overflow-y: auto; padding: 0 0 0.35rem; }
     .fin-dots-panel[hidden] { display: none; }
     .fin-dots-head { position: sticky; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; height: 2.75rem; padding: 0 0.8rem; box-sizing: border-box; background: var(--glass-bg-solid); color: var(--text-color); font-size: 0.9rem; font-weight: 700; z-index: 1; }
     .fin-dots-head .sb-panel-close { margin-right: -0.8rem; }
     #finDotsHead { top: 0; z-index: 2; border-radius: var(--glass-radius) var(--glass-radius) 0 0; }
     .fin-dots-side { display: inline-flex; align-items: center; gap: 0.45rem; min-width: 0; }
-    .fin-dots-list { display: flex; flex-direction: column; padding: 0.15rem 0.35rem 0.3rem; }
-    .fin-dots-opt { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; padding: 0.55rem 0.45rem; border: none; border-radius: 8px; background: none; color: var(--text-color); font-family: inherit; font-size: 0.95rem; text-align: left; cursor: pointer; }
+    /* Two columns (2026-11-23): buys and sells stand side by side,
+       each newest first under its own head, inside the panel's ONE
+       scroll — the panel scrolls as a whole, the columns never
+       scroll apart (two scrollers was "too much"). Every row is
+       the same two-line shape — dot + stock, then the date under
+       it, aligned with the stock's name — so both columns keep one
+       row height, one type, one rhythm at any width. */
+    .fin-dots-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 0.4rem; align-items: start; padding: 0.15rem 0.35rem 0.3rem; }
+    .fin-dots-col { display: flex; flex-direction: column; min-width: 0; }
+    .fin-dots-col-head { display: flex; align-items: center; gap: 0.45rem; padding: 0.5rem 0.45rem 0.3rem; color: var(--subtext-color); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+    .fin-dots-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%; box-sizing: border-box; padding: 0.55rem 0.45rem; border: none; border-radius: 8px; background: none; color: var(--text-color); font-family: inherit; font-size: 0.95rem; text-align: left; cursor: pointer; }
     .fin-dots-opt:hover, .fin-dots-opt:focus-visible { background: var(--badge-bg); }
-    .fin-dots-date { color: var(--subtext-color); font-size: 0.88em; white-space: nowrap; }
+    .fin-dots-date { color: var(--subtext-color); font-size: 0.88em; white-space: nowrap; padding-left: calc(9px + 0.45rem); }
     .fin-dots-note { margin: 0; padding: 0.55rem 0.45rem; color: var(--subtext-color); font-size: 0.9rem; }
+    .fin-dots-list > .fin-dots-note { grid-column: 1 / -1; }
+    /* Phone widths: the panel hangs from its button's right edge,
+       which sits well short of the screen's right edge, so the
+       wide two-column panel would run off the left of the screen.
+       There it takes the old single-column width — the stacked
+       two-line rows keep both columns readable inside it. */
+    @media (max-width: 640px) {
+        .fin-dots-panel { width: min(19rem, calc(100vw - 2rem)); }
+    }
     /* Chart key: the swatches are the exact colours and weights the
        in-page chart draws — amber 200-week (3px), blue 50-week (2px),
        violet weekly RSI (2px), teal P/E (2px, its pane is optional),
@@ -8115,26 +8133,28 @@ if (typeof module !== "undefined") {
         // decades — so the switch alone can look broken on a
         // series whose last dot predates the visible window.
         // This list is the way to one: for every series in the
-        // daily file, its newest buy day and newest sell day,
-        // merged into ONE list ordered most recent first across
-        // both sides (Johnny's ruling, 2026-11-22 — buys and sells
-        // belong in a single recency order, not two groups), 24
-        // rows at most; each row keeps its side visible (the
-        // coloured dot and the Buy / Sell word). It is rebuilt
-        // from the same buy / sell arrays the dots draw from —
-        // when the panel opens and when the daily file lands —
-        // so it follows the pipeline's nightly recomputes with
-        // no baked entries. A pick loads the series, turns the
-        // indicator on if it was off, and centres a two-year
-        // window on the dot's bar inside the smallest range
-        // whose window contains it.
+        // daily file, its newest buy day and newest sell day.
+        // The two sides stand in TWO COLUMNS (Johnny's ruling,
+        // 2026-11-23, superseding the 2026-11-22 merged list):
+        // buys in one, sells in the other, each newest first
+        // under its own head, inside the panel's one shared
+        // scroll. The cap is per side — each side keeps its own
+        // newest 24 (a single shared cap starved the sells out
+        // of the panel entirely in the merged list). It is
+        // rebuilt from the same buy / sell arrays the dots draw
+        // from — when the panel opens and when the daily file
+        // lands — so it follows the pipeline's nightly
+        // recomputes with no baked entries. A pick loads the
+        // series, turns the indicator on if it was off, and
+        // centres a two-year window on the dot's bar inside the
+        // smallest range whose window contains it.
         var dotsBtn = document.getElementById("finDotsBtn");
         var dotsPanel = document.getElementById("finDotsPanel");
         var dotsRoot = document.getElementById("finDots");
         var dotsOpen = false;
         function latestDots() {
             var all = [];
-            if (!dailyData || !dailyData.series) return { ready: false, dots: all };
+            if (!dailyData || !dailyData.series) return { ready: false, buys: [], sells: [] };
             Object.keys(dailyData.series).forEach(function (k) {
                 var s = dailyData.series[k];
                 if (!s) return;
@@ -8148,17 +8168,11 @@ if (typeof module !== "undefined") {
                 return a.side === b.side ? 0 : (a.side === "buy" ? -1 : 1);
             }
             all.sort(byRecency);
-            // The cap is per side (2026-11-23): one shared cap of 24
-            // starved the sells out of the panel entirely — the
-            // newest sell in the universe ranked 25th behind 24
-            // newer buys, so the panel read as buys-only. Each side
-            // keeps its own newest 24; the merged list stays one
-            // list, date-descending, no group headings.
+            // The split keeps each side in its own recency order;
+            // the per-side cap of 24 applies inside each column.
             var buys = [], sells = [];
             all.forEach(function (e) { (e.side === "buy" ? buys : sells).push(e); });
-            var merged = buys.slice(0, 24).concat(sells.slice(0, 24));
-            merged.sort(byRecency);
-            return { ready: true, dots: merged };
+            return { ready: true, buys: buys.slice(0, 24), sells: sells.slice(0, 24) };
         }
         function dotsOption(entry) {
             var b = document.createElement("button");
@@ -8166,19 +8180,39 @@ if (typeof module !== "undefined") {
             b.className = "fin-dots-opt";
             b.setAttribute("data-key", entry.key);
             b.setAttribute("data-date", entry.date);
+            // The column head names the side, so the row itself
+            // carries just the stock and its date; the side word
+            // stays in the button's accessible name.
+            b.setAttribute("aria-label", (entry.side === "buy" ? "Buy" : "Sell") + " " + entry.key + ", " + fmtDate(entry.date));
             var left = document.createElement("span");
             left.className = "fin-dots-side";
             var dot = document.createElement("span");
             dot.className = "tv-key-dot " + (entry.side === "buy" ? "tv-key-dot-buy" : "tv-key-dot-sell");
             dot.setAttribute("aria-hidden", "true");
             var word = document.createElement("span");
-            word.textContent = (entry.side === "buy" ? "Buy" : "Sell") + " · " + entry.key;
+            word.textContent = entry.key;
             left.appendChild(dot); left.appendChild(word);
             var dt = document.createElement("span");
             dt.className = "fin-dots-date";
             dt.textContent = fmtDate(entry.date);
             b.appendChild(left); b.appendChild(dt);
             return b;
+        }
+        function dotsColumn(side, entries) {
+            var col = document.createElement("div");
+            col.className = "fin-dots-col";
+            var head = document.createElement("div");
+            head.className = "fin-dots-col-head";
+            var dot = document.createElement("span");
+            dot.className = "tv-key-dot " + (side === "buy" ? "tv-key-dot-buy" : "tv-key-dot-sell");
+            dot.setAttribute("aria-hidden", "true");
+            var word = document.createElement("span");
+            word.textContent = side === "buy" ? "Buys" : "Sells";
+            head.appendChild(dot); head.appendChild(word);
+            col.appendChild(head);
+            if (entries.length) entries.forEach(function (e) { col.appendChild(dotsOption(e)); });
+            else col.appendChild(dotsNote(side === "buy" ? "No buy dots yet." : "No sell dots yet."));
+            return col;
         }
         function dotsNote(text) {
             var p = document.createElement("p");
@@ -8192,8 +8226,9 @@ if (typeof module !== "undefined") {
             var d = latestDots();
             listEl.textContent = "";
             if (!d.ready) { listEl.appendChild(dotsNote("Loading the daily data…")); return; }
-            if (d.dots.length) d.dots.forEach(function (e) { listEl.appendChild(dotsOption(e)); });
-            else listEl.appendChild(dotsNote("No dots in the data yet."));
+            if (!d.buys.length && !d.sells.length) { listEl.appendChild(dotsNote("No dots in the data yet.")); return; }
+            listEl.appendChild(dotsColumn("buy", d.buys));
+            listEl.appendChild(dotsColumn("sell", d.sells));
         }
         function setDotsOpen(open) {
             dotsOpen = open;
