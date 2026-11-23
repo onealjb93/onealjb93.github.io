@@ -182,6 +182,62 @@
             text-overflow: ellipsis;
         }
         .thr-hint[hidden] { display: none; }
+        /* Instrument picker: one row of tinted chips at the top of
+           the stage. It sets the voice of the NEXT strings placed;
+           placed strings keep theirs. The pressed chip is lit in its
+           instrument's own colour — the state reads on the chip's
+           face, and the row never moves when a chip is pressed. */
+        .thr-picker {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            z-index: 7;
+            max-width: calc(100% - 16px);
+        }
+        .thr-picker[hidden] { display: none; }
+        .thr-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            min-height: 38px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--glass-bg);
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            backdrop-filter: blur(var(--glass-blur));
+            color: var(--text-color);
+            font: inherit;
+            font-size: 0.84rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .thr-chip[data-type="guitar"] { --chip: 216, 164, 90; }
+        .thr-chip[data-type="violin"] { --chip: 225, 232, 240; }
+        .thr-chip[data-type="cello"] { --chip: 172, 102, 64; }
+        .thr-chip[data-type="harp"] { --chip: 255, 214, 110; }
+        .thr-chip-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgb(var(--chip));
+            box-shadow: 0 0 7px rgba(var(--chip), 0.9);
+            flex: 0 0 auto;
+        }
+        .thr-chip:hover { border-color: rgb(var(--chip)); }
+        .thr-chip[aria-pressed="true"] {
+            background: rgb(var(--chip));
+            border-color: rgb(var(--chip));
+            color: #1a1206;
+        }
+        .thr-chip[data-type="cello"][aria-pressed="true"] { color: #ffeedd; }
+        .thr-chip[aria-pressed="true"] .thr-chip-dot { background: #1a1206; box-shadow: none; }
+        .thr-chip[data-type="cello"][aria-pressed="true"] .thr-chip-dot { background: #ffeedd; }
+        /* The transient note yields the top-centre slot to the picker. */
+        .thr-note { top: 62px; }
         /* Start overlay: the glass bubble over the dimmed stage. */
         .thr-start {
             position: absolute;
@@ -378,6 +434,12 @@
             <video id="thrVideo" playsinline muted></video>
             <div class="thr-note" id="thrNote" role="status"></div>
             <div class="thr-hint" id="thrHint" role="status" hidden></div>
+            <div class="thr-picker" id="thrPicker" role="group" aria-label="Instrument for new strings" hidden>
+                <button type="button" class="thr-chip" data-type="guitar" aria-pressed="true"><span class="thr-chip-dot" aria-hidden="true"></span>Guitar</button>
+                <button type="button" class="thr-chip" data-type="violin" aria-pressed="false"><span class="thr-chip-dot" aria-hidden="true"></span>Violin</button>
+                <button type="button" class="thr-chip" data-type="cello" aria-pressed="false"><span class="thr-chip-dot" aria-hidden="true"></span>Cello</button>
+                <button type="button" class="thr-chip" data-type="harp" aria-pressed="false"><span class="thr-chip-dot" aria-hidden="true"></span>Harp</button>
+            </div>
             <div class="thr-controls" id="thrControls" hidden>
                 <button class="thr-btn" id="thrUndo" type="button" disabled>↩ Undo</button>
                 <span class="thr-count" id="thrCount" aria-live="polite">0 strings</span>
@@ -401,6 +463,7 @@
                         <li><strong>Drop</strong> — open your fingers wide. The string stays pinned.</li>
                     </ol>
                     <p class="thr-start-line">Then play — sweep an open fingertip across the strings to sound them. Short strings sing high, long strings sing low.</p>
+                    <p class="thr-start-line">Pick an instrument at the top — Guitar, Violin, Cello or Harp — and every new string you place takes that instrument's voice and colour. Strings already placed keep theirs.</p>
                 </div>
             </div>
         </div>
@@ -432,12 +495,20 @@
     // Every pinned string is an
     // instrument string: pitch follows the real string law (frequency
     // proportional to 1/length), snapped to the nearest C-major
-    // pentatonic tone so every string harmonises. Sweeping a fingertip
-    // (or the pointer) across a string plucks it — Karplus-Strong
-    // plucked-string synthesis, and the string visibly vibrates in its
-    // fundamental mode. Touch mode mirrors it all: tap places, drag
-    // pulls, release pins, a moving pointer crossing a string plucks
-    // it, and a tap on a string plucks it too.
+    // pentatonic tone so every string harmonises. The picker at the
+    // top gives each new string one of four instruments — Guitar,
+    // Violin, Cello, Harp — and a placed string keeps its instrument
+    // forever: its own register of the string law, its own metal and
+    // thickness of thread, and a medallion with its glyph at the
+    // pinned end. Guitar and harp are plucked (Karplus-Strong; the
+    // harp voiced brighter and longer for glissando sweeps); violin
+    // and cello are bowed — a sustained sawtooth voice that sounds
+    // while a fingertip crosses or holds the string. A plucked
+    // string visibly vibrates in its fundamental mode and settles; a
+    // bowed string shimmers for as long as it sounds. Touch mode
+    // mirrors it all: tap places, drag pulls, release pins, a moving
+    // pointer crossing a string strikes it, and a tap on a string
+    // strikes it too.
     // In a browser the web pins to the VIEW, not the room — there is
     // no world anchoring without WebXR/ARKit.
     // The view is always a mirror: the camera view, the web and the
@@ -464,6 +535,8 @@
         var startStatus = document.getElementById('thrStartStatus');
         var fsBtn = document.getElementById('thrFsBtn');
         var section = document.getElementById('threadsGame');
+        var pickerEl = document.getElementById('thrPicker');
+        var chipEls = Array.prototype.slice.call(pickerEl.querySelectorAll('.thr-chip'));
         var helpBtn = document.getElementById('thrHelpBtn');
         var rulesEl = document.getElementById('thrRules');
         var rulesCloseBtn = document.getElementById('thrRulesClose');
@@ -472,6 +545,33 @@
         var MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@' + MP_VERSION + '/';
 
         var SIG = { core: '#ffffff', glow: '#67e8f9' };   // signature cyan-white
+        // ---- string voices: four instruments, four looks ----
+        // Each type is identifiable three ways at a glance: thread
+        // thickness, metal tint, and the medallion glyph at the
+        // string's pinned end. Pitch keeps the string law (frequency
+        // proportional to 1/length) but each instrument reads the
+        // length in its own register: for the same length the cello
+        // sounds lowest, then guitar, then violin, the harp
+        // brightest (mult shifts the raw frequency before the
+        // pentatonic snap). Guitar and harp are plucked; violin and
+        // cello are bowed — sustained while a fingertip touches.
+        var TYPES = {
+            guitar: { label: 'Guitar', rgb: [216, 164, 90],  width: 2.5, mult: 1.0, voice: 'pluck', medR: 11 },
+            violin: { label: 'Violin', rgb: [228, 233, 242], width: 1.6, mult: 1.5, voice: 'bow',   medR: 10 },
+            cello:  { label: 'Cello',  rgb: [172, 102, 64],  width: 4.4, mult: 0.5, voice: 'bow',   medR: 13 },
+            harp:   { label: 'Harp',   rgb: [255, 214, 110], width: 2.0, mult: 2.0, voice: 'harp',  medR: 11 }
+        };
+        var currentType = 'guitar';   // strings placed before any pick are guitar
+        function setType(t) {
+            if (!TYPES[t]) return;
+            currentType = t;
+            chipEls.forEach(function (c) {
+                c.setAttribute('aria-pressed', c.getAttribute('data-type') === t ? 'true' : 'false');
+            });
+        }
+        chipEls.forEach(function (c) {
+            c.addEventListener('click', function () { ensureAudio(); setType(c.getAttribute('data-type')); });
+        });
         var HAND_COLORS = { Left: '#22c55e', Right: '#ef4444' };
         var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -493,10 +593,10 @@
         var PENTA_SEMIS = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
         var C4 = 261.6256;
         var PENTA_FREQS = PENTA_SEMIS.map(function (s) { return C4 * Math.pow(2, s / 12); });
-        function pitchForLength(lenPx) {
+        function pitchForLength(lenPx, type) {
             var diag = Math.sqrt(W * W + H * H) || 1;
             var L = Math.max(0.03, lenPx / diag);
-            var raw = 130 / L;                       // frequency ∝ 1/length
+            var raw = (130 / L) * (TYPES[type] ? TYPES[type].mult : 1);   // frequency ∝ 1/length, in the instrument's register
             var best = PENTA_FREQS[0], bestName = PENTA_NAMES[0], bestD = Infinity;
             for (var i = 0; i < PENTA_FREQS.length; i++) {
                 var d = Math.abs(Math.log2(raw / PENTA_FREQS[i]));
@@ -516,8 +616,10 @@
         }
         function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
 
-        // ---- audio: Karplus-Strong plucked strings through a limiter ----
-        var actx = null, master = null, ksCache = new Map();
+        // ---- audio: plucked (Karplus-Strong) and bowed voices
+        // through a limiter. An analyser taps the master bus so the
+        // verification suite can measure real envelopes. ----
+        var actx = null, master = null, analyser = null, ksCache = new Map(), harpCache = new Map();
         function ensureAudio() {
             if (actx) { if (actx.state === 'suspended') { actx.resume(); } return; }
             try {
@@ -526,11 +628,21 @@
                 actx = new AC();
                 master = actx.createGain();
                 master.gain.value = 0.9;
+                analyser = actx.createAnalyser();
+                analyser.fftSize = 2048;
                 var comp = actx.createDynamicsCompressor();
                 comp.threshold.value = -18; comp.knee.value = 18;
                 comp.ratio.value = 12; comp.attack.value = 0.003; comp.release.value = 0.25;
-                master.connect(comp); comp.connect(actx.destination);
+                master.connect(analyser); analyser.connect(comp); comp.connect(actx.destination);
             } catch (e) { actx = null; }
+        }
+        function audioLevel() {
+            if (!analyser || !actx) return 0;
+            var buf = new Float32Array(analyser.fftSize);
+            analyser.getFloatTimeDomainData(buf);
+            var sum = 0;
+            for (var i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+            return Math.sqrt(sum / buf.length);
         }
         function ksBuffer(freq) {
             if (ksCache.has(freq)) return ksCache.get(freq);
@@ -551,23 +663,126 @@
             ksCache.set(freq, buf);
             return buf;
         }
+        // Harp: the same Karplus-Strong string, voiced brighter and
+        // longer — a stiffer damping factor and a longer tail, so a
+        // sweep across harp strings rings as a glissando instead of
+        // a row of separate plucks. Retriggers are independent
+        // buffer sources, so rapid sweeps never cut a ringing note.
+        function harpBuffer(freq) {
+            if (harpCache.has(freq)) return harpCache.get(freq);
+            var sr = actx.sampleRate, dur = 3.6, len = Math.floor(sr * dur);
+            var buf = actx.createBuffer(1, len, sr);
+            var out = buf.getChannelData(0);
+            var N = Math.max(2, Math.round(sr / freq));
+            var ring = new Float32Array(N);
+            for (var i = 0; i < N; i++) ring[i] = Math.random() * 2 - 1;
+            var idx = 0, damp = 0.9995;
+            for (var j = 0; j < len; j++) {
+                var cur = ring[idx];
+                var nxt = ring[(idx + 1) % N];
+                // A gentler loop filter than the guitar's half-and-
+                // half average: the harp sounds an octave up, where
+                // the standard average eats the ring twice as fast —
+                // the light blend keeps the harp singing longer, and
+                // brighter, as a harp should.
+                ring[idx] = damp * (0.9 * cur + 0.1 * nxt);
+                out[j] = cur;
+                idx = (idx + 1) % N;
+            }
+            harpCache.set(freq, buf);
+            return buf;
+        }
+        // ---- bowed voices (violin, cello): a sawtooth through a
+        // lowpass, with vibrato and a slow bow attack. The voice is
+        // built once per string and gated by its gain: it sounds
+        // while a fingertip crosses or holds the string, and falls
+        // silent shortly after the touch leaves. ----
+        function buildBow(s) {
+            var osc = actx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = s.freq;
+            var lfo = actx.createOscillator();
+            lfo.frequency.value = 5.4;
+            var lfoGain = actx.createGain();
+            lfoGain.gain.value = s.freq * 0.006;   // ≈ ±10 cents of vibrato
+            lfo.connect(lfoGain); lfoGain.connect(osc.frequency);
+            var filt = actx.createBiquadFilter();
+            filt.type = 'lowpass';
+            filt.frequency.value = Math.min(6500, Math.max(700, s.freq * 4.5));
+            filt.Q.value = 0.7;
+            var g = actx.createGain();
+            g.gain.value = 0;
+            osc.connect(filt); filt.connect(g); g.connect(master);
+            osc.start(); lfo.start();
+            return { osc: osc, lfo: lfo, gain: g };
+        }
+        function bowStart(s) {
+            if (!actx || !master) return;
+            try {
+                if (actx.state === 'suspended') actx.resume();
+                if (!s.bow) s.bow = buildBow(s);
+                var t = actx.currentTime;
+                s.bow.gain.gain.cancelScheduledValues(t);
+                s.bow.gain.gain.setTargetAtTime(0.13, t, 0.09);   // slow bow attack (~0.27s to full)
+                s.bowOn = true;
+            } catch (e) { /* audio is a layer, never a blocker */ }
+        }
+        function bowStop(s) {
+            if (!s.bow || !actx) { s.bowOn = false; return; }
+            try {
+                var t = actx.currentTime;
+                s.bow.gain.gain.cancelScheduledValues(t);
+                s.bow.gain.gain.setTargetAtTime(0, t, 0.055);     // short fall (~0.17s)
+            } catch (e) {}
+            s.bowOn = false;
+        }
+        function teardownBow(s) {
+            if (!s || !s.bow) return;
+            var b = s.bow;
+            s.bow = null; s.bowOn = false; s.sounding = false;
+            try {
+                b.gain.gain.setTargetAtTime(0, actx.currentTime, 0.03);
+                setTimeout(function () {
+                    try { b.osc.stop(); b.lfo.stop(); b.gain.disconnect(); } catch (e) {}
+                }, 350);
+            } catch (e) {}
+        }
+        function logPluck(s, strength, now) {
+            pluckLog.push({ freq: s.freq, name: s.name, type: s.type, strength: Math.round(strength * 100) / 100, t: now });
+            if (pluckLog.length > 200) pluckLog.shift();
+        }
         function pluck(s, strength) {
             var now = performance.now();
             s.vibStart = now;
             s.vibAmp = strength;
             s.lastPluck = now;
-            pluckLog.push({ freq: s.freq, name: s.name, strength: Math.round(strength * 100) / 100, t: now });
-            if (pluckLog.length > 200) pluckLog.shift();
+            logPluck(s, strength, now);
             if (!actx || !master) return;
             try {
                 if (actx.state === 'suspended') actx.resume();
                 var src = actx.createBufferSource();
-                src.buffer = ksBuffer(s.freq);
+                src.buffer = s.type === 'harp' ? harpBuffer(s.freq) : ksBuffer(s.freq);
                 var g = actx.createGain();
-                g.gain.value = 0.22 + 0.55 * strength;
+                g.gain.value = s.type === 'harp' ? 0.20 + 0.50 * strength : 0.22 + 0.55 * strength;
                 src.connect(g); g.connect(master);
                 src.start();
             } catch (e) { /* audio is a layer, never a blocker */ }
+        }
+        // One entry point for "a fingertip struck this string":
+        // plucked voices ring; bowed voices take the touch and
+        // sustain for as long as touches keep landing (the frame
+        // loop starts and stops the bow from s.lastTouch).
+        function strike(s, strength) {
+            var now = performance.now();
+            s.lastPluck = now;
+            if (TYPES[s.type] && TYPES[s.type].voice === 'bow') {
+                s.vibStart = now;
+                s.vibAmp = strength;
+                s.lastTouch = now;
+                logPluck(s, strength, now);
+            } else {
+                pluck(s, strength);
+            }
         }
 
         // ---- geometry helpers ----
@@ -593,7 +808,7 @@
                 if (now - s.lastPluck < 90) continue;
                 var a = toPx(dots[i]), b = toPx(dots[i + 1]);
                 if (segInt(prevPx, curPx, a, b)) {
-                    pluck(s, Math.max(0.15, Math.min(1, speedPxS / 900)));
+                    strike(s, Math.max(0.15, Math.min(1, speedPxS / 900)));
                 }
             }
         }
@@ -611,19 +826,24 @@
             if (dots.length >= 2) {
                 var a = toPx(dots[dots.length - 2]), b = toPx(dots[dots.length - 1]);
                 var lenPx = dist(a, b);
-                var p = pitchForLength(lenPx);
-                strings.push({ freq: p.freq, name: p.name, rgb: pitchColor(p.freq), lenPx: Math.round(lenPx), vibStart: 0, vibAmp: 0, lastPluck: 0 });
+                var p = pitchForLength(lenPx, currentType);
+                var T = TYPES[currentType];
+                strings.push({ freq: p.freq, name: p.name, type: currentType, rgb: T.rgb.slice(), lenPx: Math.round(lenPx), vibStart: 0, vibAmp: 0, lastPluck: 0, lastTouch: 0, sounding: false, bowOn: false, bow: null });
             }
             updateCount();
         }
         function undo() {
             if (!dots.length) return;
             dots.pop();
-            while (strings.length > Math.max(0, dots.length - 1)) strings.pop();
+            while (strings.length > Math.max(0, dots.length - 1)) teardownBow(strings.pop());
             if (!dots.length) pull = null;
             updateCount();
         }
-        function clearAll() { dots = []; strings = []; pull = null; updateCount(); }
+        function clearAll() {
+            strings.forEach(teardownBow);
+            dots = []; strings = []; pull = null; touchBowHold = null;
+            updateCount();
+        }
         undoBtn.addEventListener('click', undo);
         clearBtn.addEventListener('click', clearAll);
 
@@ -666,31 +886,103 @@
             return true;
         }
         function drawString(s, a, b, now) {
+            var T = TYPES[s.type] || TYPES.guitar;
             var el = s.vibStart ? (now - s.vibStart) / 1000 : 99;
             var vibrating = el < 1.4 && s.vibAmp > 0;
+            var bowSnd = T.voice === 'bow' && s.sounding;
+            var lenPx = dist(a, b);
+            var nx = -(b.y - a.y) / (lenPx || 1), ny = (b.x - a.x) / (lenPx || 1);
             ctx.save();
-            ctx.strokeStyle = rgba(s.rgb, vibrating ? 0.95 : 0.8);
-            ctx.lineWidth = vibrating ? 3 : 2.5;
+            ctx.strokeStyle = rgba(s.rgb, (vibrating || bowSnd) ? 0.95 : 0.8);
+            ctx.lineWidth = T.width + (vibrating ? 0.5 : 0);
             ctx.shadowColor = rgba(s.rgb, 0.9);
-            ctx.shadowBlur = vibrating ? 18 : 11;
+            ctx.shadowBlur = s.type === 'harp' ? (vibrating ? 24 : 16) : (vibrating || bowSnd) ? 18 : 11;
             ctx.beginPath();
-            if (vibrating && !reduceMotion) {
-                var lenPx = dist(a, b);
+            if (bowSnd && !reduceMotion) {
+                // A bowed string shimmers for as long as it sounds:
+                // a small, steady shimmer that never decays away.
+                var ampB = Math.min(5, lenPx * 0.018) + 1.2;
+                var phaseB = 2 * Math.PI * 8.5 * (now / 1000);
+                var STEPSB = 22;
+                for (var i = 0; i <= STEPSB; i++) {
+                    var uB = i / STEPSB;
+                    var offB = ampB * Math.sin(Math.PI * uB) * Math.sin(phaseB - uB * 2.2);
+                    var xB = a.x + (b.x - a.x) * uB + nx * offB;
+                    var yB = a.y + (b.y - a.y) * uB + ny * offB;
+                    if (i === 0) ctx.moveTo(xB, yB); else ctx.lineTo(xB, yB);
+                }
+            } else if (vibrating && !reduceMotion) {
                 var env = Math.exp(-el * 3.1) * s.vibAmp;
                 var amp = env * Math.min(16, lenPx * 0.07);
                 var visF = Math.max(7, Math.min(16, s.freq / 24));
                 var phase = 2 * Math.PI * visF * el;
-                var nx = -(b.y - a.y) / (lenPx || 1), ny = (b.x - a.x) / (lenPx || 1);
                 var STEPS = 22;
-                for (var i = 0; i <= STEPS; i++) {
-                    var u = i / STEPS;
+                for (var j = 0; j <= STEPS; j++) {
+                    var u = j / STEPS;
                     var off = amp * Math.sin(Math.PI * u) * Math.sin(phase);
                     var x = a.x + (b.x - a.x) * u + nx * off;
                     var y = a.y + (b.y - a.y) * u + ny * off;
-                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                 }
             } else {
                 ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+            }
+            ctx.stroke();
+            // The violin's shimmer rides as a bright highlight line.
+            if (bowSnd && s.type === 'violin' && !reduceMotion) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 0.8;
+                ctx.shadowBlur = 6;
+                ctx.beginPath();
+                var phaseV = 2 * Math.PI * 8.5 * (now / 1000) + 0.9;
+                var ampV = Math.min(5, lenPx * 0.018) + 1.2;
+                for (var k = 0; k <= 22; k++) {
+                    var uV = k / 22;
+                    var offV = ampV * Math.sin(Math.PI * uV) * Math.sin(phaseV - uV * 2.2);
+                    var xV = a.x + (b.x - a.x) * uV + nx * offV + nx * 1.4;
+                    var yV = a.y + (b.y - a.y) * uV + ny * offV + ny * 1.4;
+                    if (k === 0) ctx.moveTo(xV, yV); else ctx.lineTo(xV, yV);
+                }
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+        // The medallion at a string's pinned end: a disc in the
+        // instrument's own metal, bearing its glyph — guitar's two
+        // body curves, the violin's f-hole S (the cello wears the
+        // same S, larger, in copper), the harp's triangle. Drawn
+        // over the plain dot, so a placed string announces its
+        // instrument before it ever sounds.
+        function drawMedallion(p, type) {
+            var T = TYPES[type] || TYPES.guitar;
+            var r = T.medR;
+            ctx.save();
+            ctx.shadowColor = rgba(T.rgb, 0.85);
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = rgba(T.rgb, 0.96);
+            ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(10,8,4,0.35)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(p.x, p.y, r - 0.5, 0, 7); ctx.stroke();
+            ctx.strokeStyle = type === 'cello' ? 'rgba(255,238,214,0.92)' : 'rgba(22,16,8,0.88)';
+            ctx.lineWidth = type === 'cello' ? 1.9 : 1.6;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            if (type === 'guitar') {
+                ctx.arc(p.x, p.y - r * 0.30, r * 0.30, 0, 7);
+                ctx.moveTo(p.x + r * 0.44, p.y + r * 0.30);
+                ctx.arc(p.x, p.y + r * 0.30, r * 0.44, 0, 7);
+            } else if (type === 'harp') {
+                ctx.moveTo(p.x - r * 0.48, p.y + r * 0.58);
+                ctx.lineTo(p.x - r * 0.48, p.y - r * 0.58);
+                ctx.quadraticCurveTo(p.x + r * 0.42, p.y - r * 0.52, p.x + r * 0.48, p.y + r * 0.58);
+                ctx.moveTo(p.x - r * 0.18, p.y + r * 0.58);
+                ctx.lineTo(p.x - r * 0.18, p.y - r * 0.58);
+            } else {
+                // violin + cello: the f-hole S-curve
+                ctx.moveTo(p.x + r * 0.28, p.y - r * 0.52);
+                ctx.bezierCurveTo(p.x - r * 0.42, p.y - r * 0.30, p.x + r * 0.42, p.y + r * 0.30, p.x - r * 0.28, p.y + r * 0.52);
             }
             ctx.stroke();
             ctx.restore();
@@ -761,9 +1053,22 @@
             var drewVideo = mode === 'camera' && drawVideo();
             if (!drewVideo) drawBackdrop(now);
             var i;
+            // Bow maintenance: a bowed string sounds while touches
+            // keep landing on it (crossings, rests, a held tap) and
+            // falls silent shortly after the last one.
+            if (touchBowHold) touchBowHold.lastTouch = now;
+            for (i = 0; i < strings.length; i++) {
+                var bs = strings[i];
+                if (TYPES[bs.type].voice !== 'bow') continue;
+                var snd = !!(bs.lastTouch && now - bs.lastTouch < 140);
+                if (snd && !bs.bowOn) bowStart(bs);
+                if (!snd && bs.bowOn) bowStop(bs);
+                bs.sounding = snd;
+            }
             for (i = 0; i < strings.length; i++) drawString(strings[i], toPx(dots[i]), toPx(dots[i + 1]), now);
             if (dots.length && pull) drawLiveThread(toPx(dots[dots.length - 1]), toPx(pull));
             for (i = 0; i < dots.length; i++) drawDot(toPx(dots[i]));
+            for (i = 0; i < strings.length; i++) drawMedallion(toPx(dots[i]), strings[i].type);
             if (mode === 'camera') {
                 for (var k in handsNow) drawCursor(handsNow[k].tipPx, HAND_COLORS[k] || '#fff', handsNow[k].grip || 0);
             } else if (mode === 'touch' && touchGesture === 'pull' && pull) {
@@ -809,6 +1114,7 @@
 
         // ---- touch mode ----
         var touchGesture = null;        // null | 'pull' | 'pluck'
+        var touchBowHold = null;        // bowed string held by the touch pointer
         var touchPlacedFirst = false;
         var touchDownPx = null, touchPrev = null;
         function evtFrac(e) {
@@ -824,10 +1130,12 @@
             var f = evtFrac(e), p = toPx(f), now = performance.now();
             touchPrev = { px: p, t: now };
             touchDownPx = p;
-            // A tap directly on a string plucks it — and only plucks.
+            // A tap directly on a string strikes it — and only that.
+            // A bowed string keeps sounding while the touch holds it.
             for (var i = 0; i < strings.length; i++) {
                 if (distToSeg(p, toPx(dots[i]), toPx(dots[i + 1])) <= 13) {
-                    pluck(strings[i], 0.8);
+                    strike(strings[i], 0.8);
+                    if (TYPES[strings[i].type].voice === 'bow') touchBowHold = strings[i];
                     touchGesture = 'pluck';
                     return;
                 }
@@ -847,6 +1155,11 @@
                 if (dt > 0.005) tryPluck(touchPrev.px, p, dist(touchPrev.px, p) / dt);
                 touchPrev = { px: p, t: now };
             }
+            // Resting on a bowed string keeps the bow on it.
+            for (var i = 0; i < strings.length; i++) {
+                var s = strings[i];
+                if (TYPES[s.type].voice === 'bow' && distToSeg(p, toPx(dots[i]), toPx(dots[i + 1])) <= 14) s.lastTouch = now;
+            }
         });
         function touchEnd(e) {
             if (mode !== 'touch' || !touchGesture) return;
@@ -855,7 +1168,7 @@
                 if (!touchPlacedFirst || moved > 6) placeDot(pull);
                 pull = null;
             }
-            touchGesture = null; touchPrev = null; touchPlacedFirst = false;
+            touchGesture = null; touchPrev = null; touchPlacedFirst = false; touchBowHold = null;
             updateHint();
         }
         canvas.addEventListener('pointerup', touchEnd);
@@ -932,6 +1245,12 @@
                         var sp = dist(g.tipPx, tipPx) / dt;
                         if (sp > 150) tryPluck(g.tipPx, tipPx, sp);
                     }
+                    // Resting on a bowed string keeps the bow on it:
+                    // a held note, not just a passing sweep.
+                    for (var bi = 0; bi < strings.length; bi++) {
+                        var bs = strings[bi];
+                        if (TYPES[bs.type].voice === 'bow' && distToSeg(tipPx, toPx(dots[bi]), toPx(dots[bi + 1])) <= 14) bs.lastTouch = now;
+                    }
                 }
                 if (!g.held) {
                     g.onN = pinchD < PINCH_ON ? g.onN + 1 : 0;
@@ -1004,6 +1323,7 @@
             mode = 'touch';
             startOverlay.hidden = true;
             controlsEl.hidden = false;
+            pickerEl.hidden = false;
             hintEl.hidden = false;
             startLoop();
             if (reason === 'denied') showNote('No camera here — touch mode. Tap to place a dot, drag to pull, release to pin.');
@@ -1038,6 +1358,7 @@
                 mode = 'camera';
                 startOverlay.hidden = true;
                 controlsEl.hidden = false;
+                pickerEl.hidden = false;
                 hintEl.hidden = false;
                 pumpOn = true;
                 pump();
@@ -1104,11 +1425,16 @@
             dots: function () { return dots.map(function (d) { return { x: d.x, y: d.y }; }); },
             strings: function () {
                 return strings.map(function (s, i) {
-                    return { freq: s.freq, name: s.name, lenPx: s.lenPx,
+                    return { freq: s.freq, name: s.name, type: s.type, rgb: s.rgb.slice(),
+                             width: (TYPES[s.type] || TYPES.guitar).width, lenPx: s.lenPx,
+                             sounding: !!s.sounding, bowOn: !!s.bowOn,
                              a: { x: dots[i].x, y: dots[i].y }, b: { x: dots[i + 1].x, y: dots[i + 1].y },
                              vibAge: s.vibStart ? performance.now() - s.vibStart : -1, vibAmp: s.vibAmp };
                 });
             },
+            picker: function () { return currentType; },
+            setType: function (t) { setType(t); },
+            audioLevel: function () { return audioLevel(); },
             plucks: function () { return pluckLog.slice(); },
             mirror: function () { return mirror; },
             facing: function () { return facingMode; },
