@@ -654,19 +654,24 @@
     .combiner-bands th { color: var(--subtext-color); font-weight: 600; }
     .combiner-bands td:first-child { font-weight: 700; }
     /* Pairing selection (2026-11-22): the reading view's Pairs well with
-       entry is a selection, not three actions — radio rows in the
-       vitamin-pick idiom (native input, accent-color link blue) name
-       the dish you're viewing, the dish it offers, or both; one Cook
-       button under the rows cooks the selection. The cook view answers
+       entry is a selection, not three actions — one framed group (the
+       page's card perimeter: 1px border, 12px radius) holds a Cook
+       button on top and three radio rows under it in the vitamin-pick
+       idiom (native input, accent-color link blue), naming the dish
+       you're viewing, the dish it offers, or both. The button names its
+       object and rewrites itself live with the selection ("Cook both
+       dishes" / "Cook <dish>"), in the filled link blue of the cook
+       view's own pair button, so the group reads as one control: the
+       action first, the refinement under it. The cook view answers
        a lone dish that has a pairing with one slim row under its head. */
-    .pair-pick { display: flex; flex-direction: column; gap: 6px; margin-top: 0.5rem; }
+    .pair-pick { display: flex; flex-direction: column; gap: 6px; margin-top: 0.5rem; padding: 10px; border: 1px solid var(--border-color); border-radius: 12px; }
     .pair-pick-row { display: flex; align-items: flex-start; gap: 0.45rem; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; }
     .pair-pick-row input { accent-color: var(--link-color); width: 1.05rem; height: 1.05rem; flex: none; margin: 0.1rem 0 0; cursor: pointer; }
     .pair-pick-name { font-size: 0.82rem; font-weight: 600; color: var(--subtext-color); line-height: 1.3; min-width: 0; }
     .pair-pick-row:has(> input:checked) { border-color: var(--link-color); }
     .pair-pick-row:has(> input:checked) .pair-pick-name { color: var(--text-color); font-weight: 700; }
-    .pair-pick .pair-cook-btn { align-self: flex-start; margin-top: 2px; }
-    .pair-cook-btn { font-size: 0.75rem; font-weight: 700; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--glass-bg-solid); color: var(--text-color); cursor: pointer; white-space: nowrap; }
+    .pair-pick .pair-cook-btn { width: 100%; box-sizing: border-box; }
+    .pair-cook-btn { font-size: 0.75rem; font-weight: 700; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--link-color); background: var(--link-color); color: #fff; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
     #cookPairRow { flex: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.9rem; font-size: 0.85rem; color: var(--text-color); }
     #cookPairRow[hidden] { display: none; }
     #cookPairRow .cook-pair-label { flex: 1 1 auto; min-width: 0; }
@@ -8454,10 +8459,10 @@
             if (withActions) {
                 var g = 'pairpick-' + recipeId + '-' + p.id;
                 h += '<div class="pair-pick" role="radiogroup" aria-label="Choose what to cook">' +
+                    '<button type="button" class="pair-cook-btn" data-pair-cook-go data-host="' + esc(recipeId) + '" data-pair="' + esc(p.id) + '" data-host-name="' + esc(hostName) + '" data-pair-name="' + esc(name) + '">Cook both dishes</button>' +
                     '<label class="pair-pick-row"><input type="radio" name="' + esc(g) + '" value="host"><span class="pair-pick-name">' + esc(hostName) + '</span></label>' +
                     '<label class="pair-pick-row"><input type="radio" name="' + esc(g) + '" value="pair"><span class="pair-pick-name">' + esc(name) + '</span></label>' +
-                    '<label class="pair-pick-row"><input type="radio" name="' + esc(g) + '" value="both" checked><span class="pair-pick-name">Both dishes</span></label>' +
-                    '<button type="button" class="pair-cook-btn" data-pair-cook-go data-host="' + esc(recipeId) + '" data-pair="' + esc(p.id) + '">Cook</button></div>';
+                    '<label class="pair-pick-row"><input type="radio" name="' + esc(g) + '" value="both" checked><span class="pair-pick-name">Both dishes</span></label></div>';
             }
         });
         return h + '</div>';
@@ -8527,6 +8532,27 @@
         RECIPES.forEach(function (x) { if (x.id === recipeId) r = x; });
         return r ? r.name : recipeId;
     };
+    /* The framed group's Cook button names its object: it rewrites
+       itself live with the group's selection, from the same dish names
+       the rows carry (stored on the button at render). The cook script's
+       reset calls the window hook, so a re-opened card returns the
+       button to "Cook both dishes" together with its rows. */
+    function syncPairCookLabel(group) {
+        var btn = group ? group.querySelector('[data-pair-cook-go]') : null;
+        if (!btn) return;
+        var sel = group.querySelector('input[type="radio"]:checked');
+        var what = sel ? sel.value : 'both';
+        var txt = what === 'host' ? 'Cook ' + (btn.getAttribute('data-host-name') || '')
+            : what === 'pair' ? 'Cook ' + (btn.getAttribute('data-pair-name') || '')
+            : 'Cook both dishes';
+        if (btn.textContent !== txt) btn.textContent = txt;
+    }
+    window.__jboSyncPairLabel = syncPairCookLabel;
+    document.addEventListener('change', function (ev) {
+        var t = ev.target;
+        var g = t && t.closest ? t.closest('.pair-pick') : null;
+        if (g) syncPairCookLabel(g);
+    });
     function renderAllPanels() {
         RECIPES.forEach(function (r) {
             if (panelWraps[r.id]) panelWraps[r.id].innerHTML = panelHTML(r.id);
@@ -12453,8 +12479,9 @@
         /* ---- Pairing selection (2026-11-22) ----
            The reading view's Pairs well with entry is a selection:
            radio rows name the dish you're viewing, the dish it offers,
-           or both (the default), and one Cook button cooks the
-           selection. The cook view answers a lone dish with one slim
+           or both (the default), and one Cook button at the top of the
+           framed group cooks the selection, naming its object — the
+           selected dish, or both dishes. The cook view answers a lone dish with one slim
            row under its head naming the other dish of its pairing —
            for a dish cooked alone out of a pairing block, that is the
            block's host, which the session context remembers (the
@@ -12539,6 +12566,7 @@
             scope.querySelectorAll('.pair-pick').forEach(function (g) {
                 var both = g.querySelector('input[type="radio"][value="both"]');
                 if (both) both.checked = true;
+                if (window.__jboSyncPairLabel) window.__jboSyncPairLabel(g);
             });
         }
         document.addEventListener('click', function (e) {
