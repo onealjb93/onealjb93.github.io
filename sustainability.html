@@ -105,26 +105,48 @@
        One photo is also re-aimed: the Rouge living roof sits low in its
        frame under a wide sky, so its crop leans down at desktop width. */
     @media (max-width: 640px) {.example-photo-pair { grid-template-columns: 1fr 1fr; }.example-photo img { aspect-ratio: auto; height: auto; }.example-photo-half img { aspect-ratio: auto; cursor: pointer; }
-    }.example-photo img.crop-low { object-position: 50% 65%; }.example-photo img.crop-high { object-position: 50% 35%; }/* Photo viewer (2026-11-17): a pair photo tapped on a phone opens
-       here — the site's glass standard (glass-scrim over the dimmed,
-       blurred page, glass-bubble floating inside it, safe-area insets),
-       full frame plus the figure's own caption. Tokens only. */
+    }.example-photo img.crop-low { object-position: 50% 65%; }.example-photo img.crop-high { object-position: 50% 35%; }/* Photo viewer (2026-11-17; pair track + zoom 2026-11-22): a case
+       photo tapped in an open case opens here — the site's glass standard
+       (glass-scrim over the dimmed, blurred page, glass-bubbles floating
+       inside it, safe-area insets), full frame plus the figure's own
+       caption. A pair opens as TWO bubbles on a swipe track, each bubble
+       narrower than the screen so the next peeks at the edge — the shape
+       itself says swipe (the glass popup standard for side-by-side
+       panels). Every photo pinch-zooms inside its own bubble (the Random
+       viewer's gesture contract: pinch zooms, one finger swipes between
+       bubbles at rest size and pans once zoomed, double-tap toggles the
+       zoom). Tokens only. */
     .photo-viewer {
         position: fixed; inset: 0; z-index: 1500;
-        display: flex; align-items: center; justify-content: center;
-        padding: 1rem;
-        padding-top: max(1rem, env(safe-area-inset-top));
-        padding-bottom: max(1rem, env(safe-area-inset-bottom));
-    }.photo-viewer[hidden] { display: none; }.photo-viewer-bubble { position: relative; margin: 0; width: 100%; max-width: 600px; padding: 0.75rem; }.photo-viewer-media { position: relative; }.photo-viewer-media img {
-        display: block; width: 100%; height: auto; max-height: 72vh;
+        display: flex; align-items: center;
+        padding-top: max(0.5rem, env(safe-area-inset-top));
+        padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+    }.photo-viewer[hidden] { display: none; }
+    .photo-viewer-track {
+        display: flex; align-items: center; gap: 0.75rem;
+        width: 100%; max-height: 100%;
+        overflow-x: auto; overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        padding-left: calc(50vw - min(300px, 43vw));
+        padding-right: calc(50vw - min(300px, 43vw));
+        scrollbar-width: none; touch-action: pan-x;
+    }.photo-viewer-track::-webkit-scrollbar { display: none; }
+    .photo-viewer-track.pv-no-snap { scroll-snap-type: none; }
+    .photo-viewer-bubble { position: relative; margin: 0; flex: 0 0 min(600px, 86vw); max-height: 100%; overflow-y: auto; scroll-snap-align: center; padding: 0.75rem; }
+    .photo-viewer-media { position: relative; overflow: hidden; border-radius: 12px; touch-action: none; }
+    .photo-viewer-media img {
+        display: block; width: 100%; height: auto; max-height: 66vh;
         object-fit: contain; border-radius: 12px;
+        transform-origin: 50% 50%; will-change: transform;
+        -webkit-user-drag: none; user-select: none; -webkit-user-select: none;
     }.photo-viewer figcaption { margin-top: 0.5rem; font-size: 0.78rem; color: var(--subtext-color); }.photo-viewer figcaption a { color: inherit; text-decoration: underline; }.photo-viewer-close {
-        position: absolute; top: 0.4rem; right: 0.4rem;
-        width: 2.25rem; height: 2.25rem; border-radius: 999px;
+        position: absolute; top: max(0.6rem, env(safe-area-inset-top)); right: 0.6rem; z-index: 2;
+        width: 2.75rem; height: 2.75rem; border-radius: 999px;
         border: 1px solid var(--border-color); background: var(--card-bg);
         color: var(--text-color); font-size: 1.25rem; line-height: 1;
         cursor: pointer;
-    }/* Show the loop (2026-11-16): the page opens by showing its idea —
+    }body.pv-locked { position: fixed; left: 0; right: 0; width: 100%; }
+    .loop-figure img { cursor: pointer; }/* Show the loop (2026-11-16): the page opens by showing its idea —
        a line vs. a loop — before the frameworks list it. Panels reuse the
        card grammar; the SVGs are theme-aware through the CSS variables. */
     .loop-figure {
@@ -2704,15 +2726,285 @@ function boot() {
 </script>
 
 <div class="photo-viewer glass-scrim" id="photoViewer" hidden role="dialog" aria-modal="true" aria-label="Photo, full size">
-    <figure class="photo-viewer-bubble glass-bubble">
-        <div class="photo-viewer-media">
-            <img id="photoViewerImg" src="" alt="">
-            <span class="example-photo-tag" id="photoViewerTag" hidden></span>
-        </div>
-        <figcaption id="photoViewerCaption"></figcaption>
-        <button type="button" class="photo-viewer-close" id="photoViewerClose" aria-label="Close photo">&times;</button>
-    </figure>
+    <div class="photo-viewer-track" id="photoViewerTrack"></div>
+    <button type="button" class="photo-viewer-close" id="photoViewerClose" aria-label="Close photo">&times;</button>
 </div>
+<script>
+    // ---- Case photo viewer (2026-11-22) ----
+    // A photo tapped inside an OPEN case opens here, in the site's glass
+    // viewer. A pair opens as two bubbles on a swipe track — each bubble
+    // narrower than the screen so the next peeks at the edge — and every
+    // photo pinch-zooms inside its own bubble (the Random viewer's
+    // gesture contract, carried to a multi-bubble track: pinch zooms,
+    // one finger swipes between bubbles at rest size and pans once
+    // zoomed, double-tap toggles the zoom). A tap on a CLOSED case's
+    // face still opens the case — the toggle handler below owns it;
+    // this wiring only intercepts taps inside a case that is already
+    // open (capture phase, so the toggle never sees them). Captions and
+    // tags are the page's own words, read from the tapped figure.
+    (function () {
+        var viewer = document.getElementById('photoViewer');
+        var track = document.getElementById('photoViewerTrack');
+        var closeBtn = document.getElementById('photoViewerClose');
+        if (!viewer || !track || !closeBtn) return;
+        var savedY = 0;
+
+        // The viewer loads the largest rendition of the same image: a
+        // Wikimedia thumb widens to 2560px; any other source already
+        // serves its full frame. A widened thumb that does not exist
+        // (original smaller than the request) falls back to the in-flow
+        // rendition.
+        function bigSrc(src) {
+            var m = /^(.+\/)(\d+)px-([^\/]+)$/.exec(src || '');
+            if (m && src.indexOf('thumb.wikimedia.org') >= 0 && parseInt(m[2], 10) < 2560) {
+                return m[1] + '2560px-' + m[3];
+            }
+            return src;
+        }
+
+        function groupFor(container) {
+            var items = [];
+            container.querySelectorAll('.face-half').forEach(function (half) {
+                var img = half.querySelector('img');
+                if (!img) return;
+                var tag = half.querySelector('.example-photo-tag');
+                items.push({ src: img.getAttribute('src') || '', alt: img.getAttribute('alt') || '', tag: tag ? tag.textContent : '' });
+            });
+            var cap = container.querySelector('.face-caption');
+            return { items: items, caption: cap ? cap.textContent : '' };
+        }
+
+        // The scroll offset that centres bubble i in the track, measured
+        // from live rects so it agrees with scroll-snap's own centring.
+        function bubbleLeft(i) {
+            var b = track.children[i];
+            if (!b) return 0;
+            var tr = track.getBoundingClientRect(), br = b.getBoundingClientRect();
+            return track.scrollLeft + (br.left + br.width / 2) - (tr.left + tr.width / 2);
+        }
+        function scrollToBubble(i, smooth) {
+            track.scrollTo({ left: Math.max(0, bubbleLeft(i)), behavior: smooth ? 'smooth' : 'auto' });
+        }
+
+        function attachGestures(media, img) {
+            var st = { s: 1, tx: 0, ty: 0 };
+            var pointers = new Map();
+            var drag = null, pinch = null, lastTap = null;
+            function apply(anim) {
+                img.style.transition = anim ? 'transform 0.18s ease-out' : '';
+                img.style.transform = 'translate(' + st.tx + 'px, ' + st.ty + 'px) scale(' + st.s + ')';
+                var zoomed = st.s > 1.01;
+                track.classList.toggle('pv-no-snap', zoomed || !!drag);
+                track.style.overflowX = zoomed ? 'hidden' : '';
+            }
+            function clampPan() {
+                var maxX = Math.max(0, (img.clientWidth * st.s - media.clientWidth) / 2);
+                var maxY = Math.max(0, (img.clientHeight * st.s - media.clientHeight) / 2);
+                st.tx = Math.min(maxX, Math.max(-maxX, st.tx));
+                st.ty = Math.min(maxY, Math.max(-maxY, st.ty));
+            }
+            function centre() { return { x: img.clientWidth / 2, y: img.clientHeight / 2 }; }
+            // Content point q (element coords) currently under screen point p:
+            function contentUnder(p) {
+                var c = centre();
+                return { x: c.x + (p.x - c.x - st.tx) / st.s, y: c.y + (p.y - c.y - st.ty) / st.s };
+            }
+            // Place content point q under screen point p at scale s:
+            function place(q, p, s) {
+                var c = centre();
+                st.tx = p.x - c.x - s * (q.x - c.x);
+                st.ty = p.y - c.y - s * (q.y - c.y);
+                st.s = s;
+            }
+            function relXY(x, y) {
+                var r = media.getBoundingClientRect();
+                return { x: x - r.left, y: y - r.top };
+            }
+            function rel(e) { return relXY(e.clientX, e.clientY); }
+            media.addEventListener('pointerdown', function (e) {
+                e.preventDefault();
+                try { media.setPointerCapture(e.pointerId); } catch (err) { }
+                pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (pointers.size === 2) {
+                    var pts = Array.from(pointers.values());
+                    var a = relXY(pts[0].x, pts[0].y), b = relXY(pts[1].x, pts[1].y);
+                    var mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+                    pinch = { d0: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), s0: st.s, q: contentUnder(mid) };
+                    drag = null;
+                } else if (pointers.size === 1) {
+                    drag = { x: e.clientX, y: e.clientY, tx: st.tx, ty: st.ty, sl: track.scrollLeft, moved: 0, t: Date.now() };
+                    pinch = null;
+                }
+                apply(false);
+            });
+            media.addEventListener('pointermove', function (e) {
+                if (!pointers.has(e.pointerId)) return;
+                pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (pinch && pointers.size === 2) {
+                    var pts = Array.from(pointers.values());
+                    var a = relXY(pts[0].x, pts[0].y), b = relXY(pts[1].x, pts[1].y);
+                    var mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+                    var d = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+                    var s = Math.min(4, Math.max(1, pinch.s0 * (d / pinch.d0)));
+                    place(pinch.q, mid, s);
+                    clampPan();
+                    apply(false);
+                } else if (drag && pointers.size === 1) {
+                    var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+                    drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
+                    if (st.s > 1.01) {
+                        st.tx = drag.tx + dx; st.ty = drag.ty + dy;
+                        clampPan();
+                    } else {
+                        track.scrollLeft = drag.sl - dx;
+                    }
+                    apply(false);
+                }
+            });
+            function endPointer(e) {
+                var wasPinch = !!pinch;
+                pointers.delete(e.pointerId);
+                if (pointers.size < 2) pinch = null;
+                if (pointers.size === 0) {
+                    if (wasPinch) {
+                        // a pinch that ends at rest size resets exactly
+                        if (st.s <= 1.02) { st.s = 1; st.tx = 0; st.ty = 0; }
+                    } else if (drag) {
+                        var quick = Date.now() - drag.t < 260 && drag.moved < 8;
+                        if (quick) {
+                            var now = Date.now();
+                            var p = rel(e);
+                            if (lastTap && now - lastTap.t < 350 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 44) {
+                                if (st.s > 1.01) { st.s = 1; st.tx = 0; st.ty = 0; }
+                                else { place(contentUnder(p), p, 2.5); clampPan(); }
+                                apply(true);
+                                lastTap = null;
+                            } else {
+                                lastTap = { t: now, x: p.x, y: p.y };
+                            }
+                        } else if (st.s <= 1.01) {
+                            // a swipe settles on the nearest bubble
+                            var idx = 0, best = Infinity;
+                            for (var i = 0; i < track.children.length; i++) {
+                                var dd = Math.abs(track.scrollLeft - bubbleLeft(i));
+                                if (dd < best) { best = dd; idx = i; }
+                            }
+                            scrollToBubble(idx, true);
+                        }
+                    }
+                    drag = null;
+                    apply(false);
+                }
+            }
+            media.addEventListener('pointerup', endPointer);
+            media.addEventListener('pointercancel', endPointer);
+            media.addEventListener('wheel', function (e) {
+                e.preventDefault();
+                var p = rel(e);
+                var q = contentUnder(p);
+                var s = Math.min(4, Math.max(1, st.s * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+                place(q, p, s);
+                if (st.s <= 1.02) { st.s = 1; st.tx = 0; st.ty = 0; }
+                clampPan();
+                apply(false);
+            }, { passive: false });
+            img.addEventListener('load', function () { clampPan(); apply(false); });
+        }
+
+        function openViewer(group, index) {
+            track.innerHTML = '';
+            group.items.forEach(function (item) {
+                var fig = document.createElement('figure');
+                fig.className = 'photo-viewer-bubble glass-bubble';
+                var media = document.createElement('div');
+                media.className = 'photo-viewer-media';
+                var img = document.createElement('img');
+                var big = bigSrc(item.src);
+                img.alt = item.alt;
+                if (big !== item.src) {
+                    img.addEventListener('error', function h() {
+                        img.removeEventListener('error', h);
+                        img.src = item.src;
+                    });
+                }
+                img.src = big;
+                media.appendChild(img);
+                if (item.tag) {
+                    var t = document.createElement('span');
+                    t.className = 'example-photo-tag';
+                    t.textContent = item.tag;
+                    media.appendChild(t);
+                }
+                fig.appendChild(media);
+                var capText = group.caption || item.alt;
+                if (capText) {
+                    var fc = document.createElement('figcaption');
+                    fc.textContent = capText;
+                    fig.appendChild(fc);
+                }
+                track.appendChild(fig);
+                attachGestures(media, img);
+            });
+            savedY = window.scrollY || window.pageYOffset || 0;
+            document.body.style.top = (-savedY) + 'px';
+            document.body.classList.add('pv-locked');
+            viewer.hidden = false;
+            track.scrollLeft = 0;
+            if (index > 0) requestAnimationFrame(function () { scrollToBubble(index, false); });
+            if (closeBtn.focus) closeBtn.focus({ preventScroll: true });
+        }
+
+        function closeViewer() {
+            if (viewer.hidden) return;
+            viewer.hidden = true;
+            track.innerHTML = '';
+            track.classList.remove('pv-no-snap');
+            track.style.overflowX = '';
+            document.body.classList.remove('pv-locked');
+            document.body.style.top = '';
+            var y = savedY;
+            function restore() { window.scrollTo(0, y); }
+            restore();
+            requestAnimationFrame(restore);
+            setTimeout(restore, 120);
+        }
+
+        closeBtn.addEventListener('click', closeViewer);
+        viewer.addEventListener('click', function (e) {
+            if (e.target === viewer || e.target === track) closeViewer();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (!viewer.hidden && (e.key === 'Escape' || e.key === 'Esc')) closeViewer();
+        });
+
+        document.querySelectorAll('[data-face-photo]').forEach(function (ph) {
+            ph.addEventListener('click', function (e) {
+                // the case's card is the explainer-card inside this
+                // photo's own wrapper (the photos sit in the wrapper,
+                // before the toggle — not inside the card itself)
+                var wrap = ph.closest('.explainer-wrapper');
+                var card = wrap ? wrap.querySelector(':scope > .explainer-card') : null;
+                if (!card || !card.classList.contains('active')) return; // closed case: the toggle owns the tap
+                var half = e.target.closest ? e.target.closest('.face-half') : null;
+                if (!half || !ph.contains(half)) return;
+                var halves = Array.prototype.slice.call(ph.querySelectorAll('.face-half'));
+                var g = groupFor(ph);
+                if (!g.items.length) return;
+                e.preventDefault();
+                e.stopPropagation();
+                openViewer(g, Math.max(0, halves.indexOf(half)));
+            }, true);
+        });
+
+        // The Regen Ag loop figure is a framework diagram, not a case
+        // photo; it opens alone so its labels can be read up close.
+        document.querySelectorAll('.loop-figure img').forEach(function (img) {
+            img.addEventListener('click', function () {
+                openViewer({ items: [{ src: img.getAttribute('src') || '', alt: img.getAttribute('alt') || '', tag: '' }], caption: '' }, 0);
+            });
+        });
+    })();
+</script>
 
 <div class="sus-nav-drop" id="susNavDrop" hidden>
         <nav class="sus-nav-list" aria-label="Sections">
