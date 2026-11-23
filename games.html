@@ -741,7 +741,7 @@
             display: flex; flex-direction: column;
         }
         .fg-stage {
-            position: relative; height: clamp(300px, 54vh, 500px);
+            position: relative; height: clamp(260px, 40vh, 420px);
             background: radial-gradient(120% 90% at 50% 30%, #14161b 0%, #0a0b0d 62%, #060708 100%);
             touch-action: none; cursor: grab; overflow: hidden;
         }
@@ -892,6 +892,67 @@
         .fg-info-close { min-height: 40px; padding: 6px 14px; flex: 0 0 auto; }
         @media (prefers-reduced-motion: reduce) {
             .fg-slot canvas { transition: none; }
+        }
+
+        /* Frequency Generator — integration pass (2026-11-22). The rig
+           is ONE block: the plate, its own control deck fused directly
+           under it (the big readout and the play button live with the
+           plate; one stepper pair flanks the readout — a tap steps a
+           tenth of a hertz, a hold repeats and the step grows), then
+           the slider, ONE preset rail, and the found-figures rail —
+           the whole game fits a phone screen with no scrolling. */
+        .fg-deck {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 10px;
+            background: #101216;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .fg-deck .fg-freq-wrap { flex: 1 1 auto; justify-content: center; min-width: 0; }
+        .fg-deck .fg-freq-input { min-width: 0; width: 5.6ch; font-size: 1.55rem; }
+        .fg-deck .fg-play { flex: 0 0 auto; padding: 10px 16px; font-size: 0.95rem; }
+        .fg-step {
+            flex: 0 0 auto; width: 42px; min-height: 44px; padding: 0;
+            font-size: 1.4rem; line-height: 1; text-align: center;
+            touch-action: manipulation; user-select: none; -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        .fg-panel { padding: 8px 12px 10px; gap: 7px; }
+        .fg-slider { height: 28px; }
+        .fg-ticks { top: 20px; }
+        .fg-sacred-row { display: flex; gap: 10px; align-items: flex-start; }
+        .fg-sacred-row .fg-sacred-line { flex: 1 1 auto; min-width: 0; }
+        .fg-rail {
+            display: flex; flex-wrap: nowrap; gap: 8px; align-items: center;
+            overflow-x: auto; overflow-y: hidden; padding: 2px 2px 6px;
+            scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        }
+        .fg-rail::-webkit-scrollbar { display: none; }
+        .fg-rail .fg-chip, .fg-rail .fg-preset { flex: 0 0 auto; }
+        .fg-status { font-size: 0.88rem; min-height: 2.55em; }
+        .fg-about-btn {
+            flex: 0 0 auto; width: auto; height: 32px; border-radius: 999px;
+            padding: 0 13px; font-family: inherit; font-size: 0.82rem; font-style: normal;
+            display: inline-flex; align-items: center; align-self: center;
+        }
+        .fg-sacred-line { font-size: 0.86rem; min-height: 1.45em; }
+        .fg-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+        .fg-fact { display: flex; align-items: baseline; gap: 5px; }
+        .fg-fact small { display: inline; margin-bottom: 0; font-size: 0.64rem; }
+        .fg-fact span { font-size: 0.84rem; }
+        .fg-fact-vol { align-items: center; }
+        .fg-fact-vol label {
+            font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase;
+            color: rgba(233, 230, 220, 0.5);
+        }
+        .fg-fact-vol .fg-vol { flex: 0 0 92px; width: 92px; height: 28px; }
+        .fg-found-rail {
+            flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+            padding: 8px 2px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        }
+        .fg-found-rail::-webkit-scrollbar { display: none; }
+        .fg-found-rail .fg-slot-wrap { flex: 0 0 auto; }
+        @media (max-width: 480px) {
+            .fg-stage { height: clamp(210px, 28vh, 420px); }
         }
 </style>
     <!-- Umami Analytics Script -->
@@ -1269,27 +1330,21 @@
             <div class="fg-stage" id="fg-stage">
                 <div class="fg-loading" id="fg-loading">Setting up the plate…</div>
             </div>
-            <div class="fg-panel">
-                <div class="fg-readout-row">
-                    <div class="fg-freq-wrap">
-                        <input class="fg-freq-input" id="fg-freqInput" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="432.1" aria-label="Frequency in hertz">
-                        <span class="fg-hz">Hz</span>
-                    </div>
-                    <button type="button" class="fg-play" id="fg-play" aria-pressed="false">▶ Play tone</button>
+            <div class="fg-deck">
+                <button type="button" class="fg-step" data-step="-0.1" aria-label="Step the frequency down — tap for a tenth of a hertz, hold for bigger steps">−</button>
+                <div class="fg-freq-wrap">
+                    <input class="fg-freq-input" id="fg-freqInput" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="432.1" aria-label="Frequency in hertz">
+                    <span class="fg-hz">Hz</span>
                 </div>
+                <button type="button" class="fg-step" data-step="0.1" aria-label="Step the frequency up — tap for a tenth of a hertz, hold for bigger steps">+</button>
+                <button type="button" class="fg-play" id="fg-play" aria-pressed="false">▶ Play tone</button>
+            </div>
+            <div class="fg-panel">
                 <div class="fg-slider-wrap">
                 <input class="fg-slider" id="fg-slider" type="range" min="30" max="1500" step="0.1" value="432.1" aria-label="Frequency">
                 <div class="fg-ticks" id="fg-ticks" aria-hidden="true"></div>
                 </div>
-                <div class="fg-step-row" role="group" aria-label="Fine frequency steps">
-                    <button type="button" class="fg-step" data-step="-10">−10</button>
-                    <button type="button" class="fg-step" data-step="-1">−1</button>
-                    <button type="button" class="fg-step" data-step="-0.1">−0.1</button>
-                    <button type="button" class="fg-step" data-step="0.1">+0.1</button>
-                    <button type="button" class="fg-step" data-step="1">+1</button>
-                    <button type="button" class="fg-step" data-step="10">+10</button>
-                </div>
-                <div class="fg-step-row" role="group" aria-label="Presets">
+                <div class="fg-rail" role="group" aria-label="Presets">
                     <button type="button" class="fg-chip" data-freq="432.1"><span class="fg-chip-label">the video's plate</span> 432.1</button>
                     <button type="button" class="fg-chip" data-freq="440"><span class="fg-chip-label">concert A</span> 440.0</button>
                     <button type="button" class="fg-chip" data-freq="65.66"><span class="fg-chip-label">mode 2,0</span> 65.7</button>
@@ -1297,8 +1352,6 @@
                     <button type="button" class="fg-chip" data-freq="471.11"><span class="fg-chip-label">mode 0,2</span> 471.1</button>
                     <button type="button" class="fg-chip" data-freq="732.97"><span class="fg-chip-label">mode 1,2</span> 733.0</button>
                     <button type="button" class="fg-chip" data-freq="1075.35"><span class="fg-chip-label">mode 0,3</span> 1075.4</button>
-                </div>
-                <div class="fg-step-row" role="group" aria-label="Sacred frequencies">
                     <span class="fg-preset"><button type="button" class="fg-chip" data-freq="396" aria-label="396 hertz">396</button><button type="button" class="fg-info-btn" data-info="preset:396" aria-label="About 396 hertz">i</button></span>
                     <span class="fg-preset"><button type="button" class="fg-chip" data-freq="417" aria-label="417 hertz">417</button><button type="button" class="fg-info-btn" data-info="preset:417" aria-label="About 417 hertz">i</button></span>
                     <span class="fg-preset"><button type="button" class="fg-chip" data-freq="432" aria-label="432 hertz">432</button><button type="button" class="fg-info-btn" data-info="preset:432" aria-label="About 432 hertz">i</button></span>
@@ -1308,19 +1361,18 @@
                     <span class="fg-preset"><button type="button" class="fg-chip" data-freq="852" aria-label="852 hertz">852</button><button type="button" class="fg-info-btn" data-info="preset:852" aria-label="About 852 hertz">i</button></span>
                     <span class="fg-preset"><button type="button" class="fg-chip" data-freq="963" aria-label="963 hertz">963</button><button type="button" class="fg-info-btn" data-info="preset:963" aria-label="About 963 hertz">i</button></span>
                 </div>
-                <p class="fg-sacred-line" id="fg-sacredLine"></p>
-                <div class="fg-found-row" id="fg-foundRow" role="group" aria-label="Figures found on this plate"></div>
+                <div class="fg-status" id="fg-status" role="status"></div>
+                <div class="fg-sacred-row">
+                    <p class="fg-sacred-line" id="fg-sacredLine"></p>
+                    <button type="button" class="fg-info-btn fg-about-btn" data-info="about">About the physics</button>
+                </div>
                 <div class="fg-facts">
                     <div class="fg-fact"><small>Nearest note</small><span id="fg-note">—</span></div>
-                    <div class="fg-fact"><small>Wavelength in air, 20 °C</small><span id="fg-wave">—</span></div>
-                    <div class="fg-fact"><small>Nearest plate mode</small><span id="fg-mode">—</span></div>
+                    <div class="fg-fact"><small>Wavelength, 20 °C</small><span id="fg-wave">—</span></div>
+                    <div class="fg-fact"><small>Plate mode</small><span id="fg-mode">—</span></div>
+                    <div class="fg-fact fg-fact-vol"><label for="fg-vol">Volume</label><input class="fg-vol" id="fg-vol" type="range" min="0" max="100" step="1" value="50"></div>
                 </div>
-                <div class="fg-status" id="fg-status" role="status"></div>
-                <div class="fg-vol-row">
-                    <label for="fg-vol">Volume</label>
-                    <input class="fg-vol" id="fg-vol" type="range" min="0" max="100" step="1" value="50">
-                </div>
-                <p class="fg-about">True physics, honestly scaled. The patterns are this plate's real vibration modes, computed from plate theory — but a real plate moves less than a hair's width, hundreds of times a second. The game slows the motion down and stretches its height until the standing wave is visible. Where the still lines fall — the pattern — is the true shape at any scale.</p>
+                <div class="fg-found-row fg-found-rail" id="fg-foundRow" role="group" aria-label="Figures found on this plate"></div>
             </div>
         </div>
         <p class="fg-keys">Drag the plate to turn it · scroll or pinch to zoom · the tone starts only when you press play.</p>
@@ -3297,11 +3349,39 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             if (isFinite(v)) setFreq(Math.round(v * 10) / 10); else syncUI();
         });
         freqInput.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') freqInput.blur(); });
+        // One stepper pair flanks the readout: a tap steps a tenth
+        // of a hertz; holding repeats, and the step grows the
+        // longer the hold (0.1, then 1, then 10) — the six loose
+        // step pills, folded into the pair.
         var steps = root.querySelectorAll('.fg-step');
         for (var si = 0; si < steps.length; si++) {
-            steps[si].addEventListener('click', function () {
-                setFreq(Math.round((freq + parseFloat(this.getAttribute('data-step'))) * 10) / 10);
-            });
+            (function (btn) {
+                var dir = parseFloat(btn.getAttribute('data-step')) < 0 ? -1 : 1;
+                var holdDelay = null, holdRep = null, held = false, downAt = 0;
+                function stepBy(mag) { setFreq(Math.round((freq + dir * mag) * 10) / 10); }
+                function endHold() {
+                    if (holdDelay) { clearTimeout(holdDelay); holdDelay = null; }
+                    if (holdRep) { clearInterval(holdRep); holdRep = null; }
+                }
+                btn.addEventListener('pointerdown', function () {
+                    held = false; downAt = performance.now(); endHold();
+                    holdDelay = setTimeout(function () {
+                        held = true;
+                        holdRep = setInterval(function () {
+                            var t = (performance.now() - downAt) / 1000;
+                            stepBy(t < 1.8 ? 0.1 : (t < 3.2 ? 1 : 10));
+                        }, 70);
+                    }, 380);
+                });
+                btn.addEventListener('pointerup', endHold);
+                btn.addEventListener('pointercancel', endHold);
+                btn.addEventListener('pointerleave', endHold);
+                btn.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+                btn.addEventListener('click', function () {
+                    if (held) { held = false; return; }
+                    stepBy(0.1);
+                });
+            })(steps[si]);
         }
         var chips = root.querySelectorAll('.fg-chip');
         for (var ci = 0; ci < chips.length; ci++) {
@@ -3913,6 +3993,10 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         };
         function infoFor(key) {
             var kind = key.split(':')[0], id = key.split(':')[1];
+            if (kind === 'about') return {
+                title: 'About the physics',
+                body: ['True physics, honestly scaled. The patterns are this plate\'s real vibration modes, computed from plate theory — but a real plate moves less than a hair\'s width, hundreds of times a second. The game slows the motion down and stretches its height until the standing wave is visible. Where the still lines fall — the pattern — is the true shape at any scale.']
+            };
             if (kind === 'preset') {
                 if (id === '432') return {
                     title: '432 Hz — Verdi\'s A',
