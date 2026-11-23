@@ -125,6 +125,7 @@
         .thr-btn:hover { border-color: var(--accent-color); }
         .thr-btn:disabled { opacity: 0.4; cursor: default; }
         .thr-btn:disabled:hover { border-color: var(--border-color); }
+        .thr-btn.thr-on { border-color: var(--accent-color); box-shadow: inset 0 0 0 1px var(--accent-color); }
         .thr-count {
             min-width: 74px;
             text-align: center;
@@ -288,6 +289,7 @@
                 <button class="thr-btn" id="thrUndo" type="button" disabled>↩ Undo</button>
                 <span class="thr-count" id="thrCount" aria-live="polite">0 strings</span>
                 <button class="thr-btn" id="thrClear" type="button" disabled>Clear</button>
+                <button class="thr-btn" id="thrMirror" type="button" aria-pressed="false" hidden>Mirror</button>
             </div>
             <div class="thr-start" id="thrStart">
                 <div class="thr-start-panel">
@@ -330,6 +332,9 @@
     // it, and a tap on a string plucks it too.
     // In a browser the web pins to the VIEW, not the room — there is
     // no world anchoring without WebXR/ARKit.
+    // Mirror mode (the default on the front camera): the camera view,
+    // the web and the hand landmarks all flip horizontally together,
+    // so the player's own left is the screen's left — like a mirror.
     (function () {
         'use strict';
         var stage = document.getElementById('thrStage');
@@ -341,6 +346,7 @@
         var countEl = document.getElementById('thrCount');
         var undoBtn = document.getElementById('thrUndo');
         var clearBtn = document.getElementById('thrClear');
+        var mirrorBtn = document.getElementById('thrMirror');
         var startOverlay = document.getElementById('thrStart');
         var startBtn = document.getElementById('thrStartBtn');
         var touchBtn = document.getElementById('thrTouchBtn');
@@ -364,6 +370,29 @@
         var strings = [];               // {freq, name, rgb, lenPx, vibStart, vibAmp, lastPluck}
         var pull = null;                // live thread endpoint {x, y} fractions, or null
         var pluckLog = [];              // verification record of plucks
+
+        var mirror = false;             // display flip: view + web + landmarks together
+        var facingMode = '';            // active camera's reported facing ('user'|'environment'|'')
+        function setMirror(on) {
+            on = !!on;
+            if (on !== mirror) {
+                mirror = on;
+                // The web hangs on what the camera sees: when the view
+                // flips, every placed dot flips with it, so each string
+                // stays over the same feature of the room. A horizontal
+                // flip preserves lengths, so pitches are untouched.
+                for (var i = 0; i < dots.length; i++) dots[i].x = 1 - dots[i].x;
+                if (pull) pull = { x: 1 - pull.x, y: pull.y };
+                // Fingertip history is stored in the old orientation —
+                // drop the positions (keep pinch state) so no sweep is
+                // ever measured across the flip.
+                for (var k in prevHands) prevHands[k].tipPx = null;
+                handsNow = {};
+            }
+            mirrorBtn.setAttribute('aria-pressed', mirror ? 'true' : 'false');
+            mirrorBtn.classList.toggle('thr-on', mirror);
+        }
+        mirrorBtn.addEventListener('click', function () { setMirror(!mirror); });
 
         // ---- pitch: real string law, snapped to C-major pentatonic ----
         var PENTA_NAMES = ['C4', 'D4', 'E4', 'G4', 'A4', 'C5', 'D5', 'E5', 'G5', 'A5', 'C6'];
@@ -532,7 +561,15 @@
             var dw = vw * scale, dh = vh * scale;
             var ox = (W - dw) / 2, oy = (H - dh) / 2;
             cover = { ox: ox, oy: oy, dw: dw, dh: dh };
-            ctx.drawImage(video, ox, oy, dw, dh);
+            if (mirror) {
+                ctx.save();
+                ctx.translate(W, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(video, ox, oy, dw, dh);
+                ctx.restore();
+            } else {
+                ctx.drawImage(video, ox, oy, dw, dh);
+            }
             ctx.fillStyle = 'rgba(3,6,12,0.18)';
             ctx.fillRect(0, 0, W, H);
             return true;
@@ -707,12 +744,18 @@
                 var label = (hd[i] && hd[i].label) || (i === 0 ? 'Left' : 'Right');
                 var L = lm[i];
                 if (!cover) continue;
-                var tipPx = { x: cover.ox + L[8].x * cover.dw, y: cover.oy + L[8].y * cover.dh };
+                // Mirror mode flips the landmarks at the source, so the
+                // fingertip, the pinch geometry and every crossing are
+                // computed in the same flipped space the player sees.
+                // Distances are flip-invariant: the pinch feel, the
+                // string law and the pluck thresholds are unchanged.
+                var fx = mirror ? function (p) { return 1 - p.x; } : function (p) { return p.x; };
+                var tipPx = { x: cover.ox + fx(L[8]) * cover.dw, y: cover.oy + L[8].y * cover.dh };
                 var tipFrac = { x: tipPx.x / W, y: tipPx.y / H };
-                var tipV = { x: L[8].x * vw, y: L[8].y * vh };
-                var thumbV = { x: L[4].x * vw, y: L[4].y * vh };
-                var wristV = { x: L[0].x * vw, y: L[0].y * vh };
-                var midV = { x: L[9].x * vw, y: L[9].y * vh };
+                var tipV = { x: fx(L[8]) * vw, y: L[8].y * vh };
+                var thumbV = { x: fx(L[4]) * vw, y: L[4].y * vh };
+                var wristV = { x: fx(L[0]) * vw, y: L[0].y * vh };
+                var midV = { x: fx(L[9]) * vw, y: L[9].y * vh };
                 var scale = dist(wristV, midV) || 1;
                 var pinchD = dist(tipV, thumbV) / scale;
                 var prev = prevHands[label] || { pinch: false, armed: true };
@@ -767,6 +810,7 @@
             mode = 'touch';
             startOverlay.hidden = true;
             controlsEl.hidden = false;
+            mirrorBtn.hidden = true;
             startLoop();
             if (reason === 'denied') showNote('No camera here — touch mode. Tap to place a dot, drag to pull, release to pin.');
             else if (reason === 'chosen') showNote('Touch mode — tap to place a dot, drag to pull, release to pin. Sweep across a string to play it.');
@@ -784,6 +828,16 @@
             }).then(function (st) {
                 stream = st;
                 video.srcObject = st;
+                // Mirror by default on the front (user-facing) camera —
+                // the selfie view every player expects. A rear camera is
+                // a window onto the room and stays unmirrored. A camera
+                // that reports no facing (most webcams) faces the player
+                // in effect, so it mirrors too.
+                var trk = st.getVideoTracks ? st.getVideoTracks()[0] : null;
+                var tset = (trk && trk.getSettings) ? trk.getSettings() : {};
+                facingMode = tset.facingMode || '';
+                setMirror(facingMode !== 'environment');
+                mirrorBtn.hidden = false;
                 return video.play();
             }).then(function () {
                 return loadScript(MP_BASE + 'hands.js');
@@ -843,6 +897,9 @@
                 });
             },
             plucks: function () { return pluckLog.slice(); },
+            mirror: function () { return mirror; },
+            facing: function () { return facingMode; },
+            toggleMirror: function () { setMirror(!mirror); },
             pull: function () { return pull; },
             audioState: function () { return actx ? actx.state : 'none'; }
         };
