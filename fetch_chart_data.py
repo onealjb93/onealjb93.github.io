@@ -2062,6 +2062,23 @@ def main():
     except Exception as exc:
         log("WARNING: market context failed (%s) — previous "
             "finance-context.json stands." % exc)
+
+    # ---- intraday sessions: finance-intraday.json (fetch_intraday.py) ----
+    # The last five 04:00-20:00 ET sessions of 1-minute bars for the
+    # chart's primary series — the Daily 1D / 1W ranges draw from
+    # it. Isolated like the market context above: any failure
+    # leaves the previous intraday file standing (the chart falls
+    # back to daily bars for any series the file lacks) and never
+    # touches the chart files. The workflow's commit step picks
+    # the file up once its name joins the git add line.
+    try:
+        import fetch_intraday
+        fetch_intraday.build_intraday_file(
+            d_series, os.path.dirname(os.path.abspath(daily_path)),
+            log=log)
+    except Exception as exc:
+        log("WARNING: intraday sessions failed (%s) — previous "
+            "finance-intraday.json stands." % exc)
     return 0
 
 
