@@ -241,6 +241,20 @@
     .stock-dd-opt { display: block; width: 100%; padding: 0.55rem 0.45rem; border: none; border-radius: 8px; background: none; color: var(--text-color); font-family: inherit; font-size: 0.95rem; text-align: left; cursor: pointer; }
     .stock-dd-opt:hover, .stock-dd-opt:focus-visible { background: var(--badge-bg); }
     .stock-dd-opt[aria-selected="true"] { background: var(--badge-bg); font-weight: 700; }
+    /* Two-line rows (dropdown build, 2026-11-23, Johnny's option
+       B): the full name on its own line — never clipped — and the
+       price · day move under it. The quote line's height is fixed
+       whether or not its numbers have landed, so a live swap is a
+       text change only and no row ever changes height. The move's
+       colours are the strip's own: green up, red down, in the
+       theme's shade. */
+    .stock-dd-name { display: block; }
+    .stock-dd-quote { display: block; margin-top: 0.12rem; min-height: 1.3em; font-size: 0.82rem; line-height: 1.3; color: var(--subtext-color); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .stock-dd-pct { margin-left: 0.45rem; font-weight: 600; }
+    .stock-dd-pct.up { color: #22c55e; }
+    .stock-dd-pct.down { color: #ef4444; }
+    body.light-mode .stock-dd-pct.up { color: #16a34a; }
+    body.light-mode .stock-dd-pct.down { color: #dc2626; }
     .chart-section .filter-pill { padding-top: 10px; padding-bottom: 10px; }
     /* Front door (2026-11-16): one plain line above the stage —
        what to do first, in the page's muted intro register. The
@@ -7980,6 +7994,9 @@ if (typeof module !== "undefined") {
         // select had, so syncControls, the change listener below
         // and the verdict chip's own listener never knew it changed.
         var stockLabels = {};
+        // Every option row's quote line (price · day move), in
+        // build order — the paints below write through this list.
+        var ddRows = [];
         var ddValue = "";
         var ddOpen = false;
         // Every open of the dropdown starts with all three lists
@@ -7988,6 +8005,30 @@ if (typeof module !== "undefined") {
         // Markets & futures — and opens the one they need. No
         // list state is carried across opens or visits.
         var listsOpen = { mine: false, band: false, ndx: false };
+        // A row's body (dropdown build, 2026-11-23): the full
+        // name on line one, the price · day move on line two.
+        // The row registers itself for the quote paints and takes
+        // its first paint from whatever daily-shaped data is
+        // already in — the numbers come from files the page has
+        // loaded for the chart itself, never a fetch of their own.
+        function buildOptBody(o, label, k) {
+            var name = document.createElement("span");
+            name.className = "stock-dd-name";
+            name.textContent = label;
+            var quote = document.createElement("span");
+            quote.className = "stock-dd-quote";
+            var price = document.createElement("span");
+            price.className = "stock-dd-price";
+            var pct = document.createElement("span");
+            pct.className = "stock-dd-pct";
+            quote.appendChild(price);
+            quote.appendChild(pct);
+            o.appendChild(name);
+            o.appendChild(quote);
+            var row = { key: k, price: price, pct: pct };
+            ddRows.push(row);
+            paintDdRow(row);
+        }
         function stockOption(k) {
             var label = chartData.series[k].name + " (" + k + ")";
             stockLabels[k] = label;
@@ -7997,7 +8038,7 @@ if (typeof module !== "undefined") {
             o.setAttribute("role", "option");
             o.setAttribute("aria-selected", k === ddValue ? "true" : "false");
             o.setAttribute("data-key", k);
-            o.textContent = label;
+            buildOptBody(o, label, k);
             return o;
         }
         function syncStockFace() {
@@ -8013,6 +8054,7 @@ if (typeof module !== "undefined") {
             if (!grp || !chartData) return;
             stockKeys().forEach(function (k) { grp.appendChild(stockOption(k)); });
             syncStockFace();
+            probeDdQuotes();
         }
         // The Nasdaq-100 list of the one stock dropdown: the data
         // file's own constituent list, alphabetical by company
@@ -8064,7 +8106,7 @@ if (typeof module !== "undefined") {
             o.setAttribute("role", "option");
             o.setAttribute("aria-selected", pair[0] === ddValue ? "true" : "false");
             o.setAttribute("data-key", pair[0]);
-            o.textContent = label;
+            buildOptBody(o, label, pair[0]);
             return o;
         }
         function populateBandSelect() {
@@ -8073,6 +8115,133 @@ if (typeof module !== "undefined") {
             BAND_DD.forEach(function (pair) { grp.appendChild(bandOption(pair)); });
             syncStockFace();
         }
+        // ---- the rows' price · day move (dropdown build,
+        // 2026-11-23) ----
+        // Published layer: each row's price is its series' latest
+        // daily close and its move is that close against the prior
+        // close, read from the daily-shaped data the page already
+        // loads for the chart (the full daily file, or the
+        // first-paint split before it) — so a row can never
+        // disagree with the chart's own readout on the same data,
+        // and first paint asks for nothing new.
+        // Live layer: a quote from a live feed wins over the
+        // published close for its key. The Markets & futures rows
+        // ride the futures strip's own poll (the strip dispatches
+        // "jbo:strip-quotes" with the very numbers it paints,
+        // Bitcoin included from its Coinbase feed); the stock
+        // rows ride the futures Worker's /quote route, probed
+        // once below. Text-only swaps into spans whose line
+        // height is fixed: no row ever changes height.
+        var ddLive = {}; // key -> {price, pct, decimals, unit}
+        function ddQuoteFromBars(bars) {
+            if (!bars || bars.length < 2) return null;
+            var last = bars[bars.length - 1], prev = bars[bars.length - 2];
+            if (!last || !prev) return null;
+            var c = last[4], p = prev[4];
+            if (typeof c !== "number" || typeof p !== "number" || !(p > 0)) return null;
+            return { price: c, pct: (c / p - 1) * 100, decimals: 2, unit: null };
+        }
+        function ddPublishedQuote(k) {
+            var dsrc = dailyData || firstData;
+            var s = dsrc && dsrc.series ? dsrc.series[k] : null;
+            return s ? ddQuoteFromBars(s.bars) : null;
+        }
+        function ddFmtNum(n, d) {
+            return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+        }
+        function paintDdRow(row) {
+            var q = ddLive[row.key] || ddPublishedQuote(row.key);
+            if (!q) {
+                if (row.price.textContent !== "\u2014") row.price.textContent = "\u2014";
+                if (row.pct.textContent !== "") row.pct.textContent = "";
+                row.pct.className = "stock-dd-pct";
+                return;
+            }
+            var d = typeof q.decimals === "number" ? q.decimals : 2;
+            var priceText = ddFmtNum(q.price, d) + (q.unit === "pct" ? "%" : "");
+            if (row.price.textContent !== priceText) row.price.textContent = priceText;
+            var pctText = (q.pct < 0 ? "-" : "+") + Math.abs(q.pct).toFixed(2) + "%";
+            if (row.pct.textContent !== pctText) row.pct.textContent = pctText;
+            row.pct.className = "stock-dd-pct " + (q.pct > 0 ? "up" : (q.pct < 0 ? "down" : ""));
+        }
+        function paintDdRows() { ddRows.forEach(paintDdRow); }
+        function paintDdKey(k) {
+            ddRows.forEach(function (r) { if (r.key === k) paintDdRow(r); });
+        }
+        // The strip's feed, reused: every poll the strip paints,
+        // it also hands its entries here — same price, same move,
+        // same decimals, so a band row and its strip cell can
+        // never disagree.
+        document.addEventListener("jbo:strip-quotes", function (e) {
+            var quotes = e.detail && e.detail.quotes;
+            if (!quotes) return;
+            Object.keys(quotes).forEach(function (k) {
+                ddLive[k] = quotes[k];
+                paintDdKey(k);
+            });
+        });
+        // ---- the /quote live layer for the stock rows ----
+        // The futures Worker's per-symbol route (Johnny's
+        // dashboard deploy turns it on; until then it answers
+        // 404). One quiet probe after the rows populate: any
+        // failure leaves the layer off for the whole visit — no
+        // retry, no error shown, the published closes stand. A
+        // good probe starts a five-second tick that walks the
+        // stock keys in slices of 24 (the full list inside half
+        // a minute), pausing while the tab is hidden; a failed
+        // symbol keeps its last good numbers. The symbol asked
+        // for is the series' own Yahoo symbol from the data
+        // file, never a guess from the key.
+        var QUOTE_API_URL = "https://futures.johnbryantoneal.workers.dev/quote";
+        var quoteLive = false, quoteProbed = false, quoteCursor = 0;
+        function ddQuoteKeys() {
+            var seen = {}, out = [];
+            ddRows.forEach(function (r) {
+                if (seen[r.key] || BAND_KEYS.indexOf(r.key) >= 0) return;
+                seen[r.key] = 1;
+                out.push(r.key);
+            });
+            return out;
+        }
+        function ddSymbolFor(k) {
+            var s = chartData && chartData.series ? chartData.series[k] : null;
+            return (s && s.symbol) || k;
+        }
+        function fetchDdQuote(k) {
+            return fetch(QUOTE_API_URL + "?symbol=" + encodeURIComponent(ddSymbolFor(k)), { cache: "no-store" })
+                .then(function (r) { if (!r.ok) throw new Error("quote " + r.status); return r.json(); })
+                .then(function (j) {
+                    if (!j || typeof j.price !== "number" || typeof j.change_pct !== "number") return false;
+                    ddLive[k] = { price: j.price, pct: j.change_pct, decimals: 2, unit: null };
+                    paintDdKey(k);
+                    return true;
+                })
+                .catch(function () { return false; });
+        }
+        function ddQuoteTick() {
+            if (!quoteLive || document.hidden) return;
+            var keys = ddQuoteKeys();
+            if (!keys.length) return;
+            var n = Math.min(24, keys.length);
+            for (var i = 0; i < n; i++) fetchDdQuote(keys[(quoteCursor + i) % keys.length]);
+            quoteCursor = (quoteCursor + n) % keys.length;
+        }
+        function probeDdQuotes() {
+            if (quoteProbed) return;
+            quoteProbed = true;
+            if (!window.fetch) return;
+            var keys = ddQuoteKeys();
+            if (!keys.length) return;
+            fetchDdQuote(keys.indexOf("NVDA") >= 0 ? "NVDA" : keys[0]).then(function (ok) {
+                if (!ok) return; // route not deployed yet: published closes stand
+                quoteLive = true;
+                ddQuoteTick();
+                setInterval(ddQuoteTick, 5000);
+            });
+        }
+        document.addEventListener("visibilitychange", function () {
+            if (!document.hidden) ddQuoteTick();
+        });
         // Dropdown behaviour: the face opens and closes the panel;
         // each list's header expands or contracts its own list,
         // independently; a pick closes the panel and fires the
@@ -9062,6 +9231,7 @@ if (typeof module !== "undefined") {
                 .then(function (d) {
                     dailyData = d;
                     if (typeof populateDots === "function") populateDots();
+                    paintDdRows();
                     if (mode === "daily" || indOn) render();
                 })
                 .catch(function () {
@@ -9137,7 +9307,7 @@ if (typeof module !== "undefined") {
             var firstStep = (typeof window.jboLoadFirstData === "function")
                 ? window.jboLoadFirstData().then(function (f) {
                     firstData = buildFirstData(f);
-                    if (firstData) { populateDots(); render(); }
+                    if (firstData) { populateDots(); paintDdRows(); render(); }
                 }, function () { /* not published yet: today's path */ })
                 : Promise.resolve();
             firstStep.then(scheduleBackgroundLoad);
@@ -11984,6 +12154,26 @@ if (typeof module !== "undefined") {
                 lastMoveAt = Date.now();
             }
             applyQuiet();
+            // The chart selector's band rows ride this same feed
+            // (dropdown build, 2026-11-23): each poll hands the
+            // entries it just painted to the dropdown, keyed by
+            // chart key — same price, same move, same decimals —
+            // so a row and its strip cell can never disagree, and
+            // no second request is ever made for them.
+            var ddQuotes = {};
+            entries.forEach(function (q) {
+                var ck = CHART_KEY[q.key];
+                if (ck && typeof q.price === 'number' && typeof q.change_pct === 'number') {
+                    ddQuotes[ck] = {
+                        price: q.price, pct: q.change_pct,
+                        decimals: typeof q.decimals === 'number' ? q.decimals : 2,
+                        unit: q.unit || null
+                    };
+                }
+            });
+            if (Object.keys(ddQuotes).length) {
+                document.dispatchEvent(new CustomEvent('jbo:strip-quotes', { detail: { quotes: ddQuotes } }));
+            }
         }
         function renderFailure() {
             lastFetchOk = false;
@@ -12039,6 +12229,22 @@ if (typeof module !== "undefined") {
             var c = cells['btc'];
             if (!c || !window.fetch) return;
             c.decimals = 0;
+            // The selector's Bitcoin row rides this same feed
+            // (dropdown build, 2026-11-23): the cell's own price
+            // and its move against the same Coinbase prev close
+            // the cell paints from, handed over on the strip's
+            // quote event — the one-price rule holds for the row
+            // exactly as for the cell.
+            function emitBtcQuote() {
+                if (c.target === null || !(c.prevClose > 0)) return;
+                var quotes = {};
+                quotes.BTC = {
+                    price: c.target,
+                    pct: (c.target - c.prevClose) / c.prevClose * 100,
+                    decimals: 0, unit: null
+                };
+                document.dispatchEvent(new CustomEvent('jbo:strip-quotes', { detail: { quotes: quotes } }));
+            }
             window.BTC_LIVE.onChange(function (v) {
                 if (c.target === null) { c.target = v; c.shown = v; paint(c); }
                 else if (v !== c.target) {
@@ -12046,6 +12252,7 @@ if (typeof module !== "undefined") {
                     c.target = v;
                     tick(c, from, v);
                 }
+                emitBtcQuote();
             });
             function tickSpot() {
                 fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(function (r) {
@@ -12067,6 +12274,7 @@ if (typeof module !== "undefined") {
                     if (Array.isArray(rows) && rows.length > 1 && rows[1] && rows[1][4] > 0) {
                         c.prevClose = rows[1][4];
                         if (c.shown !== null) paint(c);
+                        emitBtcQuote();
                     }
                 }).catch(function () { /* the change waits for the next try */ });
             }
