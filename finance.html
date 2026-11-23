@@ -2057,7 +2057,7 @@
             <span class="tv-key-item" id="keyScoreItem" hidden><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-score"></span></span><span>A ringed green dot marks a day that scored 85 or higher on the 100-point score but did not pass the buy gate.</span></span>
         </div>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
-        <p class="chart-intro">Tap a market in the strip above to chart it &mdash; tap it again to go back to the stock in the box &mdash; or choose from my 19 stocks and the Nasdaq-100 in the box above. The chart is drawn from this page&rsquo;s own daily and weekly data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-day moving average, the 50-day moving average for the trend, and the daily RSI &mdash; in the Weekly view, the same three by the week: the 200-week average, the 50-week average, and the weekly RSI. A stock with under four years of trading history has no 200-day line yet; the note under the chart says so when that is the case.</p>
+        <p class="chart-intro">Tap a market in the strip above to chart it &mdash; tap it again to go back to the stock in the box &mdash; or choose from my stocks and the Nasdaq-100 in the box above. The chart is drawn from this page&rsquo;s own daily and weekly data and opens on the S&amp;P 500 as a line chart on the five-year view, always carrying the same three gauges: the 200-day moving average, the 50-day moving average for the trend, and the daily RSI &mdash; in the Weekly view, the same three by the week: the 200-week average, the 50-week average, and the weekly RSI. A stock with under four years of trading history has no 200-day line yet; the note under the chart says so when that is the case.</p>
         </details>
         <div class="fin-alert-sub">
             <div class="fin-alert-sub-copy">
@@ -2149,9 +2149,9 @@
     </script>
     <!-- Investment Scoreboard -->
     <div class="scoreboard-section collapsible-section" id="scoreboard">
-        <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="true" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9660;</span><span class="section-toggle-text">Investment Scoreboard</span></button><button type="button" class="filter-pill chart-fs-btn" id="scoreboardFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
+        <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="false" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Investment Scoreboard</span></button><button type="button" class="filter-pill chart-fs-btn" id="scoreboardFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
         <p class="pulse-line" id="scoreboardPulse" hidden></p>
-        <div class="section-body" id="scoreboard-body">
+        <div class="section-body" id="scoreboard-body" hidden>
         <p class="sb-lens-label" id="sbLensLabel">See the board through investors&rsquo; eyes &mdash; tap names to build the view, one or several at once</p>
                     <div class="chip-row" id="scoreboardInvestors" role="group" aria-label="See the board through investors' eyes — tap names to build the view">
                         <!-- Chips are rendered from SCOREBOARD_RULES below, with an Everyone chip first: one tap picks the one view. -->
@@ -3856,6 +3856,51 @@
         <div class="legend-grid" id="legendList"></div>
         </div>
     </div>
+
+    <script>
+    /* Section restore, part 1 (2026-11-23): a fresh arrival opens
+       only the Chart — the shipped markup state — while a refresh
+       restores the sections the visitor had open. The saved set is
+       tracked in sessionStorage only, so it lives for this tab and
+       this visit alone; between visits nothing is remembered. This
+       script runs the moment the last section has parsed, before
+       first paint, so a restored page never flashes the fresh
+       state; part 2, in the navigation block below, runs the
+       restored sections through expandSection and keeps the record
+       current. The Games page rule, mirrored. */
+    (function () {
+        var FIN_IDS = ["chart", "scoreboard", "screener", "committee", "backtest", "resources", "legend"];
+        var navType = "";
+        try {
+            var nav = performance.getEntriesByType("navigation");
+            if (nav && nav.length) navType = nav[0].type || "";
+        } catch (e) { /* Navigation Timing unavailable: fresh state */ }
+        if (navType === "reload") {
+            var saved = null;
+            try { saved = JSON.parse(sessionStorage.getItem("finance-open-sections-v1") || "null"); } catch (e) { /* storage blocked */ }
+            if (saved && saved.length) {
+                window.__finRestoreSections = saved;
+                FIN_IDS.forEach(function (id) {
+                    var open = saved.indexOf(id) !== -1;
+                    var body = document.getElementById(id + "-body");
+                    var btn = document.querySelector('.section-toggle[data-section="' + id + '"]');
+                    if (body) body.hidden = !open;
+                    if (btn) {
+                        btn.setAttribute("aria-expanded", open ? "true" : "false");
+                        var chev = btn.querySelector(".section-chevron");
+                        if (chev) chev.innerHTML = open ? "&#9660;" : "&#9654;";
+                    }
+                });
+            }
+        } else {
+            // A fresh arrival starts from the shipped state, and the
+            // stored set is cleared with it: the record always
+            // matches what this page shows, so a later refresh
+            // restores this visit's spot, never an older one.
+            try { sessionStorage.removeItem("finance-open-sections-v1"); } catch (e) { /* storage blocked */ }
+        }
+    })();
+    </script>
 
     <!-- Exact Footer Layout Matching Homepage -->
     <footer class="site-footer">
@@ -5668,7 +5713,7 @@
                 const totalChecks = runnerChecks({ ticker: sym, name: sym, price: null, peg: null, roe: null, debt: null, mcap: null, mcap_str: null }, sym).length;
                 out.innerHTML = '<p class="runner-verdict"><strong>' + sym + ' &mdash; passes <span class="rv-pass">0</span> &middot; fails <span class="rv-fail">0</span> &middot; can&rsquo;t check <span class="rv-na">' + totalChecks + '</span></strong></p>'
                     + '<p><strong>' + sym + ' isn&rsquo;t in the graded set yet.</strong> The Stack&rsquo;s checks run on the numbers the weekly data pipeline collects &mdash; prices, PEG, growth, debt, and the fundamentals it pulls from SEC filings (return on equity, margins, market value). ' + sym + ' isn&rsquo;t one of the stocks it collects, so there are no honest numbers to grade here &mdash; and this page won&rsquo;t guess.</p>'
-                    + '<p>The Chart above covers more than the graded set &mdash; the S&amp;P 500, the Nasdaq, gold, Bitcoin, my 19 stocks and the Nasdaq-100 &mdash; so if ' + sym + ' is a Nasdaq-100 company, you can draw it there.</p>';
+                    + '<p>The Chart above covers more than the graded set &mdash; the S&amp;P 500, the Nasdaq, gold, Bitcoin, my stocks and the Nasdaq-100 &mdash; so if ' + sym + ' is a Nasdaq-100 company, you can draw it there.</p>';
                 return;
             }
             const checks = runnerChecks(t, sym);
@@ -6591,15 +6636,44 @@ if (typeof module !== "undefined") {
                 var opening = body && body.hidden;
                 setSection(id, opening);
                 if (opening) expandSection(id);
+                saveOpenSections();
             });
         });
         // Hub cards + nav pills: expand the target section before the jump.
         document.querySelectorAll('a[href^="#"]').forEach(function (a) {
             var id = a.getAttribute("href").slice(1);
             if (SECTION_IDS.indexOf(id) !== -1) {
-                a.addEventListener("click", function () { expandSection(id); });
+                a.addEventListener("click", function () { expandSection(id); saveOpenSections(); });
             }
         });
+
+        /* ---------- Section state: fresh arrival vs refresh (2026-11-23) ----------
+           Part 2 of the restore whose part 1 (the script after the
+           Legend section) applied the saved set before first paint:
+           the restored sections run through expandSection here, so a
+           restored Backtest re-renders, and the open set is recorded
+           again — and after every toggle and anchor jump above — so
+           the record always matches what the page shows. A fresh
+           arrival records the shipped state (the Chart alone), so a
+           refresh with nothing touched restores exactly that. The
+           browser's own scroll restoration puts the visitor back at
+           their spot on a refresh, with their sections open around
+           it, as on the Games page. */
+        var FIN_OPEN_KEY = "finance-open-sections-v1";
+        function saveOpenSections() {
+            var open = [];
+            SECTION_IDS.forEach(function (id) {
+                var b = document.getElementById(id + "-body");
+                if (b && !b.hidden) open.push(id);
+            });
+            try { sessionStorage.setItem(FIN_OPEN_KEY, JSON.stringify(open)); } catch (e) { /* storage unavailable */ }
+        }
+        if (window.__finRestoreSections) {
+            window.__finRestoreSections.forEach(function (id) {
+                if (SECTION_IDS.indexOf(id) !== -1) expandSection(id);
+            });
+        }
+        saveOpenSections();
 
         /* ---------- Section title pins (2026-11-20) ----------
            The slim section-nav bar that stood here is retired: the
@@ -11997,19 +12071,24 @@ if (typeof module !== "undefined") {
             }, 400);
         }).catch(function () { /* no data, no line */ });
 
-        /* ---- Johnny's Drill Down: mirrors the Stack runner's own
+        /* ---- Johnny's Drill Down: before any stock is run, the
+           header carries the section's own description (Johnny,
+           2026-11-23 — the header stood bare beside the lined ones);
+           once a stock is run it mirrors the Stack runner's own
            verdict line, following the stock the runner last graded. ---- */
         var runnerOut = document.getElementById("runnerResults");
+        var SCREENER_DESC = "Pick any stock &mdash; every investor&rsquo;s test run on it, with its buy and sell dots";
         function renderScreenerPulse() {
-            if (!runnerOut) return;
+            if (!runnerOut) { setPulse("screenerPulse", SCREENER_DESC); return; }
             var v = runnerOut.querySelector(".runner-verdict");
-            if (!v) { setPulse("screenerPulse", null); return; }
+            if (!v) { setPulse("screenerPulse", SCREENER_DESC); return; }
             var p = v.querySelector(".rv-pass"), f = v.querySelector(".rv-fail"), n = v.querySelector(".rv-na");
             var m = (v.textContent || "").match(/^\s*(\S+)\s+—/);
-            if (!p || !f || !n || !m) { setPulse("screenerPulse", null); return; }
+            if (!p || !f || !n || !m) { setPulse("screenerPulse", SCREENER_DESC); return; }
             setPulse("screenerPulse", esc(m[1]) + " &mdash; passes " + p.textContent.trim() + " &middot; fails " + f.textContent.trim() + " &middot; can&rsquo;t check " + n.textContent.trim());
         }
         if (runnerOut && window.MutationObserver) new MutationObserver(renderScreenerPulse).observe(runnerOut, { childList: true, subtree: true });
+        renderScreenerPulse();
 
         /* ---- Portfolio Backtest: the headline the stats table has
            already computed — your portfolio vs the benchmark, total
@@ -12027,6 +12106,7 @@ if (typeof module !== "undefined") {
             var tf = "";
             var active = document.querySelector("#backtestTimeframes .filter-pill.active");
             if (active) tf = active.textContent.trim();
+            if (tf === "5Y") tf = "5 years"; // the header line spells the period out (Johnny, 2026-11-23)
             setPulse("backtestPulse", (tf ? esc(tf) + " &middot; " : "") + "Your portfolio " + esc(portPct) + " &middot; " + esc(benchName) + " " + esc(benchPct) + " &middot; total return");
         }
         var statsBody = document.getElementById("backtestStats");
@@ -12049,7 +12129,7 @@ if (typeof module !== "undefined") {
         var cmJohnnyRow = document.getElementById("glance-row-johnny");
         if (cmInvestorRows) setPulse("committeePulse", cmInvestorRows + " investors" + (cmJohnnyRow ? ", plus Johnny" : "") + " &middot; each with their style, key test and risk stance");
         var resCards = document.querySelectorAll("#resources .resource-card").length;
-        if (resCards) setPulse("resourcesPulse", resCards + " resources &middot; a compound-interest calculator &middot; a fear-and-greed gauge &middot; the Benner Cycle, kept as history");
+        if (resCards) setPulse("resourcesPulse", resCards + " resources &middot; a compound-interest calculator &middot; a fear-and-greed gauge &middot; an 1875 market-cycle card, kept as history");
         var legendTerms = document.querySelectorAll("#legendList .legend-item").length;
         if (legendTerms) setPulse("legendPulse", legendTerms + " terms &middot; every word on this page, explained in plain language");
     })();
