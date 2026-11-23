@@ -568,6 +568,145 @@ def fetch_stooq_history(symbol):
     return rows
 
 
+def fetch_stooq_avg_volume(symbol, days=60):
+    """Average daily share volume over the last `days` trading days,
+    from the same Stooq CSV the momentum pull reads (its sixth
+    column). None when Stooq doesn't answer with a CSV — the caller
+    keeps the previous run's figure."""
+    url = "https://stooq.com/q/d/l/?s=%s.us&i=d" % symbol.lower()
+    try:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+    except Exception as exc:
+        log("  Stooq volume failed for %s: %s" % (symbol, exc))
+        return None
+    if not resp.text.startswith("Date,"):
+        return None
+    vols = []
+    for line in resp.text.splitlines()[1:]:
+        parts = line.split(",")
+        if len(parts) < 6:
+            continue
+        try:
+            vols.append(float(parts[5]))
+        except ValueError:
+            continue
+    if not vols:
+        return None
+    tail = vols[-days:]
+    return round(sum(tail) / len(tail))
+
+
+def fetch_insider_buys(cik, today):
+    """Open-market insider purchases from SEC Form 4 filings, last
+    90 days: {buys_90d, buyers_90d, shares_90d, cluster, as_of}.
+
+    Only transaction code P (an open-market purchase, the insider's
+    own money) inside non-derivative transactions counts. Option
+    exercises and grants (A/M/G) and every sale are excluded by
+    construction. `cluster` is three or more distinct insiders
+    buying inside the window. Returns None on any failure — the
+    caller keeps the previous run's block rather than shipping a
+    guess.
+    """
+    import xml.etree.ElementTree as ET
+    from datetime import date as _date, timedelta as _td
+    if not cik:
+        return None
+    try:
+        resp = requests.get(
+            "https://data.sec.gov/submissions/CIK%s.json" % cik,
+            headers=EDGAR_HEADERS, timeout=30)
+        resp.raise_for_status()
+        recent = (resp.json().get("filings") or {}).get("recent") or {}
+    except Exception as exc:
+        log("  insider submissions failed for CIK %s: %s" % (cik, exc))
+        return None
+    forms = recent.get("form") or []
+    dates = recent.get("filingDate") or []
+    accs = recent.get("accessionNumber") or []
+    docs = recent.get("primaryDocument") or []
+    cutoff = (_date.fromisoformat(today) - _td(days=90)).isoformat()
+    filings = [(dates[i], accs[i], docs[i]) for i in range(len(forms))
+               if forms[i] == "4" and i < len(dates)
+               and dates[i] >= cutoff and i < len(accs) and i < len(docs)]
+    buys = 0
+    buyers = set()
+    shares = 0.0
+    for _fdate, acc, doc in filings[:40]:
+        try:
+            url = ("https://www.sec.gov/Archives/edgar/data/%d/%s/%s"
+                   % (int(cik), acc.replace("-", ""), doc))
+            resp = requests.get(url, headers=EDGAR_HEADERS, timeout=30)
+            resp.raise_for_status()
+            root = ET.fromstring(resp.text)
+        except Exception:
+            continue
+        owner_el = root.find("./reportingOwner/reportingOwnerId/rptOwnerName")
+        owner = owner_el.text if owner_el is not None else "?"
+        for txn in root.iter("nonDerivativeTransaction"):
+            code_el = txn.find("./transactionCoding/transactionCode")
+            if code_el is None or (code_el.text or "").strip() != "P":
+                continue
+            buys += 1
+            buyers.add(owner)
+            sh_el = txn.find("./transactionAmounts/transactionShares/value")
+            if sh_el is not None and sh_el.text:
+                try:
+                    shares += float(sh_el.text)
+                except ValueError:
+                    pass
+        time.sleep(0.15)  # SEC fair access: stay well under 10 req/s
+    return {
+        "buys_90d": buys,
+        "buyers_90d": len(buyers),
+        "shares_90d": round(shares),
+        "cluster": len(buyers) >= 3,
+        "as_of": today,
+        "source": "SEC EDGAR Form 4 filings",
+    }
+
+
+_CONGRESS_CACHE = None
+
+
+def fetch_congress_buys(symbol, today):
+    """Reported purchases by members of Congress, last 90 days, from
+    the House Stock Watcher dataset: {buys_90d, as_of} or None.
+
+    A weaker signal than insider buying by law: the STOCK Act lets
+    members report up to 45 days late, and the dataset is a
+    community mirror of the House clerk's disclosures. Any failure
+    returns None and the page simply omits the note — never invent.
+    """
+    global _CONGRESS_CACHE
+    from datetime import date as _date, timedelta as _td
+    if _CONGRESS_CACHE is None:
+        try:
+            resp = requests.get(
+                "https://house-stock-watcher-data.s3-us-west-2.amazonaws.com/data/all_transactions.json",
+                headers={"User-Agent": "Mozilla/5.0 (onealjb93.github.io finance updater)"},
+                timeout=60)
+            resp.raise_for_status()
+            _CONGRESS_CACHE = resp.json()
+        except Exception as exc:
+            log("  congress dataset failed: %s" % exc)
+            _CONGRESS_CACHE = False
+    if not _CONGRESS_CACHE:
+        return None
+    cutoff = (_date.fromisoformat(today) - _td(days=90)).isoformat()
+    buys = 0
+    for row in _CONGRESS_CACHE:
+        if (row.get("ticker") or "").upper() != symbol.upper():
+            continue
+        tdate = row.get("transaction_date") or ""
+        ttype = (row.get("type") or "").lower()
+        if tdate >= cutoff and "purchase" in ttype:
+            buys += 1
+    return {"buys_90d": buys, "as_of": today,
+            "source": "House Stock Watcher (STOCK Act disclosures)"}
+
+
 def momentum_3m(history):
     """3-month % return: (latest close / close 63 trading days earlier - 1) x 100."""
     if len(history) < 64:
@@ -677,6 +816,23 @@ OCF_TAGS = [
 CAPEX_TAGS = [
     ("us-gaap", "PaymentsToAcquirePropertyPlantAndEquipment"),
     ("ifrs-full", "PurchaseOfPropertyPlantAndEquipment"),
+]
+# Pass 2 (2026-11-22): the Drill Down's harder checks — gross
+# margin needs gross profit; net debt vs EBITDA needs EBITDA
+# (operating income + depreciation & amortisation, the standard
+# filings approximation); the Piotroski score needs total assets.
+GROSS_PROFIT_TAGS = [
+    ("us-gaap", "GrossProfit"),
+    ("ifrs-full", "GrossProfit"),
+]
+DA_TAGS = [
+    ("us-gaap", "DepreciationDepletionAndAmortization"),
+    ("us-gaap", "DepreciationAmortizationAndAccretionNet"),
+    ("ifrs-full", "DepreciationAndAmortisationExpense"),
+]
+ASSETS_TAGS = [
+    ("us-gaap", "Assets"),
+    ("ifrs-full", "Assets"),
 ]
 DIVIDENDS_PAID_TAGS = [
     ("us-gaap", "PaymentsOfDividendsCommonStock"),
@@ -872,6 +1028,97 @@ def _eps_rows_and_unit(facts):
     return [], None
 
 
+def compute_piotroski(facts, money_units):
+    """The Piotroski F-score (0-9) from annual filing series.
+
+    Nine one-point checks on the latest fiscal year against the one
+    before: profit (net income > 0), cash flow from operations > 0,
+    return on assets improving, operating cash flow above net income
+    (earnings backed by cash), long-term leverage falling, current
+    ratio rising, no new shares issued, gross margin rising, asset
+    turnover rising. Returns None when fewer than seven of the nine
+    can be computed — a partial score would read as a verdict the
+    filings don't support, so the page says "can't check" instead.
+    """
+    def flow(tags):
+        rows, _u = fact_rows(facts, tags, money_units)
+        return annual_series(rows)
+
+    def instant(tags, units=None):
+        rows, _u = fact_rows(facts, tags, units or money_units)
+        return annual_series_instant(rows)
+
+    ni = flow(NET_INCOME_TAGS)
+    ocf = flow(OCF_TAGS)
+    rev = flow(REVENUE_TAGS)
+    gp = flow(GROSS_PROFIT_TAGS)
+    assets = instant(ASSETS_TAGS)
+    lt_debt = instant(LT_DEBT_TAGS)
+    ca = instant(CURRENT_ASSET_TAGS)
+    cl = instant(CURRENT_LIAB_TAGS)
+    share_rows, _su = fact_rows(facts, SHARE_TAGS_BLOCK, ["shares"])
+    shares_s = annual_series_instant(share_rows)
+
+    def last2(series):
+        if len(series) < 2:
+            return None, None
+        return series[-1][1], series[-2][1]
+
+    points = []
+
+    def pt(available, passed):
+        # A check whose inputs are missing is not a failed check:
+        # it simply doesn't vote. Fewer than seven votes -> None.
+        if available:
+            points.append(1 if passed else 0)
+
+    ni_l, ni_p = last2(ni)
+    ocf_l = ocf[-1][1] if ocf else None
+    a_l, a_p = last2(assets)
+    roa_l = (ni_l / a_l) if (ni_l is not None and a_l) else None
+    roa_p = (ni_p / a_p) if (ni_p is not None and a_p) else None
+    pt(ni_l is not None, ni_l is not None and ni_l > 0)      # profit
+    pt(ocf_l is not None, ocf_l is not None and ocf_l > 0)   # cash flow
+    pt(roa_l is not None and roa_p is not None,
+       roa_l is not None and roa_p is not None
+       and roa_l > roa_p)                                    # ROA up
+    pt(ocf_l is not None and ni_l is not None,
+       ocf_l is not None and ni_l is not None
+       and ocf_l > ni_l)                                     # cash > profit
+    d_l, d_p = last2(lt_debt)
+    lev_l = (d_l / a_l) if (d_l is not None and a_l) else None
+    lev_p = (d_p / a_p) if (d_p is not None and a_p) else None
+    pt(lev_l is not None and lev_p is not None,
+       lev_l is not None and lev_p is not None
+       and lev_l < lev_p)                                    # leverage down
+    ca_l, ca_p = last2(ca)
+    cl_l, cl_p = last2(cl)
+    cr_l = (ca_l / cl_l) if (ca_l is not None and cl_l) else None
+    cr_p = (ca_p / cl_p) if (ca_p is not None and cl_p) else None
+    pt(cr_l is not None and cr_p is not None,
+       cr_l is not None and cr_p is not None
+       and cr_l > cr_p)                                      # liquidity up
+    s_l, s_p = last2(shares_s)
+    pt(s_l is not None and s_p is not None,
+       s_l is not None and s_p is not None
+       and s_l <= s_p * 1.001)                               # no dilution
+    gp_l, gp_p = last2(gp)
+    rev_l, rev_p = last2(rev)
+    gm_l = (gp_l / rev_l) if (gp_l is not None and rev_l) else None
+    gm_p = (gp_p / rev_p) if (gp_p is not None and rev_p) else None
+    pt(gm_l is not None and gm_p is not None,
+       gm_l is not None and gm_p is not None
+       and gm_l > gm_p)                                      # margin up
+    at_l = (rev_l / a_l) if (rev_l is not None and a_l) else None
+    at_p = (rev_p / a_p) if (rev_p is not None and a_p) else None
+    pt(at_l is not None and at_p is not None,
+       at_l is not None and at_p is not None
+       and at_l > at_p)                                      # turnover up
+    if len(points) < 7:
+        return None
+    return sum(points)
+
+
 def build_scoreboard_block(facts, price, fallback_shares, mcap_billions,
                            splits, fact_entries, ttm_value, latest_value,
                            today):
@@ -918,6 +1165,11 @@ def build_scoreboard_block(facts, price, fallback_shares, mcap_billions,
     ppe = latest(PPE_TAGS)
     ocf = ttm(OCF_TAGS)
     capex = ttm(CAPEX_TAGS)
+    gross_profit = ttm(GROSS_PROFIT_TAGS)
+    da_ttm = ttm(DA_TAGS)
+    ebitda = None
+    if ebit is not None and da_ttm is not None:
+        ebitda = ebit + da_ttm
     div_paid_ttm = ttm(DIVIDENDS_PAID_TAGS)
 
     total_debt = None
@@ -1072,11 +1324,24 @@ def build_scoreboard_block(facts, price, fallback_shares, mcap_billions,
         if price:
             dividend_yield = round(dps_ttm / price * 100.0, 2)
 
+    # ---- pass 2: profit history + Piotroski ----
+    ni_rows, _niu = fact_rows(facts, NET_INCOME_TAGS, money_units)
+    ni_hist_series = annual_series(ni_rows)
+    net_income_history = [[end, val] for end, val in ni_hist_series[-8:]]
+    try:
+        piotroski = compute_piotroski(facts, money_units)
+    except Exception:
+        piotroski = None
+
     return {
         "as_of": today,
         "source": "SEC EDGAR filings",
         "reporting_currency": currency,
         "ebit_ttm": ebit,
+        "ebitda_ttm": ebitda,
+        "gross_profit_ttm": gross_profit,
+        "net_income_history": net_income_history,
+        "piotroski_score": piotroski,
         "revenue_ttm": revenue,
         "net_income_ttm": net_income,
         "eps_ttm": eps_ttm,
@@ -2394,6 +2659,11 @@ def main():
         mom, mom_as_of = momentum_3m(history)
         record["momentum"] = mom
         record["momentum_as_of"] = mom_as_of
+        # Average daily volume (pass 2): the Drill Down's trading-
+        # volume check reads it. A failed pull keeps the old figure.
+        avg_vol = fetch_stooq_avg_volume(symbol)
+        record["avg_volume"] = (avg_vol if avg_vol is not None
+                                else prev.get("avg_volume"))
         if history and price is not None:
             stooq_close = history[-1][1]
             diff = abs(stooq_close - price) / price * 100.0
@@ -2662,12 +2932,31 @@ def main():
                     record["scoreboard"] = None
                     log("  scoreboard block failed for %s: %s"
                         % (symbol, exc))
+            # ---- who's buying (pass 2): insider Form 4 purchases
+            # + the weaker Congress note, for the Drill Down. Each
+            # fetch is fully guarded; a failure keeps the previous
+            # run's block, and a first-run failure ships nothing —
+            # the page renders the line only when the block exists.
+            try:
+                ins = fetch_insider_buys(cik, today)
+                record["insider"] = (ins if ins is not None
+                                     else prev.get("insider"))
+            except Exception as exc:
+                record["insider"] = prev.get("insider")
+                log("  insider block failed for %s: %s" % (symbol, exc))
+            try:
+                con = fetch_congress_buys(symbol, today)
+                record["congress"] = (con if con is not None
+                                      else prev.get("congress"))
+            except Exception as exc:
+                record["congress"] = prev.get("congress")
+                log("  congress block failed for %s: %s" % (symbol, exc))
         else:
             # Not due (or no EDGAR data): carry the previous fundamentals.
             for key in ("peg", "growth", "debt", "roe", "margin",
                         "analyst_target", "fundamentals_as_of",
                         "fundamentals_source", "fiscal_period",
-                        "scoreboard"):
+                        "scoreboard", "insider", "congress"):
                 record[key] = prev.get(key)
 
         # ---- OVERVIEW (max 4/day, only for tickers due a refresh) ----
