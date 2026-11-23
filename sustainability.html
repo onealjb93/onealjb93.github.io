@@ -520,7 +520,11 @@
     }
     .ees3d-block-env { width: 45%; }
     .ees3d-block-eco { width: 45%; }
-    .ees3d-block-eq { width: 50%; }
+    /* Equity runs 47%, not 50%: at 50% its box reached exactly to
+       the "Drag to turn" chip's left edge at phone width and sat on
+       the definition's last line; at 47% the box clears the chip and
+       the definition keeps its four lines. */
+    .ees3d-block-eq { width: 47%; }
     .ees3d-block-env .ees3d-block-name { transform: translateX(1.42cqw); }
     .ees3d-block-eco .ees3d-block-name { transform: translateX(-0.73cqw); }
     .ees3d-block-env .ees3d-block-def { margin-top: 1.71cqw; }
@@ -866,10 +870,14 @@ function boot() {
     // closes within the yield band the block with the lower facing
     // — the one turning away — melts out, reaching zero at contact;
     // a block always yields to the centre word, which never fades.
-    // Two visible blocks can therefore never stack. The band (6px
-    // at the 480px stage) sits below the idle drift's tightest
-    // measured approach (9.5px, Eco to the centre word), so at rest
-    // and in the drift nothing ever yields.
+    // Two visible blocks can therefore never stack. The yield is
+    // gated by the group's turn on each axis, though (see
+    // placeLabels):
+    // the idle drift's combined path carries Economy's box to
+    // within ~1–4px of Environment's box and the centre word, so
+    // an ungated yield melts Economy out while the figure idles —
+    // a first-time visitor met a bare sphere. Inside the gate's
+    // dead-zone the yield is held at 1 and nothing ever fades.
     var blocks = [
         { el: document.getElementById('ees3dBlockEnv'), c: DEFS[0].c, r: DEFS[0].r, dir: new THREE.Vector3(-0.05, 0.60, 0.80).normalize(), offX: -0.23917 },
         { el: document.getElementById('ees3dBlockEco'), c: DEFS[1].c, r: DEFS[1].r, dir: new THREE.Vector3(0.12, 0.58, 0.80).normalize(), offX: -0.21771 },
@@ -939,6 +947,27 @@ function boot() {
                 else { blocks[i]._yield = Math.min(blocks[i]._yield, f); blocks[j]._yield = Math.min(blocks[j]._yield, f); }
             }
         }
+        // Turn gate: the yield's authority scales with the group's
+        // turn on EACH axis, measured against the drift's own reach
+        // on that axis — rotY ±0.37 rad, rotX ±0.11 rad. Inside a
+        // dead-zone just past the drift (rotY 0.39, rotX 0.13) the
+        // yield is held at 1, so no fade can engage at rest, in the
+        // drift, or on a settling drag's last degrees, on any
+        // device, whatever its text metrics do to the boxes. Past
+        // the dead-zone the gate opens over ~0.05 rad and reaches
+        // full authority (rotY 0.44, rotX 0.19) just before the
+        // boxes first touch, so a genuinely turned figure melts
+        // its converging block out across the contact, as before.
+        // The axis angles come out of the group's own matrix:
+        // for the (rotX, rotY, 0) pose, e[8] is sin(rotY) and
+        // atan2(−e[9], e[10]) is rotX.
+        var me = group.matrix.elements;
+        var rotY = Math.asin(THREE.MathUtils.clamp(me[8], -1, 1));
+        var rotX = Math.atan2(-me[9], me[10]);
+        var gate = Math.max(
+            THREE.MathUtils.clamp((Math.abs(rotY) - 0.39) / 0.05, 0, 1),
+            THREE.MathUtils.clamp((Math.abs(rotX) - 0.13) / 0.06, 0, 1));
+        if (gate < 1) blocks.forEach(function (B) { B._yield = 1 - gate * (1 - B._yield); });
         blocks.forEach(function (B) {
             B.el.style.opacity = (THREE.MathUtils.clamp((B._facing + 0.10) / 0.45, 0, 1) * B._yield).toFixed(2);
         });
