@@ -319,6 +319,78 @@
     #chart:fullscreen .fin-stat, #chart:-webkit-full-screen .fin-stat, #chart.chart-fs .fin-stat { flex: none; }
     #chart:fullscreen .fin-stat-label, #chart:-webkit-full-screen .fin-stat-label, #chart.chart-fs .fin-stat-label { font-size: 0.66rem; }
     #chart:fullscreen .fin-stat-value, #chart:-webkit-full-screen .fin-stat-value, #chart.chart-fs .fin-stat-value { font-size: 0.9rem; line-height: 1.2; }
+    /* Futures strip (2026-11-22): live index futures above the
+       chart — the overnight read, before the chart. The quotes
+       come from the futures Worker, which reads Yahoo server-side
+       (Yahoo sends no CORS header, so the page cannot ask it
+       directly). Display only: this data never feeds the
+       indicator. The strip speaks the readout strip's language —
+       small muted name over the price, hairline under, the change
+       in the site's buy green / sell red — and it carries its
+       state the way Johnny's show-don't-tell rule asks: no words
+       but the names and the numbers. A price that just moved
+       flashes its direction's colour and settles back; when the
+       quotes stop moving — the daily break, the weekend, a failed
+       fetch — the whole strip dims and goes quiet on its own. */
+    .fut-strip { margin: 2px 0 12px; padding: 0 2px 10px; border-bottom: 1px solid var(--border-color); transition: opacity 0.8s ease, filter 0.8s ease; }
+    .fut-strip.quiet { opacity: 0.5; filter: saturate(0.45); }
+    /* The strip's one word: the mode, named quietly, centred on
+       its line — "Market" during cash hours, "Futures" the rest
+       of the week. It is the only text on the strip that changes
+       with the mode. (Centring pass, 2026-11-22, Johnny:
+       "Should it be centered instead of left justified?") */
+    .fut-mode { font-size: 0.72rem; font-weight: 600; line-height: 1.25; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtext-color); margin-bottom: 4px; text-align: center; }
+    /* Compact pass (2026-11-22, Johnny: "Can it be more
+       compact?"): the five cells ride ONE row at every width,
+       ticker-style. The change shows its percent only — the
+       points were what forced the wrap — and the names are the
+       short plain forms in both modes, because the mode word
+       already says which set it is. (The mode word first moved
+       inline at the row's left on wider screens to save its
+       line; the centring pass below put it back on its own
+       centred line at every width.) The row never wraps and
+       the type never shrinks past the
+       strips' smallest comfortable size; on a screen too
+       narrow for the numbers it scrolls inside itself — the
+       fullscreen readout's own safety valve. The cells
+       container wears the cells' own negative-margin trick one
+       level up, so the first and last cells' tick flashes keep
+       their full width inside the scroll box. */
+    .fut-cells { display: flex; flex-wrap: nowrap; gap: 8px 20px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding-left: 7px; margin-left: -7px; margin-right: -7px; }
+    .fut-cells::-webkit-scrollbar { display: none; }
+    /* Centring pass: on wide screens the word used to sit
+       inline at the row's left to save its line; measured both
+       ways, the centred composition won — the word keeps its
+       own centred line at every width and the cells spread
+       beneath it, one system across phone and desktop. */
+    /* Centring pass: the five cells take equal shares of the
+       band's full width, edge to edge, and each cell's name,
+       price and change centre within the cell — no left-packed
+       cluster, no dead margin at the right. */
+    .fut-cell { display: flex; flex-direction: column; flex: 1 1 0; align-items: center; min-width: 0; padding: 3px 7px; margin: -3px -7px; border-radius: 8px; transition: background-color 1s ease; }
+    .fut-cell.tick-up { background-color: rgba(34, 197, 94, 0.13); }
+    .fut-cell.tick-down { background-color: rgba(239, 68, 68, 0.13); }
+    body.light-mode .fut-cell.tick-up { background-color: rgba(22, 163, 74, 0.12); }
+    body.light-mode .fut-cell.tick-down { background-color: rgba(220, 38, 38, 0.10); }
+    .fut-name { font-size: 0.72rem; font-weight: 600; line-height: 1.25; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtext-color); white-space: nowrap; }
+    .fut-price { font-size: 1.05rem; font-weight: 700; line-height: 1.25; color: var(--text-color); white-space: nowrap; transition: color 1s ease; }
+    .fut-cell.tick-up .fut-price { color: #22c55e; transition: none; }
+    .fut-cell.tick-down .fut-price { color: #ef4444; transition: none; }
+    body.light-mode .fut-cell.tick-up .fut-price { color: #16a34a; }
+    body.light-mode .fut-cell.tick-down .fut-price { color: #dc2626; }
+    .fut-chg { font-size: 0.82rem; font-weight: 600; line-height: 1.3; white-space: nowrap; color: var(--subtext-color); }
+    .fut-chg.up { color: #22c55e; }
+    .fut-chg.down { color: #ef4444; }
+    body.light-mode .fut-chg.up { color: #16a34a; }
+    body.light-mode .fut-chg.down { color: #dc2626; }
+    @media (max-width: 768px) {
+        .fut-cells { gap: 6px 8px; }
+        .fut-name { font-size: 0.68rem; }
+        .fut-price { font-size: 0.95rem; line-height: 1.2; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .fut-strip, .fut-cell, .fut-price { transition: none; }
+    }
     .jbo-chart-note { margin-top: 0.75rem; font-size: 0.85rem; color: var(--subtext-color); }
     .jbo-chart-datanote { margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--subtext-color); }
     /* Johnny's indicator switch (2026-11-22): the Bitcoin overlay
@@ -775,11 +847,8 @@
        investor card is open, its name bar pins under its section's
        pinned title (the .info-toggle rule at the top of this style
        block). */
-    .hub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.75rem; margin: 1.25rem 0 0.25rem; }
-    .hub-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.9rem 1rem; text-decoration: none; display: block; transition: border-color var(--dur-1) var(--ease-out); }
-    .hub-card:hover { border-color: var(--link-color); text-decoration: none; }
-    .hub-card strong { color: var(--text-color); font-size: 0.95rem; display: block; margin-bottom: 0.25rem; }
-    .hub-card span { color: var(--subtext-color); font-size: 0.83rem; line-height: 1.45; display: block; }
+    /* (The .hub-grid / .hub-card rules that stood here went with
+       the door boxes they styled, removed 2026-11-22.) */
     /* Section title pins (2026-11-20, the pin-feel rule): a section's
        pinned header is the section's own title — the same element,
        the same words at the same size in the same place; pinning only
@@ -1464,21 +1533,22 @@
         <h1>Finance</h1>
     </header>
 
-    <!-- Start here: what this page does -->
-    <div class="hub-grid" aria-label="Start here">
-        <a class="hub-card" href="#scoreboard"><strong>Score a stock</strong><span>How 19 stocks score across 18 investor frameworks</span></a>
-        <a class="hub-card" href="#screener"><strong>Drill down on a stock</strong><span>Run the Stack, step by step</span></a>
-        <a class="hub-card" href="#committee"><strong>Meet the committee</strong><span>The 18 investors behind the frameworks</span></a>
-        <a class="hub-card" href="#backtest"><strong>Backtest a portfolio</strong><span>Test a mix over 5 years</span></a>
-        <a class="hub-card" href="#legend"><strong>Look up a term</strong><span>Every acronym on this page, defined</span></a>
-    </div>
-
+    <!-- The Chart opens the page: the five "Start here" door boxes
+         that stood here are removed (2026-11-22) — every one of them
+         duplicated a section that appears in full further down the
+         same page, and together they pushed the chart a full screen
+         down. The sections stay reachable the page's settled way:
+         their own titles pin as you scroll. -->
 <!-- Chart: the page's own weekly chart over the 24 instruments its data
      pipeline carries — one fixed set of long-term gauges -->
     <div class="chart-section collapsible-section" id="chart">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="chart" aria-expanded="true" aria-controls="chart-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> The Chart</button><button type="button" class="filter-pill chart-share-btn" id="chartShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg>Share</button><button type="button" class="filter-pill chart-fs-btn" id="chartFsTitleBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="chart-fs-label-enter">Full screen</span><span class="chart-fs-label-exit">Exit</span></button></h2>
         <p class="chart-front-door">Pick a stock &mdash; see its chart, and how it grades.</p>
         <div class="section-body" id="chart-body">
+        <div class="fut-strip" id="futStrip" aria-label="Live indexes and futures">
+            <div class="fut-mode" id="futMode">Futures</div>
+            <div class="fut-cells" id="futCells"></div>
+        </div>
         <div class="chip-row" id="chartPicks" role="group" aria-label="Chart quick picks">
             <button type="button" class="filter-pill active" data-key="SPX">S&amp;P 500</button>
             <button type="button" class="filter-pill" data-key="IXIC">Nasdaq</button>
@@ -9821,6 +9891,273 @@ if (typeof module !== "undefined") {
         }
         collect();
         update();
+    })();
+    </script>
+    <script>
+    // Futures strip (2026-11-22): live index futures above the
+    // chart, fed by the futures Worker — a small Cloudflare Worker
+    // that reads Yahoo Finance server-side and answers with the
+    // CORS headers the page needs (Yahoo sends none, so the page
+    // cannot ask Yahoo directly). Display only: these quotes never
+    // feed Johnny's indicator or any pipeline. The strip polls
+    // every five seconds while the page is open and visible, and
+    // it says nothing about itself — no badges, no timestamps, no
+    // sentences. It FEELS live: a price that just moved rolls to
+    // its new value through a brief flash of its direction's
+    // colour, and when the quotes stop moving — the daily break,
+    // the weekend, a failed fetch — the strip dims and goes quiet
+    // on its own. The band runs in two modes on the New York
+    // clock: during cash hours (Mon–Fri 9:30–16:00) the cells
+    // show the cash indexes; the rest of the week they show the
+    // futures. One quiet word at the strip's top-left names the
+    // mode — "Market" or "Futures" — and it is the only text that
+    // changes with the mode; the cells carry the short plain
+    // names in both modes. A mode switch lands on the next poll,
+    // with no reload.
+    (function () {
+        var FUTURES_API_URL = 'https://futures.johnbryantoneal.workers.dev/';
+        var ORDER = ['spx', 'ndx', 'dow', 'rut', 'vix'];
+        // The short plain names, the same in both modes — the
+        // mode word already says which set the cells are showing
+        // (compact pass, 2026-11-22).
+        var NAMES = {
+            spx: 'S&P 500',
+            ndx: 'Nasdaq',
+            dow: 'Dow',
+            rut: 'Russell',
+            vix: 'VIX'
+        };
+        // The mode, by the New York clock: cash hours are Monday
+        // to Friday, 9:30 to 16:00 America/New_York. Everything
+        // else — evenings, the futures daily break, weekends —
+        // shows the futures.
+        function modeNow() {
+            var parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/New_York',
+                weekday: 'short', hour: 'numeric', minute: '2-digit',
+                hourCycle: 'h23'
+            }).formatToParts(new Date());
+            var day = '', mins = -1, hour = 0, minute = 0;
+            parts.forEach(function (p) {
+                if (p.type === 'weekday') day = p.value;
+                if (p.type === 'hour') hour = parseInt(p.value, 10);
+                if (p.type === 'minute') minute = parseInt(p.value, 10);
+            });
+            mins = hour * 60 + minute;
+            var weekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+                .indexOf(day) !== -1;
+            return (weekday && mins >= 570 && mins < 960)
+                ? 'market' : 'futures';
+        }
+        var currentMode = modeNow();
+        var modeEl = document.getElementById('futMode');
+        if (modeEl) {
+            modeEl.textContent =
+                currentMode === 'market' ? 'Market' : 'Futures';
+        }
+        var REFRESH_MS = 5000;
+        var FRESH_MS = 15 * 60 * 1000;
+        var STILL_MS = 3 * 60 * 1000;
+        var TWEEN_MS = 600;
+        var stripEl = document.getElementById('futStrip');
+        var cellsEl = document.getElementById('futCells');
+        if (!stripEl || !cellsEl) return;
+        var reduceMotion = window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var cells = {};
+        ORDER.forEach(function (key) {
+            var cell = document.createElement('div');
+            cell.className = 'fut-cell';
+            var name = document.createElement('span');
+            name.className = 'fut-name';
+            name.textContent = NAMES[key];
+            var price = document.createElement('span');
+            price.className = 'fut-price';
+            price.textContent = '—';
+            var chg = document.createElement('span');
+            chg.className = 'fut-chg';
+            chg.textContent = '—';
+            cell.appendChild(name);
+            cell.appendChild(price);
+            cell.appendChild(chg);
+            cellsEl.appendChild(cell);
+            cells[key] = {
+                cell: cell, name: name, price: price, chg: chg,
+                shown: null, target: null, prevClose: null,
+                decimals: 2, raf: null
+            };
+        });
+        function fmtNum(n, d) {
+            return n.toLocaleString('en-US', {
+                minimumFractionDigits: d, maximumFractionDigits: d
+            });
+        }
+        function fmtSigned(n, d) {
+            return (n < 0 ? '-' : '+') + fmtNum(Math.abs(n), d);
+        }
+        function paint(c) {
+            var d = c.decimals;
+            c.price.textContent = fmtNum(c.shown, d);
+            var change = c.shown - c.prevClose;
+            // The change shows its percent only — the points
+            // were what forced the band onto two rows (compact
+            // pass, 2026-11-22). It still recomputes from the
+            // rolling price, so the cell never disagrees with
+            // itself mid-roll.
+            c.chg.textContent =
+                fmtSigned(change / c.prevClose * 100, 2) + '%';
+            c.chg.className = 'fut-chg ' +
+                (change > 0 ? 'up' : (change < 0 ? 'down' : ''));
+        }
+        // A changed price rolls to its new value instead of
+        // blink-swapping, and the cell flashes the direction's
+        // colour, settling back over a second (the CSS transition
+        // does the settling; the class only strikes the match).
+        function tick(c, from, to) {
+            var cls = to > from ? 'tick-up' : 'tick-down';
+            c.cell.classList.remove('tick-up', 'tick-down');
+            void c.cell.offsetWidth;
+            c.cell.classList.add(cls);
+            setTimeout(function () { c.cell.classList.remove(cls); }, 60);
+            if (c.raf) cancelAnimationFrame(c.raf);
+            if (reduceMotion || !window.requestAnimationFrame) {
+                c.shown = to;
+                paint(c);
+                return;
+            }
+            var start = null;
+            var step = function (ts) {
+                if (start === null) start = ts;
+                var t = Math.min((ts - start) / TWEEN_MS, 1);
+                var eased = 1 - Math.pow(1 - t, 3);
+                c.shown = from + (to - from) * eased;
+                paint(c);
+                if (t < 1) {
+                    c.raf = requestAnimationFrame(step);
+                } else {
+                    c.shown = to;
+                    paint(c);
+                    c.raf = null;
+                }
+            };
+            c.raf = requestAnimationFrame(step);
+        }
+        var lastMoveAt = null;
+        var lastFetchOk = false;
+        var lastLeadTime = null;
+        // The strip's one state, carried by light, never words:
+        // it dims and desaturates when nothing is moving — the
+        // newest futures trade is old, or no price has changed
+        // for minutes, or the last fetch failed — and it comes
+        // back to full life the moment a price moves again.
+        function applyQuiet() {
+            var now = Date.now();
+            var quiet = !lastFetchOk ||
+                lastLeadTime === null ||
+                (now - lastLeadTime * 1000) >= FRESH_MS ||
+                (lastMoveAt !== null && (now - lastMoveAt) >= STILL_MS);
+            stripEl.classList.toggle('quiet', quiet);
+        }
+        function render(data) {
+            // A mode switch replaces the instruments themselves,
+            // so the new set is set plainly — no roll from another
+            // instrument's price — and the mode word changes with
+            // it, on this same poll.
+            var mode = modeNow();
+            if (mode !== currentMode) {
+                currentMode = mode;
+                if (modeEl) {
+                    modeEl.textContent =
+                        mode === 'market' ? 'Market' : 'Futures';
+                }
+                ORDER.forEach(function (key) {
+                    var c = cells[key];
+                    if (c.raf) cancelAnimationFrame(c.raf);
+                    c.raf = null;
+                    c.shown = null;
+                    c.target = null;
+                    c.price.textContent = '—';
+                    c.chg.textContent = '—';
+                    c.chg.className = 'fut-chg';
+                });
+                lastMoveAt = null;
+            }
+            var byKey = {};
+            (data[mode] || []).forEach(function (q) { byKey[q.key] = q; });
+            var moved = false;
+            ORDER.forEach(function (key) {
+                var q = byKey[key], c = cells[key];
+                if (!q) {
+                    if (c.raf) cancelAnimationFrame(c.raf);
+                    c.raf = null;
+                    c.shown = null;
+                    c.target = null;
+                    c.price.textContent = '—';
+                    c.chg.textContent = '—';
+                    c.chg.className = 'fut-chg';
+                    return;
+                }
+                c.decimals = typeof q.decimals === 'number'
+                    ? q.decimals : 2;
+                c.prevClose = q.prev_close;
+                if (c.target === null) {
+                    c.target = q.price;
+                    c.shown = q.price;
+                    paint(c);
+                } else if (q.price !== c.target) {
+                    var from = c.shown === null ? c.target : c.shown;
+                    c.target = q.price;
+                    moved = true;
+                    tick(c, from, q.price);
+                } else if (c.raf === null) {
+                    c.shown = q.price;
+                    paint(c);
+                }
+            });
+            // Freshness is judged on the futures themselves (the
+            // VIX spot can sit unchanged outside Cboe hours).
+            lastLeadTime = null;
+            ['spx', 'ndx', 'dow', 'rut'].forEach(function (key) {
+                if (lastLeadTime === null && byKey[key] &&
+                        byKey[key].quote_time) {
+                    lastLeadTime = byKey[key].quote_time;
+                }
+            });
+            lastFetchOk = lastLeadTime !== null;
+            if (moved) lastMoveAt = Date.now();
+            if (lastMoveAt === null && lastFetchOk) {
+                lastMoveAt = Date.now();
+            }
+            applyQuiet();
+        }
+        function renderFailure() {
+            lastFetchOk = false;
+            applyQuiet();
+        }
+        function load() {
+            fetch(FUTURES_API_URL, { cache: 'no-store' })
+                .then(function (r) {
+                    if (!r.ok) throw new Error('futures ' + r.status);
+                    return r.json();
+                })
+                .then(render)
+                .catch(renderFailure);
+        }
+        var timer = null;
+        function start() {
+            if (timer !== null) return;
+            load();
+            timer = setInterval(load, REFRESH_MS);
+        }
+        function stop() {
+            if (timer === null) return;
+            clearInterval(timer);
+            timer = null;
+        }
+        if (!document.hidden) start();
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) { stop(); } else { start(); }
+        });
     })();
     </script>
 </body>
