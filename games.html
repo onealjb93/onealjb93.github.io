@@ -235,7 +235,8 @@
         /* Games shell (2026-11-17): both games live in expand/collapse
            cards — the site's disclosure pattern (a real header button,
            an arrow, aria-expanded) with a smooth height animation. One
-           game open at a time; the choice is remembered. The toggle
+           game open at a time; every visit starts with all games
+           closed. The toggle
            button stretches over its heading's padding via negative
            margins, so the whole heading bar is the tap target while the
            heading box — which the one-screen stage math depends on —
@@ -1160,16 +1161,17 @@
         </div></div>
     </section>
     <script>
-    // Games shell (part 1 of 2): apply the remembered open game to Line
-    // Rider before the rest of the page parses, so a returning visitor
-    // never sees the wrong game flash open. Part 2, after the Universe
-    // section, wires the toggles. First visit: Line Rider open.
+    // Games shell (part 1 of 2): every visit opens with all games
+    // collapsed (Johnny, 2026-11-23), so the open game is 'none' here
+    // and Line Rider — the one game whose markup ships open — is
+    // collapsed below, before the rest of the page parses, before any
+    // visitor can see it flash open. Part 2, after the Universe
+    // section, wires the toggles. Nothing is remembered between
+    // visits; the old 'games-open-v1' key is removed, so a stale
+    // stored value can never take effect again.
     (function () {
-        var open = 'linerider';
-        try {
-            var s = localStorage.getItem('games-open-v1');
-            if (s === 'universe' || s === 'thumbkart' || s === 'frequency' || s === 'none') open = s;
-        } catch (e) { /* storage blocked: the default stands */ }
+        var open = 'none';
+        try { localStorage.removeItem('games-open-v1'); } catch (e) { /* storage blocked */ }
         window.__gamesOpen = open;
         if (open !== 'linerider') {
             window.__gamesLrCollapsed = true;
@@ -4320,13 +4322,13 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
 
     <script>
     // Games shell (part 2 of 2): the toggles. One game open at a time;
-    // tapping the open game's heading closes it. The choice is remembered
-    // ('games-open-v1'). The Universe engine and its data, and the Thumb Drive
+    // tapping the open game's heading closes it. The choice is not
+    // remembered: part 1 starts every visit with all games closed.
+    // The Universe engine and its data, and the Thumb Drive
     // engine, start only on that game's first expand. Line Rider's own code is untouched —
     // if it loaded collapsed, its Fit button is pressed once on its first
     // expand so its view is framed exactly as if it had loaded open.
     (function () {
-        var KEY = 'games-open-v1';
         var open = window.__gamesOpen || 'linerider';
         if (open === 'none') open = null;
         var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -4346,7 +4348,6 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         var uvStarted = false, uvCtrl = null, lrFitDone = false;
         var tkStarted = false, tkCtrl = null;
         var fgStarted = false, fgCtrl = null;
-        function save() { try { localStorage.setItem(KEY, open || 'none'); } catch (e) {} }
         function setArrow(btn, isOpen) {
             var a = btn && btn.querySelector('.game-arrow');
             if (a) a.textContent = isOpen ? '\u25bc' : '\u25b6';
@@ -4423,7 +4424,6 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 setOpen(name, true);
                 open = name;
             }
-            save();
         }
         Object.keys(btns).forEach(function (name) {
             if (btns[name]) btns[name].addEventListener('click', function () { toggle(name); });
@@ -4441,9 +4441,6 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             if (open !== 'thumbkart') toggle('thumbkart');
             if (window.__tk && window.__tk.openScores) window.__tk.openScores();
         });
-        if (open === 'universe') setOpen('universe', true, true);
-        if (open === 'thumbkart') setOpen('thumbkart', true, true);
-        if (open === 'frequency') setOpen('frequency', true, true);
     })();
     </script>
 
