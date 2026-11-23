@@ -97,6 +97,29 @@ never a target. Signals are a pure function of the bars and P/E
 already in the file, recomputed in full each run — history never
 repaints beyond what the underlying bars and P/E themselves do.
 
+Score dots (added 2026-11-23): each daily series also gains a
+"score_buys" array — the days the 100-point Buy Opportunity Score
+reaches its strong tier (85 or higher) that are NOT already buy
+days under the gate above: the union Johnny adopted on 2026-11-23,
+the gate's dots and the score's dots side by side, sells untouched
+(see compute_score_buy_days below for the exact point table). The
+score is the graded-score study's V1 (2026-11-22), reproduced
+exactly; the page draws these days as ringed dots beside the gate's
+filled ones.
+
+Earnings door and veto (added 2026-11-23): for Johnny's 19 stocks
+only, the run also builds point-in-time earnings events from SEC
+EDGAR companyfacts (see build_earnings_events below — the earnings
+study's exact construction: every figure as first reported, an
+event tradable only from the first trading day after its filing)
+and applies the two rules Johnny adopted from that study: a
+good-print buy door (B1) unioned with the gate, and a clean-print
+sell veto (S4) that suppresses a sell episode whose latest print
+is clean. The other series have no events in the study and are
+untouched; the known blind spots stay blind — NBIS and TSM file
+no usable quarterly facts, and JPM reports no gross margin, so
+the veto can never fire on it.
+
 Market context (added 2026-11-23): the same run also writes
 finance-context.json, built by market_context.py (imported
 lazily at the end of main, so a context failure can never touch
@@ -645,6 +668,286 @@ def compute_pe(bars, facts, splits):
     return out
 
 
+# ------------------------------------------------- earnings events
+# Point-in-time quarterly earnings events for Johnny's 19 stocks,
+# the data under the adopted B1 door / S4 veto (see the formula
+# notes above compute_indicator_signals). The construction is the
+# earnings study's, reproduced exactly (study #6, 2026-11-23):
+# - every figure AS FIRST REPORTED: per fiscal period the
+#   earliest filing wins; restated values in later filings are
+#   never used;
+# - a quarter is a flow duration of 75-110 days, an annual
+#   330-380; periods are keyed by END date (different concepts
+#   tag the same quarter with start dates a day apart);
+# - Q4 is derived as the fiscal year minus the three quarters
+#   inside that year's own window, public at the annual's
+#   filing date;
+# - gross profit is derived as revenue minus cost where the
+#   GrossProfit tag is absent (marked nowhere — the study's
+#   events carry it identically);
+# - EPS is filled as net income / share count only where the
+#   EPS tag itself is absent;
+# - an event's public date is the LATEST filed date among its
+#   components (the quarter is only fully public when every
+#   used figure is public), and it becomes tradable on the
+#   first trading day strictly after that date.
+# TSM files under ifrs-full (its us-gaap concepts are absent);
+# every feature built on its facts is a ratio, so the TWD unit
+# washes out — and in practice its facts carry no quarterly
+# durations at all, so it builds no events, exactly as the
+# study found. NBIS likewise files annual periods only.
+
+EARNINGS_KEYS = ["GOOGL", "ASST", "CIFR", "SPCX", "NBIS", "IREN",
+                 "AAOI", "NVDA", "AMD", "PLTR", "MU", "TSLA", "MSTR",
+                 "TSM", "LLY", "WM", "COST", "JPM", "WMT"]
+_EARN_REV_CHAIN = ["RevenueFromContractWithCustomerExcludingAssessedTax",
+                   "SalesRevenueNet", "Revenues",
+                   "RevenuesNetOfInterestExpense"]
+_EARN_SHARES_CHAIN = ["WeightedAverageNumberOfDilutedSharesOutstanding",
+                      "WeightedAverageNumberOfSharesOutstandingBasic"]
+_EARN_COST_CHAIN = ["CostOfRevenue", "CostOfGoodsAndServicesSold",
+                    "CostOfGoodsSold"]
+
+
+def _earn_entries(facts, taxonomy, tag):
+    """All flow facts for one concept, flattened across units:
+    [{start, end, val, filed, dur}] with dur in days, inclusive."""
+    units = (facts.get("facts", {}).get(taxonomy, {}).get(tag, {})
+             .get("units", {}))
+    out = []
+    for entries in units.values():
+        for e in entries:
+            if "start" not in e or "end" not in e:
+                continue
+            dur = (date.fromisoformat(e["end"])
+                   - date.fromisoformat(e["start"])).days + 1
+            out.append({"start": e["start"], "end": e["end"],
+                        "val": e["val"], "filed": e["filed"],
+                        "dur": dur})
+    return out
+
+
+def _earn_instant(facts, taxonomy, tag):
+    """Instant (balance-sheet-date) facts: {end: earliest-filed
+    entry}."""
+    units = (facts.get("facts", {}).get(taxonomy, {}).get(tag, {})
+             .get("units", {}))
+    out = {}
+    for entries in units.values():
+        for e in entries:
+            if "end" not in e:
+                continue
+            k = e["end"]
+            if k not in out or e["filed"] < out[k]["filed"]:
+                out[k] = {"val": e["val"], "filed": e["filed"]}
+    return out
+
+
+def _earn_first_reported(entries, lo, hi):
+    """{(start, end): entry} within a duration band, keeping the
+    earliest-filed entry per period."""
+    best = {}
+    for e in entries:
+        if not (lo <= e["dur"] <= hi):
+            continue
+        k = (e["start"], e["end"])
+        if k not in best or e["filed"] < best[k]["filed"]:
+            best[k] = e
+    return best
+
+
+def _earn_concept(facts, taxonomy, tags):
+    """Merged quarterly/annual first-reported maps for a concept
+    given a fallback tag chain: per period, the first tag that
+    reports it wins."""
+    q, a = {}, {}
+    for tag in tags:
+        entries = _earn_entries(facts, taxonomy, tag)
+        for k, e in _earn_first_reported(entries, 75, 110).items():
+            q.setdefault(k, e)
+        for k, e in _earn_first_reported(entries, 330, 380).items():
+            a.setdefault(k, e)
+    return q, a
+
+
+def build_earnings_events(key, facts):
+    """The event list for one of the 19: [{end, filed, eps, ni,
+    rev, gp, oi, derived_q4, eps_derived}] sorted by period end.
+    `facts` is the company's full EDGAR companyfacts document."""
+    if key == "TSM":
+        # Foreign private issuer: us-gaap concepts are absent;
+        # the facts live under ifrs-full.
+        tax = "ifrs-full"
+        eps_q, eps_a = _earn_concept(facts, tax, [
+            "DilutedEarningsLossPerShare", "BasicEarningsLossPerShare"])
+        ni_q, ni_a = _earn_concept(facts, tax, ["ProfitLoss"])
+        rev_q, rev_a = _earn_concept(facts, tax, ["Revenue"])
+        gp_q, gp_a = _earn_concept(facts, tax, ["GrossProfit"])
+        oi_q, oi_a = _earn_concept(facts, tax, [
+            "ProfitLossFromOperatingActivities"])
+        cost_q, cost_a = {}, {}
+        sh_q, sh_inst = {}, {}
+    else:
+        tax = "us-gaap"
+        eps_q, eps_a = _earn_concept(facts, tax, [
+            "EarningsPerShareDiluted", "EarningsPerShareBasic"])
+        ni_q, ni_a = _earn_concept(facts, tax, ["NetIncomeLoss"])
+        rev_q, rev_a = _earn_concept(facts, tax, _EARN_REV_CHAIN)
+        gp_q, gp_a = _earn_concept(facts, tax, ["GrossProfit"])
+        oi_q, oi_a = _earn_concept(facts, tax, ["OperatingIncomeLoss"])
+        cost_q, cost_a = _earn_concept(facts, tax, _EARN_COST_CHAIN)
+        sh_q, _sh_a = _earn_concept(facts, tax, _EARN_SHARES_CHAIN)
+        sh_inst = _earn_instant(facts, tax,
+                                "CommonStockSharesOutstanding")
+
+    # Periods are keyed by END date from here on (see the section
+    # notes). Within a concept, duplicate ends keep the earliest
+    # filing.
+    def by_end(m):
+        out = {}
+        for (_s, e), ent in m.items():
+            if e not in out or ent["filed"] < out[e]["filed"]:
+                out[e] = ent
+        return out
+
+    eps_q, eps_a = by_end(eps_q), by_end(eps_a)
+    ni_q, ni_a = by_end(ni_q), by_end(ni_a)
+    rev_q, rev_a = by_end(rev_q), by_end(rev_a)
+    gp_q, gp_a = by_end(gp_q), by_end(gp_a)
+    oi_q, oi_a = by_end(oi_q), by_end(oi_a)
+    cost_q, cost_a = by_end(cost_q), by_end(cost_a)
+    sh_q = by_end(sh_q)
+    concepts = {"eps": (eps_q, eps_a), "ni": (ni_q, ni_a),
+                "rev": (rev_q, rev_a), "gp": (gp_q, gp_a),
+                "oi": (oi_q, oi_a)}
+
+    # Gross profit derived as revenue - cost where the GrossProfit
+    # tag is absent for a period (GOOGL, LLY, WM, WMT, COST report
+    # cost lines instead). Never overrides a reported gross profit.
+    for e, cent in cost_q.items():
+        if e in rev_q and e not in gp_q:
+            gp_q[e] = {"val": rev_q[e]["val"] - cent["val"],
+                       "filed": max(rev_q[e]["filed"], cent["filed"])}
+    for e, cent in cost_a.items():
+        if e in rev_a and e not in gp_a:
+            gp_a[e] = {"start": rev_a[e]["start"],
+                       "val": rev_a[e]["val"] - cent["val"],
+                       "filed": max(rev_a[e]["filed"], cent["filed"])}
+
+    quarters = {}
+    for name, (qm, _am) in concepts.items():
+        for e, ent in qm.items():
+            rec = quarters.setdefault(e, {})
+            rec[name] = ent["val"]
+            rec.setdefault("_filed", []).append(ent["filed"])
+
+    # Q4 derivation: FY value minus the three quarters of that
+    # fiscal year, matched by the annual period's own window
+    # (start, end] — NOT by the fy field: a first-reported entry
+    # can be a comparative carried in a later filing whose fy
+    # label names the later year, which poisons fy matching.
+    for name, (qm, am) in concepts.items():
+        for e, fy_ent in am.items():
+            s_a = fy_ent["start"]
+            qs = [ent for qe, ent in qm.items() if s_a < qe < e]
+            if len(qs) != 3:
+                continue
+            if e in quarters and name in quarters[e]:
+                continue  # a direct quarter already ends at FY end
+            rec = quarters.setdefault(e, {})
+            if name not in rec:
+                rec[name] = fy_ent["val"] - sum(q["val"] for q in qs)
+                rec.setdefault("_filed", []).append(fy_ent["filed"])
+                rec["_derived"] = True
+
+    events = []
+    for e, rec in quarters.items():
+        ev = {"end": e, "filed": max(rec["_filed"]),
+              "eps": rec.get("eps"), "ni": rec.get("ni"),
+              "rev": rec.get("rev"), "gp": rec.get("gp"),
+              "oi": rec.get("oi"),
+              "derived_q4": bool(rec.get("_derived")),
+              "eps_derived": False}
+        # EPS filled definitionally as net income / weighted
+        # diluted shares where the EPS tag itself is absent for
+        # the period (the tag is thin for TSLA before 2015). Both
+        # inputs are as-first-reported; the fill is marked.
+        if ev["eps"] is None and ev["ni"] is not None:
+            den = sh_q.get(e) or sh_inst.get(e)
+            if den and den["val"]:
+                ev["eps"] = ev["ni"] / den["val"]
+                ev["eps_derived"] = True
+                ev["filed"] = max(ev["filed"], den["filed"])
+        events.append(ev)
+    events.sort(key=lambda x: x["end"])
+    return events
+
+
+def earnings_daily_state(events, bar_dates):
+    """The latest-print state on each bar, as the study computed
+    it: {age, eps_yoy, rev_yoy, gm_chg_yoy} lists aligned 1:1
+    with bar_dates (None on a bar with no live print or no
+    computable leg), or None if no event is ever tradable.
+
+    Year-over-year legs are positional (four events back) with
+    chain breaks wherever consecutive period ends gap by more
+    than 150 days — lags across a break are missing, never
+    interpolated. EPS YoY divides by the year-ago EPS only when
+    it is positive (the study's rule; a negative base makes the
+    ratio meaningless). Age is trading days since the print
+    became tradable."""
+    n = len(bar_dates)
+    ords = [date.fromisoformat(d).toordinal() for d in bar_dates]
+    ends = [date.fromisoformat(e["end"]).toordinal() for e in events]
+
+    def lag(i, k, field):
+        if i - k < 0:
+            return None
+        for m in range(i - k + 1, i + 1):
+            if ends[m] - ends[m - 1] > 150:
+                return None
+        return events[i - k][field]
+
+    live = []
+    for i, e in enumerate(events):
+        eps, eps4 = e["eps"], lag(i, 4, "eps")
+        rev, rev4 = e["rev"], lag(i, 4, "rev")
+        eps_yoy = ((eps - eps4) / abs(eps4)
+                   if (eps is not None and eps4 is not None
+                       and eps4 > 0) else None)
+        rev_yoy = (rev / rev4 - 1.0
+                   if (rev is not None and rev4 is not None
+                       and rev4 > 0) else None)
+        gm = (e["gp"] / rev) if (e["gp"] is not None and rev) else None
+        gp4, rev4b = lag(i, 4, "gp"), lag(i, 4, "rev")
+        gm4 = (gp4 / rev4b) if (gp4 is not None and rev4b) else None
+        gm_chg = (gm - gm4) if (gm is not None
+                                and gm4 is not None) else None
+        j = bisect.bisect_right(
+            ords, date.fromisoformat(e["filed"]).toordinal())
+        if j < n:
+            live.append({"j": j, "eps_yoy": eps_yoy,
+                         "rev_yoy": rev_yoy, "gm_chg_yoy": gm_chg})
+    if not live:
+        return None
+    age = [None] * n
+    ey = [None] * n
+    ry = [None] * n
+    gm = [None] * n
+    li = 0
+    for t in range(n):
+        while li < len(live) and live[li]["j"] <= t:
+            li += 1
+        if li > 0:
+            f = live[li - 1]
+            age[t] = t - f["j"]
+            ey[t] = f["eps_yoy"]
+            ry[t] = f["rev_yoy"]
+            gm[t] = f["gm_chg_yoy"]
+    return {"age": age, "eps_yoy": ey, "rev_yoy": ry,
+            "gm_chg_yoy": gm}
+
+
 # ------------------------------------------------- Johnny's indicator
 # Buy/sell signal dates for the Finance chart, computed nightly here
 # (added 2026-11-22; formula settled by Johnny, 2026-11-22, after two
@@ -659,6 +962,17 @@ def compute_pe(bars, facts, splits):
 #                    PEG check
 #   SPX/IXIC/GOLD/BTC (no earnings exist, no P/E array): the same
 #                    without PEG — never presented as PEG-checked.
+#                    Index split (2026-11-23; Johnny's adoption of
+#                    the indicator-classes study, section 5): SPX
+#                    and IXIC buy at drawdown <= -25% — at -30% the
+#                    indexes sat near-silent (SPX's ten career buys
+#                    all landed Oct 2008-Mar 2009), while at -25%
+#                    both clear the reliability bar individually
+#                    (validation capture 33% -> 100%, median 1y
+#                    +23.5%; the wider line adds 2020-03-12 on both
+#                    indexes, 2022-09-30 on SPX and 2008-09-17 on
+#                    IXIC). GOLD, BTC and the band instruments keep
+#                    the -30% line exactly.
 # Drawdown is the close against the trailing 2-year high — close /
 # max(close over the trailing 504 bars, today included) - 1. It
 # replaced the buy side's close <= 200-week MA condition on
@@ -689,6 +1003,61 @@ def compute_pe(bars, facts, splits):
 # forward return against the main door's +31.2%, and it is the
 # only tested door that has ever put buy dots on WMT (5
 # episodes, on its May-June 2022 low).
+# Score dots (added 2026-11-23; Johnny's adoption of the union
+# the graded-score study pointed to): beside the gate, each day
+# also carries the 100-point Buy Opportunity Score — drawdown
+# depth 30 (steps at 15/20/25/30/35/40%), daily RSI(14) 20,
+# valuation 25 (PEG tiers 0.75/1.00/1.25/1.50/2.00), distance
+# below the 200-week average 15, VIX 10 as a bonus that can
+# never block. Where PEG cannot compute, the valuation leg
+# falls back to the gate's own stand-in: the PEG <= 1 tier's
+# 22 points only when the drawdown is at least -40%, else 0 —
+# one rule for every series, benchmarks and band instruments
+# included. Days scoring 85 or higher that are not already gate
+# buy days are emitted as "score_buys", a dot class of their
+# own. In the graded-score study (2015-2026, this file's own
+# history) the >= 85 days beat the gate alone on Johnny's 19 at
+# every horizon (median 1y +43.0% vs +31.2%, 2y +166.4% vs
+# +112.1%, capture 15.9% vs 13.0%, false share 58% vs 67%),
+# and the follow-up check priced the union — every gate dot
+# kept, the >= 85-only days added — above either set alone
+# (117 episodes on the 19, median 1y +37.5%, capture 20.3%,
+# false 61%). The sell side has no score: the study's sell
+# score ordered nothing and is not used.
+# Earnings door and veto (added 2026-11-23; Johnny's adoption
+# of study #6's two clearing candidates, same day): for the 19
+# earnings-universe stocks only, two rules ride on the gate,
+# both read off the point-in-time earnings events built below
+# (an event is the latest print once its filing is public; its
+# age is the trading days since it became tradable):
+#   B1 good-print buy door — a day is ALSO a buy day when
+#     RSI(14) <= 30, VIX >= 25, drawdown <= -20%, and the
+#     latest print is at most 90 trading days old with EPS and
+#     revenue both up year over year. The door unions with the
+#     gate above; it has no PEG leg and no 200-week-average
+#     condition, exactly as studied. In the study the door
+#     raised validation buy capture on the pure operators
+#     0.304 -> 0.391 and on the asset-holders 0.286 -> 0.571,
+#     put COST and GOOGL over the reliability bar, and took
+#     NVDA off it (its two added episodes are both false).
+#   S4 clean-print sell veto — a sell episode (a contiguous
+#     run of sell days) is suppressed whole when, on its first
+#     day, the latest print is at most 126 trading days old
+#     and clean on all three legs: EPS YoY >= 0, revenue
+#     YoY >= 0, gross-margin change YoY >= 0. In the study
+#     the veto removed 20 of the control's 28 validation
+#     operator sell episodes — every one of them false — and
+#     no captured episode in either era. It prunes false
+#     sells; the sells that survive still capture nothing,
+#     and the veto creates no sell signal of its own.
+# Names the earnings family cannot see stay untouched: SPX,
+# IXIC, GOLD, BTC and the band/commodity series have no
+# earnings at all; NBIS and TSM file no usable quarterly
+# facts in EDGAR's standardized data; JPM reports no gross
+# margin (banks do not), so S4 can never fire on it; ASST's
+# prints carry no computable EPS year-over-year change, and
+# the gate itself still cannot fire on ASST (its history is
+# shorter than the 1,000 closes the 200-week average needs).
 # SELL (every condition held for 5 consecutive trading days; the
 # signal is live from the 5th day through the end of the run):
 #   stocks:          RSI(14) > 70, VIX < 15, PEG >= 2,
@@ -705,6 +1074,10 @@ def compute_pe(bars, facts, splits):
 # last VIX close on or before the series' own date).
 
 _SIGNAL_NO_PEG_KEYS = {"SPX", "IXIC", "GOLD", "BTC"} | BAND_KEYS
+# The index class inside the no-PEG keys: SPX and IXIC buy at the
+# wider -25% drawdown line (see the index split note above); every
+# other no-PEG key keeps -30%.
+_SIGNAL_INDEX_KEYS = {"SPX", "IXIC"}
 _SIGNAL_PERSIST = 5
 
 
@@ -791,8 +1164,13 @@ def _sig_peg(bars, pe):
     return out
 
 
-def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
-    """(buy_dates, sell_dates) for one daily series."""
+def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes,
+                              earn=None):
+    """(buy_dates, sell_dates) for one daily series. `earn`, when
+    given, is the series' earnings_daily_state: the adopted B1
+    door unions its days into the buys and the S4 veto suppresses
+    its clean-print sell episodes (see the formula notes above).
+    Only the 19 earnings-universe stocks ever receive one."""
     dates = [b[0] for b in bars]
     closes = [float(b[4]) for b in bars]
     n = len(closes)
@@ -801,7 +1179,7 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
     dd = _sig_drawdown(closes)
     peg = None if key in _SIGNAL_NO_PEG_KEYS else _sig_peg(bars, pe)
     buy = []
-    sell = []
+    sell_idx = []
     run = 0
     for i in range(n):
         if ma[i] is None or rsi[i] is None:
@@ -813,7 +1191,8 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
             continue
         vix = vix_closes[j]
         if key in _SIGNAL_NO_PEG_KEYS:
-            is_buy = rsi[i] <= 30 and vix >= 25 and dd[i] <= -0.30
+            dd_line = -0.25 if key in _SIGNAL_INDEX_KEYS else -0.30
+            is_buy = rsi[i] <= 30 and vix >= 25 and dd[i] <= dd_line
             is_sell = rsi[i] > 70 and vix < 15 and closes[i] >= ma[i] * 1.50
         else:
             if peg[i] is not None:
@@ -844,12 +1223,168 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
             buy.append(dates[i])
         run = run + 1 if is_sell else 0
         if run >= _SIGNAL_PERSIST:
-            sell.append(dates[i])
-    return buy, sell
+            sell_idx.append(i)
+    if earn is not None:
+        # B1 good-print door: its own pass, exactly as studied —
+        # no 200-week-average condition and no PEG leg, so it is
+        # not subject to the gate loop's ma-defined skip above.
+        buy_set = set(buy)
+        for i in range(n):
+            age = earn["age"][i]
+            if age is None or age > 90:
+                continue
+            ey, ry = earn["eps_yoy"][i], earn["rev_yoy"][i]
+            if ey is None or ey <= 0 or ry is None or ry <= 0:
+                continue
+            if rsi[i] is None or rsi[i] > 30:
+                continue
+            if dd[i] > -0.20:
+                continue
+            j = bisect.bisect_right(vix_dates, dates[i]) - 1
+            if j < 0 or vix_closes[j] < 25:
+                continue
+            buy_set.add(dates[i])
+        buy = sorted(buy_set)
+        # S4 clean-print veto: group the sell days into episodes
+        # (contiguous runs); an episode whose FIRST day carries a
+        # clean print at most 126 trading days old is suppressed
+        # whole.
+        if sell_idx:
+            runs = []
+            for i in sell_idx:
+                if runs and i == runs[-1][-1] + 1:
+                    runs[-1].append(i)
+                else:
+                    runs.append([i])
+            kept = []
+            for r in runs:
+                s = r[0]
+                age = earn["age"][s]
+                ey = earn["eps_yoy"][s]
+                ry = earn["rev_yoy"][s]
+                gm = earn["gm_chg_yoy"][s]
+                clean = (age is not None and age <= 126
+                         and ey is not None and ey >= 0
+                         and ry is not None and ry >= 0
+                         and gm is not None and gm >= 0)
+                if not clean:
+                    kept.extend(r)
+            sell_idx = kept
+    return buy, [dates[i] for i in sell_idx]
 
 
-def attach_indicator_signals(d_series, d_previous):
+_SIGNAL_SCORE_STRONG = 85
+
+
+def compute_score_buy_days(key, bars, pe, vix_dates, vix_closes):
+    """Dates whose Buy Opportunity Score reaches the strong tier
+    (85 of 100) — the graded-score study's V1 score, reproduced
+    exactly (see the Score dots notes above compute_indicator_
+    signals). Points: drawdown depth 30 (15/20/25/30/35/40% ->
+    5/10/15/20/25/30), RSI(14) 20 (<=25/30/35/40/50 ->
+    20/17/13/8/4), valuation 25 (PEG <=0.75/1.00/1.25/1.50/2.00
+    -> 25/22/18/14/8, above 2.00 -> 3; where PEG cannot compute,
+    22 when the drawdown is at least -40%, else 0 — the same
+    stand-in for the no-P/E classes, benchmarks and band
+    instruments included), distance from the 200-week average
+    15 (deviation <=-30/-20/-10/+10/+25% -> 15/13/10/5/2),
+    VIX 10 (>=30/25/20/15 -> 10/8/5/2). A day is scored only
+    where the RSI and the 200-week average are defined."""
+    dates = [b[0] for b in bars]
+    closes = [float(b[4]) for b in bars]
+    n = len(closes)
+    ma = _sig_ma200w(closes)
+    rsi = _sig_rsi(closes)
+    dd = _sig_drawdown(closes)
+    peg = None if key in _SIGNAL_NO_PEG_KEYS else _sig_peg(bars, pe)
+    out = []
+    for i in range(n):
+        if ma[i] is None or rsi[i] is None:
+            continue
+        depth = -dd[i]
+        if depth >= 0.40:
+            p_dd = 30
+        elif depth >= 0.35:
+            p_dd = 25
+        elif depth >= 0.30:
+            p_dd = 20
+        elif depth >= 0.25:
+            p_dd = 15
+        elif depth >= 0.20:
+            p_dd = 10
+        elif depth >= 0.15:
+            p_dd = 5
+        else:
+            p_dd = 0
+        r = rsi[i]
+        if r <= 25:
+            p_rsi = 20
+        elif r <= 30:
+            p_rsi = 17
+        elif r <= 35:
+            p_rsi = 13
+        elif r <= 40:
+            p_rsi = 8
+        elif r <= 50:
+            p_rsi = 4
+        else:
+            p_rsi = 0
+        if key in _SIGNAL_NO_PEG_KEYS or peg[i] is None:
+            p_val = 22 if depth >= 0.40 else 0
+        elif peg[i] <= 0.75:
+            p_val = 25
+        elif peg[i] <= 1.00:
+            p_val = 22
+        elif peg[i] <= 1.25:
+            p_val = 18
+        elif peg[i] <= 1.50:
+            p_val = 14
+        elif peg[i] <= 2.00:
+            p_val = 8
+        else:
+            p_val = 3
+        dev = closes[i] / ma[i] - 1.0
+        if dev <= -0.30:
+            p_dev = 15
+        elif dev <= -0.20:
+            p_dev = 13
+        elif dev <= -0.10:
+            p_dev = 10
+        elif dev <= 0.10:
+            p_dev = 5
+        elif dev <= 0.25:
+            p_dev = 2
+        else:
+            p_dev = 0
+        j = bisect.bisect_right(vix_dates, dates[i]) - 1
+        if j < 0:
+            p_vix = 0
+        else:
+            v = vix_closes[j]
+            if v >= 30:
+                p_vix = 10
+            elif v >= 25:
+                p_vix = 8
+            elif v >= 20:
+                p_vix = 5
+            elif v >= 15:
+                p_vix = 2
+            else:
+                p_vix = 0
+        if p_dd + p_rsi + p_val + p_dev + p_vix >= _SIGNAL_SCORE_STRONG:
+            out.append(dates[i])
+    return out
+
+
+def attach_indicator_signals(d_series, d_previous, earn_states=None):
     """Compute buy/sell dates for every daily series in place.
+    `earn_states` maps any of the 19 earnings-universe keys to
+    its earnings_daily_state; those series' signals carry the
+    adopted B1 door / S4 veto. Where a series' gate arrays are
+    carried over for this run only (the transient-P/E branch
+    below), the carried arrays stand whole — door and veto
+    included in what is set aside, exactly as the rest of the
+    gate is.
 
     The VIX series built in this same run is the input; if it is
     somehow absent, the previous file's signals stand untouched.
@@ -889,6 +1424,7 @@ def attach_indicator_signals(d_series, d_previous):
     vix_closes = [float(b[4]) for b in vix_bars]
     total_buy = 0
     total_sell = 0
+    total_score = 0
     standin = []
     for key, entry in d_series.items():
         if key == "VIX":
@@ -897,7 +1433,8 @@ def attach_indicator_signals(d_series, d_previous):
         if not bars:
             continue
         buy, sell = compute_indicator_signals(
-            key, bars, entry.get("pe"), vix_dates, vix_closes)
+            key, bars, entry.get("pe"), vix_dates, vix_closes,
+            earn=(earn_states or {}).get(key))
         if key not in _SIGNAL_NO_PEG_KEYS and not entry.get("pe"):
             prev = d_previous.get(key) or {}
             if prev.get("pe"):
@@ -917,10 +1454,26 @@ def attach_indicator_signals(d_series, d_previous):
                     % key)
         entry["buy"] = buy
         entry["sell"] = sell
+        # Score dots: the >= 85 days that are not already gate
+        # buy days (the final buy array above, carry-over
+        # included) — the union's second dot class. Computed
+        # fresh every run like the gate; where the gate's arrays
+        # were carried over for this run only, the score days
+        # are still this run's, measured against the carried
+        # buy set, so a day is never emitted in both classes.
+        buy_set = set(buy)
+        entry["score_buys"] = [
+            d for d in compute_score_buy_days(
+                key, bars, entry.get("pe"), vix_dates, vix_closes)
+            if d not in buy_set]
         total_buy += len(buy)
         total_sell += len(sell)
+        total_score += len(entry["score_buys"])
     log("Indicator signals: %d buy days, %d sell days across %d series."
         % (total_buy, total_sell, len(d_series) - 1))
+    log("Indicator score dots: %d days at score >= %d that are "
+        "not already buy days."
+        % (total_score, _SIGNAL_SCORE_STRONG))
     if standin:
         log("Indicator: %d series computed on the stand-in leg "
             "(no P/E): %s"
@@ -1194,6 +1747,7 @@ def main():
     except Exception as exc:
         log("EDGAR ticker map FAILED (%s) — no fresh P/E this run." % exc)
     facts_cache = {}
+    full_facts_cache = {}
     splits_cache = {}
 
     def pe_for(key, symbol, bars):
@@ -1204,6 +1758,7 @@ def main():
             return None
         if cik not in facts_cache:
             facts = fetch_edgar_json(EDGAR_FACTS_URL % cik)
+            full_facts_cache[cik] = facts
             units = (facts.get("facts", {}).get("us-gaap", {})
                      .get("EarningsPerShareDiluted", {}).get("units", {}))
             facts_cache[cik] = units.get("USD/shares")
@@ -1421,11 +1976,48 @@ def main():
             % (", ".join(d_missing), daily_path, out_path))
         return 1
 
+    # Earnings state for the adopted B1 door / S4 veto: events
+    # built from the same companyfacts this run already pulled
+    # for P/E (the full document is cached per CIK in pe_for;
+    # TSM, which the P/E path excludes by rule, is fetched here
+    # on its own). Any failure leaves that name's signals
+    # without the door/veto this run — logged, never silent —
+    # and never touches the price or P/E data.
+    earn_states = {}
+    for key in EARNINGS_KEYS:
+        entry = d_series.get(key)
+        if not entry or not entry.get("bars"):
+            continue
+        try:
+            cik = cik_map.get(key)
+            if not cik:
+                log("  earnings: no CIK for %s — no door/veto" % key)
+                continue
+            facts = full_facts_cache.get(cik)
+            if facts is None:
+                facts = fetch_edgar_json(EDGAR_FACTS_URL % cik)
+                full_facts_cache[cik] = facts
+                time.sleep(0.15)  # SEC fair access, as in pe_for
+            events = build_earnings_events(key, facts)
+            state = earnings_daily_state(
+                events, [b[0] for b in entry["bars"]])
+            if state is None:
+                log("  earnings: %s — %d prints, none tradable on "
+                    "its bars; no door/veto" % (key, len(events)))
+                continue
+            earn_states[key] = state
+            log("  earnings: %s — %d prints; door/veto state live"
+                % (key, len(events)))
+        except Exception as exc:
+            log("  earnings FAILED for %s (%s) — its signals ship "
+                "without the earnings door/veto this run"
+                % (key, exc))
+
     # Johnny's indicator: buy/sell signal dates on every daily
     # series, from this run's own bars, P/E and VIX (see the
     # indicator section above compute_pe).
     try:
-        attach_indicator_signals(d_series, d_previous)
+        attach_indicator_signals(d_series, d_previous, earn_states)
     except Exception as exc:
         log("WARNING: indicator signals failed (%s) — the daily file "
             "ships without fresh signals." % exc)
