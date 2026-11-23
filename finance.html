@@ -471,8 +471,24 @@
        next cell peeks at the right edge — the phone's own
        behaviour, carried to the desktop unchanged. The phone
        keeps its fractional sizing below, byte for byte. */
-    .fut-cells { --fut-gap: 6px; display: flex; gap: var(--fut-gap); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; touch-action: pan-x pan-y; }
+    .fut-cells { --fut-gap: 6px; display: flex; gap: var(--fut-gap); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; overscroll-behavior-x: contain; scrollbar-width: none; touch-action: pan-x pan-y; }
     .fut-cells::-webkit-scrollbar { display: none; }
+    /* Drag to pan (2026-11-23, Johnny: "need to be able to
+       easily select a future, or drag to scroll"): the snap
+       softens from mandatory to proximity in the rule above —
+       a mandatory snap pulls every programmatic scrollLeft
+       back to a snap point mid-drag, which reads as sticky
+       and jumpy; proximity still settles the strip beside a
+       cell edge at rest, and the fractional cell widths keep
+       the next cell peeking. The strip wears the grab cursor
+       as its affordance (the cell rule out-specifies the
+       button's pointer cursor), grabbing while a drag runs,
+       and a live drag selects no text. Touch is untouched:
+       it keeps its native pans, and the drag script below
+       ignores touch pointers outright. */
+    .fut-cells, .fut-cells .fut-cell { cursor: grab; }
+    .fut-cells.dragging, .fut-cells.dragging .fut-cell { cursor: grabbing; }
+    .fut-cells.dragging, .fut-cells.dragging * { -webkit-user-select: none; user-select: none; }
     .fut-cell { flex: 0 0 114px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; min-width: 0; gap: 4px; padding: 7px 10px 6px; border-radius: 8px; transition: background-color 1s ease; }
     /* The tick tint never lands on the selected cell (2026-11-23):
        these rules follow .fut-cell.sel at equal specificity, so a
@@ -651,6 +667,19 @@
     .fin-alert-sub-copy { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
     .fin-alert-sub-head { margin: 0; font-size: 1.05rem; font-weight: 700; line-height: 1.3; color: var(--text-color); }
     .fin-alert-sub-text { margin: 0; font-size: 0.85rem; line-height: 1.4; color: var(--subtext-color); }
+    /* The buy/sell dots in the sentence above (2026-11-23):
+       the spans shipped with the panel, but the .zd styles
+       existed only inside bitcoin.html, scoped to its own
+       subscribe text — on this page the spans had no size and
+       no background and rendered invisible. The rules below
+       are bitcoin.html's own, value for value, scoped to this
+       panel's text the same way; buy and sell only, because
+       those are the two dots the sentence carries. */
+    .fin-alert-sub-text .zd { display: inline-block; width: 0.55em; height: 0.55em; border-radius: 50%; margin-right: 0.28em; vertical-align: -0.03em; }
+    .fin-alert-sub-text .zd-buy { background: #22c55e; }
+    .fin-alert-sub-text .zd-sell { background: #ef4444; }
+    body.light-mode .fin-alert-sub-text .zd-buy { background: #16a34a; }
+    body.light-mode .fin-alert-sub-text .zd-sell { background: #dc2626; }
     .fin-alert-sub-foot { margin: 0; font-size: 0.78rem; line-height: 1.4; color: var(--subtext-color); }
     .fin-alert-sub-form { display: flex; align-items: center; gap: 8px; margin: 0; }
     .fin-alert-sub-form input[type="email"] { flex: 1 1 auto; min-width: 0; box-sizing: border-box; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-color); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; min-height: 44px; }
@@ -10811,6 +10840,87 @@ if (typeof module !== "undefined") {
         LINEUP.forEach(function (pair) {
             makeCell(pair[0], pair[1]);
         });
+        // Drag to pan (2026-11-23, Johnny: "need to be able
+        // to easily select a future, or drag to scroll"): a
+        // mouse or pen press that travels past a few pixels
+        // pans the strip under the pointer; a press that
+        // stays inside them is a tap and selects exactly as
+        // before. The release after a real drag must not also
+        // fire the pressed cell's click, so a finished drag
+        // arms a one-shot capture-phase swallow on the strip;
+        // the next press anywhere disarms it, so an honest
+        // tap is never eaten. Touch pointers are ignored
+        // outright — the strip's native pan owns touch, byte
+        // for byte. Shift+wheel folds into the pan for mice
+        // and trackpads that report only a vertical wheel; a
+        // plain horizontal wheel already pans natively and is
+        // left to the browser.
+        (function () {
+            var TAP_SLOP_PX = 6;
+            var drag = null;
+            var swallowNextClick = false;
+            cellsEl.addEventListener('pointerdown', function (e) {
+                swallowNextClick = false;
+                if (e.pointerType === 'touch') return;
+                if (e.button !== undefined && e.button > 0) return;
+                drag = {
+                    id: e.pointerId, x: e.clientX,
+                    scroll: cellsEl.scrollLeft, moved: false
+                };
+            });
+            cellsEl.addEventListener('pointermove', function (e) {
+                if (!drag || e.pointerId !== drag.id) return;
+                var dx = e.clientX - drag.x;
+                if (!drag.moved) {
+                    if (Math.abs(dx) <= TAP_SLOP_PX) return;
+                    drag.moved = true;
+                    cellsEl.classList.add('dragging');
+                    if (cellsEl.setPointerCapture) {
+                        try {
+                            cellsEl.setPointerCapture(e.pointerId);
+                        } catch (err) {}
+                    }
+                }
+                cellsEl.scrollLeft = drag.scroll - dx;
+                if (e.cancelable) e.preventDefault();
+            });
+            function endDrag(e) {
+                if (!drag || e.pointerId !== drag.id) return;
+                if (drag.moved) {
+                    swallowNextClick = true;
+                    // The drag's click fires in this same
+                    // interaction; if none arrives (no pointer
+                    // capture, released off the strip), disarm
+                    // shortly rather than eat a later tap.
+                    window.setTimeout(function () {
+                        swallowNextClick = false;
+                    }, 300);
+                }
+                drag = null;
+                cellsEl.classList.remove('dragging');
+            }
+            cellsEl.addEventListener('pointerup', endDrag);
+            cellsEl.addEventListener('pointercancel', endDrag);
+            cellsEl.addEventListener('click', function (e) {
+                if (!swallowNextClick) return;
+                swallowNextClick = false;
+                e.stopPropagation();
+                e.preventDefault();
+            }, true);
+            cellsEl.addEventListener('wheel', function (e) {
+                if (!e.shiftKey) return;
+                var dy = e.deltaY || 0;
+                if (!dy || Math.abs(e.deltaX || 0) > Math.abs(dy)) return;
+                var unit = e.deltaMode === 1 ? 16
+                    : (e.deltaMode === 2 ? cellsEl.clientWidth : 1);
+                var max = cellsEl.scrollWidth - cellsEl.clientWidth;
+                var next = Math.max(0, Math.min(max,
+                    cellsEl.scrollLeft + dy * unit));
+                if (next === cellsEl.scrollLeft) return;
+                cellsEl.scrollLeft = next;
+                e.preventDefault();
+            }, { passive: false });
+        })();
         function fmtNum(n, d) {
             return n.toLocaleString('en-US', {
                 minimumFractionDigits: d, maximumFractionDigits: d
