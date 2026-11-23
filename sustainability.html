@@ -2582,12 +2582,47 @@ function boot() {
 
     <script src="script.js"></script>
     <script>
+        // Opening or closing an entry. A close has to mind the
+        // reader's place: the card's height leaves the document at
+        // once, and a reader scrolled deep inside it used to be
+        // clamped to the bottom of the page. So a close first notes
+        // where the entry's own header sits, then, once the card has
+        // collapsed, puts that header back at the same viewport
+        // position — the header the reader pressed stays under their
+        // finger. A header that was pinned (or had scrolled above
+        // its pin) is restored to its pin line: 95px, the page's
+        // landing line; a case header pins under its category's
+        // header, by that header's height — the same lines the
+        // pinned-header pass uses.
         function toggleExplainer(cardId, arrowId) {
             const card = document.getElementById(cardId);
             const arrow = document.getElementById(arrowId);
             if (card.classList.contains('active')) {
+                var anchor = null;
+                var wrap = card.closest('.explainer-wrapper');
+                var btn = wrap ? wrap.querySelector(':scope > .info-toggle') : null;
+                if (btn) {
+                    var pin = 95;
+                    if (!wrap.id) {
+                        var catWrap = wrap.closest('.explainer-wrapper[id]');
+                        var catBtn = catWrap ? catWrap.querySelector(':scope > .info-toggle') : null;
+                        if (catBtn) pin += catBtn.offsetHeight;
+                    }
+                    var top = btn.getBoundingClientRect().top;
+                    anchor = { btn: btn, card: card, target: top > pin + 2 ? top : pin };
+                }
                 card.classList.remove('active');
                 arrow.textContent = '▶';
+                if (anchor) {
+                    var restore = function () {
+                        if (anchor.card.classList.contains('active')) return;
+                        var d = anchor.btn.getBoundingClientRect().top - anchor.target;
+                        if (Math.abs(d) > 1) window.scrollTo(0, window.scrollY + d);
+                    };
+                    restore();
+                    window.requestAnimationFrame(restore);
+                    setTimeout(restore, 120);
+                }
             } else {
                 card.classList.add('active');
                 arrow.textContent = '▼';
