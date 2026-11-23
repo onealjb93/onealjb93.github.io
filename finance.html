@@ -2,7 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Page pinch zoom is refused on this page (Johnny, 2026-11-23): at
+         any zoom but 1, iOS Safari mis-paints the sticky section pins —
+         they ghost, strand over the site header, and the layout stays
+         wider than the screen after the gesture ends. With no zoomed
+         state, there is nothing to corrupt. Safari's own gesture events
+         are the lever (the viewport meta above is only a supporting
+         layer; iOS Safari ignores user-scalable). This block sits at
+         document level and never touches touch or pointer events and
+         never stops propagation: the charts run their own arbitration
+         on their canvases — one finger inspects, two fingers pan and
+         zoom — and their handlers, including their own canvas-level
+         gesturestart blocks, are exactly as they were. -->
+    <script>
+    document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+    document.addEventListener("gesturechange", function (e) { e.preventDefault(); });
+    </script>
     <meta name="color-scheme" content="dark light">
     <meta name="darkreader-lock">
     <title>Finance - Johnny O'Neal</title>
@@ -26,6 +42,13 @@
     <link rel="apple-touch-icon" href="JBO%20Logo.%20green%20background.png">
     <link rel="stylesheet" href="style.css">
     <style>
+    /* Page-level touch behaviour (2026-11-23): manipulation allows
+       panning only — no double-tap zoom — so the page can never be left
+       sitting in a zoomed state (see the gesturestart block in the
+       head). Each chart canvas keeps its own touch-action (pan-y);
+       this root value intersects with the canvas's own to exactly
+       pan-y there, so chart gestures are unchanged. */
+    html, body { touch-action: manipulation; }
     /* Sticky investor name (2026-11-12): when an investor accordion is open,
        its toggle button pins directly below the frozen site header while the
        card scrolls, so the investor's name stays visible; tapping it collapses
