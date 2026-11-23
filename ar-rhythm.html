@@ -136,6 +136,51 @@
             padding: 6px 10px;
         }
         body.light-mode .thr-count { color: var(--subtext-color); background: transparent; }
+        /* Music row: Drums, Record/Loop and Tools — a second row of
+           the same pills above the string controls. It appears with
+           the other controls when play starts and never moves; the
+           trays open above it, around it. */
+        .thr-music {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 5;
+            max-width: calc(100% - 16px);
+        }
+        .thr-music[hidden] { display: none; }
+        .thr-music .thr-btn[hidden] { display: none; }
+        /* Recording reads on the button's own face: red ring, and
+           the word Stop with the elapsed seconds beside it. */
+        .thr-btn.thr-rec-on {
+            border-color: #ef4444;
+            box-shadow: inset 0 0 0 1px #ef4444;
+            color: #ffb4b4;
+        }
+        body.light-mode .thr-btn.thr-rec-on { color: #b91c1c; }
+        /* One folding tray above the music row: the drum palette or
+           the tools list, swapped in place. */
+        .thr-tray {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(116px + env(safe-area-inset-bottom, 0px));
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+            z-index: 7;
+            max-width: calc(100% - 16px);
+        }
+        .thr-tray[hidden] { display: none; }
+        .thr-tray .thr-chip { min-height: 44px; }
+        .thr-chip[data-drum="kick"] { --chip: 248, 113, 113; }
+        .thr-chip[data-drum="snare"] { --chip: 56, 189, 248; }
+        .thr-chip[data-drum="hat"] { --chip: 192, 132, 252; }
+        .thr-chip[data-drum="hand"] { --chip: 74, 222, 128; }
         /* One-line mode note, top of the stage, fades away. */
         .thr-note {
             position: absolute;
@@ -164,7 +209,7 @@
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
-            bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+            bottom: calc(118px + env(safe-area-inset-bottom, 0px));
             max-width: calc(100% - 32px);
             z-index: 6;
             padding: 8px 14px;
@@ -445,6 +490,13 @@
                 <span class="thr-count" id="thrCount" aria-live="polite">0 strings</span>
                 <button class="thr-btn" id="thrClear" type="button" disabled>Clear</button>
             </div>
+            <div class="thr-tray" id="thrTray" hidden></div>
+            <div class="thr-music" id="thrMusic" hidden>
+                <button class="thr-btn" id="thrDrumsBtn" type="button" aria-haspopup="true" aria-expanded="false">Drums</button>
+                <button class="thr-btn" id="thrRecBtn" type="button">● Record</button>
+                <button class="thr-btn" id="thrLoopBtn" type="button" hidden aria-pressed="false">▶ Loop</button>
+                <button class="thr-btn" id="thrToolsBtn" type="button" aria-haspopup="true" aria-expanded="false">Tools</button>
+            </div>
             <div class="thr-start" id="thrStart">
                 <div class="thr-start-panel">
                     <div class="thr-start-title">Threads</div>
@@ -464,6 +516,8 @@
                     </ol>
                     <p class="thr-start-line">Then play — sweep an open fingertip across the strings to sound them. Short strings sing high, long strings sing low.</p>
                     <p class="thr-start-line">Pick an instrument at the top — Guitar, Violin, Cello or Harp — and every new string you place takes that instrument's voice and colour. Strings already placed keep theirs.</p>
+                    <p class="thr-start-line">Add drums with the Drums button — Kick, Snare, Hi-hat and Hand drum. Tap a drum to play it, sweep across it to strike it. Pinch a drum with two fingers to size it: bigger drums sound deeper and louder, smaller drums higher and softer.</p>
+                    <p class="thr-start-line">Record your voice with the Record button and it loops under everything you play. In Tools, Save setup keeps your web, your drums and your loop on this device only, ready next visit — nothing is uploaded.</p>
                 </div>
             </div>
         </div>
@@ -540,6 +594,12 @@
         var helpBtn = document.getElementById('thrHelpBtn');
         var rulesEl = document.getElementById('thrRules');
         var rulesCloseBtn = document.getElementById('thrRulesClose');
+        var musicEl = document.getElementById('thrMusic');
+        var trayEl = document.getElementById('thrTray');
+        var drumsBtn = document.getElementById('thrDrumsBtn');
+        var recBtn = document.getElementById('thrRecBtn');
+        var loopBtn = document.getElementById('thrLoopBtn');
+        var toolsBtn = document.getElementById('thrToolsBtn');
 
         var MP_VERSION = '0.4.1675469240';
         var MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@' + MP_VERSION + '/';
@@ -568,6 +628,7 @@
             chipEls.forEach(function (c) {
                 c.setAttribute('aria-pressed', c.getAttribute('data-type') === t ? 'true' : 'false');
             });
+            markDirty();
         }
         chipEls.forEach(function (c) {
             c.addEventListener('click', function () { ensureAudio(); setType(c.getAttribute('data-type')); });
@@ -634,6 +695,7 @@
                 comp.threshold.value = -18; comp.knee.value = 18;
                 comp.ratio.value = 12; comp.attack.value = 0.003; comp.release.value = 0.25;
                 master.connect(analyser); analyser.connect(comp); comp.connect(actx.destination);
+                tryDecodePendingLoop();
             } catch (e) { actx = null; }
         }
         function audioLevel() {
@@ -785,6 +847,175 @@
             }
         }
 
+        // ---- drums: four synthesized percussion voices that live
+        // on the stage as circles, placed and played in the same
+        // object language as the strings. A drum's size IS its
+        // voice, the way physical drums behave: bigger sounds
+        // deeper and louder, smaller higher and softer. Size is
+        // canonical as a fraction of the stage's short side, and
+        // pitch follows the game's own law — frequency proportional
+        // to 1/size — so the synthesis scales continuously with
+        // the pinch, never in preset steps. All four are built from
+        // oscillators and one shared noise buffer through the same
+        // master bus as the strings; no audio files. ----
+        var DRUMS = {
+            kick:  { label: 'Kick',      rgb: [248, 113, 113] },
+            snare: { label: 'Snare',     rgb: [56, 189, 248] },
+            hat:   { label: 'Hi-hat',    rgb: [192, 132, 252] },
+            hand:  { label: 'Hand drum', rgb: [74, 222, 128] }
+        };
+        var DRUM_R_MIN = 0.045, DRUM_R_MAX = 0.17, DRUM_R_DEF = 0.085;
+        var drums = [];              // {kind, x, y, rFrac, hitT, hitAmp, lastHit}
+        var drumHitLog = [];         // verification record of drum hits
+        var armedDrum = null;        // drum kind waiting for a stage tap/pinch
+        var noiseBuf = null;
+        function drumRPx(d) { return d.rFrac * Math.min(W, H); }
+        function drumSizeNorm(d) { return (d.rFrac - DRUM_R_MIN) / (DRUM_R_MAX - DRUM_R_MIN); }
+        function drumAt(f) {
+            var p = toPx(f);
+            for (var i = drums.length - 1; i >= 0; i--) {
+                if (dist(p, toPx(drums[i])) <= drumRPx(drums[i])) return drums[i];
+            }
+            return null;
+        }
+        function ensureNoise() {
+            if (noiseBuf || !actx) return noiseBuf;
+            var len = Math.floor(actx.sampleRate);
+            noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
+            var out = noiseBuf.getChannelData(0);
+            for (var i = 0; i < len; i++) out[i] = Math.random() * 2 - 1;
+            return noiseBuf;
+        }
+        function noiseHit(t, type, freq, q, peak, dur) {
+            var src = actx.createBufferSource();
+            src.buffer = ensureNoise();
+            src.playbackRate.value = 0.9 + Math.random() * 0.2;
+            var f = actx.createBiquadFilter();
+            f.type = type; f.frequency.value = freq; f.Q.value = q;
+            var g = actx.createGain();
+            g.gain.setValueAtTime(Math.max(0.001, peak), t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            src.connect(f); f.connect(g); g.connect(master);
+            src.start(t); src.stop(t + dur + 0.05);
+        }
+        function toneHit(t, type, f0, f1, peak, dur, glide) {
+            var o = actx.createOscillator();
+            o.type = type;
+            o.frequency.setValueAtTime(f0, t);
+            o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + (glide || 0.1));
+            var g = actx.createGain();
+            g.gain.setValueAtTime(Math.max(0.001, peak), t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            o.connect(g); g.connect(master);
+            o.start(t); o.stop(t + dur + 0.05);
+        }
+        function logDrumHit(d, freq, gain, now) {
+            drumHitLog.push({ kind: d.kind, freq: Math.round(freq * 10) / 10,
+                              gain: Math.round(gain * 1000) / 1000,
+                              rFrac: Math.round(d.rFrac * 1000) / 1000, t: now });
+            if (drumHitLog.length > 200) drumHitLog.shift();
+        }
+        function hitDrum(d, strength) {
+            var now = performance.now();
+            d.hitT = now; d.hitAmp = strength; d.lastHit = now;
+            if (!actx || !master) { logDrumHit(d, 0, 0, now); return; }
+            try {
+                if (actx.state === 'suspended') actx.resume();
+                var t = actx.currentTime;
+                var s = drumSizeNorm(d);              // 0 smallest … 1 largest
+                var ps = DRUM_R_DEF / d.rFrac;        // pitch scale: bigger = deeper
+                var loud = 0.55 + 0.75 * s;           // bigger = louder
+                var v = Math.max(0.15, Math.min(1, strength));
+                var freq = 0, peak = 0;
+                if (d.kind === 'kick') {
+                    // pitch-dropping sine with a click transient
+                    freq = 46 * ps; peak = 0.95 * loud * v;
+                    toneHit(t, 'sine', 155 * ps, freq, peak, 0.30, 0.11);
+                    noiseHit(t, 'highpass', 1200, 0.7, 0.22 * loud * v, 0.02);
+                } else if (d.kind === 'snare') {
+                    // noise burst through a band whose centre falls
+                    // as the drum grows, over a body tone
+                    freq = 185 * ps; peak = 0.50 * loud * v;
+                    noiseHit(t, 'bandpass', 1800 * Math.pow(ps, 0.5), 0.8, peak, 0.13 + 0.05 * s);
+                    toneHit(t, 'triangle', freq * 1.06, freq, 0.28 * loud * v, 0.09, 0.03);
+                } else if (d.kind === 'hat') {
+                    // high-passed short noise, metallic edge above it
+                    freq = 6800 * Math.pow(ps, 0.4); peak = 0.32 * loud * v;
+                    noiseHit(t, 'highpass', freq, 0.7, peak, 0.05 + 0.07 * s);
+                    noiseHit(t, 'bandpass', 10200 * Math.pow(ps, 0.3), 2.5, peak * 0.6, 0.03 + 0.04 * s);
+                } else {
+                    // hand drum: a membrane tone with a pitch
+                    // envelope, an octave partial and a slap
+                    freq = 98 * ps; peak = 0.85 * loud * v;
+                    toneHit(t, 'sine', freq * 1.4, freq, peak, 0.34 + 0.10 * s, 0.06);
+                    toneHit(t, 'sine', freq * 2.02, freq * 1.98, peak * 0.25, 0.12, 0.03);
+                    noiseHit(t, 'bandpass', 950 * Math.pow(ps, 0.4), 1.1, 0.18 * loud * v, 0.03);
+                }
+                logDrumHit(d, freq, peak, now);
+            } catch (e) { /* audio is a layer, never a blocker */ }
+        }
+        function placeDrum(kind, f) {
+            var d = { kind: kind, x: f.x, y: f.y, rFrac: DRUM_R_DEF, hitT: 0, hitAmp: 0, lastHit: 0 };
+            drums.push(d);
+            hitDrum(d, 0.85);
+            markDirty();
+            return d;
+        }
+        // A drum reads at a glance: a membrane disc in its own
+        // colour with its glyph, and on a hit a pulse and a ripple
+        // ring — the same flash language as a vibrating string.
+        function drawDrum(d, now) {
+            var p = toPx(d), r = drumRPx(d), T = DRUMS[d.kind];
+            var el = d.hitT ? (now - d.hitT) / 1000 : 99;
+            var hit = el < 0.45 ? 1 - el / 0.45 : 0;
+            var rr = r * (1 + 0.10 * hit * (d.hitAmp || 1));
+            ctx.save();
+            if (hit > 0) {
+                ctx.strokeStyle = rgba(T.rgb, 0.55 * hit);
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(p.x, p.y, r + (1 - hit) * 16 + 3, 0, 7); ctx.stroke();
+            }
+            var g = ctx.createRadialGradient(p.x, p.y, rr * 0.1, p.x, p.y, rr);
+            g.addColorStop(0, rgba(T.rgb, 0.48 + 0.27 * hit));
+            g.addColorStop(0.8, rgba(T.rgb, 0.30));
+            g.addColorStop(1, rgba(T.rgb, 0.15));
+            ctx.fillStyle = g;
+            ctx.shadowColor = rgba(T.rgb, 0.85);
+            ctx.shadowBlur = 10 + 16 * hit;
+            ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, 7); ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = rgba(T.rgb, 0.95);
+            ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.arc(p.x, p.y, rr - 1, 0, 7); ctx.stroke();
+            ctx.strokeStyle = rgba(T.rgb, 0.55);
+            ctx.lineWidth = 1.2;
+            ctx.beginPath(); ctx.arc(p.x, p.y, rr * 0.62, 0, 7); ctx.stroke();
+            ctx.strokeStyle = 'rgba(8,10,14,0.78)';
+            ctx.fillStyle = 'rgba(8,10,14,0.78)';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            if (d.kind === 'kick') {
+                ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2.5, rr * 0.16), 0, 7); ctx.fill();
+            } else if (d.kind === 'snare') {
+                ctx.beginPath();
+                ctx.moveTo(p.x - rr * 0.30, p.y); ctx.lineTo(p.x + rr * 0.30, p.y);
+                ctx.moveTo(p.x, p.y - rr * 0.30); ctx.lineTo(p.x, p.y + rr * 0.30);
+                ctx.stroke();
+            } else if (d.kind === 'hat') {
+                ctx.beginPath(); ctx.arc(p.x, p.y, rr * 0.36, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
+                ctx.beginPath(); ctx.arc(p.x, p.y, rr * 0.36, Math.PI * 0.12, Math.PI * 0.88); ctx.stroke();
+            } else {
+                ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2.5, rr * 0.20), 0, 7); ctx.stroke();
+                for (var fi = -1; fi <= 1; fi++) {
+                    ctx.beginPath();
+                    ctx.moveTo(p.x + fi * rr * 0.22, p.y - rr * 0.30);
+                    ctx.lineTo(p.x + fi * rr * 0.26, p.y - rr * 0.48);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
         // ---- geometry helpers ----
         function toPx(f) { return { x: f.x * W, y: f.y * H }; }
         function dist(a, b) { var dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
@@ -831,6 +1062,7 @@
                 strings.push({ freq: p.freq, name: p.name, type: currentType, rgb: T.rgb.slice(), lenPx: Math.round(lenPx), vibStart: 0, vibAmp: 0, lastPluck: 0, lastTouch: 0, sounding: false, bowOn: false, bow: null });
             }
             updateCount();
+            markDirty();
         }
         function undo() {
             if (!dots.length) return;
@@ -838,11 +1070,15 @@
             while (strings.length > Math.max(0, dots.length - 1)) teardownBow(strings.pop());
             if (!dots.length) pull = null;
             updateCount();
+            markDirty();
         }
         function clearAll() {
             strings.forEach(teardownBow);
             dots = []; strings = []; pull = null; touchBowHold = null;
+            drums = [];
+            for (var k in prevHands) delete prevHands[k].drumIn;
             updateCount();
+            markDirty();
         }
         undoBtn.addEventListener('click', undo);
         clearBtn.addEventListener('click', clearAll);
@@ -1066,6 +1302,7 @@
                 bs.sounding = snd;
             }
             for (i = 0; i < strings.length; i++) drawString(strings[i], toPx(dots[i]), toPx(dots[i + 1]), now);
+            for (i = 0; i < drums.length; i++) drawDrum(drums[i], now);
             if (dots.length && pull) drawLiveThread(toPx(dots[dots.length - 1]), toPx(pull));
             for (i = 0; i < dots.length; i++) drawDot(toPx(dots[i]));
             for (i = 0; i < strings.length; i++) drawMedallion(toPx(dots[i]), strings[i].type);
@@ -1101,11 +1338,17 @@
             if (mode === 'idle') return;
             var t;
             if (mode === 'camera') {
-                if (anyHeld()) t = 'Open your fingers wide to drop the string';
+                var grabbing = false;
+                for (var gk in prevHands) if (prevHands[gk].drumGrab) grabbing = true;
+                if (grabbing) t = 'Open your fingers wider to grow the drum — let go to set its size';
+                else if (armedDrum) t = 'Pinch on the stage to place the ' + DRUMS[armedDrum].label;
+                else if (anyHeld()) t = 'Open your fingers wide to drop the string';
                 else if (!dots.length) t = 'Pinch thumb and index together to start a string';
                 else t = 'Pinch to start the next string · sweep a fingertip across a string to play it';
             } else {
-                if (touchGesture === 'pull') t = 'Let go to pin the string';
+                if (touchGesture === 'drumsize') t = 'Pinch wider or tighter to size the drum';
+                else if (armedDrum) t = 'Tap the stage to place the ' + DRUMS[armedDrum].label;
+                else if (touchGesture === 'pull') t = 'Let go to pin the string';
                 else if (!dots.length) t = 'Tap and drag to draw a string — let go to pin it';
                 else t = 'Drag across a string to play it · tap to keep building';
             }
@@ -1122,12 +1365,82 @@
             return { x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
                      y: Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)) };
         }
+        // ---- multi-pointer state for the drums ----
+        // One finger plays, two fingers transform — the chart
+        // gesture law, on the stage. Pointers are tracked by id; a
+        // second finger landing beside a first that rests on a drum
+        // turns the pair into a pinch that sizes THAT drum, and no
+        // hit fires from it. The mouse is a single pointer and
+        // resets the map on every press, so a lost mouse-up can
+        // never masquerade as a second finger.
+        var activePtrs = {};         // pointerId -> {frac, px}
+        var ptrDrum = {};            // pointerId -> {drum, downT, downPx, placed}
+        var ptrInDrums = {};         // pointerId -> {drumIndex: true}
+        var drumResize = null;       // {drum, startDist, startRFrac}
+        var gesturePtr = null;       // pointerId driving the current gesture
+        function drumEntries(pid, p) {
+            var inside = ptrInDrums[pid];
+            if (!inside) inside = ptrInDrums[pid] = {};
+            for (var i = 0; i < drums.length; i++) {
+                var isIn = dist(p, toPx(drums[i])) <= drumRPx(drums[i]);
+                if (isIn && !inside[i]) hitDrum(drums[i], 0.8);
+                inside[i] = isIn;
+            }
+        }
         canvas.addEventListener('pointerdown', function (e) {
             if (mode !== 'touch') return;
             e.preventDefault();
             ensureAudio();
             try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
             var f = evtFrac(e), p = toPx(f), now = performance.now();
+            if (e.pointerType === 'mouse') activePtrs = {};
+            activePtrs[e.pointerId] = { frac: f, px: p };
+            var ids = Object.keys(activePtrs);
+            if (drumResize) return;
+            if (ids.length === 2) {
+                // Second finger: if the first rests on a drum and
+                // this one lands on or beside the same drum, the
+                // pair becomes its resize pinch. The first finger's
+                // pending tap is discarded — no hit fires.
+                var firstId = ids[0] === String(e.pointerId) ? ids[1] : ids[0];
+                var host = ptrDrum[firstId] && ptrDrum[firstId].drum;
+                if (host && dist(p, toPx(host)) <= drumRPx(host) + 34) {
+                    drumResize = { drum: host, startDist: Math.max(12, dist(activePtrs[firstId].px, p)), startRFrac: host.rFrac };
+                    delete ptrDrum[firstId];
+                    touchGesture = 'drumsize';
+                    gesturePtr = null;
+                    touchPrev = null;
+                    updateHint();
+                }
+                return;
+            }
+            if (ids.length > 1) return;
+            // A stage tap closes an open tray and does nothing else.
+            if (trayKind) { closeTray(); return; }
+            // An armed drum takes this tap: the drum lands here.
+            if (armedDrum) {
+                var placed = placeDrum(armedDrum, f);
+                disarmDrum();
+                touchGesture = 'drum';
+                gesturePtr = e.pointerId;
+                ptrDrum[e.pointerId] = { drum: placed, placed: true };
+                ptrInDrums[e.pointerId] = {};
+                ptrInDrums[e.pointerId][drums.indexOf(placed)] = true;
+                updateHint();
+                return;
+            }
+            // A finger landing on a drum plays it — the hit lands
+            // on release, so a second finger can still turn the
+            // touch into a resize instead.
+            var hitD = drumAt(f);
+            if (hitD) {
+                touchGesture = 'drum';
+                gesturePtr = e.pointerId;
+                ptrDrum[e.pointerId] = { drum: hitD, downT: now, downPx: p };
+                ptrInDrums[e.pointerId] = {};
+                ptrInDrums[e.pointerId][drums.indexOf(hitD)] = true;
+                return;
+            }
             touchPrev = { px: p, t: now };
             touchDownPx = p;
             // A tap directly on a string strikes it — and only that.
@@ -1137,18 +1450,34 @@
                     strike(strings[i], 0.8);
                     if (TYPES[strings[i].type].voice === 'bow') touchBowHold = strings[i];
                     touchGesture = 'pluck';
+                    gesturePtr = e.pointerId;
                     return;
                 }
             }
             touchGesture = 'pull';
+            gesturePtr = e.pointerId;
             touchPlacedFirst = false;
             if (!dots.length) { placeDot(f); touchPlacedFirst = true; }
             pull = f;
             updateHint();
         });
         canvas.addEventListener('pointermove', function (e) {
-            if (mode !== 'touch' || !touchGesture) return;
+            if (mode !== 'touch') return;
             var f = evtFrac(e), p = toPx(f), now = performance.now();
+            var rec = activePtrs[e.pointerId];
+            if (rec) { rec.frac = f; rec.px = p; }
+            if (drumResize) {
+                var ids = Object.keys(activePtrs);
+                if (ids.length === 2) {
+                    var dNow = dist(activePtrs[ids[0]].px, activePtrs[ids[1]].px);
+                    var rd = drumResize.drum;
+                    rd.rFrac = Math.max(DRUM_R_MIN, Math.min(DRUM_R_MAX,
+                        drumResize.startRFrac * dNow / drumResize.startDist));
+                }
+                return;
+            }
+            if (!touchGesture) return;
+            if (gesturePtr !== null && e.pointerId !== gesturePtr) return;
             if (touchGesture === 'pull') pull = f;
             if (touchPrev) {
                 var dt = (now - touchPrev.t) / 1000;
@@ -1160,15 +1489,43 @@
                 var s = strings[i];
                 if (TYPES[s.type].voice === 'bow' && distToSeg(p, toPx(dots[i]), toPx(dots[i + 1])) <= 14) s.lastTouch = now;
             }
+            // Sweeping across a drum strikes it, like a string.
+            if (touchGesture === 'pull' || touchGesture === 'pluck' || touchGesture === 'drum') {
+                drumEntries(e.pointerId, p);
+            }
         });
         function touchEnd(e) {
-            if (mode !== 'touch' || !touchGesture) return;
+            if (mode !== 'touch') return;
+            var pid = e.pointerId;
+            var wasResize = !!drumResize;
+            delete activePtrs[pid];
+            if (drumResize && Object.keys(activePtrs).length < 2) {
+                drumResize = null;
+                markDirty();
+                if (touchGesture === 'drumsize') { touchGesture = null; gesturePtr = null; }
+            }
+            var pd = ptrDrum[pid];
+            if (pd) {
+                delete ptrDrum[pid];
+                // A tap on a drum: quick, barely moved, and no
+                // second finger turned it into a resize.
+                if (!wasResize && !pd.placed && touchGesture === 'drum'
+                        && performance.now() - pd.downT < 700
+                        && dist(pd.downPx, toPx(evtFrac(e))) < 16) {
+                    hitDrum(pd.drum, 0.85);
+                }
+                if (touchGesture === 'drum') { touchGesture = null; gesturePtr = null; }
+            }
+            delete ptrInDrums[pid];
+            if (wasResize) { updateHint(); return; }
+            if (gesturePtr !== null && gesturePtr !== pid) return;
+            if (!touchGesture) return;
             if (touchGesture === 'pull') {
                 var moved = touchDownPx && pull ? dist(touchDownPx, toPx(pull)) : 0;
                 if (!touchPlacedFirst || moved > 6) placeDot(pull);
                 pull = null;
             }
-            touchGesture = null; touchPrev = null; touchPlacedFirst = false; touchBowHold = null;
+            touchGesture = null; gesturePtr = null; touchPrev = null; touchPlacedFirst = false; touchBowHold = null;
             updateHint();
         }
         canvas.addEventListener('pointerup', touchEnd);
@@ -1251,24 +1608,69 @@
                         var bs = strings[bi];
                         if (TYPES[bs.type].voice === 'bow' && distToSeg(tipPx, toPx(dots[bi]), toPx(dots[bi + 1])) <= 14) bs.lastTouch = now;
                     }
+                    // Entering a drum strikes it, like crossing a
+                    // string; resting inside does not retrigger.
+                    if (!g.drumIn) g.drumIn = {};
+                    for (var di = 0; di < drums.length; di++) {
+                        var din = dist(tipPx, toPx(drums[di])) <= drumRPx(drums[di]);
+                        if (din && !g.drumIn[di]) hitDrum(drums[di], 0.8);
+                        g.drumIn[di] = din;
+                    }
                 }
                 if (!g.held) {
                     g.onN = pinchD < PINCH_ON ? g.onN + 1 : 0;
                     if (pinchD <= PINCH_ON_SURE || g.onN >= PINCH_CONFIRM) {
-                        // START: the pinch lands — a dot at the fingertip.
+                        // START: the pinch lands. What it lands ON
+                        // decides what it does — an armed drum is
+                        // placed, a placed drum is grabbed for
+                        // sizing, anywhere else starts a string.
                         g.held = true; g.onN = 0; g.offN = 0;
-                        placeDot(tipFrac);
-                        anchorHand = label;
+                        if (armedDrum) {
+                            placeDrum(armedDrum, tipFrac);
+                            disarmDrum();
+                            g.placedDrum = true;
+                            anchorHand = label;
+                        } else {
+                            var gd = drumAt(tipFrac);
+                            if (gd) {
+                                g.drumGrab = gd;
+                                g.grabR0 = gd.rFrac;
+                                g.grabPinch0 = Math.max(0.05, pinchD);
+                                showNote('Sizing the ' + DRUMS[gd.kind].label + ' — open your fingers wider to grow it, close them to shrink it. Let go to set it.', 3500);
+                            } else {
+                                placeDot(tipFrac);
+                                anchorHand = label;
+                            }
+                        }
+                        updateHint();
                     }
                 } else {
+                    // A grabbed drum follows the pinch: opening the
+                    // fingers grows it, closing shrinks it, smoothly
+                    // and silently — size speaks when it is played.
+                    if (g.drumGrab) {
+                        var factor = Math.exp((pinchD - g.grabPinch0) * 2.4);
+                        g.drumGrab.rFrac = Math.max(DRUM_R_MIN, Math.min(DRUM_R_MAX, g.grabR0 * factor));
+                    }
                     g.offN = pinchD > PINCH_OFF ? g.offN + 1 : 0;
                     if (pinchD >= PINCH_OFF_SURE || g.offN >= PINCH_CONFIRM) {
                         g.held = false; g.offN = 0; g.onN = 0;
-                        // DROP: letting go after a drag pins the string
-                        // where the fingers opened. A pinch opened on
-                        // the spot already placed its dot on the way in,
-                        // so it adds nothing here.
-                        if (dots.length && dist(tipPx, toPx(dots[dots.length - 1])) > DROP_MIN_PX) placeDot(tipFrac);
+                        if (g.drumGrab) {
+                            // DROP on a drum: the size is set; no
+                            // string is pinned.
+                            g.drumGrab = null;
+                            markDirty();
+                        } else if (g.placedDrum) {
+                            g.placedDrum = false;
+                        } else if (dots.length && dist(tipPx, toPx(dots[dots.length - 1])) > DROP_MIN_PX) {
+                            // DROP: letting go after a drag pins the
+                            // string where the fingers opened. A
+                            // pinch opened on the spot already placed
+                            // its dot on the way in, so it adds
+                            // nothing here.
+                            placeDot(tipFrac);
+                        }
+                        updateHint();
                     }
                 }
                 g.tipPx = tipPx; g.tipFrac = tipFrac; g.t = now;
@@ -1324,6 +1726,7 @@
             startOverlay.hidden = true;
             controlsEl.hidden = false;
             pickerEl.hidden = false;
+            musicEl.hidden = false;
             hintEl.hidden = false;
             startLoop();
             if (reason === 'denied') showNote('No camera here — touch mode. Tap to place a dot, drag to pull, release to pin.');
@@ -1359,6 +1762,7 @@
                 startOverlay.hidden = true;
                 controlsEl.hidden = false;
                 pickerEl.hidden = false;
+                musicEl.hidden = false;
                 hintEl.hidden = false;
                 pumpOn = true;
                 pump();
@@ -1389,7 +1793,10 @@
         rulesCloseBtn.addEventListener('click', closeRules);
         rulesEl.addEventListener('click', function (e) { if (e.target === rulesEl) closeRules(); });
         document.addEventListener('keydown', function (e) {
-            if ((e.key === 'Escape' || e.key === 'Esc') && !rulesEl.hidden) closeRules();
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                if (!rulesEl.hidden) closeRules();
+                if (trayKind) closeTray();
+            }
         });
 
         // ---- fullscreen: the whole block, glyph shows the state ----
@@ -1405,10 +1812,444 @@
         });
         document.addEventListener('fullscreenchange', syncFs);
 
+        // ---- the music row's trays ----
+        // One tray slot above the music row, two contents: the
+        // drum palette (tap a kind to arm it, the next stage tap
+        // or pinch places it) and Tools (the loop's housekeeping
+        // and Save setup). A tray opens and closes around its own
+        // button — the music row never moves.
+        var trayKind = null;         // null | 'drums' | 'tools'
+        function closeTray() {
+            trayKind = null;
+            trayEl.hidden = true;
+            trayEl.innerHTML = '';
+            drumsBtn.setAttribute('aria-expanded', 'false');
+            toolsBtn.setAttribute('aria-expanded', 'false');
+            if (mode !== 'idle' && rulesEl.hidden) hintEl.hidden = false;
+        }
+        function openTray(kind) {
+            if (trayKind === kind) { closeTray(); return; }
+            trayKind = kind;
+            trayEl.innerHTML = '';
+            if (kind === 'drums') buildDrumTray(); else buildToolsTray();
+            trayEl.hidden = false;
+            hintEl.hidden = true;
+            drumsBtn.setAttribute('aria-expanded', kind === 'drums' ? 'true' : 'false');
+            toolsBtn.setAttribute('aria-expanded', kind === 'tools' ? 'true' : 'false');
+        }
+        function refreshTray() {
+            if (!trayKind) return;
+            trayEl.innerHTML = '';
+            if (trayKind === 'drums') buildDrumTray(); else buildToolsTray();
+        }
+        function makeChip(label, drumKind) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'thr-chip';
+            if (drumKind) b.setAttribute('data-drum', drumKind);
+            var dot = document.createElement('span');
+            dot.className = 'thr-chip-dot';
+            dot.setAttribute('aria-hidden', 'true');
+            b.appendChild(dot);
+            b.appendChild(document.createTextNode(label));
+            return b;
+        }
+        function makeTrayBtn(label, onClick) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'thr-btn';
+            b.textContent = label;
+            b.addEventListener('click', onClick);
+            return b;
+        }
+        function buildDrumTray() {
+            Object.keys(DRUMS).forEach(function (kind) {
+                var chip = makeChip(DRUMS[kind].label, kind);
+                chip.addEventListener('click', function () { armDrum(kind); });
+                trayEl.appendChild(chip);
+            });
+        }
+        function buildToolsTray() {
+            var saveLabel = (savedSetupPresent && !setupDirty) ? 'Saved ✓' : 'Save setup';
+            trayEl.appendChild(makeTrayBtn(saveLabel, function () { saveSetup(); }));
+            if (loopBuffer) {
+                trayEl.appendChild(makeTrayBtn('Re-record', function () { closeTray(); startRecording(); }));
+                trayEl.appendChild(makeTrayBtn('Delete loop', function () { deleteLoop(); refreshTray(); }));
+            }
+            if (savedSetupPresent) {
+                trayEl.appendChild(makeTrayBtn('Delete saved setup', function () { deleteSavedSetup(); }));
+            }
+        }
+        function armDrum(kind) {
+            armedDrum = kind;
+            drumsBtn.classList.add('thr-on');
+            closeTray();
+            showNote(mode === 'camera'
+                ? 'Pinch anywhere on the stage to place the ' + DRUMS[kind].label + '.'
+                : 'Tap anywhere on the stage to place the ' + DRUMS[kind].label + '.', 3500);
+            updateHint();
+        }
+        function disarmDrum() {
+            armedDrum = null;
+            drumsBtn.classList.remove('thr-on');
+            updateHint();
+        }
+        drumsBtn.addEventListener('click', function () {
+            ensureAudio();
+            if (armedDrum) { disarmDrum(); return; }
+            openTray('drums');
+        });
+        toolsBtn.addEventListener('click', function () { ensureAudio(); openTray('tools'); });
+
+        // ---- microphone loop ----
+        // Record the visitor's voice, trim it into a clean loop,
+        // and play it under the strings and drums. The recording
+        // lives in this page's memory on this device only — it is
+        // never uploaded and never sent anywhere. Saving it (into
+        // the setup, below) is the visitor's explicit choice.
+        var recorder = null, recChunks = [], recStream = null, recMime = '';
+        var recTimer = 0, recStartedAt = 0;
+        var MAX_REC_MS = 30000;
+        var loopBuffer = null, loopBlob = null;
+        var loopSrc = null, loopGainNode = null, loopPlaying = false;
+        var pendingLoopBlob = null;   // a saved loop waiting for the audio context
+        function stopRecTracks() {
+            if (recStream) { recStream.getTracks().forEach(function (t) { t.stop(); }); recStream = null; }
+        }
+        function startRecording() {
+            ensureAudio();
+            if (recorder) return;
+            if (!actx) {
+                showNote('This browser is not giving the page any audio, so recording cannot start. Try Safari or Chrome.', 12000);
+                return;
+            }
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof window.MediaRecorder !== 'function') {
+                showNote('This browser cannot record audio on this page. Open Threads in Safari or Chrome to record a loop.', 12000);
+                return;
+            }
+            var wasPlaying = loopPlaying;
+            if (loopPlaying) pauseLoop();
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function (st) {
+                recStream = st;
+                var cands = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/ogg'];
+                var opts = null;
+                for (var i = 0; i < cands.length; i++) {
+                    try { if (window.MediaRecorder.isTypeSupported(cands[i])) { opts = { mimeType: cands[i] }; break; } } catch (e) {}
+                }
+                try {
+                    recorder = opts ? new window.MediaRecorder(st, opts) : new window.MediaRecorder(st);
+                } catch (e) {
+                    recorder = null;
+                    stopRecTracks();
+                    showNote('Recording could not start in this browser. Open Threads in Safari or Chrome to record a loop.', 12000);
+                    if (wasPlaying) playLoop();
+                    return;
+                }
+                recMime = recorder.mimeType || (opts && opts.mimeType) || 'audio/webm';
+                recChunks = [];
+                recorder.ondataavailable = function (ev) { if (ev.data && ev.data.size) recChunks.push(ev.data); };
+                recorder.onstop = finishRecording;
+                recorder.start(250);
+                recStartedAt = performance.now();
+                recBtn.hidden = false;
+                loopBtn.hidden = true;
+                recBtn.classList.add('thr-rec-on');
+                recBtn.textContent = '■ Stop 0:00';
+                clearInterval(recTimer);
+                recTimer = setInterval(function () {
+                    var s = Math.floor((performance.now() - recStartedAt) / 1000);
+                    recBtn.textContent = '■ Stop 0:' + (s < 10 ? '0' : '') + s;
+                    if (performance.now() - recStartedAt >= MAX_REC_MS) stopRecording();
+                }, 250);
+                showNote('Recording — tap Stop when your loop is done.', 4000);
+            }).catch(function (err) {
+                var name = err && err.name;
+                if (name === 'NotAllowedError' || name === 'SecurityError') {
+                    showNote('The microphone is off for this page. Turn it on in your browser\u2019s site settings, then tap Record again.', 12000);
+                } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+                    showNote('No microphone was found on this device, so there is nothing to record with.', 12000);
+                } else {
+                    showNote('Recording could not start. Check that no other app is using the microphone, then tap Record again.', 12000);
+                }
+                if (wasPlaying) playLoop();
+            });
+        }
+        function stopRecording() {
+            if (recorder && recorder.state !== 'inactive') {
+                try { recorder.stop(); } catch (e) { recorder = null; }
+            }
+            clearInterval(recTimer);
+        }
+        // Trim the silences at both ends, land both cuts on rising
+        // zero crossings, then fold the tail into the head with a
+        // short crossfade — the seam where the loop wraps is
+        // continuous, so it loops without a click.
+        function makeLoopBuffer(buf) {
+            if (!buf || !buf.length || !actx) return null;
+            var sr = buf.sampleRate, nCh = buf.numberOfChannels, len = buf.length;
+            var mono = new Float32Array(len);
+            for (var c = 0; c < nCh; c++) {
+                var d = buf.getChannelData(c);
+                for (var i = 0; i < len; i++) mono[i] += d[i] / nCh;
+            }
+            var TH = 0.015, i0 = -1, i1 = -1;
+            for (var a = 0; a < len; a++) if (Math.abs(mono[a]) > TH) { i0 = a; break; }
+            for (var b = len - 1; b >= 0; b--) if (Math.abs(mono[b]) > TH) { i1 = b; break; }
+            if (i0 < 0 || i1 <= i0) return null;
+            var pad = Math.floor(sr * 0.03);
+            i0 = Math.max(0, i0 - pad);
+            i1 = Math.min(len - 1, i1 + pad);
+            function risingCross(x) {
+                var lo = Math.max(0, x - Math.floor(sr * 0.02)), hi = Math.min(len - 2, x + Math.floor(sr * 0.02));
+                for (var j = lo; j <= hi; j++) if (mono[j] <= 0 && mono[j + 1] > 0) return j;
+                return x;
+            }
+            i0 = risingCross(i0);
+            i1 = risingCross(i1);
+            var N = i1 - i0;
+            if (N < Math.floor(sr * 0.1)) return null;
+            var fade = Math.min(Math.floor(sr * 0.008), Math.floor(N / 4));
+            var outLen = N - fade;
+            var out = actx.createBuffer(nCh, outLen, sr);
+            for (var c2 = 0; c2 < nCh; c2++) {
+                var src = buf.getChannelData(c2), dst = out.getChannelData(c2);
+                for (var k = 0; k < outLen; k++) dst[k] = src[i0 + k];
+                for (var m = 0; m < fade; m++) {
+                    var u = m / fade;
+                    dst[m] = src[i0 + m] * u + src[i1 - fade + m] * (1 - u);
+                }
+            }
+            return out;
+        }
+        function finishRecording() {
+            clearInterval(recTimer);
+            recorder = null;
+            stopRecTracks();
+            recBtn.classList.remove('thr-rec-on');
+            recBtn.textContent = '● Record';
+            var blob = new Blob(recChunks, { type: recMime });
+            recChunks = [];
+            var prevBuffer = loopBuffer, prevBlob = loopBlob;
+            blob.arrayBuffer().then(function (ab) {
+                return actx.decodeAudioData(ab);
+            }).then(function (decoded) {
+                var lb = makeLoopBuffer(decoded);
+                if (!lb) {
+                    loopBuffer = prevBuffer; loopBlob = prevBlob;
+                    if (loopBuffer) onLoopReady();
+                    showNote('That recording was silent, so no loop was made. Record again, a little louder and closer to the microphone.', 12000);
+                    return;
+                }
+                loopBuffer = lb;
+                loopBlob = blob;
+                onLoopReady();
+                playLoop();
+                markDirty();
+                showNote('Looping now — play over it. Tools \u2192 Save setup keeps it on this device.', 6000);
+            }).catch(function () {
+                loopBuffer = prevBuffer; loopBlob = prevBlob;
+                if (loopBuffer) onLoopReady();
+                showNote('That recording could not be read back, so no loop was made. Record again and try a shorter take.', 12000);
+            });
+        }
+        function onLoopReady() {
+            recBtn.hidden = true;
+            loopBtn.hidden = false;
+            syncLoopFace();
+        }
+        function syncLoopFace() {
+            loopBtn.textContent = loopPlaying ? '❚❚ Loop' : '▶ Loop';
+            loopBtn.setAttribute('aria-pressed', loopPlaying ? 'true' : 'false');
+            loopBtn.classList.toggle('thr-on', loopPlaying);
+        }
+        function stopLoopSrc() {
+            if (loopSrc) { try { loopSrc.stop(); } catch (e) {} loopSrc = null; }
+        }
+        function playLoop() {
+            if (!loopBuffer) return;
+            ensureAudio();
+            if (!actx || !master) return;
+            stopLoopSrc();
+            if (!loopGainNode) {
+                loopGainNode = actx.createGain();
+                loopGainNode.gain.value = 0.9;
+                loopGainNode.connect(master);
+            }
+            loopSrc = actx.createBufferSource();
+            loopSrc.buffer = loopBuffer;
+            loopSrc.loop = true;
+            loopSrc.connect(loopGainNode);
+            loopGainNode.gain.cancelScheduledValues(actx.currentTime);
+            loopGainNode.gain.setTargetAtTime(0.9, actx.currentTime, 0.03);
+            loopSrc.start();
+            loopPlaying = true;
+            syncLoopFace();
+        }
+        function pauseLoop() {
+            if (loopSrc && loopGainNode && actx) {
+                var src = loopSrc;
+                loopGainNode.gain.setTargetAtTime(0, actx.currentTime, 0.03);
+                setTimeout(function () { try { src.stop(); } catch (e) {} }, 140);
+            }
+            loopSrc = null;
+            loopPlaying = false;
+            syncLoopFace();
+        }
+        function deleteLoop() {
+            pauseLoop();
+            stopLoopSrc();
+            loopBuffer = null;
+            loopBlob = null;
+            loopBtn.hidden = true;
+            recBtn.hidden = false;
+            recBtn.textContent = '● Record';
+            markDirty();
+            showNote('Loop deleted. Record a new one any time.', 4000);
+        }
+        recBtn.addEventListener('click', function () {
+            if (recorder) stopRecording(); else startRecording();
+        });
+        loopBtn.addEventListener('click', function () {
+            if (loopPlaying) pauseLoop(); else playLoop();
+        });
+        function tryDecodePendingLoop() {
+            if (!pendingLoopBlob || !actx) return;
+            var blob = pendingLoopBlob;
+            pendingLoopBlob = null;
+            blob.arrayBuffer().then(function (ab) {
+                return actx.decodeAudioData(ab);
+            }).then(function (decoded) {
+                var lb = makeLoopBuffer(decoded);
+                if (!lb) return;
+                loopBuffer = lb;
+                loopBlob = blob;
+                onLoopReady();
+                if (mode !== 'idle') showNote('Your saved setup is back — tap Loop to hear your loop.', 6000);
+            }).catch(function () { /* a saved loop that no longer decodes is dropped quietly */ });
+        }
+
+        // ---- the saved setup ----
+        // One slot, on this device only (IndexedDB): the picker,
+        // the web, the drums with their sizes, and the loop.
+        // Saving is an act, never an autosave — change anything
+        // afterwards and the saved copy stays as it was until
+        // Save is pressed again. The page holds no volumes or
+        // tempo to save; nothing is invented for the slot.
+        var savedSetupPresent = false;
+        var setupDirty = false;
+        var restoring = false;
+        function markDirty() {
+            if (restoring || !savedSetupPresent) return;
+            setupDirty = true;
+            refreshTray();
+        }
+        function idbOpen() {
+            return new Promise(function (resolve, reject) {
+                if (!window.indexedDB) { reject(new Error('noidb')); return; }
+                var req = window.indexedDB.open('threads-setup', 1);
+                req.onupgradeneeded = function () { req.result.createObjectStore('kv'); };
+                req.onsuccess = function () { resolve(req.result); };
+                req.onerror = function () { reject(req.error || new Error('idb')); };
+                req.onblocked = function () { reject(new Error('blocked')); };
+            });
+        }
+        function idbRun(mode, fn) {
+            return idbOpen().then(function (db) {
+                return new Promise(function (resolve, reject) {
+                    var tx = db.transaction('kv', mode);
+                    var out = fn(tx.objectStore('kv'));
+                    tx.oncomplete = function () { db.close(); resolve(out && out.result !== undefined ? out.result : undefined); };
+                    tx.onerror = function () { reject(tx.error || new Error('idb')); };
+                    tx.onabort = function () { reject(tx.error || new Error('idb')); };
+                });
+            });
+        }
+        function collectSetup() {
+            return {
+                v: 1,
+                savedAt: Date.now(),
+                type: currentType,
+                dots: dots.map(function (d) { return { x: d.x, y: d.y }; }),
+                stringTypes: strings.map(function (s) { return s.type; }),
+                drums: drums.map(function (d) { return { kind: d.kind, x: d.x, y: d.y, rFrac: d.rFrac }; }),
+                loop: loopBlob ? { blob: loopBlob, type: loopBlob.type, duration: loopBuffer ? loopBuffer.duration : 0, savedAt: Date.now() } : null
+            };
+        }
+        function saveSetup() {
+            var data = collectSetup();
+            return idbRun('readwrite', function (store) { store.put(data, 'setup'); }).then(function () {
+                savedSetupPresent = true;
+                setupDirty = false;
+                refreshTray();
+                showNote('Setup saved on this device — it will be here next visit.', 5000);
+            }).catch(function (err) {
+                if (err && err.name === 'QuotaExceededError') {
+                    showNote('The setup could not be saved — this device is out of storage space. Free some space, then save again.', 12000);
+                } else {
+                    showNote('The setup could not be saved — this browser is blocking storage for the page. If this is a private window, open Threads in a regular window and save there.', 12000);
+                }
+            });
+        }
+        function applySetup(data) {
+            if (!data || data.v !== 1) return;
+            restoring = true;
+            strings.forEach(teardownBow);
+            dots = []; strings = []; pull = null; touchBowHold = null;
+            drums = [];
+            (data.drums || []).forEach(function (dd) {
+                if (DRUMS[dd.kind]) {
+                    drums.push({ kind: dd.kind, x: dd.x, y: dd.y,
+                                 rFrac: Math.max(DRUM_R_MIN, Math.min(DRUM_R_MAX, dd.rFrac || DRUM_R_DEF)),
+                                 hitT: 0, hitAmp: 0, lastHit: 0 });
+                }
+            });
+            var sd = data.dots || [], st = data.stringTypes || [];
+            for (var i = 0; i < sd.length; i++) {
+                if (i > 0 && st[i - 1] && TYPES[st[i - 1]]) setType(st[i - 1]);
+                placeDot({ x: sd[i].x, y: sd[i].y });
+            }
+            if (data.type && TYPES[data.type]) setType(data.type);
+            if (data.loop && data.loop.blob) pendingLoopBlob = data.loop.blob;
+            restoring = false;
+            updateCount();
+        }
+        function loadSetup() {
+            idbRun('readonly', function (store) { return store.get('setup'); }).then(function (data) {
+                if (!data) return;
+                savedSetupPresent = true;
+                setupDirty = false;
+                applySetup(data);
+                tryDecodePendingLoop();
+            }).catch(function () { /* storage blocked: nothing restores, nothing breaks */ });
+        }
+        function deleteSavedSetup() {
+            return idbRun('readwrite', function (store) { store.delete('setup'); }).then(function () {
+                savedSetupPresent = false;
+                setupDirty = false;
+                restoring = true;
+                pauseLoop();
+                stopLoopSrc();
+                loopBuffer = null; loopBlob = null; pendingLoopBlob = null;
+                strings.forEach(teardownBow);
+                dots = []; strings = []; pull = null; touchBowHold = null; drums = [];
+                setType('guitar');
+                restoring = false;
+                loopBtn.hidden = true;
+                recBtn.hidden = false;
+                recBtn.textContent = '● Record';
+                updateCount();
+                refreshTray();
+                showNote('Saved setup deleted — Threads is back to its defaults.', 5000);
+            }).catch(function () {
+                showNote('The saved setup could not be deleted — this browser is blocking storage for the page. Try again from a regular browser window.', 12000);
+            });
+        }
+
         // ---- pause when the page is hidden ----
         document.addEventListener('visibilitychange', function () {
             if (document.hidden) {
                 stopLoop();
+                pauseLoop();
                 if (mode === 'camera') video.pause();
             } else if (mode !== 'idle') {
                 startLoop();
@@ -1418,6 +2259,7 @@
 
         resize();
         updateCount();
+        loadSetup();
 
         // Read-only state for verification.
         window.ThreadsGame = {
@@ -1445,7 +2287,40 @@
                 for (var k in handsNow) out[k] = { pinch: !!handsNow[k].pinch, grip: handsNow[k].grip || 0 };
                 return out;
             },
-            audioState: function () { return actx ? actx.state : 'none'; }
+            audioState: function () { return actx ? actx.state : 'none'; },
+            drums: function () {
+                return drums.map(function (d) {
+                    return { kind: d.kind, x: d.x, y: d.y,
+                             rFrac: Math.round(d.rFrac * 10000) / 10000, rPx: Math.round(drumRPx(d)) };
+                });
+            },
+            drumHits: function () { return drumHitLog.slice(); },
+            strikeDrum: function (i, strength) {
+                if (drums[i]) hitDrum(drums[i], strength == null ? 0.85 : strength);
+            },
+            setDrumSize: function (i, rFrac) {
+                if (drums[i]) {
+                    drums[i].rFrac = Math.max(DRUM_R_MIN, Math.min(DRUM_R_MAX, rFrac));
+                    markDirty();
+                }
+            },
+            armedDrum: function () { return armedDrum; },
+            tray: function () { return trayKind; },
+            loop: function () {
+                return { has: !!loopBuffer, playing: loopPlaying, recording: !!recorder,
+                         duration: loopBuffer ? Math.round(loopBuffer.duration * 1000) / 1000 : 0 };
+            },
+            loopSamples: function () {
+                if (!loopBuffer) return null;
+                var d = loopBuffer.getChannelData(0);
+                var step = Math.max(1, Math.floor(d.length / 4000));
+                var out = [];
+                for (var i = 0; i < d.length; i += step) out.push(Math.round(d[i] * 10000) / 10000);
+                return { sr: loopBuffer.sampleRate, n: d.length, step: step, samples: out };
+            },
+            savedSetup: function () { return savedSetupPresent; },
+            setupDirty: function () { return setupDirty; },
+            saveSetup: function () { return saveSetup(); }
         };
     })();
     </script>
