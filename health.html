@@ -280,6 +280,14 @@
            the heading's serif. */
         .tier-door-head { margin: 0; padding: 0; font-size: 1rem; }
         .tier-doors .door-card { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Lora", serif; }
+        /* Reveal path (2026-11-23): the tier script moves each tier's
+           block into this grid, directly after its door, so an opened
+           body spans the full row beneath its own door. A hidden block
+           is not a grid item, so the closed grid is unchanged; dense
+           flow backfills the second door of a row when a body opens
+           above it. */
+        .tier-doors { grid-auto-flow: dense; }
+        .tier-doors .tier-block { grid-column: 1 / -1; }
         .door-card-count { display: block; margin-top: 0.2rem; font-size: 0.8rem; font-weight: 600; color: var(--subtext-color); }
         /* The post-run photo's subject sits high in its frame: the
            centered 5:2 band leaves the runner's head about 10px of
@@ -297,6 +305,13 @@
         .door-card-photo.door-photo-fit img.door-photo-blur { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; object-fit: cover; filter: blur(18px) brightness(0.9); transform: scale(1.25); }
         .door-card-photo.door-photo-fit img.door-photo-main { position: relative; width: 100%; height: 100%; aspect-ratio: auto; object-fit: contain; }
         @media (prefers-reduced-motion: reduce) { .door-card { transition: none; } }
+        /* Top doors (2026-11-23): the committee door stands alone at
+           the top, full width — the page's focus is health. Recipes
+           steps down to a slim one-line strip directly below it: the
+           frame language, no photo, no Open/Close — a quiet link. */
+        .hub-nav .door-cards { grid-template-columns: 1fr; margin-bottom: 0.55rem; }
+        .recipes-strip { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin: 0 0 1.25rem; padding: 0.6rem 0.9rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; color: var(--link-color); font-size: 0.92rem; font-weight: 600; line-height: 1.35; text-decoration: none; }
+        .recipes-strip:hover { text-decoration: underline; }
     </style>
 
     <!-- START HERE: what this page offers -->
@@ -310,16 +325,8 @@
                     <span class="door-card-state"><span aria-hidden="true">▶</span> Open</span>
                 </span>
             </a>
-            <a href="recipes.html" class="door-card">
-                <span class="door-card-photo"><img src="s/img/recipe-peruvianRecipe.jpg" alt="Peruvian Chicken with Cilantro-Lime Green Sauce" width="602" height="800" loading="lazy" decoding="async"></span>
-                <span class="door-card-body">
-                    <span class="door-card-name">Johnny's Recipes</span>
-                    <span class="door-card-lead">Explore my favorite home-tested recipes, and info about their nutrition.</span>
-                    <span class="door-card-meta"><span id="recipe-count">100</span> recipes · Chicken · Mains · Soups · Desserts · Seafood</span>
-                    <span class="door-card-state"><span aria-hidden="true">▶</span> Open</span>
-                </span>
-            </a>
         </div>
+        <a class="recipes-strip" href="recipes.html"><span>From committee guidance to the kitchen</span> <span aria-hidden="true">→</span></a>
     </nav>
 
     <div class="pair-bar" id="pair-bar" aria-hidden="true">
@@ -1403,6 +1410,19 @@
         // state word (Open/Close) swaps with its arrow below; buttons
         // without a state word (the guidance) are unaffected.
         (function () {
+            // Reveal path (2026-11-23): each tier's body belongs
+            // directly under its own door. The four blocks ship after
+            // the doors grid, so an opened tier used to reveal below
+            // all four doors — the tap flipped the door's word to
+            // Close and nothing appeared beneath it. Move each block
+            // into the grid, right after its door's heading, before
+            // any state is restored; the rundown and Products bodies
+            // already sit under their toggles the same way.
+            document.querySelectorAll('.tier-doors [data-tier-btn]').forEach(function (btn) {
+                var head = btn.closest('.tier-door-head');
+                var block = document.querySelector('.tier-block[data-tier="' + btn.getAttribute('data-tier-btn') + '"]');
+                if (head && block) head.after(block);
+            });
             var KEY = 'health-tiers-v1';
             function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
             function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
