@@ -232,8 +232,8 @@
        offsets above are tuned to it. */
     .stock-dd-head { position: sticky; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; height: 2.75rem; padding: 0 0.8rem; border: none; background: var(--glass-bg-solid); color: var(--subtext-color); font-family: inherit; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; text-align: left; cursor: pointer; z-index: 1; }
     #chartStockMineHead { top: 0; z-index: 2; border-radius: var(--glass-radius) var(--glass-radius) 0 0; }
-    #chartStockBandHead { top: 2.75rem; }
-    #chartStockNdxHead { top: 5.5rem; }
+    #chartStockBandHead { top: 5.5rem; }
+    #chartStockNdxHead { top: 2.75rem; }
     .stock-dd-head .stock-dd-chev { display: inline-block; font-size: 0.65rem; transition: transform var(--dur-1) var(--ease-out); }
     .stock-dd-head[aria-expanded="false"] .stock-dd-chev { transform: rotate(-90deg); }
     .stock-dd-list { display: flex; flex-direction: column; padding: 0.15rem 0.35rem 0.55rem; }
@@ -1966,12 +1966,12 @@
                         <span class="stock-dd-chev" aria-hidden="true">&#9662;</span>
                     </button>
                     <div class="stock-dd-panel glass-bubble" id="chartStockPanel" role="listbox" aria-labelledby="chartStockLabel" hidden>
-                        <button type="button" class="stock-dd-head" id="chartStockMineHead" aria-expanded="true" aria-controls="chartStockMine">Johnny&rsquo;s stocks<span class="stock-dd-chev" aria-hidden="true">&#9654;</span></button>
-                        <div class="stock-dd-list" id="chartStockMine" role="group" aria-label="Johnny&rsquo;s stocks"></div>
-                        <button type="button" class="stock-dd-head" id="chartStockBandHead" aria-expanded="false" aria-controls="chartStockBand">Markets &amp; futures<span class="stock-dd-chev" aria-hidden="true">&#9654;</span></button>
-                        <div class="stock-dd-list" id="chartStockBand" role="group" aria-label="Markets and futures" hidden></div>
+                        <button type="button" class="stock-dd-head" id="chartStockMineHead" aria-expanded="false" aria-controls="chartStockMine">Johnny&rsquo;s stocks<span class="stock-dd-chev" aria-hidden="true">&#9654;</span></button>
+                        <div class="stock-dd-list" id="chartStockMine" role="group" aria-label="Johnny&rsquo;s stocks" hidden></div>
                         <button type="button" class="stock-dd-head" id="chartStockNdxHead" aria-expanded="false" aria-controls="chartStockNdx">Nasdaq-100<span class="stock-dd-chev" aria-hidden="true">&#9654;</span></button>
                         <div class="stock-dd-list" id="chartStockNdx" role="group" aria-label="Nasdaq-100" hidden></div>
+                        <button type="button" class="stock-dd-head" id="chartStockBandHead" aria-expanded="false" aria-controls="chartStockBand">Markets &amp; futures<span class="stock-dd-chev" aria-hidden="true">&#9654;</span></button>
+                        <div class="stock-dd-list" id="chartStockBand" role="group" aria-label="Markets and futures" hidden></div>
                     </div>
                 </div>
             </div>
@@ -7698,26 +7698,15 @@ if (typeof module !== "undefined") {
         // the visitor picks a name — the same contract the native
         // select had, so syncControls, the change listener below
         // and the verdict chip's own listener never knew it changed.
-        var LISTS_KEY = "jbo-chart-lists-v1";
         var stockLabels = {};
         var ddValue = "";
         var ddOpen = false;
-        // First ever open: Johnny's list expanded, the Nasdaq-100
-        // contracted — his set is the short path, and the long list
-        // is one tap on its header away instead of a 19-name
-        // scroll. Each list's state then persists per browser.
-        var listsOpen = { mine: true, band: false, ndx: false };
-        try {
-            var savedLists = window.localStorage.getItem(LISTS_KEY);
-            if (savedLists) {
-                var parsedLists = JSON.parse(savedLists);
-                if (parsedLists && typeof parsedLists === "object") {
-                    listsOpen.mine = parsedLists.mine !== false;
-                    listsOpen.band = parsedLists.band === true;
-                    listsOpen.ndx = parsedLists.ndx === true;
-                }
-            }
-        } catch (e) { /* storage unavailable: the defaults stand */ }
+        // Every open of the dropdown starts with all three lists
+        // contracted (Johnny, 2026-11-23): the visitor sees the
+        // three group headers — Johnny's stocks, Nasdaq-100,
+        // Markets & futures — and opens the one they need. No
+        // list state is carried across opens or visits.
+        var listsOpen = { mine: false, band: false, ndx: false };
         function stockOption(k) {
             var label = chartData.series[k].name + " (" + k + ")";
             stockLabels[k] = label;
@@ -7824,10 +7813,15 @@ if (typeof module !== "undefined") {
             if (bandHead) bandHead.setAttribute("aria-expanded", listsOpen.band ? "true" : "false");
             if (ndxHead) ndxHead.setAttribute("aria-expanded", listsOpen.ndx ? "true" : "false");
         }
-        function storeLists() {
-            try { window.localStorage.setItem(LISTS_KEY, JSON.stringify(listsOpen)); } catch (e) { /* storage unavailable */ }
-        }
         function setDdOpen(open) {
+            if (open) {
+                // All three lists contracted at every open (see
+                // the listsOpen note above): applyLists re-syncs
+                // the lists and their headers in place, so the
+                // face and the page do not move.
+                listsOpen.mine = false; listsOpen.band = false; listsOpen.ndx = false;
+                applyLists();
+            }
             ddOpen = open;
             if (ddPanel) ddPanel.hidden = !open;
             if (ddFace) ddFace.setAttribute("aria-expanded", open ? "true" : "false");
@@ -7845,7 +7839,7 @@ if (typeof module !== "undefined") {
             var head = document.getElementById(pair[0]);
             if (head) head.addEventListener("click", function () {
                 listsOpen[pair[1]] = !listsOpen[pair[1]];
-                applyLists(); storeLists();
+                applyLists();
             });
         });
         if (ddPanel) ddPanel.addEventListener("click", function (e) {
