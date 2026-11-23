@@ -194,6 +194,9 @@
             var current = 'finance';
             var pending = null; // switch requested before the widget is ready
             var frameReady = false;
+            var widgetTheme = null;       // theme baked into the widget at load
+            var themePending = false;     // a theme send is owed to the widget
+            var themeUnconfirmed = false; // a send raced the boot; confirm it on the widget's next message
 
             function siteTheme() {
                 try {
@@ -221,6 +224,37 @@
                 pending = null;
                 sendConfig(b);
             }
+            function postTheme(t) {
+                var frame = getFrame();
+                if (!frame || !frame.contentWindow) return false;
+                frame.contentWindow.postMessage(
+                    { giscus: { setConfig: { theme: t } } },
+                    'https://giscus.app'
+                );
+                return true;
+            }
+            // A setConfig sent before the widget is listening is lost,
+            // and the lazy frame is usually still booting when the
+            // visitor flips the toggle (the board sits below the
+            // fold, the toggle at the top). So a flip is never
+            // fire-and-forget: the wanted theme stays pending until
+            // the widget proves it is alive (any message from it),
+            // and the first send after a boot is repeated once on
+            // the widget's next message, in case the send raced the
+            // boot. (Johnny, 2026-11-23: the board showed the dark
+            // widget inside the light page.)
+            function flushTheme() {
+                var t = siteTheme();
+                if (!themePending && t === widgetTheme) return;
+                if (!frameReady) { themePending = true; return; }
+                if (postTheme(t)) {
+                    widgetTheme = t;
+                    themePending = false;
+                    themeUnconfirmed = true;
+                } else {
+                    themePending = true;
+                }
+            }
             // The widget posts messages to the parent once it boots; that
             // is the signal it is ready to receive setConfig.
             window.addEventListener('message', function (event) {
@@ -228,15 +262,20 @@
                 if (!event.data || !event.data.giscus) return;
                 frameReady = true;
                 flushPending();
+                if (themeUnconfirmed) {
+                    themeUnconfirmed = false;
+                    if (postTheme(siteTheme())) widgetTheme = siteTheme();
+                }
+                flushTheme();
             });
             // Fallback: if no message arrives (e.g. the widget is slow),
             // try anyway after 3s rather than dropping the switch.
-            setTimeout(function () { frameReady = true; flushPending(); }, 3000);
+            setTimeout(function () { frameReady = true; flushPending(); flushTheme(); }, 3000);
             // The widget loads lazily, so the iframe may appear later:
             // flush a queued switch shortly after it shows up.
             if ('MutationObserver' in window) {
                 new MutationObserver(function () {
-                    if (getFrame()) setTimeout(function () { frameReady = true; flushPending(); }, 1000);
+                    if (getFrame()) setTimeout(function () { frameReady = true; flushPending(); flushTheme(); }, 1000);
                 }).observe(embed, { childList: true });
             }
 
@@ -295,7 +334,8 @@
             s.setAttribute('data-mapping', 'specific');
             s.setAttribute('data-term', CATEGORIES[initial].term);
             s.setAttribute('data-strict', '1');
-            s.setAttribute('data-theme', siteTheme());
+            widgetTheme = siteTheme();
+            s.setAttribute('data-theme', widgetTheme);
             s.setAttribute('data-reactions-enabled', '1');
             s.setAttribute('data-emit-metadata', '0');
             s.setAttribute('data-input-position', 'top');
@@ -306,17 +346,17 @@
             embed.appendChild(s);
             // Keep the widget on the site's theme when the toggle
             // flips — the same setConfig channel the tabs use, and
-            // the same pattern as the Recipes and Random notes.
+            // the same pattern as the Recipes and Random notes. The
+            // flip only records what is owed; flushTheme delivers it
+            // once the widget is known to be listening.
             var lastTheme = siteTheme();
             if ('MutationObserver' in window && document.body) {
                 new MutationObserver(function () {
                     var t = siteTheme();
                     if (t === lastTheme) return;
                     lastTheme = t;
-                    var f = getFrame();
-                    if (f && f.contentWindow) {
-                        f.contentWindow.postMessage({ giscus: { setConfig: { theme: t } } }, 'https://giscus.app');
-                    }
+                    themePending = true;
+                    flushTheme();
                 }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
             }
         })();
