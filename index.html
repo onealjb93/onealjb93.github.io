@@ -194,6 +194,12 @@
            (.powerlaw-card h3 below); it scrolls with the card — only
            the picker pins. */
         .btc-chart-title { margin-top: 0; }
+        /* The title is the door to the Bitcoin page (2026-11-22,
+           Johnny's mock-up A): the whole title row is the tap target,
+           the › in Bitcoin orange says it leads somewhere. */
+        .btc-title-door { display: flex; align-items: center; min-height: 44px; color: inherit; text-decoration: none; }
+        .btc-title-chev { color: #f7931a; margin-left: 6px; font-weight: 700; }
+        body.light-mode .btc-title-chev { color: #a35c06; }
         #btcPick { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; }
         #btcPick .btc-pick-face { flex: 1 1 200px; width: auto; min-width: 0; max-width: 208px; }
         #btcPick .btc-ovl-switch { flex: none; width: auto; margin: 0; gap: 12px; padding: 0 12px; }
@@ -294,7 +300,13 @@
        the fullscreen script replays a window resize so each chart's
        own resize listener redraws at the new size. */
     .btc-card-actions { display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; margin-bottom: 0.55rem; }
-    .btc-action-pill { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 40px; padding: 0.35rem 0.8rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-color); font: inherit; font-size: 0.88rem; font-weight: 600; line-height: 1.2; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    /* Icon-only (2026-11-22 ruling): Share and Full screen carry
+       no visible words anywhere on the site — the glyph alone,
+       in the standard place, on a 44px tap target; the words
+       live on as aria-labels, and the Full screen glyph itself
+       shows the state (expand at rest, compress in fullscreen). */
+    .btc-action-pill { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; width: 44px; height: 44px; min-height: 44px; padding: 0; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-color); font: inherit; font-size: 0.88rem; font-weight: 600; line-height: 1.2; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .btc-action-pill span { display: none; }
     .btc-action-pill:hover { background: var(--hover-bg); }
     .btc-action-pill:active { background: var(--border-color); }
     .btc-action-pill:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
@@ -419,25 +431,36 @@
     /* Bitcoin Power Law chart (lifted from bitcoin.html, incl. zoom) */
     .powerlaw-card h3 { margin-top: 0; }
     .pl-sub { margin-top: 0; color: var(--text-muted, #94a3b8); }
-    .pl-readout { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0 14px; padding: 0 2px 12px; border-bottom: 1px solid var(--border-color); }
-    .pl-stat { display: flex; flex-direction: column; min-width: 110px; }
-    @media (min-width: 769px) and (max-width: 1240px) {
-        /* Mid widths (2026-11-22): the date cell's width comes
-           out of the Vs. cell — its value wraps to two lines
-           instead of pushing the strip onto a second row that
-           inspecting would then collapse back. */
-        #btc-view-anim #pl-readout .pl-stat:nth-child(4) { max-width: 180px; min-height: 99px; }
-    }
-    .pl-label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted, #94a3b8); }
-    .pl-value { font-size: 1.25rem; font-weight: 700; line-height: 1.3; }
-    .pl-note { font-size: 0.78rem; color: var(--text-muted, #94a3b8); }
-    .pl-chart-wrap { position: relative; background: #0b1220; border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }
+    /* The numbers strip (2026-11-22, video fix): ONE slim row at
+       every width — the treatment fullscreen proved, brought to
+       the page. The strip is always present at one fixed height;
+       inspecting changes its values, never its size, so the chart
+       below it never moves and the reader sees the numbers and
+       the chart on one screen. Cells never wrap or stack; if a
+       view's cells run wider than the strip, the row scrolls
+       sideways as one row. Only the Date and Spot cells keep a
+       note — the band note, and the day + (Coinbase) source
+       line — at the compact size. */
+    .pl-readout { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 14px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; height: 44px; box-sizing: border-box; margin: 10px 0 8px; padding: 0 2px 2px; border-bottom: 1px solid var(--border-color); }
+    .pl-readout::-webkit-scrollbar { display: none; }
+    .pl-stat { display: flex; flex-direction: column; flex: 0 0 auto; min-width: 0; min-height: 0; }
+    .pl-label { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.2; white-space: nowrap; color: var(--text-muted, #94a3b8); }
+    .pl-value { font-size: 0.92rem; font-weight: 700; line-height: 1.15; white-space: nowrap; }
+    .pl-note { display: none; }
+    .pl-stat:first-child .pl-note, .pl-stat:nth-child(2) .pl-note { display: block; font-size: 0.62rem; line-height: 1.2; white-space: nowrap; color: var(--text-muted, #94a3b8); }
+    /* Chrome band (2026-11-22, video fix): the wrap reserves a
+       52px band above the plot and the Full screen / zoom controls
+       ride in it — the pattern fullscreen already used — so no
+       control ever covers the plot, an axis label, or the Today
+       readout, in page view either. The canvas keeps its own
+       height; only the band is added above it. */
+    .pl-chart-wrap { position: relative; background: #0b1220; border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; padding-top: 52px; }
     /* Cream round (2026-11-20): the light stage is the cream family's
        deeper step — the badge tone #F3EEDF — never white, never dark. */
     body.light-mode .pl-chart-wrap { background: #F3EEDF; }
     body.light-mode .pl-zoom button { background: rgba(251, 246, 234, 0.92); color: #1e293b; border-color: rgba(0, 0, 0, 0.12); }
-    .pl-chart-wrap canvas { display: block; width: 100%; height: 420px; touch-action: pan-y; cursor: grab; }
-    .pl-zoom { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 6; }
+    .pl-chart-wrap canvas { display: block; width: 100%; height: 420px; touch-action: none; cursor: grab; }
+    .pl-zoom { position: absolute; top: 9px; right: 10px; display: flex; gap: 6px; z-index: 6; }
     .pl-zoom button { appearance: none; -webkit-appearance: none; border: 1px solid #334155; background: rgba(2, 6, 23, 0.82); color: #f1f5f9; font-size: 16px; font-weight: 600; line-height: 1; min-width: 34px; height: 34px; padding: 0 8px; border-radius: 8px; cursor: pointer; }
     .pl-zoom button:hover { background: rgba(30, 41, 59, 0.92); }
     .pl-zoom button:focus-visible { outline: 2px solid #f7931a; outline-offset: 1px; }
@@ -446,14 +469,9 @@
        chart's top left, the mirror of the zoom cluster at the top
        right — the same glass, border and radius as the zoom
        buttons and the card's own Full screen pill. */
-    .pl-fs2 { position: absolute; top: 10px; left: 50px; z-index: 6; }
-    @media (min-width: 540px) {
-        /* Wider charts draw their axis labels into a wider
-           gutter (the charts' own 64px padding); the button
-           starts past it. */
-        .pl-fs2 { left: 70px; }
-    }
-    .pl-fs2-btn { appearance: none; -webkit-appearance: none; display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 9px; border-radius: 8px; border: 1px solid #334155; background: rgba(2, 6, 23, 0.82); color: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; font-size: 12.5px; font-weight: 600; line-height: 1; cursor: pointer; }
+    .pl-fs2 { position: absolute; top: 4px; left: 10px; z-index: 6; }
+    .pl-fs2-btn { appearance: none; -webkit-appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 44px; height: 44px; padding: 0; border-radius: 8px; border: 1px solid #334155; background: rgba(2, 6, 23, 0.82); color: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; font-size: 12.5px; font-weight: 600; line-height: 1; cursor: pointer; }
+    .pl-fs2-btn .pl-fs2-label { display: none; }
     .pl-fs2-btn svg { width: 15px; height: 15px; flex: none; }
     .pl-fs2-btn .pl-fs2-icon-exit { display: none; }
     .pl-fs2-btn.pl-fs2-on .pl-fs2-icon-enter { display: none; }
@@ -461,13 +479,6 @@
     .pl-fs2-btn:hover { background: rgba(30, 41, 59, 0.92); }
     .pl-fs2-btn:focus-visible { outline: 2px solid #f7931a; outline-offset: 1px; }
     body.light-mode .pl-fs2-btn { background: rgba(251, 246, 234, 0.92); color: #1e293b; border-color: rgba(0, 0, 0, 0.12); }
-    @media (max-width: 389px) {
-        /* Narrow screens: past the label gutter, the button and
-           the zoom cluster no longer fit on the top row together,
-           so the button takes the row under the cluster's row —
-           still the chart's top left, never overlapping either. */
-        .pl-fs2 { top: 52px; }
-    }
     .pl-legend { font-size: 0.85rem; color: var(--text-muted, #94a3b8); margin: 12px 2px 0; }
     /* Chart key door (2026-11-19): under each chart, the text
        that describes the model — the legend line, the reading
@@ -1487,20 +1498,10 @@
             .btc-golden-sub { flex-wrap: wrap; }
             .btc-sub-foot { flex: 1 1 100%; }
         }
-        @media (max-width: 768px) {
-            #btc-view-anim .pl-readout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 10px 0 12px; padding: 0 2px 10px; }
-            #btc-view-anim .pl-readout .pl-stat { min-width: 0; }
-            #btc-view-anim .pl-value { line-height: 1.2; }
-            /* Inspection holds the strip's height (2026-11-22): the
-               date cell anchors its row at the rest height, and the
-               power-law Vs. cell anchors its row for future days
-               (which have no deviation to show), so the chart below
-               never moves while the strip's contents switch. */
-            #btc-view-anim #pl-readout .pl-stat:first-child { min-height: 88.5px; }
-            #btc-view-anim #pl-readout .pl-stat:nth-child(4) { min-height: 87.2px; }
-            #btc-view-anim #pc-readout .pl-stat:first-child { min-height: 88.5px; }
-            #btc-view-anim #mv-readout .pl-stat:first-child { min-height: 88.5px; }
-        }
+        /* (The ≤768px two-column strip grid and its min-height cell
+           anchors were removed by the 2026-11-22 video fix: the strip
+           is one slim fixed-height row at every width — see the
+           .pl-readout rule in the power-law section above.) */
         /* Fullscreen greatness pass (2026-11-22): in fullscreen the
            graph takes the screen and the words leave. (1) The numbers
            strip — the chart's own readout — compresses to ONE slim
@@ -1520,7 +1521,7 @@
            actually has, nothing scrolls inside it, nothing is
            sliced at the bottom edge. Page view is untouched: every
            rule below is gated on the card's own fullscreen states. */
-        .btc-chart-card:fullscreen #btc-view-anim .pl-readout, .btc-chart-card.btc-fs-fallback #btc-view-anim .pl-readout { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 14px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; margin: 0 0 6px; padding: 0 2px 4px; }
+        .btc-chart-card:fullscreen #btc-view-anim .pl-readout, .btc-chart-card.btc-fs-fallback #btc-view-anim .pl-readout { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 14px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; height: auto; margin: 0 0 6px; padding: 0 2px 4px; }
         .btc-chart-card:fullscreen #btc-view-anim .pl-readout::-webkit-scrollbar, .btc-chart-card.btc-fs-fallback #btc-view-anim .pl-readout::-webkit-scrollbar { display: none; }
         .btc-chart-card:fullscreen #btc-view-anim #pl-readout .pl-stat, .btc-chart-card.btc-fs-fallback #btc-view-anim #pl-readout .pl-stat,
         .btc-chart-card:fullscreen #btc-view-anim #pc-readout .pl-stat, .btc-chart-card.btc-fs-fallback #btc-view-anim #pc-readout .pl-stat,
@@ -1529,9 +1530,10 @@
         .btc-chart-card:fullscreen #btc-view-anim .pl-readout .pl-label, .btc-chart-card.btc-fs-fallback #btc-view-anim .pl-readout .pl-label { font-size: 0.66rem; line-height: 1.25; }
         .btc-chart-card:fullscreen #btc-view-anim .pl-readout .pl-value, .btc-chart-card.btc-fs-fallback #btc-view-anim .pl-readout .pl-value { font-size: 0.92rem; line-height: 1.2; }
         .btc-chart-card:fullscreen #btc-view-anim .pl-readout .pl-note, .btc-chart-card.btc-fs-fallback #btc-view-anim .pl-readout .pl-note { display: none; }
-        .btc-chart-card:fullscreen .pl-chart-wrap canvas, .btc-chart-card.btc-fs-fallback .pl-chart-wrap canvas { height: calc(100% - 46px); margin-top: 46px; }
-        .btc-chart-card:fullscreen .pl-fs2, .btc-chart-card.btc-fs-fallback .pl-fs2 { top: 6px; left: 10px; }
-        .btc-chart-card:fullscreen .pl-chart-wrap .pl-zoom, .btc-chart-card.btc-fs-fallback .pl-chart-wrap .pl-zoom { top: 6px; }
+        .btc-chart-card:fullscreen .pl-chart-wrap, .btc-chart-card.btc-fs-fallback .pl-chart-wrap { padding-top: 0; }
+        .btc-chart-card:fullscreen .pl-chart-wrap canvas, .btc-chart-card.btc-fs-fallback .pl-chart-wrap canvas { height: calc(100% - 52px); margin-top: 52px; }
+        .btc-chart-card:fullscreen .pl-fs2, .btc-chart-card.btc-fs-fallback .pl-fs2 { top: 4px; left: 10px; }
+        .btc-chart-card:fullscreen .pl-chart-wrap .pl-zoom, .btc-chart-card.btc-fs-fallback .pl-chart-wrap .pl-zoom { top: 9px; }
         .btc-chart-card:fullscreen #btc-view-spiral .spiral-readout, .btc-chart-card.btc-fs-fallback #btc-view-spiral .spiral-readout { display: flex !important; flex-wrap: nowrap; align-items: baseline; min-height: 0; margin: 0; padding: 0 2px 5px; font-size: 13px; line-height: 1.3; overflow: hidden; }
         .btc-chart-card:fullscreen #btc-view-spiral .spiral-readout .ro-date, .btc-chart-card.btc-fs-fallback #btc-view-spiral .spiral-readout .ro-date,
         .btc-chart-card:fullscreen #btc-view-spiral .spiral-readout .ro-price, .btc-chart-card.btc-fs-fallback #btc-view-spiral .spiral-readout .ro-price,
@@ -1546,8 +1548,8 @@
         .btc-chart-card:fullscreen #btc-view-spiral .ta-keyrow > *, .btc-chart-card.btc-fs-fallback #btc-view-spiral .ta-keyrow > * { flex: none; }
         .btc-chart-card:fullscreen #btc-view-spiral .ta-linekey, .btc-chart-card.btc-fs-fallback #btc-view-spiral .ta-linekey { flex-wrap: nowrap; }
         .btc-chart-card:fullscreen #btc-view-spiral .taken-apart.on, .btc-chart-card.btc-fs-fallback #btc-view-spiral .taken-apart.on { overflow: hidden !important; display: flex; flex-direction: column; }
-        .btc-chart-card:fullscreen #btc-view-spiral .ta-overlay-wrap, .btc-chart-card.btc-fs-fallback #btc-view-spiral .ta-overlay-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding-top: 46px; }
-        .btc-chart-card:fullscreen #btc-view-spiral .ta-overlay-wrap .pl-zoom, .btc-chart-card.btc-fs-fallback #btc-view-spiral .ta-overlay-wrap .pl-zoom { top: 6px; }
+        .btc-chart-card:fullscreen #btc-view-spiral .ta-overlay-wrap, .btc-chart-card.btc-fs-fallback #btc-view-spiral .ta-overlay-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding-top: 52px; }
+        .btc-chart-card:fullscreen #btc-view-spiral .ta-overlay-wrap .pl-zoom, .btc-chart-card.btc-fs-fallback #btc-view-spiral .ta-overlay-wrap .pl-zoom { top: 9px; }
         .btc-chart-card:fullscreen #btc-view-spiral #spiralTaOverlay, .btc-chart-card.btc-fs-fallback #btc-view-spiral #spiralTaOverlay { flex: 1 1 auto; min-height: 0; }
         .btc-chart-card:fullscreen #btc-view-spiral .ta-svg, .btc-chart-card.btc-fs-fallback #btc-view-spiral .ta-svg { height: 100%; }
         .btc-chart-card:fullscreen #btc-view-spiral .spiral-stage, .btc-chart-card.btc-fs-fallback #btc-view-spiral .spiral-stage { min-height: 0; }
@@ -1609,9 +1611,12 @@
         .spiral-pill:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         .spiral-pill[aria-pressed="true"] { background: var(--accent-color); border-color: transparent; color: #fff; }
         .spiral-pill:disabled { opacity: 0.45; cursor: default; }
-        .spiral-stage { position: relative; width: 100%; height: min(58vh, 540px); min-height: 340px; border-radius: 16px; overflow: hidden; touch-action: pan-y; cursor: grab; background: radial-gradient(120% 90% at 50% 0%, rgba(77, 166, 255, 0.05), transparent 60%); }
+        /* The Spiral's Full screen button is icon-only like every
+           other (2026-11-22 ruling): a 44px square, glyph alone. */
+        #spiralFsBtn { width: 44px; height: 44px; min-height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+        .spiral-stage { position: relative; width: 100%; height: min(58vh, 540px); min-height: 340px; border-radius: 16px; overflow: hidden; touch-action: none; cursor: grab; background: radial-gradient(120% 90% at 50% 0%, rgba(77, 166, 255, 0.05), transparent 60%); }
         body.light-mode .spiral-stage { background: radial-gradient(120% 90% at 50% 0%, rgba(2, 132, 199, 0.05), transparent 60%); }
-        .spiral-stage canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; }
+        .spiral-stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
         .spiral-stage:active { cursor: grabbing; }
         .spiral-readout { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 15px; min-height: 22px; margin: 12px 0 14px; }
         .spiral-readout .ro-date { font-weight: 650; }
@@ -1635,7 +1640,11 @@
         .taken-apart { display: none; width: 100%; }
         .taken-apart.on { display: block; }
         .spiral-card:fullscreen .taken-apart.on, .spiral-card.btc-fs-fallback .taken-apart.on { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
-        .ta-overlay-wrap { position: relative; border: 1px solid var(--border-color); border-radius: 16px; padding: 10px 12px 6px; }
+        /* Chrome band (2026-11-22, video fix): the zoom cluster gets
+           its own 52px band at the wrap's top, so the heading below
+           it starts clear of the buttons at every width — the same
+           cure as the model charts' wrap. */
+        .ta-overlay-wrap { position: relative; border: 1px solid var(--border-color); border-radius: 16px; padding: 52px 12px 6px; }
         .ta-overlay-wrap h3 { font-size: 14.5px; margin: 0; font-weight: 650; }
         /* One graph at every width: the script builds it wide on
            desktop and tall on phone (same data, larger geometry) so
@@ -1672,7 +1681,7 @@
         .ta-takeaway strong { color: #f7931a; font-weight: 700; }
         body.light-mode .ta-takeaway strong { color: #a35c06; }
         .ta-axes-note { font-size: 12.5px; color: var(--subtext-color); margin: 0 2px 8px; line-height: 1.45; }
-        .ta-svg { display: block; width: 100%; height: auto; touch-action: pan-y; cursor: grab; }
+        .ta-svg { display: block; width: 100%; height: auto; touch-action: none; cursor: grab; }
         .ta-svg .grid { stroke: var(--border-color); stroke-width: 1; }
         .ta-svg .axislab { fill: var(--subtext-color); font-size: 10.5px; }
         .ta-svg .axistitle { fill: var(--subtext-color); font-size: 10.5px; font-weight: 600; }
@@ -1969,7 +1978,7 @@
 
         <!-- Bitcoin chart picker: one button opens the list of chart views -->
     <div class="btc-chart-card btc-cursor" id="bitcoin-chart">
-        <h3 class="btc-chart-title" id="btc-value">How to understand Bitcoin's current value</h3>
+        <h3 class="btc-chart-title" id="btc-value"><a class="btc-title-door" href="bitcoin.html#btc-value">How to understand Bitcoin's current value<span class="btc-title-chev" aria-hidden="true">›</span></a></h3>
         <div class="btc-card-actions">
             <button type="button" class="btc-action-pill" id="btcShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg><span>Share</span></button>
             <button type="button" class="btc-action-pill btc-fs-btn" id="btcFsBtn" aria-label="Full screen" aria-pressed="false" title="Full screen"><svg class="btc-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="btc-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="btc-fs-label">Full screen</span></button>
@@ -2024,11 +2033,6 @@
               <p>A reading of the models, not a promise.</p>
             </details>
             <p class="btc-phase-line" id="btcPhaseLine"></p>
-        <div class="pl-readout" id="sc-readout" aria-live="polite">
-            <div class="pl-stat"><span class="pl-label">JOHNNY'S ₿ INDICATOR</span><span class="pl-value" id="sc-score">&mdash;</span><span class="pl-note" id="sc-date"></span></div>
-            <div class="pl-stat"><span class="pl-label">Buy band</span><span class="pl-value">7.79</span><span class="pl-note">or lower — the rare buy</span></div>
-            <div class="pl-stat"><span class="pl-label">Sell band</span><span class="pl-value">92.91</span><span class="pl-note">or higher — the rare sell</span></div>
-        </div>
         </div>
         <script>
         /* Cycle phase line (2026-11-21): fills the #btcPhaseLine line
@@ -2162,6 +2166,7 @@
             paint();
         })();
         </script>
+        <span id="spiralCard" class="btc-anchor" aria-hidden="true"></span>
         <div id="btc-view-anim">
             <div id="btc-view-powerlaw" class="powerlaw-card">
         <div class="pl-readout" id="pl-readout" aria-live="polite">
@@ -2187,8 +2192,8 @@
         <details class="btc-chartkey">
             <summary><span class="btc-chartkey-chev" aria-hidden="true">&#9654;</span>Chart key</summary>
             <p class="pl-legend"><span class="pl-sw pl-sw-price"></span> Actual price &nbsp; <span class="pl-sw pl-sw-trend"></span> Model's typical price &nbsp; <span class="pl-sw pl-sw-floor"></span> Floor &nbsp; <span class="pl-sw pl-sw-ceil"></span> Ceiling &nbsp; <span class="pl-sw pl-sw-below"></span> ₿ Indicator buy-zone day &nbsp; <span class="pl-sw pl-sw-dotsell"></span> ₿ Indicator sell-zone day &nbsp; <span class="pl-sw pl-sw-today"></span> Today</p>
-            <h3>The Power Law Chart</h3>
-            <p class="pl-sub">Both axes are logarithmic, so the power law is a straight line. Dashed lines past today are the model projected forward — not a prediction.</p>
+            <p class="pl-reading-line" id="pl-reading-line" aria-live="polite"></p>
+            <p class="pl-fine">Formula: price = 10<sup>−16.493</sup> × (days since the genesis block, Jan 3, 2009)<sup>5.688</sup>. Bands are the ±2σ corridor (floor ≈ 0.40× the typical price, ceiling ≈ 2.51× the typical price) — price has closed below the floor only briefly, three times in fifteen years. Price history: blockchain.info market-price index, every 4 days, Aug 2010 – <span id="pl-hist-end">Nov 10, 2026</span>. Spot price: <span id="pl-fine-spot">~$68,700 on Nov 13, 2026 (Bitstamp / Kraken)</span>. A refit on the same data gives an exponent of ≈ 5.6 — the same picture; the exact exponent drifts as new data arrives (about 5.8 in 2022, about 5.6–5.7 today). Live daily-refit chart: <a href="https://bitcoinpowerlaw.com/" target="_blank">bitcoinpowerlaw.com</a>.</p>
         </details>
         </div>
             <div id="btc-view-cost" class="powerlaw-card" hidden>
@@ -2215,9 +2220,8 @@
         <details class="btc-chartkey">
             <summary><span class="btc-chartkey-chev" aria-hidden="true">&#9654;</span>Chart key</summary>
             <p class="pl-legend"><span class="pl-sw pl-sw-price"></span> Actual price &nbsp; <span class="pl-sw pl-sw-cost"></span> Production cost &nbsp; <span class="pl-sw pl-sw-below"></span> ₿ Indicator buy-zone day &nbsp; <span class="pl-sw pl-sw-dotsell"></span> ₿ Indicator sell-zone day &nbsp; <span class="pl-sw pl-sw-zone"></span> 10% / 20% / 30% below cost &nbsp; <span class="pl-sw pl-sw-today"></span> Today</p>
-            <h3>The Production Cost Chart</h3>
-            <p class="pl-sub">Dashed lines sit 10%, 20% and 30% below the cost, and red dots mark the days the price closed under it. The price axis is logarithmic; time is linear.</p>
-            <p class="pl-fine">The model behind this chart &mdash; its assumptions, and its model limitations &mdash; is on the <a href="bitcoin.html">Bitcoin page</a>.</p>
+            <p class="mm-state" id="pc-state"></p>
+            <p class="pl-fine">Method: production cost = the network&rsquo;s daily electricity cost &divide; the coins mined that day. The electricity cost comes from difficulty &mdash; difficulty &times; 2<sup>32</sup> hashes per block &times; ~144 blocks a day &mdash; at $0.05 per kWh, with the mining fleet&rsquo;s efficiency stepping down by era as hardware improved: about 1,000,000 J/TH in the CPU and GPU years, 10,000 with the first ASICs in 2013, 1,000 in 2014, 300 in 2016, 130 through the Antminer S9 years, 60 from 2019, 38 from 2021, 28 from 2023 and about 24 J/TH for today&rsquo;s fleet. Coins mined = the block subsidy &times; ~144 blocks (50 BTC at the start, halving roughly every four years &mdash; 3.125 today) plus the day&rsquo;s transaction fees. This is a model built on those stated assumptions, not a measurement &mdash; real miners pay different power prices and run different machines. Difficulty and fees: blockchain.info, Aug 2010 &ndash; <span id="pc-hist-end">Nov 10, 2026</span>; spot, daily closes and the current difficulty then update live on load (Coinbase, mempool.space). If the live fetches fail, the Nov 13, 2026 figures stand, date included.</p>
         </details>
         </div>
         <div id="btc-view-mayer" class="powerlaw-card" hidden>
@@ -2243,9 +2247,7 @@
             <summary><span class="btc-chartkey-chev" aria-hidden="true">&#9654;</span>Chart key</summary>
             <p class="pl-legend"><span class="pl-sw pl-sw-mayer"></span> Mayer Multiple &nbsp; <span class="pl-sq pl-sq-hi"></span> Above 2.4 &nbsp; <span class="pl-sq pl-sq-lo"></span> Below 1.0 &nbsp; <span class="pl-sw pl-sw-below"></span> ₿ Indicator buy-zone day &nbsp; <span class="pl-sw pl-sw-dotsell"></span> ₿ Indicator sell-zone day &nbsp; <span class="pl-sw pl-sw-today"></span> Latest</p>
             <p class="mm-state" id="mm-state"></p>
-            <h3>The Mayer Multiple Chart</h3>
-            <p class="pl-sub">Trace Mayer&rsquo;s measure of how far the price has stretched from its own recent history.</p>
-            <p class="pl-fine">Daily closes: Coinbase Exchange, from <span id="mm-hist-start">Jul 20, 2015</span>; the line starts <span id="mm-line-start">Feb 4, 2016</span>. What the 1.0 and 2.4 lines mean is on the <a href="bitcoin.html">Bitcoin page</a>.</p>
+            <p class="pl-fine">The Mayer Multiple is the closing price divided by the average of the last 200 daily closes, a gauge proposed by Trace Mayer. Daily closes: Coinbase Exchange, from <span id="mm-hist-start">Jul 20, 2015</span> &mdash; the line starts <span id="mm-line-start">Feb 4, 2016</span>, once the first full 200-day average exists, and until the live data loads it is drawn from a weekly sample of the daily figures. If the live fetch fails, the chart and figures stand as of Nov 16, 2026. The 1.0 and 2.4 lines are the gauge&rsquo;s long-standing reference points &mdash; not buy or sell signals.</p>
         </details>
         </div>
         <div id="btc-view-mvrv" class="powerlaw-card" hidden>
@@ -2271,9 +2273,7 @@
             <summary><span class="btc-chartkey-chev" aria-hidden="true">&#9654;</span>Chart key</summary>
             <p class="pl-legend"><span class="pl-sw pl-sw-mvrv"></span> MVRV Z-Score &nbsp; <span class="pl-sq pl-sq-hi"></span> Above 7 &nbsp; <span class="pl-sw pl-sw-below"></span> ₿ Indicator buy-zone day &nbsp; <span class="pl-sw pl-sw-dotsell"></span> ₿ Indicator sell-zone day &nbsp; <span class="pl-sw pl-sw-today"></span> Latest</p>
             <p class="mm-state" id="mv-state"></p>
-            <h3>The MVRV Z-Score Chart</h3>
-            <p class="pl-sub">The market&rsquo;s value for all bitcoin against the value holders actually paid &mdash; every coin priced at the last time it moved, summed over all coins. A gauge by Murad Mahmudov and David Puell.</p>
-            <p class="pl-fine">Daily figures: CoinMetrics, from <span id="mv-hist-start">Jul 18, 2010</span>; the line starts <span id="mv-line-start">Feb 2, 2011</span>. How the score is built &mdash; including how realized cap is derived &mdash; is on the <a href="bitcoin.html">Bitcoin page</a>.</p>
+            <p class="pl-fine">The MVRV Z-Score is (market cap &minus; realized cap) &divide; the standard deviation of market cap, the standard deviation built up day by day over the full history. Market cap and the MVRV ratio are CoinMetrics&rsquo; daily figures, from <span id="mv-hist-start">Jul 18, 2010</span>. Realized cap itself is a paid metric on their API, so here it is worked out from the two figures they publish free &mdash; realized cap = market cap &divide; the MVRV ratio, the ratio&rsquo;s own definition, so nothing is estimated. The line starts <span id="mv-line-start">Feb 2, 2011</span>, once the history behind the standard deviation is 200 days deep &mdash; a standard deviation over a days-old market would say nothing. If the live fetch fails, the chart and figures stand as of Nov 16, 2026. The 0 and 7 lines are the MVRV Z-Score&rsquo;s long-standing reference points &mdash; not buy or sell signals.</p>
         </details>
         </div>
             <!-- The Spiral as the fifth chart view (2026-11-22):
@@ -2292,7 +2292,6 @@
             <p class="spiral-readout" id="spiralReadout" aria-live="polite"></p>
             <div class="spiral-stage" id="spiralStage" aria-label="3D spiral chart. Drag sideways to turn it, scroll or pinch to zoom, tap the line to inspect a day."></div>
             <div class="taken-apart" id="spiralTakenApart" aria-label="The four halving cycles taken apart: all four cycles unwound onto one graph, as lines on the same axes.">
-                <p class="ta-axes-note">One graph, one set of axes: days since each cycle's halving across (0–1,440), and the price up, counted in how many times that cycle's halving day's price (log scale).</p>
                 <div class="ta-overlay-wrap">
                     <h3>All four cycles on one set of axes</h3>
                     <div class="ta-keyrow" id="spiralTaKeyRow">
@@ -2313,8 +2312,15 @@
                     <p class="ta-cap"><b>①</b> Tops: every past cycle reached its highest price inside this stretch <span class="ta-band-when" id="taBandTops">(days 371–546)</span>. <b>②</b> Bottoms: every past cycle reached its lowest price inside this stretch <span class="ta-band-when" id="taBandBottoms">(days 777–912)</span>. This cycle's highest close (day 535) sits inside its stretch, and its highest trade — $126,198 on Oct 6, that same day — sits inside it too. Its lowest close (day 802) sits inside the bottom stretch — but its lowest trade, $55,150 on Nov 21 (day 946), undercut that close after the stretch had passed.</p>
                 </div>
                 <p class="pl-zoomhint">Scroll or pinch to zoom, drag to pan.</p>
-                <p class="ta-takeaway">The turns keep the same time in every cycle, but each climb is a fraction of the one before it: <strong>the tops went 92×, then 30×, then 8× — and this cycle's top so far is 2×.</strong></p>
             </div>
+            <!-- The Spiral's description (2026-11-22): every word of
+                 prose starts collapsed behind the same Chart key door
+                 the other views use — the chart and its controls are
+                 what the reader meets first; the legends, the fine
+                 print and the taken-apart explainer open in place
+                 below the door when wanted. -->
+            <details class="btc-chartkey" id="spiralKey">
+            <summary><span class="btc-chartkey-chev" aria-hidden="true">&#9654;</span>Chart key</summary>
             <p class="spiral-legend" id="spiralLegend3d">
                 <span><span class="sw" style="background:#2ea043"></span>Halving</span>
                 <span><span class="sw" style="background:#2f6feb"></span>Cycle top</span>
@@ -2333,6 +2339,11 @@
                 <span><span class="sw sw-dash" style="border-color:#ffb84d"></span>Pattern projection (middle of the 3)</span>
             </p>
             <p class="spiral-fine" id="spiralFineTa" hidden>Each line is one halving cycle taken apart and laid flat: the left edge is that cycle's halving day, and the height of the line is the price counted in how many times the halving day's price — so all four lines start at 1× on the same axes (days 0–1,440 across, the same price multiples up). In the spiral the four cycles are four different sizes, which is what hides the rhyme; at one size, the turns line up. <strong>The dashed line is a projection, not a price:</strong> each finished cycle's remaining journey from this same point in its cycle, re-based to start at today's price — the dashed line is the middle of the three, and the pale band is their spread. Three cycles only: a pattern's range, not a promise.</p>
+            <div id="spiralTaProse" hidden>
+                <p class="ta-axes-note">One graph, one set of axes: days since each cycle's halving across (0–1,440), and the price up, counted in how many times that cycle's halving day's price (log scale).</p>
+                <p class="ta-takeaway">The turns keep the same time in every cycle, but each climb is a fraction of the one before it: <strong>the tops went 92×, then 30×, then 8× — and this cycle's top so far is 2×.</strong></p>
+            </div>
+            </details>
             </div>
         </div>
         </div>
@@ -2345,7 +2356,7 @@
             <div class="btc-sub-copy">
                 <p class="btc-sub-head">Get an email on buy-zone and sell-zone days only</p>
                 <p class="btc-sub-state" aria-live="polite"><span class="btc-sub-dot hold" id="btcSubDot" aria-hidden="true"></span><span id="btcSubStateText"></span></p>
-                <p class="btc-golden-sub-text">You get one email on each day the indicator is in a <span class="zd zd-buy" aria-hidden="true"></span>buy zone or a <span class="zd zd-sell" aria-hidden="true"></span>sell zone — and no email on <span class="zd zd-hold" aria-hidden="true"></span>Hold days. Each email briefs you with the day number in the zone, today's score, yesterday's score, Bitcoin's price, and a picture of the chart.</p>
+                <p class="btc-golden-sub-text">You get one email on each day the indicator is in a <span class="zd zd-buy" aria-hidden="true"></span>buy zone or a <span class="zd zd-sell" aria-hidden="true"></span>sell zone — and no email on Hold days. Each email briefs you with the day number in the zone, today's score, yesterday's score, Bitcoin's price, and a picture of the chart.</p>
             </div>
             <form action="https://buttondown.com/api/emails/embed-subscribe/johnbryantoneal" method="post" class="embeddable-buttondown-form btc-golden-sub-form">
                 <input type="email" name="email" id="btcGoldenEmail" placeholder="you@example.com" aria-label="Email" autocomplete="email" required>
@@ -2354,888 +2365,6 @@
             </form>
             <p class="btc-sub-foot">Unsubscribe anytime.</p>
         </div>
-    <script>
-    /* The homepage stat strip's readout (restored 2026-11-19). The strip
-       above (#sc-readout) was removed with the indicator's chart view; the
-       fill below is that view's own readout logic, kept for the strip's two
-       elements and nothing more. The last point of the series sets the value
-       and the date; the baked weekly sample stands until the nightly series
-       from btc-state.json replaces it. The page never recomputes the reading. */
-    (function () {
-        var GENESIS = Date.UTC(2009, 0, 3), DAY = 86400000;
-        var BAKED = [
-        [760,77.11],
-        [767,81.73],
-        [774,77.47],
-        [781,71.74],
-        [788,70.83],
-        [795,67.45],
-        [802,64.72],
-        [809,61.72],
-        [816,55.66],
-        [823,49.9],
-        [830,59.12],
-        [837,67.2],
-        [844,80.53],
-        [851,90.9],
-        [858,95.07],
-        [865,89.93],
-        [872,90.98],
-        [879,89.38],
-        [886,100],
-        [893,86.11],
-        [900,83.23],
-        [907,81.9],
-        [914,78.95],
-        [921,76.33],
-        [928,75.12],
-        [935,73.82],
-        [942,54.07],
-        [949,56.2],
-        [956,58.92],
-        [963,57.59],
-        [970,47.87],
-        [977,42.02],
-        [984,32.37],
-        [991,31.65],
-        [998,25.72],
-        [1005,26.27],
-        [1012,20.99],
-        [1019,6.58],
-        [1026,11.55],
-        [1033,17.07],
-        [1040,13.88],
-        [1047,10.03],
-        [1054,7.44],
-        [1061,12.82],
-        [1068,13.45],
-        [1075,14.29],
-        [1082,18.28],
-        [1089,20.24],
-        [1096,30.16],
-        [1103,38.78],
-        [1110,31.56],
-        [1117,30.46],
-        [1124,32.55],
-        [1131,28.77],
-        [1138,19.05],
-        [1145,19.82],
-        [1152,23.28],
-        [1159,23.07],
-        [1166,26.86],
-        [1173,22],
-        [1180,21.54],
-        [1187,21.35],
-        [1194,20.95],
-        [1201,22.66],
-        [1208,22.33],
-        [1215,21.45],
-        [1222,20.64],
-        [1229,18.88],
-        [1236,18.65],
-        [1243,19.02],
-        [1250,20.84],
-        [1257,23.82],
-        [1264,27.9],
-        [1271,26.46],
-        [1278,24.9],
-        [1285,28.73],
-        [1292,39.35],
-        [1299,36.51],
-        [1306,39.48],
-        [1313,46.68],
-        [1320,55.25],
-        [1327,36.04],
-        [1334,39.64],
-        [1341,39.27],
-        [1348,38.32],
-        [1355,42.75],
-        [1362,39.8],
-        [1369,41.37],
-        [1376,35.6],
-        [1383,33.62],
-        [1390,31.22],
-        [1397,27.36],
-        [1404,25.7],
-        [1411,24.9],
-        [1418,27.27],
-        [1425,21.22],
-        [1432,24.22],
-        [1439,24.57],
-        [1446,23.26],
-        [1453,22.03],
-        [1460,39.94],
-        [1467,40.73],
-        [1474,42.41],
-        [1481,49.02],
-        [1488,53.18],
-        [1495,55.06],
-        [1502,60.92],
-        [1509,69.24],
-        [1516,68.98],
-        [1523,80.84],
-        [1530,80.78],
-        [1537,89.11],
-        [1544,97.02],
-        [1551,100],
-        [1558,98.01],
-        [1565,81.55],
-        [1572,93.04],
-        [1579,84.34],
-        [1586,82.7],
-        [1593,79.93],
-        [1600,81.93],
-        [1607,83.65],
-        [1614,76.77],
-        [1621,68.22],
-        [1628,65.82],
-        [1635,61.9],
-        [1642,51.39],
-        [1649,54.04],
-        [1656,55.7],
-        [1663,53.61],
-        [1670,56.79],
-        [1677,55.39],
-        [1684,55.31],
-        [1691,58.81],
-        [1698,60.47],
-        [1705,60.71],
-        [1712,61.2],
-        [1719,60.05],
-        [1726,58.02],
-        [1733,50.7],
-        [1740,57.15],
-        [1747,60.23],
-        [1754,77.7],
-        [1761,74.39],
-        [1768,87.15],
-        [1775,96.23],
-        [1782,100],
-        [1789,100],
-        [1796,100],
-        [1803,91.9],
-        [1810,78.23],
-        [1817,85.02],
-        [1824,86.14],
-        [1831,86.64],
-        [1838,86.27],
-        [1845,83.18],
-        [1852,79.52],
-        [1859,76.9],
-        [1866,69.24],
-        [1873,65.01],
-        [1880,62.12],
-        [1887,64.36],
-        [1894,61.15],
-        [1901,57.92],
-        [1908,53.79],
-        [1915,44.85],
-        [1922,42.73],
-        [1929,48],
-        [1936,43.84],
-        [1943,41.07],
-        [1950,39],
-        [1957,37.93],
-        [1964,40.75],
-        [1971,43.55],
-        [1978,46.76],
-        [1985,44.73],
-        [1992,42.12],
-        [1999,39.82],
-        [2006,62.11],
-        [2013,60.98],
-        [2020,60.77],
-        [2027,60.95],
-        [2034,59.02],
-        [2041,59.85],
-        [2048,58.64],
-        [2055,56.51],
-        [2062,54.96],
-        [2069,50.13],
-        [2076,50.33],
-        [2083,47.27],
-        [2090,44.12],
-        [2097,38.34],
-        [2104,35.29],
-        [2111,39.32],
-        [2118,37.68],
-        [2125,32.13],
-        [2132,31.49],
-        [2139,40.18],
-        [2146,35.34],
-        [2153,33.89],
-        [2160,34.66],
-        [2167,31.56],
-        [2174,28.39],
-        [2181,28.8],
-        [2188,28.21],
-        [2195,25.66],
-        [2202,9.51],
-        [2209,16.18],
-        [2216,17.94],
-        [2223,16.7],
-        [2230,14.88],
-        [2237,17.26],
-        [2244,17.09],
-        [2251,21.81],
-        [2258,24.52],
-        [2265,19.5],
-        [2272,18.23],
-        [2279,18.31],
-        [2286,17.48],
-        [2293,14.14],
-        [2300,16.07],
-        [2307,14.75],
-        [2314,15.28],
-        [2321,16.29],
-        [2328,15.58],
-        [2335,15.95],
-        [2342,14.1],
-        [2349,14.87],
-        [2356,17.37],
-        [2363,16.25],
-        [2370,18.88],
-        [2377,20.61],
-        [2384,22.29],
-        [2391,20.97],
-        [2398,22.19],
-        [2405,20.75],
-        [2412,18.37],
-        [2419,11.93],
-        [2426,11.39],
-        [2433,11.72],
-        [2440,12.25],
-        [2447,11.22],
-        [2454,10.91],
-        [2461,11.66],
-        [2468,12.14],
-        [2475,13.07],
-        [2482,14.82],
-        [2489,20.02],
-        [2496,33.26],
-        [2503,19.32],
-        [2510,22.11],
-        [2517,19.66],
-        [2524,23.37],
-        [2531,30.27],
-        [2538,33],
-        [2545,28.99],
-        [2552,26.29],
-        [2559,38.09],
-        [2566,37.62],
-        [2573,34.84],
-        [2580,30.72],
-        [2587,27.13],
-        [2594,26.12],
-        [2601,30.03],
-        [2608,29.2],
-        [2615,28.55],
-        [2622,27.25],
-        [2629,27.17],
-        [2636,26.25],
-        [2643,25.22],
-        [2650,25.72],
-        [2657,25.51],
-        [2664,26.26],
-        [2671,26.04],
-        [2678,25.84],
-        [2685,25.93],
-        [2692,24.74],
-        [2699,24],
-        [2706,31.84],
-        [2713,35.38],
-        [2720,44.41],
-        [2727,34.96],
-        [2734,37.39],
-        [2741,39.77],
-        [2748,30.29],
-        [2755,30.42],
-        [2762,29.01],
-        [2769,21.61],
-        [2776,23.41],
-        [2783,21.52],
-        [2790,20.67],
-        [2797,19.47],
-        [2804,22.74],
-        [2811,21.81],
-        [2818,20.11],
-        [2825,19.58],
-        [2832,19.92],
-        [2839,20.66],
-        [2846,19.62],
-        [2853,22.89],
-        [2860,27.17],
-        [2867,25.3],
-        [2874,26.15],
-        [2881,24.47],
-        [2888,24.23],
-        [2895,25.08],
-        [2902,25.15],
-        [2909,27.15],
-        [2916,35.82],
-        [2923,52.85],
-        [2930,31.55],
-        [2937,36.25],
-        [2944,35.1],
-        [2951,39.99],
-        [2958,42.29],
-        [2965,39.27],
-        [2972,44.57],
-        [2979,48.97],
-        [2986,43.42],
-        [2993,47.57],
-        [3000,35.65],
-        [3007,35.18],
-        [3014,38.6],
-        [3021,41.52],
-        [3028,40.07],
-        [3035,43.57],
-        [3042,52.12],
-        [3049,61.13],
-        [3056,59.83],
-        [3063,79.05],
-        [3070,72.21],
-        [3077,79.77],
-        [3084,68.54],
-        [3091,71.04],
-        [3098,66.47],
-        [3105,65.26],
-        [3112,57.58],
-        [3119,52.06],
-        [3126,57.17],
-        [3133,58.14],
-        [3140,69.92],
-        [3147,87.18],
-        [3154,79.69],
-        [3161,85.19],
-        [3168,81.92],
-        [3175,66.8],
-        [3182,63.62],
-        [3189,66.52],
-        [3196,65.29],
-        [3203,72.1],
-        [3210,79.65],
-        [3217,78.36],
-        [3224,86.01],
-        [3231,90.31],
-        [3238,86.15],
-        [3245,89.89],
-        [3252,95.56],
-        [3259,100],
-        [3266,100],
-        [3273,98.87],
-        [3280,94.73],
-        [3287,92.23],
-        [3294,87.33],
-        [3301,73.19],
-        [3308,71.86],
-        [3315,63.66],
-        [3322,50.66],
-        [3329,58.51],
-        [3336,61.3],
-        [3343,60.15],
-        [3350,56.94],
-        [3357,48.22],
-        [3364,51.01],
-        [3371,45.26],
-        [3378,37.84],
-        [3385,38.66],
-        [3392,44.64],
-        [3399,48.05],
-        [3406,49.07],
-        [3413,49.07],
-        [3420,43.26],
-        [3427,38.65],
-        [3434,36.94],
-        [3441,38.06],
-        [3448,28.67],
-        [3455,31.45],
-        [3462,27.44],
-        [3469,29.82],
-        [3476,28.75],
-        [3483,35.17],
-        [3490,40.57],
-        [3497,35.62],
-        [3504,27.27],
-        [3511,26.62],
-        [3518,27.25],
-        [3525,31.02],
-        [3532,29.36],
-        [3539,25.94],
-        [3546,26.33],
-        [3553,26.71],
-        [3560,26.73],
-        [3567,26.69],
-        [3574,26.01],
-        [3581,26.13],
-        [3588,25.35],
-        [3595,26.64],
-        [3602,20.03],
-        [3609,13.25],
-        [3616,10.88],
-        [3623,7.76],
-        [3630,6.11],
-        [3637,8.48],
-        [3644,10.54],
-        [3651,11.27],
-        [3658,11.08],
-        [3665,7.17],
-        [3672,6.83],
-        [3679,6.13],
-        [3686,5.72],
-        [3693,7.14],
-        [3700,10.09],
-        [3707,9],
-        [3714,9.41],
-        [3721,9.43],
-        [3728,11.13],
-        [3735,10.69],
-        [3742,19.39],
-        [3749,22.65],
-        [3756,21.88],
-        [3763,23.72],
-        [3770,22.6],
-        [3777,27.27],
-        [3784,44.7],
-        [3791,40.87],
-        [3798,46.7],
-        [3805,38.83],
-        [3812,40.45],
-        [3819,47.2],
-        [3826,65.91],
-        [3833,67.38],
-        [3840,64.82],
-        [3847,49.79],
-        [3854,49.34],
-        [3861,49.81],
-        [3868,57.9],
-        [3875,46.63],
-        [3882,45.8],
-        [3889,42.94],
-        [3896,46.16],
-        [3903,43.2],
-        [3910,41.46],
-        [3917,31.67],
-        [3924,30.34],
-        [3931,31.2],
-        [3938,27.26],
-        [3945,23.82],
-        [3952,32.54],
-        [3959,33.08],
-        [3966,30.42],
-        [3973,26.38],
-        [3980,23.01],
-        [3987,21.1],
-        [3994,20.91],
-        [4001,21.36],
-        [4008,20.65],
-        [4015,20.43],
-        [4022,24.72],
-        [4029,28.77],
-        [4036,27.15],
-        [4043,30.62],
-        [4050,31.63],
-        [4057,35.01],
-        [4064,31.24],
-        [4071,26.83],
-        [4078,26.59],
-        [4085,21.36],
-        [4092,6.05],
-        [4099,14.67],
-        [4106,16.04],
-        [4113,20.45],
-        [4120,15.23],
-        [4127,18.32],
-        [4134,26.76],
-        [4141,29.34],
-        [4148,22.5],
-        [4155,24.09],
-        [4162,22.24],
-        [4169,23.98],
-        [4176,25.78],
-        [4183,23.09],
-        [4190,20.47],
-        [4197,19.81],
-        [4204,20.73],
-        [4211,19.37],
-        [4218,20.12],
-        [4225,27.86],
-        [4232,30.84],
-        [4239,29.79],
-        [4246,29.3],
-        [4253,27.3],
-        [4260,27.11],
-        [4267,22.04],
-        [4274,24.41],
-        [4281,19.67],
-        [4288,21.65],
-        [4295,21.46],
-        [4302,23.93],
-        [4309,28.77],
-        [4316,30.77],
-        [4323,34.9],
-        [4330,40.81],
-        [4337,45.81],
-        [4344,48.09],
-        [4351,48.57],
-        [4358,44.7],
-        [4365,52.48],
-        [4372,57.63],
-        [4379,70.36],
-        [4386,88.77],
-        [4393,86.69],
-        [4400,80.38],
-        [4407,66.99],
-        [4414,80.76],
-        [4421,90.95],
-        [4428,95.83],
-        [4435,90.45],
-        [4442,88.63],
-        [4449,92.52],
-        [4456,92.61],
-        [4463,82.57],
-        [4470,86.57],
-        [4477,80.84],
-        [4484,85.58],
-        [4491,75.13],
-        [4498,74.84],
-        [4505,76.42],
-        [4512,69.41],
-        [4519,49.96],
-        [4526,51.95],
-        [4533,50.67],
-        [4540,49.96],
-        [4547,50.92],
-        [4554,44.7],
-        [4561,46.51],
-        [4568,48.53],
-        [4575,46.52],
-        [4582,45.78],
-        [4589,55.83],
-        [4596,54.72],
-        [4603,61.49],
-        [4610,59.43],
-        [4617,63.6],
-        [4624,61.61],
-        [4631,58.62],
-        [4638,60.06],
-        [4645,54.52],
-        [4652,51.77],
-        [4659,67.1],
-        [4666,68.18],
-        [4673,74.83],
-        [4680,68.31],
-        [4687,71.72],
-        [4694,71.83],
-        [4701,66.96],
-        [4708,63.79],
-        [4715,63.62],
-        [4722,56.68],
-        [4729,53.66],
-        [4736,53.3],
-        [4743,50.63],
-        [4750,47.2],
-        [4757,47.41],
-        [4764,44.85],
-        [4771,38.11],
-        [4778,38.09],
-        [4785,46.24],
-        [4792,45.7],
-        [4799,37.48],
-        [4806,44.84],
-        [4813,42.79],
-        [4820,41.76],
-        [4827,43.53],
-        [4834,47.99],
-        [4841,43.38],
-        [4848,40.91],
-        [4855,41.19],
-        [4862,38.71],
-        [4869,38.66],
-        [4876,24.92],
-        [4883,25.15],
-        [4890,26.17],
-        [4897,27.13],
-        [4904,27.81],
-        [4911,16.55],
-        [4918,13.01],
-        [4925,13.36],
-        [4932,14.19],
-        [4939,13.91],
-        [4946,18.96],
-        [4953,18.9],
-        [4960,18.86],
-        [4967,20.67],
-        [4974,19.62],
-        [4981,16.32],
-        [4988,13.51],
-        [4995,12.24],
-        [5002,13.83],
-        [5009,10.6],
-        [5016,12.6],
-        [5023,13.97],
-        [5030,11.52],
-        [5037,11.14],
-        [5044,13.96],
-        [5051,13.12],
-        [5058,4.89],
-        [5065,6.97],
-        [5072,7.05],
-        [5079,8.43],
-        [5086,7.82],
-        [5093,10.54],
-        [5100,8.39],
-        [5107,7.97],
-        [5114,11.88],
-        [5121,14.24],
-        [5128,18.93],
-        [5135,23.77],
-        [5142,24.2],
-        [5149,22.55],
-        [5156,25.31],
-        [5163,24.92],
-        [5170,22.6],
-        [5177,18.74],
-        [5184,23.93],
-        [5191,29.21],
-        [5198,29.78],
-        [5205,29.07],
-        [5212,31.35],
-        [5219,29.07],
-        [5226,27.7],
-        [5233,28.79],
-        [5240,31.42],
-        [5247,26.83],
-        [5254,23.44],
-        [5261,24.39],
-        [5268,22.11],
-        [5275,19.8],
-        [5282,27.3],
-        [5289,26.73],
-        [5296,27.25],
-        [5303,26.59],
-        [5310,24.74],
-        [5317,23.62],
-        [5324,23.21],
-        [5331,23.72],
-        [5338,22.14],
-        [5345,17.99],
-        [5352,18.83],
-        [5359,16.26],
-        [5366,17.29],
-        [5373,18.23],
-        [5380,16.55],
-        [5387,18.73],
-        [5394,17.17],
-        [5401,18.45],
-        [5408,27.54],
-        [5415,28.75],
-        [5422,29.37],
-        [5429,31.87],
-        [5436,31.63],
-        [5443,30.53],
-        [5450,37.29],
-        [5457,36.44],
-        [5464,39.4],
-        [5471,37.38],
-        [5478,35.54],
-        [5485,37.76],
-        [5492,32.91],
-        [5499,29.49],
-        [5506,31.91],
-        [5513,33.2],
-        [5520,40.87],
-        [5527,38.89],
-        [5534,49.05],
-        [5541,51.95],
-        [5548,56.91],
-        [5555,50.42],
-        [5562,50.45],
-        [5569,46.79],
-        [5576,49.81],
-        [5583,41.9],
-        [5590,48.97],
-        [5597,29.52],
-        [5604,31.34],
-        [5611,35.73],
-        [5618,37.15],
-        [5625,35.15],
-        [5632,37.98],
-        [5639,39.94],
-        [5646,32.11],
-        [5653,27.72],
-        [5660,27.01],
-        [5667,25.13],
-        [5674,30.31],
-        [5681,30.29],
-        [5688,28.74],
-        [5695,20.18],
-        [5702,22.99],
-        [5709,25.11],
-        [5716,23.09],
-        [5723,21.85],
-        [5730,21.16],
-        [5737,23.81],
-        [5744,25.2],
-        [5751,23.7],
-        [5758,23.51],
-        [5765,28.75],
-        [5772,27.2],
-        [5779,31.82],
-        [5786,33.22],
-        [5793,42.31],
-        [5800,44.19],
-        [5807,44.58],
-        [5814,45.49],
-        [5821,46.21],
-        [5828,44.44],
-        [5835,43.12],
-        [5842,41.01],
-        [5849,40.85],
-        [5856,43.42],
-        [5863,44.89],
-        [5870,44.41],
-        [5877,39.64],
-        [5884,39.33],
-        [5891,38.28],
-        [5898,30.74],
-        [5905,34.39],
-        [5912,29.76],
-        [5919,31.39],
-        [5926,31.07],
-        [5933,28.08],
-        [5940,27.3],
-        [5947,27.96],
-        [5954,33.02],
-        [5961,32.91],
-        [5968,34.53],
-        [5975,37.61],
-        [5982,40.13],
-        [5989,38.66],
-        [5996,36.28],
-        [6003,37.99],
-        [6010,35.79],
-        [6017,36.83],
-        [6024,38.27],
-        [6031,39.17],
-        [6038,41.49],
-        [6045,41.02],
-        [6052,40.13],
-        [6059,38.59],
-        [6066,42.09],
-        [6073,37.42],
-        [6080,35.69],
-        [6087,35.71],
-        [6094,35.96],
-        [6101,36.86],
-        [6108,34.54],
-        [6115,36.57],
-        [6122,37.77],
-        [6129,31.65],
-        [6136,30.19],
-        [6143,31.08],
-        [6150,27.19],
-        [6157,25.91],
-        [6164,20.95],
-        [6171,20.41],
-        [6178,22.18],
-        [6185,21.36],
-        [6192,18.28],
-        [6199,19.09],
-        [6206,19],
-        [6213,20.86],
-        [6220,23.87],
-        [6227,20.08],
-        [6234,20.23],
-        [6241,11.51],
-        [6248,9.25],
-        [6255,8.97],
-        [6262,8.59],
-        [6269,11.47],
-        [6276,10.09],
-        [6283,10.74],
-        [6290,11.71],
-        [6297,9.85],
-        [6304,11.37],
-        [6311,13.68],
-        [6318,16.18],
-        [6325,14.79],
-        [6332,18.37],
-        [6339,17.25],
-        [6346,15.9],
-        [6353,14.05],
-        [6360,7.6],
-        [6367,6.11],
-        [6374,8.99],
-        [6381,6.67],
-        [6388,5.59],
-        [6395,7],
-        [6402,9.33],
-        [6409,10.18],
-        [6416,8.92],
-        [6423,9.54],
-        [6430,8.67],
-        [6437,12.67],
-        [6444,18.84],
-        [6451,17.6],
-        [6458,17.9],
-        [6465,16.39],
-        [6472,20.8],
-        [6479,20.12],
-        [6486,19.73],
-        [6493,18.44],
-        [6500,19.19],
-        [6507,17.3],
-        [6514,16.19],
-        [6521,12.01],
-        [6528,6.15]
-        ];
-        var PTS = BAKED.slice();
-        var SRC = 'weekly sample';
-
-        function dateOf(days) { return new Date(GENESIS + days * DAY); }
-        function dateStr(days) {
-            return dateOf(days).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-        }
-
-        /* --- "Where it stands" readout, from the last point of the series --- */
-        function set(id, txt) { var el = document.getElementById(id); if (el) el.textContent = txt; }
-        function renderReadout() {
-            var last = PTS[PTS.length - 1];
-            set('sc-score', last[1].toFixed(2));
-            set('sc-date', dateStr(last[0]) + ' (' + SRC + ')');
-        }
-        renderReadout();
-
-        /* --- Live update: the nightly series from btc-state.json —
-           the same file the header dot and the gauge read. Anything short
-           of the full series — a failed fetch, a missing or truncated
-           field — leaves the weekly sample standing. --- */
-        if (window.fetch) {
-            fetch('btc-state.json')
-                .then(function (r) {
-                    if (!r.ok) throw new Error('HTTP ' + r.status);
-                    return r.json();
-                })
-                .then(function (s) {
-                    var raw = s && s.score_series;
-                    if (!Array.isArray(raw) || raw.length < 5000) return; /* not the full series: the sample stands */
-                    var out = [];
-                    raw.forEach(function (row) {
-                        var parts = String(row[0] || '').split('-');
-                        var v = parseFloat(row[1]);
-                        if (parts.length !== 3 || !(v >= 0)) return;
-                        out.push([Math.round((Date.UTC(+parts[0], +parts[1] - 1, +parts[2]) - GENESIS) / DAY), v]);
-                    });
-                    if (out.length < 5000) return;
-                    out.sort(function (a, b) { return a[0] - b[0]; });
-                    PTS = out;
-                    SRC = 'nightly series';
-                    renderReadout();
-                }).catch(function () { /* offline or blocked: the weekly sample stands */ });
-        }
-    })();
-    </script>
     </div>
 
         <!-- Bitcoin Spiral (2026-11-21): the halving cycles drawn the
@@ -3557,10 +2686,18 @@ const tiltBtn = document.getElementById('spiralTiltBtn');
 const taBtn = document.getElementById('spiralTaBtn'), takenApart = document.getElementById('spiralTakenApart');
 let threeOk = false;
 let view3d = null;   // the 3D build registers its camera setter here
+let taAnchorY = null;
 function setView(name) {
     if (name !== 'taken' && !threeOk) name = 'taken';
     if (name === 'tilt' && view3d) view3d();
     const taken = name === 'taken';
+    /* Close returns you to where you opened (2026-11-22): opening
+       the taken-apart panel records the view head's viewport
+       position; closing it restores that position — the panel is
+       tall, and its collapse otherwise shrinks the document under
+       the reader and lands them far down the page. */
+    const headEl = document.querySelector('#btc-view-spiral .spiral-head');
+    if (taken && headEl) taAnchorY = headEl.getBoundingClientRect().top;
     tiltBtn.setAttribute('aria-pressed', String(name === 'tilt'));
     taBtn.setAttribute('aria-pressed', String(taken));
     stage.style.display = taken ? 'none' : '';
@@ -3569,6 +2706,19 @@ function setView(name) {
     document.getElementById('spiralFine3d').hidden = taken;
     document.getElementById('spiralLegendTa').hidden = !taken;
     document.getElementById('spiralFineTa').hidden = !taken;
+    /* The description door starts collapsed on every switch, and
+       the taken-apart prose inside it follows the mode swap. */
+    const keyEl = document.getElementById('spiralKey');
+    if (keyEl) keyEl.removeAttribute('open');
+    const taProse = document.getElementById('spiralTaProse');
+    if (taProse) taProse.hidden = !taken;
+    if (!taken && taAnchorY !== null && headEl) {
+        const y = taAnchorY; taAnchorY = null;
+        const fix = () => { const dy = headEl.getBoundingClientRect().top - y; if (dy) window.scrollBy(0, dy); };
+        fix();
+        if (window.requestAnimationFrame) requestAnimationFrame(fix);
+        setTimeout(fix, 120);
+    }
 }
 tiltBtn.addEventListener('click', () => setView('tilt'));
 taBtn.addEventListener('click', () => setView('taken'));
@@ -3862,7 +3012,8 @@ if (THREE) {
 
     // labels (rebuilt on a theme flip — their colors are baked into canvas textures)
     const floorLabelBase = [];   // {sp, base, text} — the clamp below works from base
-    let projLabel = null;
+    const ringLabelBase = [];
+    let projLabel = null, projLabelBase = null;
     function buildLabels() {
         floorLabelBase.length = 0;
         const labLogp = LOG0 + (RMAX + 0.6) / RS;
@@ -3876,11 +3027,13 @@ if (THREE) {
         projLabel = makeLabel('Pattern projection', 'middle of the 3 finished cycles', 0.95);
         placeProjLabel();
         world.add(projLabel);
+        ringLabelBase.length = 0;
         RING_PS.forEach((p, i) => {
             if (i === 0) return;
             const l2 = makeLabel(RING_LB[i], null, 0.8);
             l2.position.copy(polar(0.635, Math.log10(p), topFloorY)).add(new THREE.Vector3(0, 0.28, 0));
             world.add(l2);
+            ringLabelBase.push({ sp: l2, base: l2.position.clone(), text: RING_LB[i] });
         });
     }
     function placeProjLabel() {
@@ -3888,10 +3041,11 @@ if (THREE) {
         const endF = FAN.median[FAN.median.length - 1];
         projLabel.visible = !!endF;
         if (endF) projLabel.position.copy(polar(endF[0], endF[1], topFloorY + 0.03)).add(new THREE.Vector3(0, 0.55, 0));
+        projLabelBase = projLabel.position.clone();
     }
     buildLabels();
 
-    // Floor-label clamp: at phone width the floor chips ride at the
+    // Label clamp: at phone width the floor chips ride at the
     // stack's left rim and the widest ones ("2010–2012 · before the
     // first halving") slid off the stage's left edge. Each label is
     // projected under the DEFAULT tilt framing (whatever the camera
@@ -3910,7 +3064,12 @@ if (THREE) {
         const mX = 8 / w * 2, mY = 8 / h * 2;
         const pv = new THREE.Vector3();
         labelRects.length = 0;
-        for (const ent of floorLabelBase) {
+        /* Every label clamps, not just the floor chips (2026-11-22,
+           video fix): the projection chip and the ring labels ran
+           off the left edge the same way and were never in the set. */
+        const allLabels = floorLabelBase.concat(ringLabelBase);
+        if (projLabel && projLabelBase) allLabels.push({ sp: projLabel, base: projLabelBase, text: 'Pattern projection' });
+        for (const ent of allLabels) {
             const sp = ent.sp;
             sp.position.copy(ent.base);
             pv.copy(ent.base).applyMatrix4(camera.matrixWorldInverse);
@@ -3993,6 +3152,7 @@ if (THREE) {
     const bandGroup = new THREE.Group();
     world.add(bandGroup);
     const bandMats = [];
+    const bandInspectPts = [];
     let bandGeo = null;
     function paintBandDots() {
         const buy = theme === 'light' ? 0x16a34a : 0x22c55e, sell = theme === 'light' ? 0xdc2626 : 0xef4444;
@@ -4005,16 +3165,24 @@ if (THREE) {
             c.material.dispose();
         }
         bandMats.length = 0;
+        for (const bp of bandInspectPts) { const bi = inspectPts.indexOf(bp); if (bi >= 0) inspectPts.splice(bi, 1); }
+        bandInspectPts.length = 0;
         if (bandGeo) { bandGeo.dispose(); bandGeo = null; }
         if (!window.BTC_BANDS) return;
         bandGeo = new THREE.SphereGeometry(0.115, 12, 10);
         const BAND_EPOCH = dayNum('2009-01-03');
-        const mk = (f, logp, fl, band) => {
+        const mk = (f, logp, fl, band, date) => {
             const mat = new THREE.MeshBasicMaterial({});
             const m = new THREE.Mesh(bandGeo, mat);
             m.position.copy(polar(f, logp, fl.idx * GAP));
             bandGroup.add(m);
             bandMats.push({ mat, band });
+            /* Dot snap (2026-11-22): each band dot is also an
+               inspection point, so a tap near a dot selects the
+               dot's own day — the dots are data, not decoration. */
+            const bp = { v: m.position.clone(), date, price: Math.pow(10, logp), ctx: fl.label, kind: 'band' };
+            inspectPts.push(bp);
+            bandInspectPts.push(bp);
         };
         BTC_BANDS.daysIn(dayNum(DATA.data_first) - BAND_EPOCH, dayNum('2100-01-01') - BAND_EPOCH).forEach(({ day, band }) => {
             const date = isoOf(BAND_EPOCH + day);
@@ -4022,7 +3190,7 @@ if (THREE) {
                 const a = anchorNow();
                 if (!a.live || date !== a.date) return;
                 const fl = DATA.floors[DATA.floors.length - 1];
-                mk(dayDiff(date, fl.start) / fl.length_days, Math.log10(a.price), fl, band);
+                mk(dayDiff(date, fl.start) / fl.length_days, Math.log10(a.price), fl, band, date);
                 return;
             }
             const fl = DATA.floors.find(f2 => date >= f2.start && date <= f2.end);
@@ -4034,7 +3202,7 @@ if (THREE) {
             const d0 = dayNum(path[lo][2]), d1 = dayNum(path[hi][2]);
             const t = d1 > d0 ? (dayNum(date) - d0) / (d1 - d0) : 0;
             mk(path[lo][0] + (path[hi][0] - path[lo][0]) * t,
-               path[lo][1] + (path[hi][1] - path[lo][1]) * t, fl, band);
+               path[lo][1] + (path[hi][1] - path[lo][1]) * t, fl, band, date);
         });
         paintBandDots();
     }
@@ -4401,6 +3569,34 @@ function taWireInspect(zv, seriesList, X, Y) {
     const { svg, vp, W, H } = zv;
     const all = [];
     seriesList.forEach(s => { s.pts.forEach(p => all.push(p)); all.push(s.halvingPt, s.top, s.bottom); });
+    // Dot snap (2026-11-22): the overlay's band dots join the pick
+    // set at the very positions the graph draws them, so a tap or a
+    // slow scrub lands on a dot's own day instead of sliding past
+    // it; in pick() a dot's distance counts at 0.6×, so inside a
+    // cluster the inspection steps dot to dot.
+    if (window.BTC_OVERLAY !== false && window.BTC_BANDS) {
+        const aN = anchorNow();
+        window.BTC_BANDS.daysIn(0, dayNum('2100-01-01') - dayNum('2009-01-03')).forEach(({ day }) => {
+            const date = isoOf(dayNum('2009-01-03') + day);
+            const s = seriesList.find(s2 => date >= s2.fl.halving.date && (s2.current || date <= s2.fl.end));
+            if (!s) return;
+            let logp;
+            if (date > s.pts[s.pts.length - 1].date) {
+                if (!aN.live || date !== aN.date) return;
+                logp = aN.logp;
+            } else {
+                const pts = s.pts;
+                if (date < pts[0].date) return;
+                let lo = 0, hi = pts.length - 1;
+                while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (pts[mid].date <= date) lo = mid; else hi = mid; }
+                const dn = dayNum(date), d0 = dayNum(pts[lo].date), d1 = dayNum(pts[hi].date);
+                const t = d1 > d0 ? (dn - d0) / (d1 - d0) : 0;
+                logp = Math.log10(pts[lo].price) + (Math.log10(pts[hi].price) - Math.log10(pts[lo].price)) * t;
+            }
+            const y = taUnit === 'usd' ? logp : logp - s.fl.halving.logp;
+            all.push({ day: dayDiff(date, s.fl.halving.date), y, date, price: Math.pow(10, logp), kind: 'band', ctx: s.fl.label });
+        });
+    }
     const cursor = taEl('circle', { r: 5.5, fill: 'none', stroke: 'var(--text-color)', 'stroke-width': 1.6, opacity: 0 }, vp);
     const toView = e => {
         const rect = svg.getBoundingClientRect();
@@ -4440,7 +3636,8 @@ function taWireInspect(zv, seriesList, X, Y) {
         const rect = svg.getBoundingClientRect();
         let best = null, bestD = 30 * W / rect.width / taZoom.k;
         for (const p of all) {
-            const d = Math.hypot(X(p.day) - dx, Y(p.y) - dy);
+            let d = Math.hypot(X(p.day) - dx, Y(p.y) - dy);
+            if (p.kind === 'band') d *= 0.6;
             if (d < bestD) { bestD = d; best = p; }
         }
         return best || futureAt(dx, dy);
@@ -4450,6 +3647,9 @@ function taWireInspect(zv, seriesList, X, Y) {
         clearTimeout(latestTimer);
         if (best) {
             cursor.setAttribute('cx', X(best.day)); cursor.setAttribute('cy', Y(best.y)); cursor.setAttribute('opacity', 0.9);
+            /* a snapped dot is visibly the selected one: a bigger ring */
+            if (best.kind === 'band') { cursor.setAttribute('r', 8.5); cursor.setAttribute('stroke-width', 2.4); }
+            else { cursor.setAttribute('r', 5.5); cursor.setAttribute('stroke-width', 1.6); }
             taShowReadout(best, best.kind === 'latest');
         } else { cursor.setAttribute('opacity', 0); showLatest(); }
     }
@@ -4625,12 +3825,14 @@ function buildOverlay(container, W, H, prof, svgClass, withTitle) {
     }
     FAN.guides.forEach(gd => taEl('polyline', { points: taLine(gd.pts.map(fanPt), X, Y), class: 'guideline' }, vp));
     const med = FAN.median.map(fanPt);
+    let medLabel = null;
     if (med.length) {
         taEl('polyline', { points: taLine(med, X, Y), class: 'median' }, vp);
         const medEnd = med[med.length - 1];
         const medPrice = Math.pow(10, FAN.median[FAN.median.length - 1][1]);
-        taEl('text', { x: X(medEnd.day) - 4, y: Y(medEnd.y) + 20 * S, 'text-anchor': 'end', class: 'marklab medlab' }, vp,
-            `Projection median ends ${fmtPrice(medPrice)}`);
+        /* The label itself is placed at the end of the build, once
+           every line is drawn — see placeTaLabels. */
+        medLabel = { end: medEnd, text: `Projection median ends ${fmtPrice(medPrice)}` };
     }
     // The current cycle's line runs to the anchor: with a live
     // price, its last point is today at the live price — replacing
@@ -4725,8 +3927,103 @@ function buildOverlay(container, W, H, prof, svgClass, withTitle) {
     const lp = drawSeries[drawSeries.length - 1].pts;
     const lastPt = lp[lp.length - 1];
     taEl('circle', { cx: X(lastPt.day), cy: Y(lastPt.y), r: 4 * S, fill: '#ffffff', stroke: 'var(--btc-orange, #f7931a)', 'stroke-width': 1.6 * S }, vp);
-    taMarkLabel(vp, X, Y, W, S, lastPt, `Today · day ${lastPt.day}`, fmtDate(lastPt.date), 'above');
+    /* In-chart labels (2026-11-22, video fix): the median label and
+       the Today label used to be anchored to their subjects and sat
+       on the plotted lines — the median's caption lay across the
+       fan, and the Today label across the current cycle's descent.
+       They are placed now, with every line already drawn: each
+       label tries its candidate spots in order and takes the first
+       one that touches no line vertex, no band badge, no axis title
+       and not the other label; if none is perfectly clear it takes
+       the clearest. The spots are the plot's own empty regions —
+       beside the subject where that is clear, a clear corner where
+       it is not. */
+    function placeTaLabels() {
+        const pts = [];
+        vp.querySelectorAll('polyline, polygon').forEach(el => {
+            (el.getAttribute('points') || '').trim().split(/\s+/).forEach(pr => {
+                const ab = pr.split(',');
+                if (ab.length === 2) { const a = +ab[0], b = +ab[1]; if (isFinite(a) && isFinite(b)) pts.push([a, b]); }
+            });
+        });
+        const rects = [];
+        vp.querySelectorAll('circle').forEach(c => {
+            const r = +c.getAttribute('r');
+            if (r >= 8 * S) rects.push({ x: +c.getAttribute('cx') - r, y: +c.getAttribute('cy') - r, w: 2 * r, h: 2 * r });
+        });
+        if (withTitle) vp.querySelectorAll('text.axistitle').forEach(t => {
+            try { const b = t.getBBox(); rects.push({ x: b.x, y: b.y, w: b.width, h: b.height }); } catch (e) {}
+        });
+        const plot = { x: m.l, y: m.t, w: W - m.l - m.r, h: H - m.t - m.b };
+        function hits(r) {
+            if (r.x < plot.x - 2 || r.y < plot.y - 2 || r.x + r.w > plot.x + plot.w + 2 || r.y + r.h > plot.y + plot.h + 2) return 1e9;
+            let n = 0;
+            for (let i = 0; i < pts.length; i++) { const a = pts[i][0], b = pts[i][1]; if (a >= r.x - 3 && a <= r.x + r.w + 3 && b >= r.y - 3 && b <= r.y + r.h + 3) n++; }
+            for (const o of rects) if (r.x < o.x + o.w + 2 && o.x < r.x + r.w + 2 && r.y < o.y + o.h + 2 && o.y < r.y + r.h + 2) n += 1000;
+            return n;
+        }
+        function bbox(node) { try { return node.getBBox(); } catch (e) { return null; } }
+        function placeOne(node, cands) {
+            let best = null, bestN = Infinity;
+            for (const c of cands) {
+                node.setAttribute('x', c[0]); node.setAttribute('y', c[1]); node.setAttribute('text-anchor', c[2]);
+                const bb = bbox(node);
+                if (!bb) return;
+                const n = hits({ x: bb.x, y: bb.y, w: bb.width, h: bb.height });
+                if (n < bestN) { bestN = n; best = { c, bb: { x: bb.x, y: bb.y, w: bb.width, h: bb.height } }; }
+                if (n === 0) break;
+            }
+            if (best) {
+                node.setAttribute('x', best.c[0]); node.setAttribute('y', best.c[1]); node.setAttribute('text-anchor', best.c[2]);
+                rects.push(best.bb);
+            }
+        }
+        function placePair(main, sub, cands) {
+            let best = null, bestN = Infinity;
+            for (const c of cands) {
+                main.setAttribute('x', c[0]); main.setAttribute('y', c[1]); main.setAttribute('text-anchor', c[2]);
+                sub.setAttribute('x', c[0]); sub.setAttribute('y', c[1] + 12 * S); sub.setAttribute('text-anchor', c[2]);
+                const b1 = bbox(main), b2 = bbox(sub);
+                if (!b1 || !b2) return;
+                const u = { x: Math.min(b1.x, b2.x), y: Math.min(b1.y, b2.y), w: Math.max(b1.x + b1.width, b2.x + b2.width) - Math.min(b1.x, b2.x), h: Math.max(b1.y + b1.height, b2.y + b2.height) - Math.min(b1.y, b2.y) };
+                const n = hits(u);
+                if (n < bestN) { bestN = n; best = { c, u }; }
+                if (n === 0) break;
+            }
+            if (best) {
+                main.setAttribute('x', best.c[0]); main.setAttribute('y', best.c[1]); main.setAttribute('text-anchor', best.c[2]);
+                sub.setAttribute('x', best.c[0]); sub.setAttribute('y', best.c[1] + 12 * S); sub.setAttribute('text-anchor', best.c[2]);
+                rects.push(best.u);
+            }
+        }
+        if (medLabel) {
+            const node = taEl('text', { class: 'marklab medlab' }, vp, medLabel.text);
+            placeOne(node, [
+                [X(medLabel.end.day) - 4, Y(medLabel.end.y) + 20 * S, 'end'],
+                [W - m.r - 4, H - m.b - 9 * S, 'end'],
+                [W - m.r - 4, H - m.b - 22 * S, 'end'],
+                [W - m.r - 4, m.t + 34 * S, 'end'],
+            ]);
+        }
+        const cx = X(lastPt.day), cy = Y(lastPt.y);
+        const endSide = cx > W * 0.60;
+        const lxA = endSide ? cx - 8 * S : cx + 8 * S, anA = endSide ? 'end' : 'start';
+        const main = taEl('text', { class: 'marklab' }, vp, `Today · day ${lastPt.day}`);
+        const sub = taEl('text', { class: 'marksub' }, vp, fmtDate(lastPt.date));
+        placePair(main, sub, [
+            [lxA, cy - 17 * S, anA],
+            [lxA, cy + 18 * S, anA],
+            [cx - 50 * S, cy - 6 * S, 'end'],
+            [m.l + 14 * S, H * 0.72, 'start'],
+            [m.l + 4, H - m.b - 21 * S, 'start'],
+            [m.l + 4, m.t + 34 * S, 'start'],
+        ]);
+    }
     container.appendChild(svg);
+    /* Placed only now the svg is in the document: getBBox needs a
+       rendered tree, and inside the detached build it reads zero,
+       which would leave every label at its first candidate. */
+    placeTaLabels();
     zv.clampZoom(); zv.applyZoom();
     taWireInspect(zv, drawSeries, X, Y);
 }
@@ -4867,38 +4164,24 @@ if (live) refreshLive();
 window.__spiralReady = true;
 </script>
     <script>
-    /* The one gesture system for every chart on this page — the same
-       arbitration the Finance and Bitcoin line charts run. Touch is
-       arbitrated from the touch events themselves, never from pointer
-       events and never by hand-scrolling: a one-finger drag is
-       undecided until it has travelled 8px, then the dominant axis
-       wins. A sideways drag is claimed by the surface (inspect); a
-       vertical drag is the page's: it is never preventDefaulted,
-       never captured and never scrolled by script, so the browser
-       scrolls natively exactly as if the chart were not there. While
-       a drag is undecided, a move is preventDefaulted only when it
-       runs at least twice as far sideways as down — a clearly
-       sideways intent — so an engine that claims scrolls early
-       cannot steal a sideways drag. A second finger claims the
-       gesture for pinch zoom and pan. In fullscreen there is no page
-       to scroll, so nothing is released: the same drags do the
-       surface's own work on both axes, through this same code path.
-       A touch that ends still undecided is a tap, and a tap inspects
-       where it lifts. The mouse keeps the pointer handlers each
-       surface already had. */
+    /* The one gesture system for every chart on this page (settled
+       2026-11-22, video fix): ONE finger on a chart moves ONLY the
+       inspection cursor (orbit, on the Spiral's 3D view) — the page
+       never scrolls and the chart never pans; TWO fingers pan and
+       zoom the chart; one finger anywhere else scrolls the page
+       normally. Touch is arbitrated from the touch events themselves,
+       never from pointer events and never by hand-scrolling: a chart
+       surface claims a one-finger drag from its first move — every
+       touchmove is preventDefaulted, and the surfaces carry
+       touch-action: none so no browser claims the drag for scrolling
+       first — and touching, dragging on, or releasing a chart never
+       moves the page's scroll position. A touch that ends unmoved is
+       a tap, and a tap inspects where it lifts. When a pinch ends
+       back to one finger, the remaining finger keeps the claim (it
+       inspects; it does not suddenly scroll the page). The mouse
+       keeps the pointer handlers each surface already had. */
     window.BTC_TOUCH = function (el, o) {
-        var DECIDE = 8, BIAS = 2;
         var pts = {}, n = 0, g = null;
-        function inFs() {
-            if (o.fs) return o.fs();
-            var node = el;
-            while (node && node !== document.body) {
-                if (node === document.fullscreenElement) return true;
-                if (node.classList && node.classList.contains('btc-fs-fallback')) return true;
-                node = node.parentElement;
-            }
-            return false;
-        }
         function list() { var out = []; for (var id in pts) out.push(pts[id]); return out; }
         el.addEventListener('touchstart', function (e) {
             var i, t;
@@ -4909,7 +4192,7 @@ window.__spiralReady = true;
             }
             if (n === 1) {
                 var p = list()[0];
-                g = { id: e.changedTouches[0].identifier, sx: p.x, sy: p.y, lx: p.x, ly: p.y, mode: 0, moved: false };
+                g = { id: e.changedTouches[0].identifier, sx: p.x, sy: p.y, lx: p.x, ly: p.y, claimed: false, moved: false };
             } else if (n === 2) {
                 g = null;
                 if (o.pinchStart) o.pinchStart(list());
@@ -4924,22 +4207,21 @@ window.__spiralReady = true;
             }
             if (n === 2) { e.preventDefault(); if (o.pinchMove) o.pinchMove(list()); return; }
             if (!g || !t0) return;
+            /* The surface owns this drag from its first move: the page
+               never scrolls out from under a chart touch. */
+            e.preventDefault();
             var x = t0.clientX, y = t0.clientY;
             var dx = x - g.lx, dy = y - g.ly;
             g.lx = x; g.ly = y;
             if (Math.abs(x - g.sx) + Math.abs(y - g.sy) > 2) g.moved = true;
-            if (g.mode === 2) return;
-            if (g.mode === 1) { e.preventDefault(); if (o.move) o.move(x, y, dx, dy); return; }
-            var tdx = x - g.sx, tdy = y - g.sy;
-            var fsNow = inFs();
-            if (fsNow) e.preventDefault();
-            else if (Math.abs(tdx) >= BIAS * Math.abs(tdy) && Math.abs(tdx) >= 4) e.preventDefault();
-            if (Math.max(Math.abs(tdx), Math.abs(tdy)) < DECIDE) return;
-            if (!fsNow && Math.abs(tdy) > Math.abs(tdx)) { g.mode = 2; return; }
-            g.mode = 1;
-            e.preventDefault();
-            if (o.claim) o.claim(x, y);
-            if (o.move) o.move(x, y, tdx, tdy);
+            if (!g.claimed) {
+                if (!g.moved) return;
+                g.claimed = true;
+                if (o.claim) o.claim(x, y);
+                if (o.move) o.move(x, y, x - g.sx, y - g.sy);
+                return;
+            }
+            if (o.move) o.move(x, y, dx, dy);
         }, { passive: false });
         function endTouch(e, cancelled) {
             var i, t;
@@ -4947,7 +4229,7 @@ window.__spiralReady = true;
                 t = e.changedTouches[i];
                 if (pts[t.identifier]) { delete pts[t.identifier]; n--; }
                 if (g && t.identifier === g.id) {
-                    if (!cancelled && g.mode === 0 && !g.moved && n === 0 && o.tap) o.tap(t.clientX, t.clientY);
+                    if (!cancelled && !g.claimed && !g.moved && n === 0 && o.tap) o.tap(t.clientX, t.clientY);
                     g = null;
                 }
             }
@@ -4955,7 +4237,7 @@ window.__spiralReady = true;
                 var id = null, k;
                 for (k in pts) id = k;
                 var p = list()[0];
-                g = { id: +id, sx: p.x, sy: p.y, lx: p.x, ly: p.y, mode: 0, moved: true };
+                g = { id: +id, sx: p.x, sy: p.y, lx: p.x, ly: p.y, claimed: true, moved: true };
                 if (o.pinchEnd) o.pinchEnd(p.x, p.y);
             }
             if (n === 0) g = null;
@@ -5007,7 +4289,7 @@ window.__spiralReady = true;
             set('pl-spot', money(SPOT.price));
             set('pl-spot-date', SPOT.label + ' (' + SPOT.source + ')');
             set('pl-fair', money(Math.round(fv / 100) * 100));
-            set('pl-dev', Math.abs(devPct).toFixed(0) + '% ' + (devPct < 0 ? 'below the typical price' : 'above the typical price'));
+            set('pl-dev', Math.abs(devPct).toFixed(0) + '% ' + (devPct < 0 ? 'below' : 'above'));
             set('pl-dev-note', devPct < 0 ? 'undervalued vs. the model' : 'stretched vs. the model');
             set('pl-floor', money(Math.round(fl / 100) * 100));
             set('pl-ceil', money(Math.round(ce / 100) * 100));
@@ -5097,7 +4379,13 @@ window.__spiralReady = true;
             var w = cv.clientWidth, h = cv.clientHeight;
             if (!w || !h) return;
             var dpr = window.devicePixelRatio || 1;
-            cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+            /* Repaint cleanly (2026-11-22): the backing store is only
+               reallocated when the size actually changed — resetting
+               it on every inspection move made the compositor show
+               the previous frame beside the new one (ghost labels
+               mid-scrub). The clear below wipes the layer in full. */
+            var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+            if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, w, h);
             var g = geom(w, h);
@@ -5262,6 +4550,7 @@ window.__spiralReady = true;
                marker is the band's own dot, enlarged */
             if (hover >= 0 && hover < PTS.length) {
                 var hd = PTS[hover][0], hx = g.x(hd), hy = g.y(PTS[hover][1]);
+                if (snapHoverDay) { var sbp = bandPos(snapHoverDay); if (sbp) { hd = snapHoverDay; hx = sbp[0]; hy = sbp[1]; } }
                 ctx.strokeStyle = cGuide; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(hx, g.padT); ctx.lineTo(hx, g.padT + g.ih); ctx.stroke();
                 var hb = window.BTC_OVERLAY !== false && window.BTC_BANDS ? window.BTC_BANDS.bandOf(hd) : null;
@@ -5308,6 +4597,34 @@ window.__spiralReady = true;
            day's score — the same days the overlay marks with a
            green or red dot. With the overlay off the note stays
            out, as the dots do. */
+        /* Dot snap (2026-11-22): a dot day is a few pixels wide and a
+           fingertip is not — when the inspection cursor comes within
+           a fingertip (24px, so the day-width it covers scales with
+           the zoom) of an overlay dot's day, inspection snaps to that
+           dot's exact day, the strip shows that day, and the marker
+           draws on the dot itself, enlarged. Scrubbing slowly
+           through a cluster steps dot to dot; away from dots,
+           inspection is exactly as before. */
+        var snapHoverDay = 0, drawnSnap = 0;
+        function snapBandDay(g, px) {
+            if (window.BTC_OVERLAY === false || !window.BTC_BANDS) return 0;
+            var bds = window.BTC_BANDS.daysIn(PTS[0][0], PTS[PTS.length - 1][0]);
+            var bestD = 0, bestPx = 24;
+            for (var i = 0; i < bds.length; i++) {
+                var dx = Math.abs(g.x(bds[i].day) - px);
+                if (dx < bestPx) { bestPx = dx; bestD = bds[i].day; }
+            }
+            return bestD;
+        }
+        function priceAtDay(day) {
+            var n = PTS.length;
+            if (day <= PTS[0][0]) return PTS[0][1];
+            if (day >= PTS[n - 1][0]) return PTS[n - 1][1];
+            var lo = 0, hi = n - 1;
+            while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (PTS[mid][0] <= day) lo = mid; else hi = mid; }
+            var t = (day - PTS[lo][0]) / (PTS[hi][0] - PTS[lo][0]);
+            return Math.pow(10, Math.log10(PTS[lo][1]) + (Math.log10(PTS[hi][1]) - Math.log10(PTS[lo][1])) * t);
+        }
         function bandNote(day) {
             var noteEl = document.getElementById('pl-date-note');
             if (!noteEl) return;
@@ -5331,6 +4648,9 @@ window.__spiralReady = true;
             var px = e.clientX - rect.left;
             if (px < g.padL || px > w - g.padR) { hideTip(); return; }
             var days = Math.pow(10, g.logDaysAt(px));
+            var snapDay = snapBandDay(g, px);
+            snapHoverDay = snapDay;
+            if (snapDay) days = snapDay;
             var f = fair(days), newHover = -1;
             inspecting = true;
             if (days > LAST_DAY && days <= SPOT.days + STEP / 2) {
@@ -5341,7 +4661,7 @@ window.__spiralReady = true;
                 set('pl-spot', money(SPOT.price));
                 set('pl-spot-date', SPOT.label + ' (' + SPOT.source + ')');
                 set('pl-fair', money(Math.round(fvS)));
-                set('pl-dev', Math.abs(sp).toFixed(0) + '% ' + (sp < 0 ? 'below the typical price' : 'above the typical price'));
+                set('pl-dev', Math.abs(sp).toFixed(0) + '% ' + (sp < 0 ? 'below' : 'above'));
                 set('pl-dev-note', sp < 0 ? 'undervalued vs. the model' : 'stretched vs. the model');
                 set('pl-floor', money(fvS * LO));
                 set('pl-ceil', money(fvS * HI));
@@ -5374,19 +4694,20 @@ window.__spiralReady = true;
                     if (dd < best) { best = dd; idx = j; }
                 }
                 var d = PTS[idx][0], p = PTS[idx][1], fv2 = fair(d);
+                if (snapDay) { d = snapDay; p = priceAtDay(snapDay); fv2 = fair(d); }
                 var pct = (p / fv2 - 1) * 100;
                 set('pl-date', dateStr(d));
                 bandNote(d);
                 set('pl-spot', money(p));
                 set('pl-spot-date', dateStr(d));
                 set('pl-fair', money(Math.round(fv2)));
-                set('pl-dev', Math.abs(pct).toFixed(0) + '% ' + (pct < 0 ? 'below the typical price' : 'above the typical price'));
+                set('pl-dev', Math.abs(pct).toFixed(0) + '% ' + (pct < 0 ? 'below' : 'above'));
                 set('pl-dev-note', pct < 0 ? 'undervalued vs. the model' : 'stretched vs. the model');
                 set('pl-floor', money(fv2 * LO));
                 set('pl-ceil', money(fv2 * HI));
                 newHover = idx;
             }
-            if (hover !== newHover) { hover = newHover; draw(); }
+            if (hover !== newHover || snapHoverDay !== drawnSnap) { hover = newHover; drawnSnap = snapHoverDay; draw(); }
         }
 
         /* --- zoom + pan --- */
@@ -5891,7 +5212,8 @@ window.__spiralReady = true;
             var w = cv.clientWidth, h = cv.clientHeight;
             if (!w || !h) return;
             var dpr = window.devicePixelRatio || 1;
-            cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+            var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+            if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, w, h);
             var g = geom(w, h);
@@ -6036,6 +5358,7 @@ window.__spiralReady = true;
                marker is the band's own dot, enlarged */
             if (hover >= 0 && hover < PTS.length) {
                 var hd = PTS[hover][0], hx = g.x(hd), hy = g.y(PTS[hover][1]);
+                if (snapHoverDay) { var sbp = bandPos(snapHoverDay); if (sbp) { hd = snapHoverDay; hx = sbp[0]; hy = sbp[1]; } }
                 ctx.strokeStyle = cGuide; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(hx, g.padT); ctx.lineTo(hx, g.padT + g.ih); ctx.stroke();
                 var hb = window.BTC_OVERLAY !== false && window.BTC_BANDS ? window.BTC_BANDS.bandOf(hd) : null;
@@ -6082,6 +5405,38 @@ window.__spiralReady = true;
            day's score — the same days the overlay marks with a
            green or red dot. With the overlay off the note stays
            out, as the dots do. */
+        /* Dot snap (2026-11-22): as on the power-law chart — within
+           a fingertip of an overlay dot's day, inspection snaps to
+           that exact day and the marker draws on the dot, enlarged. */
+        var snapHoverDay = 0, drawnSnap = 0;
+        function snapBandDay(g, px) {
+            if (window.BTC_OVERLAY === false || !window.BTC_BANDS) return 0;
+            var bds = window.BTC_BANDS.daysIn(PTS[0][0], PTS[PTS.length - 1][0]);
+            var bestD = 0, bestPx = 24;
+            for (var i = 0; i < bds.length; i++) {
+                var dx = Math.abs(g.x(bds[i].day) - px);
+                if (dx < bestPx) { bestPx = dx; bestD = bds[i].day; }
+            }
+            return bestD;
+        }
+        function priceAtDay(day) {
+            var n = PTS.length;
+            if (day <= PTS[0][0]) return PTS[0][1];
+            if (day >= PTS[n - 1][0]) return PTS[n - 1][1];
+            var lo = 0, hi = n - 1;
+            while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (PTS[mid][0] <= day) lo = mid; else hi = mid; }
+            var t = (day - PTS[lo][0]) / (PTS[hi][0] - PTS[lo][0]);
+            return Math.pow(10, Math.log10(PTS[lo][1]) + (Math.log10(PTS[hi][1]) - Math.log10(PTS[lo][1])) * t);
+        }
+        function costAtDay(day) {
+            var n = PTS.length;
+            if (day <= PTS[0][0]) return CTS[0][1];
+            if (day >= PTS[n - 1][0]) return CTS[n - 1][1];
+            var lo = 0, hi = n - 1;
+            while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (PTS[mid][0] <= day) lo = mid; else hi = mid; }
+            var t = (day - PTS[lo][0]) / (PTS[hi][0] - PTS[lo][0]);
+            return CTS[lo][1] + (CTS[hi][1] - CTS[lo][1]) * t;
+        }
         function bandNote(day) {
             var noteEl = document.getElementById('pc-date-note');
             if (!noteEl) return;
@@ -6105,12 +5460,16 @@ window.__spiralReady = true;
             var px = e.clientX - rect.left;
             if (px < g.padL || px > w - g.padR) { hideTip(); return; }
             var days = g.daysAt(px);
+            var snapDay = snapBandDay(g, px);
+            snapHoverDay = snapDay;
+            if (snapDay) days = snapDay;
             var idx = 0, best = Infinity;
             for (var j = 0; j < PTS.length; j++) {
                 var dd = Math.abs(PTS[j][0] - days);
                 if (dd < best) { best = dd; idx = j; }
             }
             var d = PTS[idx][0], p = PTS[idx][1], c = CTS[idx][1];
+            if (snapDay) { d = snapDay; p = priceAtDay(snapDay); c = costAtDay(snapDay); }
             var pct = (p / c - 1) * 100;
             inspecting = true;
             set('pc-date', dateStr(d));
@@ -6123,7 +5482,7 @@ window.__spiralReady = true;
             set('pc-dev-note', pct < 0 ? 'below the model\u2019s floor' : 'above the model\u2019s floor');
             set('pc-m10', money(Math.round(c * 0.9 / 100) * 100));
             set('pc-m30', money(Math.round(c * 0.7 / 100) * 100));
-            if (hover !== idx) { hover = idx; draw(); }
+            if (hover !== idx || snapHoverDay !== drawnSnap) { hover = idx; drawnSnap = snapHoverDay; draw(); }
         }
 
         /* --- zoom + pan --- */
@@ -6597,7 +5956,8 @@ window.__spiralReady = true;
             var w = cv.clientWidth, h = cv.clientHeight;
             if (!w || !h) return;
             var dpr = window.devicePixelRatio || 1;
-            cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+            var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+            if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, w, h);
             var g = geom(w, h);
@@ -6753,6 +6113,7 @@ window.__spiralReady = true;
                marker is the band's own dot, enlarged */
             if (hover >= 0 && hover < PTS.length) {
                 var hd = PTS[hover][0], hx = g.x(hd), hy = g.y(PTS[hover][1]);
+                if (snapHoverDay) { var sbp = bandPos(snapHoverDay); if (sbp) { hd = snapHoverDay; hx = sbp[0]; hy = sbp[1]; } }
                 ctx.strokeStyle = cGuide; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(hx, g.padT); ctx.lineTo(hx, g.padT + g.ih); ctx.stroke();
                 var hb = window.BTC_OVERLAY !== false && window.BTC_BANDS ? window.BTC_BANDS.bandOf(hd) : null;
@@ -6793,6 +6154,31 @@ window.__spiralReady = true;
            day's score — the same days the overlay marks with a
            green or red dot. With the overlay off the note stays
            out, as the dots do. */
+        /* Dot snap (2026-11-22): as on the power-law chart — within
+           a fingertip of an overlay dot's day, inspection snaps to
+           that exact day and the marker draws on the dot, enlarged. */
+        var snapHoverDay = 0, drawnSnap = 0;
+        function snapBandDay(g, px) {
+            if (window.BTC_OVERLAY === false || !window.BTC_BANDS) return 0;
+            var bds = window.BTC_BANDS.daysIn(PTS[0][0], PTS[PTS.length - 1][0]);
+            var bestD = 0, bestPx = 24;
+            for (var i = 0; i < bds.length; i++) {
+                var dx = Math.abs(g.x(bds[i].day) - px);
+                if (dx < bestPx) { bestPx = dx; bestD = bds[i].day; }
+            }
+            return bestD;
+        }
+        function interpRow(day) {
+            var n = PTS.length;
+            if (day <= PTS[0][0]) return PTS[0];
+            if (day >= PTS[n - 1][0]) return PTS[n - 1];
+            var lo = 0, hi = n - 1;
+            while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (PTS[mid][0] <= day) lo = mid; else hi = mid; }
+            var t = (day - PTS[lo][0]) / (PTS[hi][0] - PTS[lo][0]);
+            var out = [day];
+            for (var c = 1; c < PTS[lo].length; c++) out.push(PTS[lo][c] + (PTS[hi][c] - PTS[lo][c]) * t);
+            return out;
+        }
         function bandNote(day) {
             var noteEl = document.getElementById('mm-date-note');
             if (!noteEl) return;
@@ -6816,12 +6202,16 @@ window.__spiralReady = true;
             var px = e.clientX - rect.left;
             if (px < g.padL || px > w - g.padR) { hideTip(); return; }
             var days = g.daysAt(px);
+            var snapDay = snapBandDay(g, px);
+            snapHoverDay = snapDay;
+            if (snapDay) days = snapDay;
             var idx = 0, best = Infinity;
             for (var j = 0; j < PTS.length; j++) {
                 var dd = Math.abs(PTS[j][0] - days);
                 if (dd < best) { best = dd; idx = j; }
             }
             var d = PTS[idx][0], m = PTS[idx][1], p = PTS[idx][2], a = PTS[idx][3];
+            if (snapDay) { var irow = interpRow(snapDay); d = snapDay; m = irow[1]; p = irow[2]; a = irow[3]; }
             inspecting = true;
             set('mm-date', dateStr(d));
             bandNote(d);
@@ -6829,7 +6219,7 @@ window.__spiralReady = true;
             set('mm-spot-date', dateStr(d));
             set('mm-avg', money(a));
             set('mm-mult', m.toFixed(2));
-            if (hover !== idx) { hover = idx; draw(); }
+            if (hover !== idx || snapHoverDay !== drawnSnap) { hover = idx; drawnSnap = snapHoverDay; draw(); }
         }
 
         /* --- zoom + pan --- */
@@ -7318,7 +6708,8 @@ window.__spiralReady = true;
             var w = cv.clientWidth, h = cv.clientHeight;
             if (!w || !h) return;
             var dpr = window.devicePixelRatio || 1;
-            cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+            var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+            if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, w, h);
             var g = geom(w, h);
@@ -7472,6 +6863,7 @@ window.__spiralReady = true;
                marker is the band's own dot, enlarged */
             if (hover >= 0 && hover < PTS.length) {
                 var hd = PTS[hover][0], hx = g.x(hd), hy = g.y(PTS[hover][1]);
+                if (snapHoverDay) { var sbp = bandPos(snapHoverDay); if (sbp) { hd = snapHoverDay; hx = sbp[0]; hy = sbp[1]; } }
                 ctx.strokeStyle = cGuide; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(hx, g.padT); ctx.lineTo(hx, g.padT + g.ih); ctx.stroke();
                 var hb = window.BTC_OVERLAY !== false && window.BTC_BANDS ? window.BTC_BANDS.bandOf(hd) : null;
@@ -7512,6 +6904,31 @@ window.__spiralReady = true;
            day's score — the same days the overlay marks with a
            green or red dot. With the overlay off the note stays
            out, as the dots do. */
+        /* Dot snap (2026-11-22): as on the power-law chart — within
+           a fingertip of an overlay dot's day, inspection snaps to
+           that exact day and the marker draws on the dot, enlarged. */
+        var snapHoverDay = 0, drawnSnap = 0;
+        function snapBandDay(g, px) {
+            if (window.BTC_OVERLAY === false || !window.BTC_BANDS) return 0;
+            var bds = window.BTC_BANDS.daysIn(PTS[0][0], PTS[PTS.length - 1][0]);
+            var bestD = 0, bestPx = 24;
+            for (var i = 0; i < bds.length; i++) {
+                var dx = Math.abs(g.x(bds[i].day) - px);
+                if (dx < bestPx) { bestPx = dx; bestD = bds[i].day; }
+            }
+            return bestD;
+        }
+        function interpRow(day) {
+            var n = PTS.length;
+            if (day <= PTS[0][0]) return PTS[0];
+            if (day >= PTS[n - 1][0]) return PTS[n - 1];
+            var lo = 0, hi = n - 1;
+            while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (PTS[mid][0] <= day) lo = mid; else hi = mid; }
+            var t = (day - PTS[lo][0]) / (PTS[hi][0] - PTS[lo][0]);
+            var out = [day];
+            for (var c = 1; c < PTS[lo].length; c++) out.push(PTS[lo][c] + (PTS[hi][c] - PTS[lo][c]) * t);
+            return out;
+        }
         function bandNote(day) {
             var noteEl = document.getElementById('mv-date-note');
             if (!noteEl) return;
@@ -7535,12 +6952,16 @@ window.__spiralReady = true;
             var px = e.clientX - rect.left;
             if (px < g.padL || px > w - g.padR) { hideTip(); return; }
             var days = g.daysAt(px);
+            var snapDay = snapBandDay(g, px);
+            snapHoverDay = snapDay;
+            if (snapDay) days = snapDay;
             var idx = 0, best = Infinity;
             for (var j = 0; j < PTS.length; j++) {
                 var dd = Math.abs(PTS[j][0] - days);
                 if (dd < best) { best = dd; idx = j; }
             }
             var d = PTS[idx][0], z = PTS[idx][1], mv = PTS[idx][2], rv = PTS[idx][3];
+            if (snapDay) { var irow = interpRow(snapDay); d = snapDay; z = irow[1]; mv = irow[2]; rv = irow[3]; }
             inspecting = true;
             set('mv-date', dateStr(d));
             bandNote(d);
@@ -7548,7 +6969,7 @@ window.__spiralReady = true;
             set('mv-z-date', dateStr(d));
             set('mv-mv', bigMoney(mv));
             set('mv-rv', bigMoney(rv));
-            if (hover !== idx) { hover = idx; draw(); }
+            if (hover !== idx || snapHoverDay !== drawnSnap) { hover = idx; drawnSnap = snapHoverDay; draw(); }
         }
 
         /* --- zoom + pan --- */
@@ -9062,12 +8483,28 @@ window.__spiralReady = true;
             var showEl = view === 'cost' ? vCost : (view === 'mayer' ? vMayer : (view === 'mvrv' ? vMvrv : (view === 'spiral' && vSpiral ? vSpiral : vPl)));
             var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             current = view;
+            /* View-switch anchor (2026-11-22, video fix): switching
+               views swaps a tall region for a shorter or taller one;
+               when the document shrinks under a scrolled reader, the
+               browser clamps the scroll and the reader lands
+               somewhere else entirely — down at the subscribe box
+               instead of at the chart. The picker row's viewport
+               position is captured here and restored when the switch
+               settles, so the reader stays at the chart. */
+            var anchorY = root.getBoundingClientRect().top;
+            function keepAnchor() {
+                var dy = root.getBoundingClientRect().top - anchorY;
+                if (dy) window.scrollBy(0, dy);
+            }
             function reveal() {
                 vPl.hidden = showEl !== vPl;
                 vCost.hidden = showEl !== vCost;
                 vMayer.hidden = showEl !== vMayer;
                 vMvrv.hidden = showEl !== vMvrv;
                 if (vSpiral) vSpiral.hidden = showEl !== vSpiral;
+                /* the Spiral's description starts collapsed on every
+                   entry into the view (2026-11-22) */
+                if (view === 'spiral') { var sk = document.getElementById('spiralKey'); if (sk) sk.removeAttribute('open'); }
                 if (view === 'powerlaw') loadPowerLaw();
                 if (view === 'cost') loadCost();
                 if (view === 'mayer') loadMayer();
@@ -9079,6 +8516,8 @@ window.__spiralReady = true;
                    loads all four) holds a blank canvas until something
                    resizes it — repaint now that it is visible */
                 window.dispatchEvent(new Event('resize'));
+                keepAnchor();
+                if (window.requestAnimationFrame) requestAnimationFrame(keepAnchor);
                 return;
             }
             animating = true;
@@ -9094,6 +8533,9 @@ window.__spiralReady = true;
                 anim.style.transition = '';
                 animating = false;
                 window.dispatchEvent(new Event('resize'));
+                keepAnchor();
+                if (window.requestAnimationFrame) requestAnimationFrame(keepAnchor);
+                setTimeout(keepAnchor, 120);
             };
             anim.addEventListener('transitionend', function h(ev) {
                 if (ev.propertyName !== 'height') return;
@@ -9131,6 +8573,39 @@ window.__spiralReady = true;
         };
         var sv = saved();
         applyView(sv === 'cost' || sv === 'mayer' || sv === 'mvrv' || sv === 'spiral' ? sv : 'powerlaw', false);
+    })();
+    </script>
+    <script>
+    /* Close returns you to where you opened (2026-11-22, video fix —
+       the Sustainability close-glitch mechanism, applied to every
+       details expander on the page): a tall region collapsing at
+       once shrinks the document under a scrolled reader, and the
+       browser clamps the scroll to the new bottom — the reader
+       lands far from where they started. The summary's click
+       records the expander header's viewport position before the
+       toggle lands; on close, the same position is restored —
+       immediately, on the next frame, and after a short settle. */
+    (function () {
+        document.querySelectorAll('details').forEach(function (d) {
+            var summary = d.querySelector(':scope > summary');
+            if (!summary) return;
+            var anchorY = null;
+            summary.addEventListener('click', function () {
+                anchorY = summary.getBoundingClientRect().top;
+            });
+            d.addEventListener('toggle', function () {
+                if (d.open || anchorY === null) return;
+                var target = anchorY;
+                anchorY = null;
+                function restore() {
+                    var dy = summary.getBoundingClientRect().top - target;
+                    if (dy) window.scrollBy(0, dy);
+                }
+                restore();
+                if (window.requestAnimationFrame) requestAnimationFrame(restore);
+                setTimeout(restore, 120);
+            });
+        });
     })();
     </script>
     <script>
