@@ -833,6 +833,81 @@
         .tk-section:fullscreen .game-card > h2, .tk-section.tk-section-fs .game-card > h2,
         .fg-section:fullscreen .game-card > h2, .fg-section.fg-section-fs .game-card > h2 { padding-left: 0; padding-right: 0; }
 
+        /* Games as a uniform grid of entry cards (2026-11-22): the
+           Health photo-door pattern — every game is the SAME box:
+           peek image on top (one aspect ratio), the title below it
+           (serif, compact, one line, never on the picture), a short
+           description below that (clamped to the same three lines on
+           every card), the whole card tappable. Two side by side on a
+           phone, more columns as the width allows — same cards. No
+           chrome sits on any picture: the Full screen and All-time
+           best buttons live only in the opened tool's title row. An
+           open game spans the grid's full width and keeps its current
+           opened form exactly; closing returns the card to its slot.
+           Balance fix (2026-11-22): the closed card's title zone is a
+           FIXED two-line height and its description zone a FIXED
+           three-line height, so a title that wraps (or a short
+           description) can never shift where the next zone starts —
+           every card's zones begin at the same offset, every width. */
+        .games-grid {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px; align-items: stretch;
+        }
+        @media (min-width: 760px) { .games-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (min-width: 1100px) { .games-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+        @media (max-width: 359px) { .games-grid { grid-template-columns: minmax(0, 1fr); } }
+        .games-grid > section { min-width: 0; height: 100%; }
+        .games-grid > section:has(.game-toggle[aria-expanded="true"]) { grid-column: 1 / -1; height: auto; }
+        .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .game-card { height: 100%; cursor: pointer; }
+        /* Closed card face: nothing on the picture, title and
+           description in the same places at the same sizes. */
+        .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .lr-fs-btn,
+        .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .uv-fs-btn,
+        .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .tk-fs-btn,
+        .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .fg-fs-btn,
+        .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .tk-scores-head { display: none; }
+        .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .game-card > h2 {
+            font-size: 1rem; line-height: 1.3; padding: 0.6rem 0.6rem 0;
+            height: calc(0.6rem + 2 * 1.3 * 0.77rem + 1px); box-sizing: border-box; overflow: hidden;
+        }
+        .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .game-toggle {
+            font-size: 0.77rem; letter-spacing: -0.015em; white-space: normal;
+            align-items: flex-start; margin: 0; padding: 0; line-height: 1.3;
+            max-height: calc(2 * 1.3 * 0.77rem + 1px); overflow: hidden;
+        }
+        .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .game-arrow { display: none; }
+        .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .game-card > p {
+            font-size: 0.8rem; line-height: 1.45; margin: 0.25rem 0 0;
+            padding: 0 0.6rem 0.7rem; box-sizing: border-box;
+            height: calc(3 * 1.45 * 0.8rem + 0.7rem + 1px);
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+        }
+        /* Threads is a doorway card: the game lives on its own page
+           (ar-rhythm.html), so its title and lead line are links, not
+           toggles — the same card face and zones, with no body to open.
+           The links drop their underline so the face reads exactly
+           like the four toggle cards. */
+        .thr-toggle { text-decoration: none; text-transform: none; }
+        .thr-card-section .game-card > p a { color: inherit; text-decoration: none; }
+        /* The same 16px section margin the other non-first games
+           carry — inside the grid it is part of the row's measure,
+           and without it this card's row runs 16px shorter. */
+        .thr-card-section { margin-top: 16px; }
+        /* Full screen buttons are icon-only everywhere on this page
+           (Johnny, 2026-11-22): the glyph carries the state (expand at
+           rest, compress in full screen), the words stay as the
+           accessible name and the visually hidden label span the
+           handlers still update. 44px tap target; the negative
+           heading margins already in each game's rules absorb the
+           taller button so heading boxes keep their exact heights. */
+        .lr-fs-head, .uv-fs-head, .tk-fs-head, .fg-fs-head {
+            min-width: 44px; min-height: 44px; padding: 0; gap: 0; position: relative;
+        }
+        .lr-fs-label, .uv-fs-label, .tk-fs-label, .fg-fs-label {
+            position: absolute; width: 1px; height: 1px; margin: -1px;
+            overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+        }
+
         /* Frequency Generator additions (2026-11-22): resonance ticks
            under the frequency slider, the sacred-frequency preset row
            and its meaning line, the found-figures strip, and the
@@ -1006,6 +1081,7 @@
         <p>A place to play. More games coming.</p>
     </header>
 
+    <div class="games-grid" id="gamesGrid">
     <section class="lr-section" aria-labelledby="line-rider-heading">
         <div class="game-card">
         <span class="game-card-photo" data-card-open="linerider" aria-hidden="true"><img src="game-peek-linerider.webp" alt="" width="1156" height="546" loading="lazy" decoding="async"></span>
@@ -1388,6 +1464,15 @@
             </div>
         </div>
     </section>
+
+    <section class="thr-card-section" aria-labelledby="threads-heading">
+        <div class="game-card">
+        <a class="game-card-photo" href="ar-rhythm.html" aria-hidden="true" tabindex="-1"><img src="game-peek-threads.webp" alt="" width="1156" height="546" loading="lazy" decoding="async"></a>
+        <h2 id="threads-heading"><a class="game-toggle thr-toggle" href="ar-rhythm.html">Threads</a></h2>
+        <p><a href="ar-rhythm.html">Pinch to string glowing threads in the air — then sweep through them and play.</a></p>
+        </div>
+    </section>
+    </div>
 
     <script>
     // Thumb Drive engine: the standalone kart.html game folded into the
@@ -6039,6 +6124,53 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 if (b) b.click();
             });
         }
+    })();
+</script>
+<script>
+    // Games grid: a closed card is one tap target (anywhere on its
+    // face forwards to the game's title toggle, the shell's only path
+    // in or out), and an open/close round-trip returns the reader to
+    // the exact spot they left: the section's viewport position is
+    // noted before the toggle fires and restored once the shell's
+    // height animation has settled, so closing a game lands back on
+    // its card in the grid, not wherever the reflow left the page.
+    (function () {
+        var grid = document.getElementById('gamesGrid');
+        if (!grid) return;
+        var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        function sectionFor(name) {
+            var btn = document.querySelector('[data-game-btn="' + name + '"]');
+            return btn ? btn.closest('section') : null;
+        }
+        grid.addEventListener('click', function (e) {
+            if (e.target.closest('button, a, input, select, textarea, canvas, .game-body, [data-card-open]')) return;
+            var card = e.target.closest('.game-card');
+            if (!card) return;
+            var btn = card.querySelector('.game-toggle');
+            if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click();
+        });
+        document.addEventListener('click', function (e) {
+            var hit = e.target.closest('[data-game-btn], [data-card-open]');
+            if (!hit) return;
+            var name = hit.getAttribute('data-game-btn') || hit.getAttribute('data-card-open');
+            var sec = sectionFor(name);
+            var btn = document.querySelector('[data-game-btn="' + name + '"]');
+            if (!sec || !btn) return;
+            var wasOpen = btn.getAttribute('aria-expanded') === 'true';
+            var top = sec.getBoundingClientRect().top;
+            // Settle passes: each re-measures against the noted
+            // position and corrects only what is still off, so a late
+            // reflow (a starting engine, a wrapping HUD) cannot leave
+            // the reader stranded away from the card they pressed.
+            var delays = reduce ? [60] : [540, 950, 1500];
+            delays.forEach(function (delay) {
+                setTimeout(function () {
+                    var d = sec.getBoundingClientRect().top - top;
+                    if (Math.abs(d) > 1) window.scrollTo(0, window.scrollY + d);
+                }, delay);
+            });
+            void wasOpen;
+        }, true);
     })();
 </script>
 <button type="button" class="back-to-top" id="backToTop" aria-label="Back to top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 15l7-7 7 7"/></svg></button>
