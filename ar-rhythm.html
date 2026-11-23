@@ -158,6 +158,30 @@
             transition: opacity var(--dur-3) var(--ease-out);
         }
         .thr-note.show { opacity: 1; }
+        /* Live hint: one line, follows the state of your hands. Sits
+           above the control cluster so it never covers the web. */
+        .thr-hint {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+            max-width: calc(100% - 32px);
+            z-index: 6;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--glass-bg);
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            backdrop-filter: blur(var(--glass-blur));
+            color: var(--text-color);
+            font-size: 0.85rem;
+            text-align: center;
+            pointer-events: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .thr-hint[hidden] { display: none; }
         /* Start overlay: the glass bubble over the dimmed stage. */
         .thr-start {
             position: absolute;
@@ -196,6 +220,16 @@
             line-height: 1.55;
             margin: 0 0 20px;
         }
+        .thr-steps {
+            text-align: left;
+            color: var(--text-color);
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin: 0 0 14px;
+            padding-left: 1.25em;
+        }
+        .thr-steps li { margin: 7px 0; }
+        .thr-steps strong { color: var(--header-name-color); }
         .thr-start-btn {
             display: block;
             width: 100%;
@@ -285,6 +319,7 @@
             <canvas id="thrCanvas"></canvas>
             <video id="thrVideo" playsinline muted></video>
             <div class="thr-note" id="thrNote" role="status"></div>
+            <div class="thr-hint" id="thrHint" role="status" hidden></div>
             <div class="thr-controls" id="thrControls" hidden>
                 <button class="thr-btn" id="thrUndo" type="button" disabled>↩ Undo</button>
                 <span class="thr-count" id="thrCount" aria-live="polite">0 strings</span>
@@ -294,7 +329,12 @@
             <div class="thr-start" id="thrStart">
                 <div class="thr-start-panel">
                     <div class="thr-start-title">Threads</div>
-                    <p class="thr-start-line">Pinch to place a dot. Pinch again to pin the string. Sweep through the strings to play them.</p>
+                    <ol class="thr-steps">
+                        <li><strong>Start</strong> — pinch your thumb and index finger together. A dot appears.</li>
+                        <li><strong>Drag</strong> — keep pinching and move your hand. The thread follows your fingertip and stretches.</li>
+                        <li><strong>Drop</strong> — open your fingers wide. The string stays pinned.</li>
+                    </ol>
+                    <p class="thr-start-line">Then play — sweep an open fingertip across the strings to sound them. Short strings sing high, long strings sing low.</p>
                     <button class="thr-start-btn" id="thrStartBtn" type="button">Start camera</button>
                     <button class="thr-touch-link" id="thrTouchBtn" type="button">Use touch instead</button>
                     <p class="thr-start-status" id="thrStartStatus"></p>
@@ -319,9 +359,14 @@
     <script src="script.js"></script>
     <script>
     // Threads — weave a web of light strings, then play it.
-    // Camera mode: MediaPipe Hands (both hands). A pinch places a dot;
-    // the live thread pulls from the last dot to your fingertip; a
-    // second pinch pins the string. Every pinned string is an
+    // Camera mode: MediaPipe Hands (both hands). A pinch starts a
+    // string (a dot at your fingertip); drag while pinching and the
+    // live thread pulls to your fingertip; open your fingers wide to
+    // drop it — the string pins where you let go. The pinch recogniser
+    // below the camera section gives the gesture hysteresis, two-frame
+    // confirmation in the uncertain band, and a three-frame grace for
+    // tracking dropouts, so a held string is never dropped by noise.
+    // Every pinned string is an
     // instrument string: pitch follows the real string law (frequency
     // proportional to 1/length), snapped to the nearest C-major
     // pentatonic tone so every string harmonises. Sweeping a fingertip
@@ -342,6 +387,7 @@
         var ctx = canvas.getContext('2d');
         var video = document.getElementById('thrVideo');
         var noteEl = document.getElementById('thrNote');
+        var hintEl = document.getElementById('thrHint');
         var controlsEl = document.getElementById('thrControls');
         var countEl = document.getElementById('thrCount');
         var undoBtn = document.getElementById('thrUndo');
@@ -386,7 +432,7 @@
                 // Fingertip history is stored in the old orientation —
                 // drop the positions (keep pinch state) so no sweep is
                 // ever measured across the flip.
-                for (var k in prevHands) prevHands[k].tipPx = null;
+                for (var k in prevHands) { prevHands[k].tipPx = null; prevHands[k].onN = 0; prevHands[k].offN = 0; }
                 handsNow = {};
             }
             mirrorBtn.setAttribute('aria-pressed', mirror ? 'true' : 'false');
@@ -510,6 +556,7 @@
             countEl.textContent = n + (n === 1 ? ' string' : ' strings');
             undoBtn.disabled = dots.length === 0;
             clearBtn.disabled = dots.length === 0;
+            updateHint();
         }
         function placeDot(f) {
             dots.push({ x: f.x, y: f.y });
@@ -628,16 +675,42 @@
             ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
             ctx.restore();
         }
-        function drawCursor(p, color) {
+        // The fingertip marker carries the pinch state on its face:
+        // grip 0 open (thin ring), grip 1 forming (the recogniser is
+        // counting a second frame — ring thickens, faint fill), grip 2
+        // locked (filled disc, white core, outer ring): the player can
+        // SEE the pinch register before anything depends on it.
+        function drawCursor(p, color, grip) {
             ctx.save();
-            ctx.strokeStyle = color; ctx.lineWidth = 2;
-            ctx.shadowColor = color; ctx.shadowBlur = 8;
-            ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, 7); ctx.stroke();
-            ctx.fillStyle = color;
-            ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fill();
+            ctx.shadowColor = color;
+            if (grip === 2) {
+                ctx.shadowBlur = 14;
+                ctx.strokeStyle = color; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 13.5, 0, 7); ctx.stroke();
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, 7); ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, 7); ctx.fill();
+            } else if (grip === 1) {
+                ctx.shadowBlur = 10;
+                ctx.fillStyle = color; ctx.globalAlpha = 0.25;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, 7); ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.strokeStyle = color; ctx.lineWidth = 3.5;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, 7); ctx.stroke();
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fill();
+            } else {
+                ctx.shadowBlur = 8;
+                ctx.strokeStyle = color; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, 7); ctx.stroke();
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fill();
+            }
             ctx.restore();
         }
-        var handsNow = {};   // label -> {tipPx, tipFrac, pinch}
+        var handsNow = {};   // label -> {tipPx, tipFrac, pinch, grip}
         function frame(now) {
             if (!running) return;
             rafId = requestAnimationFrame(frame);
@@ -648,9 +721,9 @@
             if (dots.length && pull) drawLiveThread(toPx(dots[dots.length - 1]), toPx(pull));
             for (i = 0; i < dots.length; i++) drawDot(toPx(dots[i]));
             if (mode === 'camera') {
-                for (var k in handsNow) drawCursor(handsNow[k].tipPx, HAND_COLORS[k] || '#fff');
+                for (var k in handsNow) drawCursor(handsNow[k].tipPx, HAND_COLORS[k] || '#fff', handsNow[k].grip || 0);
             } else if (mode === 'touch' && touchGesture === 'pull' && pull) {
-                drawCursor(toPx(pull), SIG.glow);
+                drawCursor(toPx(pull), SIG.glow, 2);
             }
         }
         function startLoop() {
@@ -667,6 +740,27 @@
             noteEl.classList.add('show');
             clearTimeout(noteTimer);
             noteTimer = setTimeout(function () { noteEl.classList.remove('show'); }, ms || 6000);
+        }
+
+        // ---- live hint (one line, follows the state of your hands) ----
+        var hintText = '';
+        function anyHeld() {
+            for (var k in handsNow) if (handsNow[k].pinch) return true;
+            return false;
+        }
+        function updateHint() {
+            if (mode === 'idle') return;
+            var t;
+            if (mode === 'camera') {
+                if (anyHeld()) t = 'Open your fingers wide to drop the string';
+                else if (!dots.length) t = 'Pinch thumb and index together to start a string';
+                else t = 'Pinch to start the next string · sweep a fingertip across a string to play it';
+            } else {
+                if (touchGesture === 'pull') t = 'Let go to pin the string';
+                else if (!dots.length) t = 'Tap and drag to draw a string — let go to pin it';
+                else t = 'Drag across a string to play it · tap to keep building';
+            }
+            if (t !== hintText) { hintText = t; hintEl.textContent = t; }
         }
 
         // ---- touch mode ----
@@ -698,6 +792,7 @@
             touchPlacedFirst = false;
             if (!dots.length) { placeDot(f); touchPlacedFirst = true; }
             pull = f;
+            updateHint();
         });
         canvas.addEventListener('pointermove', function (e) {
             if (mode !== 'touch' || !touchGesture) return;
@@ -717,13 +812,31 @@
                 pull = null;
             }
             touchGesture = null; touchPrev = null; touchPlacedFirst = false;
+            updateHint();
         }
         canvas.addEventListener('pointerup', touchEnd);
         canvas.addEventListener('pointercancel', touchEnd);
 
         // ---- camera mode: MediaPipe Hands ----
         var stream = null, mpHands = null, pumpOn = false, sending = false;
-        var prevHands = {};             // label -> {tipPx, t, pinch, armed}
+        // The pinch recogniser. A state change is earned, never sampled
+        // from one frame: inside the sure zones (fingers clearly
+        // touching, fingers clearly wide) a single frame decides; in
+        // the uncertain band between the two hysteresis thresholds, two
+        // consecutive frames must agree. The thresholds sit far enough
+        // apart that a hand hovering at either one cannot chatter the
+        // state. A hand missing from up to GRACE_FRAMES results frames
+        // keeps its state frozen — a tracking dropout mid-drag neither
+        // drops nor pins the string; past the grace it retires quietly
+        // and never places a dot.
+        var PINCH_ON_SURE = 0.22;   // pinchD at or under: fingers touching
+        var PINCH_ON = 0.38;        // engage threshold (hysteresis, low side)
+        var PINCH_OFF = 0.52;       // release threshold (hysteresis, high side)
+        var PINCH_OFF_SURE = 0.72;  // pinchD at or over: unmistakably open
+        var PINCH_CONFIRM = 2;      // frames that must agree inside the band
+        var GRACE_FRAMES = 3;       // landmark dropouts forgiven mid-gesture
+        var DROP_MIN_PX = 14;       // a release pins only past this travel
+        var prevHands = {};         // label -> {held, onN, offN, absent, tipPx, tipFrac, t}
         var anchorHand = null;
         function loadScript(src) {
             return new Promise(function (resolve, reject) {
@@ -740,10 +853,12 @@
             var lm = res.multiHandLandmarks || [];
             var hd = res.multiHandedness || [];
             var vw = video.videoWidth || 640, vh = video.videoHeight || 480;
+            var seen = {};
             for (var i = 0; i < lm.length; i++) {
                 var label = (hd[i] && hd[i].label) || (i === 0 ? 'Left' : 'Right');
                 var L = lm[i];
                 if (!cover) continue;
+                seen[label] = true;
                 // Mirror mode flips the landmarks at the source, so the
                 // fingertip, the pinch geometry and every crossing are
                 // computed in the same flipped space the player sees.
@@ -758,26 +873,60 @@
                 var midV = { x: fx(L[9]) * vw, y: L[9].y * vh };
                 var scale = dist(wristV, midV) || 1;
                 var pinchD = dist(tipV, thumbV) / scale;
-                var prev = prevHands[label] || { pinch: false, armed: true };
-                var pinch = prev.pinch;
-                if (pinchD < 0.32) pinch = true; else if (pinchD > 0.5) pinch = false;
-                // Pluck: an open hand sweeping across a string.
-                if (prev.tipPx && !pinch) {
-                    var dt = (now - prev.t) / 1000;
+                var g = prevHands[label];
+                if (!g) g = prevHands[label] = { held: false, onN: 0, offN: 0, absent: 0, tipPx: null, tipFrac: null, t: 0 };
+                g.absent = 0;
+                // Pluck: an open hand sweeping across a string. Reads
+                // the state before this frame's update, so the frame
+                // that confirms a release can still pluck what it swept
+                // across; a held hand never plucks. tipPx is null after
+                // a mirror flip or a retired hand, so no sweep is ever
+                // measured across a gap.
+                if (g.tipPx && !g.held) {
+                    var dt = (now - g.t) / 1000;
                     if (dt > 0.005) {
-                        var sp = dist(prev.tipPx, tipPx) / dt;
-                        if (sp > 150) tryPluck(prev.tipPx, tipPx, sp);
+                        var sp = dist(g.tipPx, tipPx) / dt;
+                        if (sp > 150) tryPluck(g.tipPx, tipPx, sp);
                     }
                 }
-                // Pinch edge: place a dot at the fingertip.
-                if (pinch && !prev.pinch && prev.armed) {
-                    placeDot(tipFrac);
-                    anchorHand = label;
-                    prev.armed = false;
+                if (!g.held) {
+                    g.onN = pinchD < PINCH_ON ? g.onN + 1 : 0;
+                    if (pinchD <= PINCH_ON_SURE || g.onN >= PINCH_CONFIRM) {
+                        // START: the pinch lands — a dot at the fingertip.
+                        g.held = true; g.onN = 0; g.offN = 0;
+                        placeDot(tipFrac);
+                        anchorHand = label;
+                    }
+                } else {
+                    g.offN = pinchD > PINCH_OFF ? g.offN + 1 : 0;
+                    if (pinchD >= PINCH_OFF_SURE || g.offN >= PINCH_CONFIRM) {
+                        g.held = false; g.offN = 0; g.onN = 0;
+                        // DROP: letting go after a drag pins the string
+                        // where the fingers opened. A pinch opened on
+                        // the spot already placed its dot on the way in,
+                        // so it adds nothing here.
+                        if (dots.length && dist(tipPx, toPx(dots[dots.length - 1])) > DROP_MIN_PX) placeDot(tipFrac);
+                    }
                 }
-                if (!pinch && pinchD > 0.5) prev.armed = true;
-                next[label] = { tipPx: tipPx, tipFrac: tipFrac, pinch: pinch };
-                prevHands[label] = { tipPx: tipPx, t: now, pinch: pinch, armed: prev.armed };
+                g.tipPx = tipPx; g.tipFrac = tipFrac; g.t = now;
+                next[label] = { tipPx: tipPx, tipFrac: tipFrac, pinch: g.held,
+                                grip: g.held ? 2 : (g.onN > 0 ? 1 : 0) };
+            }
+            // Hands missing from this frame: forgiven for up to
+            // GRACE_FRAMES (state frozen; the cursor and the live
+            // thread rest at the last known fingertip). Past the grace
+            // the hand retires — and a vanished hand never pins a dot:
+            // if it was holding, the drag simply ends, unpinned.
+            for (var gone in prevHands) {
+                if (seen[gone]) continue;
+                var st = prevHands[gone];
+                st.absent++;
+                if (st.absent <= GRACE_FRAMES) {
+                    if (st.tipPx) next[gone] = { tipPx: st.tipPx, tipFrac: st.tipFrac, pinch: st.held, grip: st.held ? 2 : 0 };
+                } else {
+                    if (anchorHand === gone) anchorHand = null;
+                    delete prevHands[gone];
+                }
             }
             handsNow = next;
             // The live thread pulls from the last dot to the fingertip of
@@ -790,6 +939,7 @@
                     if (any) pull = any.tipFrac;
                 }
             }
+            updateHint();
         }
         function pump() {
             if (!pumpOn) return;
@@ -810,6 +960,7 @@
             mode = 'touch';
             startOverlay.hidden = true;
             controlsEl.hidden = false;
+            hintEl.hidden = false;
             mirrorBtn.hidden = true;
             startLoop();
             if (reason === 'denied') showNote('No camera here — touch mode. Tap to place a dot, drag to pull, release to pin.');
@@ -849,6 +1000,7 @@
                 mode = 'camera';
                 startOverlay.hidden = true;
                 controlsEl.hidden = false;
+                hintEl.hidden = false;
                 pumpOn = true;
                 pump();
                 startLoop();
@@ -901,6 +1053,11 @@
             facing: function () { return facingMode; },
             toggleMirror: function () { setMirror(!mirror); },
             pull: function () { return pull; },
+            hands: function () {
+                var out = {};
+                for (var k in handsNow) out[k] = { pinch: !!handsNow[k].pinch, grip: handsNow[k].grip || 0 };
+                return out;
+            },
             audioState: function () { return actx ? actx.state : 'none'; }
         };
     })();
