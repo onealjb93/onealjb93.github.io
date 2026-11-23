@@ -96,6 +96,16 @@ their signals use the remaining conditions; the VIX is an input,
 never a target. Signals are a pure function of the bars and P/E
 already in the file, recomputed in full each run — history never
 repaints beyond what the underlying bars and P/E themselves do.
+
+Market context (added 2026-11-23): the same run also writes
+finance-context.json, built by market_context.py (imported
+lazily at the end of main, so a context failure can never touch
+the chart files): insider-buying clusters from SEC EDGAR
+Form 4 filings, the share of this run's own universe trading
+above its 200-day average, and the ICE BofA high-yield spread
+from FRED. It is DATA ONLY — no signal reads it yet. It exists
+so the next formula question can be studied against real
+history instead of asserted.
 """
 
 import bisect
@@ -664,6 +674,21 @@ def compute_pe(bars, facts, splits):
 # sparsity (COST, LLY and TSLA hold no D1 buy in their entire
 # history). The SELL side below is unchanged and still uses the
 # 200-week average, which is still computed for it.
+# Quality door (added 2026-11-23; Johnny's adoption of candidate
+# C1 from the indicator research study of the same day): a second,
+# shallower buy door for stocks too strong to ever fall 30% —
+# RSI(14) <= 30, VIX >= 25, drawdown <= -20%, close BELOW the
+# 200-week average, PEG defined and <= 2 (Lynch's warning line as
+# the cap). It unions with the buy above: either door marks the
+# day. PEG-class names only — where PEG cannot be calculated the
+# door never opens (it has no stand-in leg), and the benchmarks
+# and band instruments, which carry no P/E array, are never
+# quality-door days. In the study (2015-2026, this file's own
+# history) the door added 90 buy episodes universe-wide; the
+# added episodes on Johnny's 19 earned a +30.6% median 1y
+# forward return against the main door's +31.2%, and it is the
+# only tested door that has ever put buy dots on WMT (5
+# episodes, on its May-June 2022 low).
 # SELL (every condition held for 5 consecutive trading days; the
 # signal is live from the 5th day through the end of the run):
 #   stocks:          RSI(14) > 70, VIX < 15, PEG >= 2,
@@ -805,6 +830,16 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes):
                 is_sell = False
             is_buy = (rsi[i] <= 30 and vix >= 25 and dd[i] <= -0.30
                       and peg_ok)
+            if not is_buy and peg[i] is not None and peg[i] <= 2.0:
+                # The quality door (see the formula notes above
+                # compute_indicator_signals): the same oversold
+                # and panic legs at a shallower drawdown, the
+                # close below its 200-week average, and a defined
+                # PEG at or under Lynch's warning line of 2. A day
+                # whose PEG is undefined — the -40% stand-in days
+                # included — never opens this door.
+                is_buy = (rsi[i] <= 30 and vix >= 25
+                          and dd[i] <= -0.20 and closes[i] < ma[i])
         if is_buy:
             buy.append(dates[i])
         run = run + 1 if is_sell else 0
@@ -1419,6 +1454,22 @@ def main():
     log("Wrote %s (%d instruments, through %s%s)."
         % (daily_path, len(d_series), d_output["through"],
            ", kept previous for: " + ", ".join(d_kept_old) if d_kept_old else ""))
+
+    # ---- market context: finance-context.json (market_context.py) ----
+    # Insider clusters, universe breadth, high-yield spread — data
+    # only, no signal consumes it. Isolated like the share
+    # snapshots above: any failure leaves the previous context
+    # file standing and never touches the chart files. The
+    # workflow's commit step picks the file up once its name
+    # joins the git add line, exactly as the daily file did.
+    try:
+        import market_context
+        market_context.build_context_file(
+            d_series, os.path.dirname(os.path.abspath(daily_path)),
+            log=log)
+    except Exception as exc:
+        log("WARNING: market context failed (%s) — previous "
+            "finance-context.json stands." % exc)
     return 0
 
 
