@@ -1161,17 +1161,38 @@
         </div></div>
     </section>
     <script>
-    // Games shell (part 1 of 2): every visit opens with all games
-    // collapsed (Johnny, 2026-11-23), so the open game is 'none' here
-    // and Line Rider — the one game whose markup ships open — is
-    // collapsed below, before the rest of the page parses, before any
-    // visitor can see it flash open. Part 2, after the Universe
-    // section, wires the toggles. Nothing is remembered between
-    // visits; the old 'games-open-v1' key is removed, so a stale
-    // stored value can never take effect again.
+    // Games shell (part 1 of 2): a fresh arrival opens with all games
+    // collapsed (Johnny, 2026-11-23), but a refresh keeps your spot:
+    // when this load is a reload and a game was open, that game is
+    // the open game here. Line Rider — the one game whose markup
+    // ships open — is collapsed below, before the rest of the page
+    // parses, before any visitor can see it flash open, unless Line
+    // Rider itself is the game being restored. Part 2, after the
+    // Universe section, wires the toggles and re-opens the restored
+    // game. The open game is tracked in sessionStorage only, so it
+    // lives for this tab and this visit alone; between visits
+    // nothing is remembered, and the old 'games-open-v1' key is
+    // removed, so a stale stored value can never take effect again.
     (function () {
         var open = 'none';
         try { localStorage.removeItem('games-open-v1'); } catch (e) { /* storage blocked */ }
+        var navType = '';
+        try {
+            var nav = performance.getEntriesByType('navigation');
+            if (nav && nav.length) navType = nav[0].type || '';
+        } catch (e) { /* Navigation Timing unavailable: stay collapsed */ }
+        if (navType === 'reload') {
+            try {
+                var saved = sessionStorage.getItem('games-open-session-v1');
+                if (saved === 'linerider' || saved === 'universe' || saved === 'thumbkart' || saved === 'frequency') open = saved;
+            } catch (e) { /* storage blocked */ }
+        } else {
+            // A fresh arrival starts collapsed, and the stored game is
+            // cleared with it: the record always matches what this
+            // page shows, so a later refresh restores this visit's
+            // spot — all games closed — never an older one.
+            try { sessionStorage.removeItem('games-open-session-v1'); } catch (e) { /* storage blocked */ }
+        }
         window.__gamesOpen = open;
         if (open !== 'linerider') {
             window.__gamesLrCollapsed = true;
@@ -1479,7 +1500,7 @@
 
     <section class="thr-card-section" aria-labelledby="threads-heading">
         <div class="game-card">
-        <a class="game-card-photo" href="ar-rhythm.html" aria-hidden="true" tabindex="-1"><img src="game-peek-threads.webp" alt="" width="1156" height="546" loading="lazy" decoding="async"></a>
+        <a class="game-card-photo" href="ar-rhythm.html" aria-hidden="true" tabindex="-1"><img src="game-peek-threads-play.webp" alt="" width="1280" height="605" loading="lazy" decoding="async"></a>
         <h2 id="threads-heading"><a class="game-toggle thr-toggle" href="ar-rhythm.html">Threads</a></h2>
         <p><a href="ar-rhythm.html">Pinch to string glowing threads in the air — then sweep through them and play.</a></p>
         </div>
@@ -4322,8 +4343,10 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
 
     <script>
     // Games shell (part 2 of 2): the toggles. One game open at a time;
-    // tapping the open game's heading closes it. The choice is not
-    // remembered: part 1 starts every visit with all games closed.
+    // tapping the open game's heading closes it. The open game is
+    // written to sessionStorage as it changes, so a refresh restores
+    // it (part 1 reads the key on reloads only); a fresh arrival
+    // starts with all games closed.
     // The Universe engine and its data, and the Thumb Drive
     // engine, start only on that game's first expand. Line Rider's own code is untouched —
     // if it loaded collapsed, its Fit button is pressed once on its first
@@ -4417,6 +4440,13 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 else setTimeout(function () { if (gens[name] === gen) body.hidden = true; }, 480);
             }
         }
+        var SESSION_KEY = 'games-open-session-v1';
+        function saveSession() {
+            try {
+                if (open) sessionStorage.setItem(SESSION_KEY, open);
+                else sessionStorage.removeItem(SESSION_KEY);
+            } catch (e) { /* storage blocked */ }
+        }
         function toggle(name) {
             if (open === name) { setOpen(name, false); open = null; }
             else {
@@ -4424,6 +4454,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 setOpen(name, true);
                 open = name;
             }
+            saveSession();
         }
         Object.keys(btns).forEach(function (name) {
             if (btns[name]) btns[name].addEventListener('click', function () { toggle(name); });
@@ -4441,6 +4472,13 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             if (open !== 'thumbkart') toggle('thumbkart');
             if (window.__tk && window.__tk.openScores) window.__tk.openScores();
         });
+        /* Refresh restore: part 1 set the open game from
+           sessionStorage on a reload; re-open it now that the
+           toggles are wired. Line Rider needs no call — its markup
+           ships open and part 1 left it that way. The browser's own
+           scroll restoration puts the visitor back where they were,
+           with the game open around that spot. */
+        if (open && open !== 'linerider') setOpen(open, true, true);
     })();
     </script>
 
