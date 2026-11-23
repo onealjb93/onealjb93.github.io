@@ -4265,7 +4265,18 @@
             return out;
         }
 
-        // ---- Daily closes (shared loader) ----
+        // ---- Chart data files (shared loaders) ----
+        // One fetch helper for the three chart JSONs. The service
+        // worker (fin-sw.js, registered below) keeps the three in
+        // Cache Storage and answers from it; where no worker runs,
+        // this is a plain fetch — identical behavior, just no
+        // cache. Any cache-layer failure surfaces as an ordinary
+        // fetch result or an ordinary fetch error, never a new
+        // failure mode.
+        window.jboFetchJson = function (url) {
+            return fetch(url)
+                .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+        };
         // finance-chart-daily.json — the daily closes the Chart's
         // Daily view draws — fetched once through this shared
         // loader (the chart reuses the same promise, so the file
@@ -4273,12 +4284,48 @@
         window.jboDailyDataPromise = null;
         window.jboLoadDailyData = function () {
             if (!window.jboDailyDataPromise) {
-                window.jboDailyDataPromise = fetch('finance-chart-daily.json')
-                    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                window.jboDailyDataPromise = window.jboFetchJson('finance-chart-daily.json')
                     .catch(err => { window.jboDailyDataPromise = null; throw err; });
             }
             return window.jboDailyDataPromise;
         };
+        // finance-chart-data.json — the weekly file: the Chart's
+        // registry and Weekly view, the Scoreboard's price overlay
+        // and its Nasdaq-100 list. One shared promise, so the file
+        // crosses the wire (and parses) once per visit, however
+        // many sections ask for it.
+        window.jboWeeklyDataPromise = null;
+        window.jboLoadWeeklyData = function () {
+            if (!window.jboWeeklyDataPromise) {
+                window.jboWeeklyDataPromise = window.jboFetchJson('finance-chart-data.json')
+                    .catch(err => { window.jboWeeklyDataPromise = null; throw err; });
+            }
+            return window.jboWeeklyDataPromise;
+        };
+        // finance-chart-first.json — the first-paint split of the
+        // daily file (SPX since 2017 + every series' latest dots),
+        // emitted by the same pipeline run. Until a run publishes
+        // it, this loader's promise rejects with the 404 and every
+        // caller falls back to the full-file path unchanged.
+        window.jboFirstDataPromise = null;
+        window.jboLoadFirstData = function () {
+            if (!window.jboFirstDataPromise) {
+                window.jboFirstDataPromise = window.jboFetchJson('finance-chart-first.json')
+                    .catch(err => { window.jboFirstDataPromise = null; throw err; });
+            }
+            return window.jboFirstDataPromise;
+        };
+        // ---- Cache-first for the chart data files ----
+        // fin-sw.js serves the three chart JSONs cache-first and
+        // refreshes them in the background (an entry is replaced
+        // only when its `through` date moves; nothing older than
+        // 26 hours is ever painted from). Registration failure or
+        // an old browser simply means no cache — the loaders above
+        // behave exactly as they did before the worker existed.
+        if ('serviceWorker' in navigator) {
+            try { navigator.serviceWorker.register('fin-sw.js').catch(function () { /* no cache; plain fetch stands */ }); }
+            catch (e) { /* no cache; plain fetch stands */ }
+        }
         // ---- Judgment grades: ten investors, one structure (2026-11-18) ----
         // QUALITATIVE_GRADES is the single structure for every investor
         // graded by judgment rather than by formula: for each, the five
@@ -7013,6 +7060,38 @@ if (typeof module !== "undefined") {
         // registry — the dropdowns populate from it in both modes —
         // and the daily file only supplies the bars the chart draws.
         var dailyData = null, dailyStarted = false, dailyFailed = false;
+        // The first-paint split of the daily file, when it has
+        // arrived and the full file hasn't: it honestly serves the
+        // opening Daily view for the one series it carries in full
+        // (SPX) and the Latest-dots panel for every series — and
+        // nothing else. Any other daily ask waits for the full
+        // file behind the existing "Loading daily data…" status.
+        var firstData = null;
+        function firstServes() {
+            return !!(firstData && firstData.series && firstData.series[cur.key]
+                && firstData.series[cur.key].bars && firstData.series[cur.key].bars.length);
+        }
+        // Shape the first-paint file into the daily file's own
+        // shape: stubs {name, buy, sell} for every series (all the
+        // Latest-dots panel reads) and the full SPX entry. SPX's
+        // signal dates are trimmed to the bars the file carries —
+        // a date earlier than the first carried bar belongs to a
+        // bar this file doesn't hold, and mapping it onto the
+        // first carried bar would plant a dot on the wrong day;
+        // the full file restores every date when it lands.
+        function buildFirstData(f) {
+            if (!f || !f.series || !f.series.SPX || !f.series.SPX.bars || !f.series.SPX.bars.length) return null;
+            var series = {};
+            var latest = f.latest || {};
+            Object.keys(latest).forEach(function (k) {
+                var l = latest[k] || {};
+                series[k] = { name: l.name, buy: l.buy || [], sell: l.sell || [] };
+            });
+            var spx = f.series.SPX, firstDate = spx.bars[0][0];
+            var sig = function (list) { return (list || []).filter(function (d) { return d >= firstDate; }); };
+            series.SPX = { name: spx.name, symbol: spx.symbol, bars: spx.bars, pe: spx.pe, buy: sig(spx.buy), sell: sig(spx.sell), score_buys: sig(spx.score_buys) };
+            return { last_updated: f.last_updated, through: f.through, series: series, nasdaq100: f.nasdaq100 };
+        }
         // The chart opens on Daily (2026-11-22): daily bars are the
         // working data — the gauges, the RSI and the indicator dots
         // all run on daily closes — and Weekly is the toggle's other
@@ -7131,17 +7210,25 @@ if (typeof module !== "undefined") {
 
         // ---- view computation ----
         function computeViewFor(key) {
-            if (!chartData) return null;
-            var s = chartData.series[key];
-            if (!s || !s.bars || !s.bars.length) return null;
-            // In Daily mode the drawn bars come from the daily
-            // file; the weekly series above stays the existence
-            // check (one registry for both modes).
-            if (mode === "daily") {
-                if (!dailyData) return null;
-                s = dailyData.series[key];
+            var s = null;
+            if (chartData) {
+                s = chartData.series[key];
                 if (!s || !s.bars || !s.bars.length) return null;
             }
+            // In Daily mode the drawn bars come from the daily
+            // file; the weekly series above stays the existence
+            // check (one registry for both modes) whenever the
+            // weekly file has arrived. Before it has, the
+            // first-paint file can serve the Daily view for the
+            // one series it carries in full — the same bars from
+            // the same run, replaced wholesale when the full
+            // daily file lands.
+            if (mode === "daily") {
+                var dsrc = dailyData || firstData;
+                if (!dsrc) return null;
+                s = dsrc.series[key];
+                if (!s || !s.bars || !s.bars.length) return null;
+            } else if (!s) return null;
             // Intraday ranges (Daily 1D / 1W with the sessions file
             // in): the view is 1-minute bars, and the branch returns
             // before the indicator mapping below — Johnny's buy /
@@ -7291,8 +7378,8 @@ if (typeof module !== "undefined") {
                 showTipStatus("The chart data couldn’t be loaded — the weekly data file didn’t arrive. The rest of the page is unaffected.");
                 return;
             }
-            if (!chartData) { showTipStatus("Loading chart data…"); return; }
-            if (mode === "daily" && !dailyData) { showTipStatus("Loading daily data…"); return; }
+            if (!chartData && !firstServes()) { showTipStatus("Loading chart data…"); return; }
+            if (mode === "daily" && !dailyData && !firstServes()) { showTipStatus("Loading daily data…"); return; }
             // A 1D / 1W range waits for the intraday file the same
             // way Daily waits for the daily file; if the file failed
             // to arrive, the daily bars below render instead.
@@ -8215,9 +8302,14 @@ if (typeof module !== "undefined") {
         var dotsOpen = false;
         function latestDots() {
             var all = [];
-            if (!dailyData || !dailyData.series) return { ready: false, buys: [], sells: [] };
-            Object.keys(dailyData.series).forEach(function (k) {
-                var s = dailyData.series[k];
+            // The first-paint file's stubs carry every series'
+            // latest dates, so the panel is honest before the
+            // full daily file lands; the full file replaces them
+            // wholesale on arrival (same dates, same panel).
+            var dotsSrc = dailyData || firstData;
+            if (!dotsSrc || !dotsSrc.series) return { ready: false, buys: [], sells: [] };
+            Object.keys(dotsSrc.series).forEach(function (k) {
+                var s = dotsSrc.series[k];
                 if (!s) return;
                 var i, d;
                 if (s.buy && s.buy.length) { d = s.buy[0]; for (i = 1; i < s.buy.length; i++) if (s.buy[i] > d) d = s.buy[i]; all.push({ key: k, date: d, side: "buy" }); }
@@ -8921,17 +9013,14 @@ if (typeof module !== "undefined") {
         }
 
         // ---- loading (lazy: first time the section opens) ----
-        function ensure() {
-            var body = document.getElementById("chart-body");
-            if (!body || body.hidden || loadStarted) return;
-            loadStarted = true;
-            // Say the wait out loud in the chart's own status line
-            // before the fetch starts — a slow file must never
-            // present as a dead, empty chart frame.
-            showTipStatus("Loading chart data…");
-            render();
-            fetch("finance-chart-data.json")
-                .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        // The weekly file's arrival, applied: the registry lands,
+        // the dropdowns populate, and the chart renders (asking
+        // for the daily file first if Daily is the mode).
+        function loadWeeklyChain() {
+            var weeklyPromise = (typeof window.jboLoadWeeklyData === "function")
+                ? window.jboLoadWeeklyData()
+                : fetch("finance-chart-data.json").then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+            weeklyPromise
                 .then(function (d) {
                     chartData = d;
                     populateStockSelect();
@@ -8942,6 +9031,50 @@ if (typeof module !== "undefined") {
                     if (mode === "daily") ensureDaily(); else render();
                 })
                 .catch(function () { loadFailed = true; render(); });
+        }
+        var bgScheduled = false;
+        function scheduleBackgroundLoad() {
+            if (bgScheduled) return;
+            bgScheduled = true;
+            // The two big files fetch in parallel once the first
+            // paint is unblocked — on idle where the browser
+            // offers it, on a 1.5 s timer where it doesn't (and
+            // the idle callback's own timeout bounds the wait on
+            // a busy page). Any visitor action that needs either
+            // file sooner pulls it forward through the same
+            // loaders (ensureDaily, the shared weekly promise).
+            var start = function () {
+                loadWeeklyChain();
+                if (mode === "daily") ensureDaily();
+            };
+            if (window.requestIdleCallback) window.requestIdleCallback(start, { timeout: 1500 });
+            else setTimeout(start, 1500);
+        }
+        function ensure() {
+            var body = document.getElementById("chart-body");
+            if (!body || body.hidden || loadStarted) return;
+            loadStarted = true;
+            // Say the wait out loud in the chart's own status line
+            // before the fetch starts — a slow file must never
+            // present as a dead, empty chart frame.
+            showTipStatus("Loading chart data…");
+            render();
+            // The first-paint file goes first (load-speed build,
+            // 2026-11-23): when it lands, the opening Daily · 5Y ·
+            // SPX view paints from real daily bars and the
+            // Latest-dots panel fills — then the big files follow
+            // in the background. If the file isn't published yet
+            // (the pipeline emits it from its next run), its 404
+            // simply steps aside and the background chain below
+            // runs exactly as the old loader ran: no error, no
+            // added delay beyond the one small failed fetch.
+            var firstStep = (typeof window.jboLoadFirstData === "function")
+                ? window.jboLoadFirstData().then(function (f) {
+                    firstData = buildFirstData(f);
+                    if (firstData) { populateDots(); render(); }
+                }, function () { /* not published yet: today's path */ })
+                : Promise.resolve();
+            firstStep.then(scheduleBackgroundLoad);
         }
         var chartBody = document.getElementById("chart-body");
         if (chartBody && window.MutationObserver) {
@@ -9458,8 +9591,12 @@ if (typeof module !== "undefined") {
         function ensurePriceData() {
             if (sbPriceData || sbPriceStarted) return;
             sbPriceStarted = true;
-            fetch("finance-chart-data.json")
-                .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+            // The shared weekly loader: this file crosses the
+            // wire once per visit however many sections ask.
+            var weeklyPromise = (typeof window.jboLoadWeeklyData === "function")
+                ? window.jboLoadWeeklyData()
+                : fetch("finance-chart-data.json").then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+            weeklyPromise
                 .then(function (d) {
                     var out = {};
                     var ser = (d && d.series) || {};
@@ -10616,7 +10753,11 @@ if (typeof module !== "undefined") {
             fetchJson("scoreboard-stocks.json"),
             fetchJson("finance-data.json"),
             fetchJson("grades-history.json"),
-            fetchJson("finance-chart-data.json")
+            // The shared weekly loader, so this file crosses the
+            // wire once per visit however many sections ask for it.
+            (typeof window.jboLoadWeeklyData === "function")
+                ? window.jboLoadWeeklyData().catch(function () { return null; })
+                : fetchJson("finance-chart-data.json")
         ]).then(function (docs) {
             var setDoc = docs[0], finDoc = docs[1], histDoc = docs[2], chartDoc = docs[3];
             if (setDoc && Array.isArray(setDoc.tickers)) {

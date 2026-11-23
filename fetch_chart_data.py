@@ -318,6 +318,11 @@ ALL_INSTRUMENTS = INSTRUMENTS + NDX_INSTRUMENTS + BAND_INSTRUMENTS
 
 OUT_FILE = "finance-chart-data.json"
 DAILY_OUT_FILE = "finance-chart-daily.json"
+FIRST_OUT_FILE = "finance-chart-first.json"
+# The first-paint file carries SPX daily bars from this date: enough
+# for the chart's opening Daily · 5Y view (1,260 bars) plus the
+# lookback the 200-day line needs at the window's first bar.
+FIRST_FILE_CUTOFF = "2017-01-01"
 HEADERS = {"User-Agent": "Mozilla/5.0 (onealjb93.github.io chart updater)"}
 HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]
 START = date(2000, 1, 1)
@@ -1717,6 +1722,69 @@ def render_finance_snapshots(chart_output, out_dir):
     return done
 
 
+def build_first_file(d_output, out_dir, log=print):
+    """Write finance-chart-first.json — the Finance page's
+    first-paint file, built from this run's daily output (see the
+    load-speed spec, 2026-11-23). Same top-level shape as the daily
+    file, holding only what the first screen paints from:
+
+    - series.SPX: the full SPX entry with its bars (and the P/E
+      array, sliced at the same bar) trimmed to FIRST_FILE_CUTOFF;
+      the buy / sell / score_buys signal arrays ride in full —
+      signal dates are few and are never trimmed;
+    - latest: for every series, its name and its most recent 24 buy
+      and 24 sell dates — everything the Latest-dots panel reads;
+    - the daily file's own last_updated / through, so the page can
+      key its cache on the same data day.
+
+    Isolated like the market-context and intraday writers: the
+    caller catches any failure and the previous file stands."""
+    d_series = d_output["series"]
+    spx = d_series.get("SPX")
+    if not spx or not spx.get("bars"):
+        raise ValueError("daily output carries no SPX bars")
+    entry = dict(spx)
+    bars = spx["bars"]
+    cut = 0
+    while cut < len(bars) and bars[cut][0] < FIRST_FILE_CUTOFF:
+        cut += 1
+    entry["bars"] = bars[cut:]
+    pe = spx.get("pe")
+    if pe is not None and len(pe) == len(bars):
+        entry["pe"] = pe[cut:]
+    latest = {}
+    for key, s in d_series.items():
+        if not s:
+            continue
+        latest[key] = {
+            "name": s.get("name"),
+            "buy": (s.get("buy") or [])[-24:],
+            "sell": (s.get("sell") or [])[-24:],
+        }
+    output = {
+        "last_updated": d_output["last_updated"],
+        "source": "The Finance page's first-paint file: SPX daily "
+                  "bars since %s plus every series' latest buy / "
+                  "sell signal dates, split from the same run's "
+                  "finance-chart-daily.json — see that file for the "
+                  "full data and its source note."
+                  % FIRST_FILE_CUTOFF,
+        "through": d_output["through"],
+        "series": {"SPX": entry},
+        "latest": latest,
+        "nasdaq100": d_output.get("nasdaq100"),
+    }
+    out_path = os.path.join(out_dir, FIRST_OUT_FILE)
+    tmp_path = out_path + ".tmp"
+    with open(tmp_path, "w") as fh:
+        json.dump(output, fh, separators=(",", ":"))
+    os.replace(tmp_path, out_path)
+    log("Wrote %s (SPX %d bars since %s, latest dots for %d series, "
+        "through %s)."
+        % (out_path, len(entry["bars"]), FIRST_FILE_CUTOFF,
+           len(latest), output["through"]))
+
+
 def main():
     out_path = sys.argv[1] if len(sys.argv) > 1 else OUT_FILE
     now_utc = datetime.now(timezone.utc)
@@ -2046,6 +2114,21 @@ def main():
     log("Wrote %s (%d instruments, through %s%s)."
         % (daily_path, len(d_series), d_output["through"],
            ", kept previous for: " + ", ".join(d_kept_old) if d_kept_old else ""))
+
+    # ---- first-paint file: finance-chart-first.json ----
+    # The small split of the daily file the Finance page paints
+    # its first screen from (SPX since 2017 + every series' latest
+    # dots). Isolated like the market context below: any failure
+    # leaves the previous first-paint file standing and never
+    # touches the chart files; the page falls back to the full
+    # daily file whenever this one is missing.
+    try:
+        build_first_file(
+            d_output, os.path.dirname(os.path.abspath(daily_path)),
+            log=log)
+    except Exception as exc:
+        log("WARNING: first-paint file failed (%s) — previous "
+            "finance-chart-first.json stands." % exc)
 
     # ---- market context: finance-context.json (market_context.py) ----
     # Insider clusters, universe breadth, high-yield spread — data
