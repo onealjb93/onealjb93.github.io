@@ -603,8 +603,10 @@ def momentum_3m(history):
 #   original FY2024 10-K, filed after its 3:1 split, reports the
 #   post-split $1.91), so each original figure is divided only by the
 #   splits that came after that filing. When split data can't be
-#   fetched, eps_history_adjusted is False and the page treats
-#   growth-dependent legs as untestable.
+#   fetched, the block is not refreshed at all — the previous block
+#   stands with its own as_of, so no degraded block is ever built
+#   (an unadjusted history would leave eps_cagr_pct null and the
+#   page's growth-dependent legs dark).
 # =====================================================================
 
 import re
@@ -2631,19 +2633,35 @@ def main():
             )
 
             # ---- scoreboard block (Greenblatt / Graham / Lynch) ----
+            # Split data is not optional for this block: without it the
+            # EPS history is unadjusted, eps_cagr_pct comes out null,
+            # and Lynch's growth and dividend-PEG legs grade dark on
+            # the page. (The 2026-11-18 lesson: that day's blocks were
+            # all built unadjusted and then carried forward for days,
+            # so the table graded on degraded inputs while the
+            # point-in-time grades history graded the same stocks with
+            # the legs lit — the two disagreed.) A splits failure
+            # therefore fails this ticker's block refresh loudly: the
+            # previous block is kept with its own as_of stamp, and no
+            # degraded block is built or stamped with today's date.
             try:
-                try:
-                    splits = fetch_splits_yahoo(symbol, http_get_json)
-                except Exception as exc:
-                    splits = None
-                    log("  split history unavailable for %s (%s); "
-                        "scoreboard EPS history unadjusted" % (symbol, exc))
-                record["scoreboard"] = build_scoreboard_block(
-                    facts, price, shares, record.get("mcap"), splits,
-                    fact_entries, ttm_value, latest_value, today)
+                splits = fetch_splits_yahoo(symbol, http_get_json)
             except Exception as exc:
-                record["scoreboard"] = None
-                log("  scoreboard block failed for %s: %s" % (symbol, exc))
+                splits = None
+                log("  SCOREBOARD BLOCK NOT REFRESHED for %s: split "
+                    "history unavailable (%s); previous block kept "
+                    "with its original as_of" % (symbol, exc))
+            if splits is None:
+                record["scoreboard"] = prev.get("scoreboard")
+            else:
+                try:
+                    record["scoreboard"] = build_scoreboard_block(
+                        facts, price, shares, record.get("mcap"), splits,
+                        fact_entries, ttm_value, latest_value, today)
+                except Exception as exc:
+                    record["scoreboard"] = None
+                    log("  scoreboard block failed for %s: %s"
+                        % (symbol, exc))
         else:
             # Not due (or no EDGAR data): carry the previous fundamentals.
             for key in ("peg", "growth", "debt", "roe", "margin",
