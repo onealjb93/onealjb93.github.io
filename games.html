@@ -65,7 +65,7 @@
         .lr-stage .lr-save-name,
         .lr-stage .lr-saves-select {
             line-height: 1.4;
-            min-height: 36px;
+            min-height: 44px;
             box-sizing: border-box;
         }
         /* Line Rider — game-specific styles (site variables from style.css). */
@@ -230,6 +230,42 @@
             .lr-stage .lr-save-name,
             .lr-stage .lr-saves-select { flex: 0 0 auto; }
             #lr-canvas { min-height: 120px; }
+        }
+
+        /* Line Rider play-first restructure (2026-11-23): the stats
+           wrapper is layout-transparent on desktop (the three cards lay
+           out exactly as before); the Tools panel is a second toolbar
+           deck under the primary row, hidden until its button opens it. */
+        .lr-stats { display: contents; }
+        .lr-tools-panel[hidden] { display: none; }
+        .lr-tools-btn[aria-expanded="true"] {
+            background: var(--accent-color);
+            border-color: transparent;
+            color: #fff;
+        }
+        .lr-tools-arrow { display: inline-block; transition: transform 0.15s ease; }
+        .lr-tools-btn[aria-expanded="true"] .lr-tools-arrow { transform: rotate(180deg); }
+        /* Phones: the three stat cards compress into one slim strip —
+           one bordered line, the three readings side by side, dividers
+           between them; labels and values keep their words and size. */
+        @media (max-width: 700px) {
+            .lr-stage .lr-stats {
+                display: flex;
+                flex: 1 1 100%;
+                background: var(--card-bg);
+                border: 1px solid var(--border-color);
+                border-radius: 10px;
+                overflow: hidden;
+            }
+            .lr-stage .lr-stats .lr-stat {
+                flex: 1 1 0;
+                min-width: 0;
+                background: none;
+                border: 0;
+                border-radius: 0;
+                padding: 4px 9px;
+            }
+            .lr-stage .lr-stats .lr-stat + .lr-stat { border-left: 1px solid var(--border-color); }
         }
 
         /* Games shell (2026-11-17): both games live in expand/collapse
@@ -1103,9 +1139,11 @@
         <div class="game-body" id="game-body-linerider" role="region" aria-labelledby="line-rider-heading"><div class="game-body-inner">
         <div class="lr-stage">
         <div class="lr-hud" aria-live="polite">
+            <div class="lr-stats">
             <div class="lr-stat"><span class="lr-stat-label">Distance</span><span class="lr-stat-value" id="lr-distance">0.0 m (0.0 ft)</span></div>
-            <div class="lr-stat"><span class="lr-stat-label">Speed</span><span class="lr-stat-value" id="lr-speed">0.0 m/s (0.0 mph)</span></div>
+            <div class="lr-stat"><span class="lr-stat-label">Speed</span><span class="lr-stat-value" id="lr-speed-value">0.0 m/s (0.0 mph)</span></div>
             <div class="lr-stat"><span class="lr-stat-label">Best</span><span class="lr-stat-value" id="lr-best">0.0 m (0.0 ft)</span></div>
+            </div>
             <span class="lr-status" id="lr-status">Draw a track, then press Play.</span>
         </div>
 
@@ -1113,8 +1151,11 @@
             <button class="lr-btn" id="lr-restart" type="button">↺ Restart</button>
             <button class="lr-btn" id="lr-playpause" type="button">▶ Play</button>
             <button class="lr-btn" id="lr-speed" type="button" title="Slow the ride down to watch a landing — or a crash — up close">Speed 1×</button>
-            <span class="lr-sep" aria-hidden="true"></span>
             <button class="lr-btn active" id="lr-tool-draw" type="button">✏️ Draw</button>
+            <button class="lr-btn lr-tools-btn" id="lr-tools-toggle" type="button" aria-expanded="false" aria-controls="lr-tools-panel">🧰 Tools <span class="lr-tools-arrow" aria-hidden="true">▾</span></button>
+        </div>
+
+        <div class="lr-toolbar lr-tools-panel" id="lr-tools-panel" role="toolbar" data-grab-scroll aria-label="Line Rider editing tools" hidden>
             <button class="lr-btn" id="lr-tool-line" type="button">📏 Straight</button>
             <button class="lr-btn" id="lr-tool-move" type="button">✋ Move</button>
             <button class="lr-btn" id="lr-tool-erase" type="button">🧽 Erase</button>
@@ -1128,25 +1169,43 @@
             <span class="lr-sep" aria-hidden="true"></span>
             <button class="lr-btn" id="lr-undo" type="button">↩ Undo</button>
             <button class="lr-btn" id="lr-redo" type="button">↪ Redo</button>
-            <span class="lr-sep" aria-hidden="true"></span>
             <button class="lr-btn" id="lr-clear" type="button">Clear all</button>
+            <span class="lr-sep" aria-hidden="true"></span>
             <button class="lr-btn" id="lr-default" type="button">Default track</button>
-            <span class="lr-sep" aria-hidden="true"></span>
-            <button class="lr-btn" id="lr-zoom-out" type="button">− Zoom out</button>
-            <button class="lr-btn" id="lr-zoom-in" type="button">+ Zoom in</button>
-            <button class="lr-btn" id="lr-zoom-fit" type="button">⤢ Fit track</button>
-            <span class="lr-zoom-label" id="lr-zoom-label" aria-live="polite">100%</span>
-            <span class="lr-sep" aria-hidden="true"></span>
             <input class="lr-save-name" id="lr-save-name" type="text" placeholder="Setup name" aria-label="Name for this setup" maxlength="40">
             <button class="lr-btn" id="lr-save" type="button" title="Save this setup under the name above">💾 <span class="lr-btn-label">Save</span></button>
             <select class="lr-saves-select" id="lr-saves" aria-label="Saved setups">
                 <option value="">Saved setups…</option>
             </select>
             <button class="lr-btn" id="lr-save-delete" type="button" title="Delete the selected setup">🗑 <span class="lr-btn-label">Delete</span></button>
+            <span class="lr-sep" aria-hidden="true"></span>
+            <button class="lr-btn" id="lr-zoom-out" type="button">− Zoom out</button>
+            <button class="lr-btn" id="lr-zoom-in" type="button">+ Zoom in</button>
+            <button class="lr-btn" id="lr-zoom-fit" type="button">⤢ Fit track</button>
+            <span class="lr-zoom-label" id="lr-zoom-label" aria-live="polite">100%</span>
         </div>
 
         <canvas id="lr-canvas" aria-label="Line Rider game canvas. Draw a track with your mouse or finger, switch to Move to slide the view without drawing, then press Play."></canvas>
         </div>
+    <script>
+    // Line Rider Tools expander (Johnny, 2026-11-23: "Too many buttons
+    // when im trying to play on my phone"). The primary row — Restart,
+    // Play, Speed, Draw — stays out because it makes sense during play;
+    // the editing, track and view deck folds behind this one Tools
+    // button because it makes sense folded. The button never moves
+    // when toggled; the panel opens in place below the primary row.
+    // Closed by default at every width — one system, desktop and phone.
+    (function () {
+        var btn = document.getElementById('lr-tools-toggle');
+        var panel = document.getElementById('lr-tools-panel');
+        if (!btn || !panel) return;
+        btn.addEventListener('click', function () {
+            var open = panel.hidden;
+            panel.hidden = !open;
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    })();
+    </script>
     <section class="lr-howto" aria-labelledby="how-to-play-heading">
         <h2 id="how-to-play-heading">How to play</h2>
         <ol>
@@ -4718,7 +4777,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         try { best = parseFloat(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { best = 0; }
 
         var elDist = document.getElementById('lr-distance');
-        var elSpeed = document.getElementById('lr-speed');
+        var elSpeed = document.getElementById('lr-speed-value');
         var elBest = document.getElementById('lr-best');
         var elStatus = document.getElementById('lr-status');
         var btnDraw = document.getElementById('lr-tool-draw');
