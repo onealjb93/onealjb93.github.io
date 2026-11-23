@@ -255,7 +255,33 @@ _BASE_KEYS = {key for key, _symbol, _name in INSTRUMENTS}
 NDX_INSTRUMENTS = [(ticker, ticker, name) for ticker, name in NASDAQ100
                    if ticker not in _BASE_KEYS]
 NDX_ONLY_KEYS = {key for key, _symbol, _name in NDX_INSTRUMENTS}
-ALL_INSTRUMENTS = INSTRUMENTS + NDX_INSTRUMENTS
+
+# The Market/Futures band's own instruments (pass 2, 2026-11-22):
+# the strip at the top of the Finance page became the chart's
+# selector, so every cell needs a real series behind it. Keys match
+# the band's instrument ids on the page (the page maps its cell ids
+# to these keys). None of them has earnings, so none gets a P/E —
+# the indicator treats them with the 40%-drawdown stand-in leg,
+# exactly like SPX/IXIC/GOLD/BTC. They join the chart and the
+# Latest-dots universe only: never the Scoreboard or Drill Down,
+# which stay Johnny's 19 stocks (the page keeps them out of its
+# stock dropdown via the "band" flag written on each entry).
+BAND_INSTRUMENTS = [
+    ("DOW", "^DJI", "Dow Jones Industrial Average"),
+    ("RUT", "^RUT", "Russell 2000"),
+    ("TNX", "^TNX", "10-Year Treasury Yield"),
+    ("DOLLAR", "DX-Y.NYB", "US Dollar Index"),
+    ("EURO", "EURUSD=X", "Euro (EUR/USD)"),
+    ("SILVER", "SI=F", "Silver"),
+    ("COPPER", "HG=F", "Copper"),
+    ("OIL", "CL=F", "Oil (WTI crude)"),
+    ("BRENT", "BZ=F", "Brent Crude"),
+    ("NATGAS", "NG=F", "Natural Gas"),
+    ("CORN", "ZC=F", "Corn"),
+    ("WHEAT", "ZW=F", "Wheat"),
+]
+BAND_KEYS = {key for key, _symbol, _name in BAND_INSTRUMENTS}
+ALL_INSTRUMENTS = INSTRUMENTS + NDX_INSTRUMENTS + BAND_INSTRUMENTS
 
 OUT_FILE = "finance-chart-data.json"
 DAILY_OUT_FILE = "finance-chart-daily.json"
@@ -271,7 +297,7 @@ EDGAR_HEADERS = {"User-Agent": "Johnny O'Neal johnny-website@muse.ai",
                  "Accept": "application/json"}
 EDGAR_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 EDGAR_FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK%s.json"
-BENCHMARK_KEYS = {"SPX", "IXIC", "GOLD", "BTC", "VIX"}  # no EPS exists
+BENCHMARK_KEYS = {"SPX", "IXIC", "GOLD", "BTC", "VIX"} | BAND_KEYS  # no EPS exists
 PE_EXCLUDE = {"TSM"}  # reported per-share basis != listed ADR price
 
 
@@ -653,7 +679,7 @@ def compute_pe(bars, facts, splits):
 # today; RSI(14) is Wilder's; the VIX is aligned point-in-time (the
 # last VIX close on or before the series' own date).
 
-_SIGNAL_NO_PEG_KEYS = {"SPX", "IXIC", "GOLD", "BTC"}
+_SIGNAL_NO_PEG_KEYS = {"SPX", "IXIC", "GOLD", "BTC"} | BAND_KEYS
 _SIGNAL_PERSIST = 5
 
 
@@ -883,7 +909,7 @@ def attach_indicator_signals(d_series, d_previous):
 
 _FIN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-_FIN_BENCH = {"SPX", "IXIC", "GOLD", "BTC", "VIX"}
+_FIN_BENCH = {"SPX", "IXIC", "GOLD", "BTC", "VIX"} | BAND_KEYS
 
 
 def _fin_sma(values, length):
@@ -1179,6 +1205,14 @@ def main():
                 kept_old.append(key)
                 log("  keeping previous series (%d bars, through %s)"
                     % (len(previous[key]["bars"]), previous[key]["bars"][-1][0]))
+            elif key in BAND_KEYS:
+                # A band instrument (pass 2) must never fail the
+                # whole run — least of all on its first run, when no
+                # previous series exists yet. The page treats the
+                # missing series as an honest empty state; the cell
+                # still selects, the chart says no data yet.
+                log("  band instrument %s has no data this run — "
+                    "skipping it (the run continues)" % key)
             else:
                 missing.append(key)
             time.sleep(1)
@@ -1191,6 +1225,11 @@ def main():
             # runner and backtest never see these; the second
             # (Nasdaq-100) dropdown works from "nasdaq100" below.
             entry["ndx"] = True
+        if key in BAND_KEYS:
+            # The band's own instruments (pass 2): the page's stock
+            # dropdown skips "band" entries exactly like "ndx" ones;
+            # the strip itself selects them.
+            entry["band"] = True
         # P/E: fresh from EDGAR where computable; on any failure, the
         # previous pe carries over only when the old bars are a strict
         # date-prefix of the new ones (appended weeks get null — their
@@ -1302,6 +1341,11 @@ def main():
                 log("  keeping previous daily series (%d bars, through %s)"
                     % (len(d_previous[key]["bars"]),
                        d_previous[key]["bars"][-1][0]))
+            elif key in BAND_KEYS:
+                # Same first-run rule as the weekly loop: a band
+                # instrument with no data yet skips, never fails.
+                log("  band instrument %s has no daily data this run "
+                    "— skipping it (the run continues)" % key)
             else:
                 d_missing.append(key)
             time.sleep(1)
@@ -1311,6 +1355,8 @@ def main():
         entry = {"name": name, "symbol": symbol, "bars": bars}
         if key in NDX_ONLY_KEYS:
             entry["ndx"] = True
+        if key in BAND_KEYS:
+            entry["band"] = True
         try:
             pe = pe_for(key, symbol, bars)
         except Exception as exc:
