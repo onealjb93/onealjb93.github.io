@@ -784,6 +784,16 @@
         }
         .fg-stage:active { cursor: grabbing; }
         .fg-stage canvas { display: block; width: 100%; height: 100%; }
+        /* Photographic finish over the live stage (3D and 2D alike):
+           a soft corner vignette and a whisper of warm light from
+           the top, the way the bench lamp falls. Pure overlay — it
+           never takes a tap and never moves a control. */
+        .fg-vignette {
+            position: absolute; inset: 0; z-index: 2; pointer-events: none;
+            background:
+                linear-gradient(180deg, rgba(255, 190, 110, 0.055) 0%, rgba(255, 190, 110, 0) 34%),
+                radial-gradient(118% 92% at 50% 42%, rgba(0, 0, 0, 0) 54%, rgba(0, 0, 0, 0.44) 100%);
+        }
         .fg-loading {
             position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             color: rgba(233, 230, 220, 0.55); font-size: 0.9rem; letter-spacing: 0.04em;
@@ -1517,6 +1527,7 @@
         <div class="game-body-inner">
         <div class="fg-shell" id="fg-shell">
             <div class="fg-stage" id="fg-stage">
+                <div class="fg-vignette" aria-hidden="true"></div>
                 <div class="fg-loading" id="fg-loading">Setting up the plate…</div>
             </div>
             <div class="fg-deck">
@@ -3452,8 +3463,9 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 // drift, and grains resting in a settled pile sit a
                 // touch deeper in tone (a whisper of occlusion where
                 // the pile meets the plate).
-                var cv = 0.86 + gSeed[i] * 0.28;
-                if (gSet[i]) cv *= 0.84;
+                var cv = 0.8 + gSeed[i] * 0.4;
+                if (gSeed[i] > 0.962) cv *= 1.5;
+                if (gSet[i]) cv *= 0.9;
                 gCol[3 * i] = cv;
                 gCol[3 * i + 1] = cv * (0.965 + gSeed[i] * 0.045);
                 gCol[3 * i + 2] = cv * (0.93 + gSeed[i] * 0.06);
@@ -3615,7 +3627,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         // ---------- renderers ----------
         var three = null, renderer = null, scene = null, camera = null;
         var plateU = null, sandU = null, wAttr = null, setAttr = null, colAttr = null, sandGeo = null;
-        var az = -0.65, pol = 1.06, rad = 3.3, tSec = 0;
+        var az = -0.65, pol = 1.10, rad = 2.85, tSec = 0;
         var c2 = null, ctx2d = null;
         var fpsAcc = 0, fpsN = 0, fpsLevel = 0;
 
@@ -3684,7 +3696,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 0.95;
+            renderer.toneMappingExposure = 1.12;
             stage.appendChild(renderer.domElement);
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x080707);
@@ -3701,7 +3713,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             var envScene = new THREE.Scene();
             var room = new THREE.Mesh(new THREE.BoxGeometry(26, 13, 26),
                 new THREE.MeshBasicMaterial({ side: THREE.BackSide }));
-            room.material.color.setRGB(0.055, 0.05, 0.045);
+            room.material.color.setRGB(0.07, 0.064, 0.056);
             room.position.y = 3.2;
             envScene.add(room);
             function emitter(w, h, r, g, b, x, y, z) {
@@ -3710,11 +3722,11 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 m.position.set(x, y, z); m.lookAt(0, 0, 0);
                 envScene.add(m);
             }
-            emitter(4.4, 2.7, 1.35, 0.98, 0.58, -6.2, 5.6, 3.2);   // warm softbox, upper left
-            emitter(5.0, 3.0, 0.3, 0.2, 0.11, 6.0, 1.0, -2.4);  // warm bounce, low right
-            emitter(5.5, 0.7, 0.55, 0.8, 1.35, 5.6, 6.2, -3.8);  // cool strip, upper right
+            emitter(4.4, 2.7, 1.85, 1.32, 0.76, -6.2, 5.6, 3.2);   // warm softbox, upper left
+            emitter(5.0, 3.0, 0.42, 0.28, 0.15, 6.0, 1.0, -2.4);  // warm bounce, low right
+            emitter(5.5, 0.7, 0.7, 1.0, 1.6, 5.6, 6.2, -3.8);  // cool strip, upper right
             var envFloor = new THREE.Mesh(new THREE.PlaneGeometry(22, 22), new THREE.MeshBasicMaterial());
-            envFloor.material.color.setRGB(0.10, 0.075, 0.05);
+            envFloor.material.color.setRGB(0.13, 0.098, 0.065);
             envFloor.rotation.x = -Math.PI / 2; envFloor.position.y = -2.6;
             envScene.add(envFloor);
             var pmrem = new THREE.PMREMGenerator(renderer);
@@ -3725,7 +3737,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             // thinned further by the fog — depth, never a void,
             // never busy.
             var silMat = new THREE.MeshBasicMaterial({ color: 0x0d0c0b });
-            var silGlowMat = new THREE.MeshBasicMaterial({ color: 0x181008 });
+            var silGlowMat = new THREE.MeshBasicMaterial({ color: 0x2e1c0d });
             [[3.4, 2.3, 0.8, -4.8, 0.72, -5.6, silMat], [2.3, 3.2, 0.8, 4.1, 1.15, -6.4, silMat],
              [5.6, 1.0, 0.8, 0.3, 0.05, -7.2, silMat], [3.6, 2.1, 0.1, -4.4, 1.35, -5.5, silGlowMat]
             ].forEach(function (s) {
@@ -3739,7 +3751,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             // the bench is the falloff, not a painted vignette), a
             // cool directional fill for the far edge, and a whisper
             // of hemisphere so the shadows never go dead black.
-            var key = new THREE.SpotLight(0xffd9a8, 26, 0, 0.62, 0.65, 1.8);
+            var key = new THREE.SpotLight(0xffd9a8, 85, 0, 0.55, 0.5, 1.8);
             key.position.set(2.6, 3.6, 1.8);
             key.target.position.set(0, -0.1, 0);
             key.castShadow = true;
@@ -3747,22 +3759,28 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             key.shadow.bias = -0.0004;
             key.shadow.normalBias = 0.02;
             scene.add(key); scene.add(key.target);
-            var rim = new THREE.DirectionalLight(0x8fb4ff, 0.5);
+            var rim = new THREE.DirectionalLight(0x8fb4ff, 0.85);
             rim.position.set(-3.2, 1.6, -2.6);
             scene.add(rim);
-            scene.add(new THREE.HemisphereLight(0x38332b, 0x0a0908, 0.35));
+            // The lamp's warm bounce off the bench and the room —
+            // a low, soft point of amber that keeps the rig's shadow
+            // side alive instead of dead black.
+            var bounce = new THREE.PointLight(0xffa95e, 5, 0, 2);
+            bounce.position.set(-2.4, 0.7, 1.9);
+            scene.add(bounce);
+            scene.add(new THREE.HemisphereLight(0x4a4034, 0x0d0b09, 0.55));
 
             // The workbench: a wide dark wood surface (procedural
             // grain, no asset) that catches the key's pool and the
             // rig's shadow, then falls away into fog and darkness.
             var bc = document.createElement('canvas'); bc.width = 512; bc.height = 512;
             var bg2 = bc.getContext('2d');
-            bg2.fillStyle = '#1a1511'; bg2.fillRect(0, 0, 512, 512);
+            bg2.fillStyle = '#2b211a'; bg2.fillRect(0, 0, 512, 512);
             for (var gi = 0; gi < 750; gi++) {
                 var gy = Math.random() * 512, gl = 60 + Math.random() * 380, gx = Math.random() * 512 - 40;
                 bg2.strokeStyle = Math.random() > 0.5
-                    ? 'rgba(216,184,142,' + (0.025 + Math.random() * 0.05) + ')'
-                    : 'rgba(0,0,0,' + (0.04 + Math.random() * 0.07) + ')';
+                    ? 'rgba(216,184,142,' + (0.05 + Math.random() * 0.075) + ')'
+                    : 'rgba(0,0,0,' + (0.05 + Math.random() * 0.08) + ')';
                 bg2.lineWidth = 0.6 + Math.random() * 2.2;
                 bg2.beginPath(); bg2.moveTo(gx, gy);
                 bg2.bezierCurveTo(gx + gl * 0.3, gy + (Math.random() * 3 - 1.5),
@@ -3781,7 +3799,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             benchTex.colorSpace = THREE.SRGBColorSpace;
             benchTex.anisotropy = 4;
             var bench = new THREE.Mesh(new THREE.PlaneGeometry(36, 36),
-                new THREE.MeshStandardMaterial({ map: benchTex, roughness: 0.86, metalness: 0, envMapIntensity: 0.35 }));
+                new THREE.MeshStandardMaterial({ map: benchTex, roughness: 0.78, metalness: 0, envMapIntensity: 0.6 }));
             bench.rotation.x = -Math.PI / 2; bench.position.y = -0.42;
             bench.receiveShadow = true;
             scene.add(bench);
@@ -3851,7 +3869,8 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
 
             plateU = {
                 uR: { value: null }, uM: { value: 2 },
-                uAmp: { value: 0 }, uPhase: { value: 1 }
+                uAmp: { value: 0 }, uPhase: { value: 1 },
+                uSharp: { value: 1 }
             };
             // Brushed steel: a radial-brushing texture drawn in
             // code — thousands of concentric arc strokes with
@@ -3862,33 +3881,57 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             var sc = document.createElement('canvas'); sc.width = 512; sc.height = 512;
             var sg = sc.getContext('2d');
             sg.fillStyle = 'rgb(70,70,70)'; sg.fillRect(0, 0, 512, 512);
-            for (var ai = 0; ai < 3400; ai++) {
+            for (var ai = 0; ai < 5200; ai++) {
                 var rr = Math.pow(Math.random(), 0.72) * 252 + 2;
                 var a0 = Math.random() * Math.PI * 2;
-                var bv = 56 + Math.floor(Math.random() * 34);
+                var bv = 46 + Math.floor(Math.random() * 58);
                 sg.strokeStyle = 'rgb(' + bv + ',' + bv + ',' + bv + ')';
                 sg.lineWidth = Math.random() < 0.85 ? 1 : 2;
                 sg.beginPath(); sg.arc(256, 256, rr, a0, a0 + 0.15 + Math.random() * 1.15); sg.stroke();
             }
-            for (var wi = 0; wi < 260; wi++) { // handling wear near the rim
+            for (var mi = 0; mi < 46; mi++) { // lathe machining bands: full, faint rings
+                var mr = 8 + Math.random() * 244;
+                var mv = 36 + Math.floor(Math.random() * 14);
+                sg.strokeStyle = 'rgba(' + mv + ',' + mv + ',' + mv + ',0.5)';
+                sg.lineWidth = 1;
+                sg.beginPath(); sg.arc(256, 256, mr, 0, Math.PI * 2); sg.stroke();
+            }
+            for (var wi = 0; wi < 320; wi++) { // handling wear near the rim
                 var wr = 232 + Math.random() * 22;
                 var wa = Math.random() * Math.PI * 2;
-                var wv = 92 + Math.floor(Math.random() * 26);
+                var wv = 104 + Math.floor(Math.random() * 34);
                 sg.strokeStyle = 'rgb(' + wv + ',' + wv + ',' + wv + ')';
                 sg.lineWidth = 1;
                 sg.beginPath(); sg.arc(256, 256, wr, wa, wa + 0.2 + Math.random() * 0.7); sg.stroke();
             }
             var brushTex = new THREE.CanvasTexture(sc);
             brushTex.anisotropy = 4;
-            var plateMat = new THREE.MeshStandardMaterial({
+            var plateMat = new THREE.MeshPhysicalMaterial({
                 color: 0x9fa6b1, metalness: 1.0, roughness: 1.0,
                 roughnessMap: brushTex, bumpMap: brushTex, bumpScale: 0.08,
-                envMapIntensity: 1.0
+                envMapIntensity: 1.15, clearcoat: 0.35, clearcoatRoughness: 0.42
             });
             plateMat.onBeforeCompile = function (shader) {
                 shader.uniforms.uR = plateU.uR; shader.uniforms.uM = plateU.uM;
                 shader.uniforms.uAmp = plateU.uAmp; shader.uniforms.uPhase = plateU.uPhase;
-                shader.vertexShader = 'uniform sampler2D uR;\nuniform float uM;\nuniform float uAmp;\nuniform float uPhase;\n' + shader.vertexShader;
+                shader.uniforms.uSharp = plateU.uSharp;
+                shader.vertexShader = 'uniform sampler2D uR;\nuniform float uM;\nuniform float uAmp;\nuniform float uPhase;\nvarying vec2 vFgXZ;\n' + shader.vertexShader;
+                // The piles ground themselves: where the figure has
+                // settled (the same mode shape, sampled in the
+                // fragment), the steel darkens a touch and warms —
+                // the soft contact shadow a real sand pile casts on
+                // the metal it rests on. It follows uSharp, so
+                // between resonances, with no settled figure, there
+                // is no shadow either.
+                shader.fragmentShader = 'uniform sampler2D uR;\nuniform float uM;\nuniform float uSharp;\nvarying vec2 vFgXZ;\n' + shader.fragmentShader;
+                shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>',
+                    '#include <color_fragment>\n' +
+                    'float fgRhoF = length(vFgXZ);\n' +
+                    'float fgRF = texture2D(uR, vec2(clamp(fgRhoF, 0.0, 1.0), 0.5)).r * 2.0 - 1.0;\n' +
+                    'float fgWF = fgRF * cos(uM * atan(vFgXZ.y, vFgXZ.x));\n' +
+                    'float fgPile = exp(-pow(fgWF / 0.09, 2.0)) * uSharp;\n' +
+                    'diffuseColor.rgb *= (1.0 - 0.34 * fgPile);\n' +
+                    'diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.03, 0.96, 0.85), fgPile * 0.55);\n');
                 shader.vertexShader = shader.vertexShader.replace('#include <beginnormal_vertex>',
                     '#include <beginnormal_vertex>\n' +
                     'float fgRho = length(position.xz);\n' +
@@ -3906,11 +3949,19 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                     'float fgGz = fgDWr * sin(fgTheta) + fgDWt * cos(fgTheta) / fgSafeR;\n' +
                     'objectNormal = normalize(vec3(-fgGx * uAmp * uPhase, 1.0, -fgGz * uAmp * uPhase));\n');
                 shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
-                    '#include <begin_vertex>\ntransformed.y += fgW * uAmp * uPhase;\n');
+                    '#include <begin_vertex>\ntransformed.y += fgW * uAmp * uPhase;\nvFgXZ = position.xz;\n');
             };
             var plate = new THREE.Mesh(plateGeometry(THREE, 0.0151), plateMat);
             plate.castShadow = true; plate.receiveShadow = true;
             scene.add(plate);
+            // A polished rim ring around the disc's edge: turned
+            // steel catches the key as one bright line, the edge
+            // every photograph of a real plate reads first.
+            var rimRing = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.0135, 20, 160),
+                new THREE.MeshStandardMaterial({ color: 0xc3c9d2, metalness: 1.0, roughness: 0.16, envMapIntensity: 1.35 }));
+            rimRing.rotation.x = Math.PI / 2;
+            rimRing.receiveShadow = true;
+            scene.add(rimRing);
 
             // Sand: one instanced octahedron per grain. Base positions
             // live in iPos (CPU-resampled on retargets); the shader
@@ -3935,7 +3986,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             sandGeo.setAttribute('iColor', colAttr);
             sandGeo.setAttribute('iSeed', seedAttr);
             sandGeo.instanceCount = N;
-            var sandMat = new THREE.MeshStandardMaterial({ color: 0xd8ab5e, roughness: 0.85, metalness: 0.05 });
+            var sandMat = new THREE.MeshStandardMaterial({ color: 0xdbb264, roughness: 0.52, metalness: 0.28, envMapIntensity: 0.9 });
             sandMat.onBeforeCompile = function (shader) {
                 shader.uniforms.uTime = sandU.uTime; shader.uniforms.uAmp = sandU.uAmp;
                 shader.uniforms.uPhase = sandU.uPhase; shader.uniforms.uAgit = sandU.uAgit;
@@ -3944,6 +3995,16 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                     'uniform float uTime;\nuniform float uAmp;\nuniform float uPhase;\nuniform float uAgit;\nuniform float uSharp;\n' + shader.vertexShader;
                 shader.vertexShader = shader.vertexShader.replace('#include <color_vertex>',
                     '#include <color_vertex>\nvIColor = iColor;\n');
+                // Each grain rests at its own angle, the way poured
+                // sand actually lands: rotate the grain and its
+                // normal by a seed-fixed tumble, so facets catch the
+                // key one grain at a time as the camera sways.
+                shader.vertexShader = shader.vertexShader.replace('#include <beginnormal_vertex>',
+                    '#include <beginnormal_vertex>\n' +
+                    'float fgA = iSeed * 6.28318; float fgCa = cos(fgA); float fgSa = sin(fgA);\n' +
+                    'float fgB = fract(iSeed * 3.71) * 3.0; float fgCb = cos(fgB); float fgSb = sin(fgB);\n' +
+                    'objectNormal = vec3(objectNormal.x * fgCa - objectNormal.z * fgSa, objectNormal.y, objectNormal.x * fgSa + objectNormal.z * fgCa);\n' +
+                    'objectNormal = vec3(objectNormal.x, objectNormal.y * fgCb - objectNormal.z * fgSb, objectNormal.y * fgSb + objectNormal.z * fgCb);\n');
                 shader.fragmentShader = 'varying vec3 vIColor;\n' + shader.fragmentShader;
                 shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>',
                     '#include <color_fragment>\ndiffuseColor.rgb *= vIColor;\n');
@@ -3952,8 +4013,11 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                     'float fgJit = uAgit * (1.0 - iSet * uSharp);\n' +
                     'transformed.x += sin(uTime * 12.7 + iSeed * 41.0) * 0.005 * fgJit;\n' +
                     'transformed.z += cos(uTime * 10.9 + iSeed * 53.0) * 0.005 * fgJit;\n' +
-                    'transformed.y += iW * uAmp * uPhase + abs(sin(uTime * 6.3 + iSeed * 29.0)) * 0.007 * fgJit;\n' +
-                    'transformed += position * (0.75 + 0.5 * fract(iSeed * 7.31));\n');
+                    'transformed.y += iW * uAmp * uPhase + abs(sin(uTime * 6.3 + iSeed * 29.0)) * 0.007 * fgJit + (fract(iSeed * 13.73) * 0.0042 + fract(iSeed * 5.39) * 0.0024) * iSet * uSharp;\n' +
+                    'vec3 fgP = position * (0.7 + 0.65 * fract(iSeed * 7.31));\n' +
+                    'fgP = vec3(fgP.x * fgCa - fgP.z * fgSa, fgP.y, fgP.x * fgSa + fgP.z * fgCa);\n' +
+                    'fgP = vec3(fgP.x, fgP.y * fgCb - fgP.z * fgSb, fgP.y * fgSb + fgP.z * fgCb);\n' +
+                    'transformed += fgP;\n');
             };
             var sand = new THREE.Mesh(sandGeo, sandMat);
             sand.frustumCulled = false;
@@ -3981,7 +4045,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             ctx2d.strokeStyle = 'rgba(255,255,255,0.14)'; ctx2d.lineWidth = Math.max(1, Rp * 0.006);
             ctx2d.beginPath(); ctx2d.arc(cx, cy, Rp, 0, 6.2831853); ctx2d.stroke();
             var gs = Math.max(1.3, Rp * 0.0075);
-            ctx2d.fillStyle = '#d8ab5e';
+            ctx2d.fillStyle = '#dbb264';
             for (var i = 0; i < N; i++) {
                 var j = reduce ? 0 : (1 - gSet[i] * cur.s);
                 var ox = Math.sin(tSec * 11 + gSeed[i] * 43) * 0.9 * j;
@@ -4102,6 +4166,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             trackFound(now);
             if (three && renderer) {
                 plateU.uAmp.value = ampCur;
+                plateU.uSharp.value = cur.s;
                 plateU.uPhase.value = reduce ? 0.9 : 0.76 + 0.24 * Math.cos(phase);
                 sandU.uTime.value = tSec;
                 sandU.uAgit.value = reduce ? 0 : (1 - cur.s) * 0.95;
@@ -4115,7 +4180,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                     rad * Math.sin(polE) * Math.cos(azE),
                     rad * Math.cos(polE),
                     rad * Math.sin(polE) * Math.sin(azE));
-                camera.lookAt(0, -0.06, 0);
+                camera.lookAt(0, -0.02, 0);
                 renderer.render(scene, camera);
                 if (fpsLevel < 2) {
                     fpsAcc += dt; fpsN++;
