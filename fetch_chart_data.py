@@ -150,6 +150,7 @@ INSTRUMENTS = [
     ("VIX", "^VIX", "VIX"),
     ("GOOGL", "GOOGL", "Alphabet / Google"),
     ("ASST", "ASST", "Strive (Asset Series)"),
+    ("SATS", "SATS", "Strive SATS Preferred Stock"),
     ("CIFR", "CIFR", "Cipher Mining"),
     ("SPCX", "SPCX", "SpaceX"),
     ("NBIS", "NBIS", "Nebius Group"),
@@ -161,6 +162,7 @@ INSTRUMENTS = [
     ("MU", "MU", "Micron Technology"),
     ("TSLA", "TSLA", "Tesla"),
     ("MSTR", "MSTR", "MicroStrategy / Strategy"),
+    ("STRC", "STRC", "Strategy Stretch Preferred Stock"),
     ("TSM", "TSM", "Taiwan Semiconductor"),
     ("LLY", "LLY", "Eli Lilly"),
     ("WM", "WM", "Waste Management"),
@@ -335,7 +337,26 @@ EDGAR_HEADERS = {"User-Agent": "Johnny O'Neal johnny-website@muse.ai",
                  "Accept": "application/json"}
 EDGAR_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 EDGAR_FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK%s.json"
-BENCHMARK_KEYS = {"SPX", "IXIC", "GOLD", "BTC", "VIX"} | BAND_KEYS  # no EPS exists
+# Johnny's two preferreds (added 2026-11-23): Strategy's STRC
+# (Variable Rate Series A Perpetual Stretch Preferred, listed
+# 2025-07-30) and Strive's SATS (15.00% Series A Perpetual SATS
+# Preferred, listed 2026-10-20). A preferred carries no earnings
+# of its own — in EDGAR's ticker map each preferred resolves to
+# its issuer's common-stock CIK (STRC to Strategy's, SATS to
+# Strive's) — so no P/E is ever built for them and their signals
+# run in the no-PEG class, exactly like the benchmarks and the
+# band: the main door and the sell rule drop the PEG leg, the
+# -40% stand-in door does not apply (that door exists for
+# ordinary stocks whose PEG fails to compute; here PEG never
+# applies), and the quality door, the B1 door and the S4 veto,
+# which all read earnings or PEG, can never fire. Their histories
+# (hundreds of bars for STRC, weeks for SATS) are far short of
+# the 1,000 closes the 200-week average needs, so that leg stays
+# undefined and the gate cannot fire yet — the same honest state
+# ASST sits in today.
+PREFERRED_KEYS = {"STRC", "SATS"}
+BENCHMARK_KEYS = {"SPX", "IXIC", "GOLD", "BTC", "VIX"} | BAND_KEYS \
+    | PREFERRED_KEYS  # no EPS exists
 PE_EXCLUDE = {"TSM"}  # reported per-share basis != listed ADR price
 
 
@@ -1063,6 +1084,31 @@ def earnings_daily_state(events, bar_dates):
 # prints carry no computable EPS year-over-year change, and
 # the gate itself still cannot fire on ASST (its history is
 # shorter than the 1,000 closes the 200-week average needs).
+# Preferred zones (added 2026-11-23; Johnny's settled STRC/
+# SATS buy formula, from the preferred-formula studies of the
+# same day): the two $100-stated-value preferreds — STRC
+# (Strategy) and SATS (Strive) — do not take the gate above at
+# all on the buy side. Their buy dots are discount zones below
+# the $100 stated value, the discount alone deciding (no RSI,
+# VIX, drawdown, PEG or any other leg, and no steering-wheel
+# guard — Johnny considered the guard and rejected it):
+# Shallow fires on the first close <= $99, Deep on the first
+# close <= $95, Distress on the first close <= $85 — one dot
+# per zone entry, the zones independent, so a single day's
+# gap can enter several zones at once (SATS entered Shallow
+# and Deep on its listing day). A zone re-arms only after a
+# close back above the next boundary up: Shallow on a close
+# >= $100, Deep on a close > $99, Distress on a close > $95.
+# On the history the studies scored (through 2026-11-20) the
+# rule dots 10 STRC days (Shallow 4, Deep 5, Distress 1) and
+# 2 SATS days. The SELL side is NOT replaced: no preferred
+# sell rule has been decided, so the preferreds keep the
+# no-PEG gate sell below — which cannot fire while their
+# 200-week average is undefined (0 defined days on both
+# series today) — and no sell rule is invented here in the
+# meantime. The >= 85 score never applies to them either
+# (see compute_score_buy_days): their buy dots are the zone
+# dots alone.
 # SELL (every condition held for 5 consecutive trading days; the
 # signal is live from the 5th day through the end of the run):
 #   stocks:          RSI(14) > 70, VIX < 15, PEG >= 2,
@@ -1078,7 +1124,8 @@ def earnings_daily_state(events, bar_dates):
 # today; RSI(14) is Wilder's; the VIX is aligned point-in-time (the
 # last VIX close on or before the series' own date).
 
-_SIGNAL_NO_PEG_KEYS = {"SPX", "IXIC", "GOLD", "BTC"} | BAND_KEYS
+_SIGNAL_NO_PEG_KEYS = {"SPX", "IXIC", "GOLD", "BTC"} | BAND_KEYS \
+    | PREFERRED_KEYS
 # The index class inside the no-PEG keys: SPX and IXIC buy at the
 # wider -25% drawdown line (see the index split note above); every
 # other no-PEG key keeps -30%.
@@ -1169,6 +1216,41 @@ def _sig_peg(bars, pe):
     return out
 
 
+# The preferreds' zone rules (see the Preferred zones note
+# above compute_indicator_signals): (entry close, re-arm test)
+# per zone, in Shallow / Deep / Distress order. A zone fires
+# on the first close at or below its entry while armed, then
+# disarms; it re-arms only on a close back above the next
+# boundary up — Shallow at par itself (>= $100), Deep above
+# the Shallow entry (> $99), Distress above the Deep entry
+# (> $95).
+_PREFERRED_ZONE_RULES = (
+    (99.0, lambda c: c >= 100.0),
+    (95.0, lambda c: c > 99.0),
+    (85.0, lambda c: c > 95.0),
+)
+
+
+def _preferred_zone_buys(dates, closes):
+    """Buy dates for STRC/SATS under Johnny's settled preferred
+    formula: one dot per entry into each discount zone below
+    the $100 stated value. The zones are independent — a day
+    that gaps through two zones enters both — and every zone
+    starts armed, so a series that lists below a boundary
+    (SATS listed at $94.61) enters its zones on its first bar."""
+    out = []
+    for entry, rearm in _PREFERRED_ZONE_RULES:
+        armed = True
+        for i, c in enumerate(closes):
+            if armed:
+                if c <= entry:
+                    out.append(dates[i])
+                    armed = False
+            elif rearm(c):
+                armed = True
+    return sorted(out)
+
+
 def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes,
                               earn=None):
     """(buy_dates, sell_dates) for one daily series. `earn`, when
@@ -1179,6 +1261,13 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes,
     dates = [b[0] for b in bars]
     closes = [float(b[4]) for b in bars]
     n = len(closes)
+    # STRC/SATS: the preferred zone formula replaces the gate
+    # on the buy side (see the Preferred zones note above).
+    # The gate loop below still runs for them — their sell
+    # side is the gate's no-PEG sell, exactly as staged — and
+    # its buy result is discarded at the return.
+    zone_buy = _preferred_zone_buys(dates, closes) \
+        if key in PREFERRED_KEYS else None
     ma = _sig_ma200w(closes)
     rsi = _sig_rsi(closes)
     dd = _sig_drawdown(closes)
@@ -1275,6 +1364,8 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes,
                 if not clean:
                     kept.extend(r)
             sell_idx = kept
+    if zone_buy is not None:
+        buy = zone_buy
     return buy, [dates[i] for i in sell_idx]
 
 
@@ -1295,6 +1386,17 @@ def compute_score_buy_days(key, bars, pe, vix_dates, vix_closes):
     15 (deviation <=-30/-20/-10/+10/+25% -> 15/13/10/5/2),
     VIX 10 (>=30/25/20/15 -> 10/8/5/2). A day is scored only
     where the RSI and the 200-week average are defined."""
+    if key in PREFERRED_KEYS:
+        # The >= 85 score never applies to the preferreds:
+        # their buy dots are the L3 zone dots alone (Johnny's
+        # settled formula), and the score's legs — PEG stand-in,
+        # distance from the 200-week average — have no meaning
+        # on a $100-stated-value instrument. The exclusion is
+        # stated, not emergent: the score below could not fire
+        # for them today anyway (it scores only days where the
+        # 200-week average is defined — 0 such days on both
+        # series), but it stays excluded when that changes.
+        return []
     dates = [b[0] for b in bars]
     closes = [float(b[4]) for b in bars]
     n = len(closes)
