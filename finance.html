@@ -302,6 +302,14 @@
         .chart-controls .selector-group label, .chart-controls .selector-group .group-label { display: inline; margin: 0; white-space: nowrap; }
         .chart-controls .selector-group select, .chart-controls .selector-group .stock-dd { flex: 1 1 auto; min-width: 0; }
         .chart-controls .filter-pill { padding-left: 8px; padding-right: 8px; }
+        /* Short ranges (2026-11-23): with eight pills the range
+           row needs 348px at phone widths and the controls give
+           it 323 — it wrapped to two lines. The row's own spacing
+           trims (this breakpoint already trims every pill's
+           padding from 14px to 8px); the type size and the pill
+           height are untouched. */
+        #chartRanges { gap: 0.35rem; }
+        #chartRanges .filter-pill { padding-left: 6px; padding-right: 6px; }
         #chartPicks { gap: 0.3rem; }
         #chartPicks .filter-pill { padding-left: 5px; padding-right: 5px; font-size: 0.8rem; }
     }
@@ -1884,7 +1892,6 @@
     .collapsible-section:has(> .section-body[hidden]) { padding-bottom: 10px; }
     .collapsible-section > .section-title .section-toggle { white-space: normal; }
     .collapsible-section > .section-title .section-toggle .section-chevron { flex: none; }
-    #chartFsBtn { width: 44px; height: 44px; min-width: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 </style>
 </head>
 <body>
@@ -1972,6 +1979,10 @@
             <button type="button" class="filter-pill" id="chartToolsBtn" aria-expanded="false" aria-controls="chartTools">Chart tools<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
             <div id="chartTools" hidden>
             <div class="chip-row" id="chartRanges" role="group" aria-label="Chart range">
+                <button type="button" class="filter-pill" data-range="1D">1D</button>
+                <button type="button" class="filter-pill" data-range="1W">1W</button>
+                <button type="button" class="filter-pill" data-range="1M">1M</button>
+                <button type="button" class="filter-pill" data-range="6M">6M</button>
                 <button type="button" class="filter-pill" data-range="1Y">1Y</button>
                 <button type="button" class="filter-pill active" data-range="5Y">5Y</button>
                 <button type="button" class="filter-pill" data-range="10Y">10Y</button>
@@ -1982,16 +1993,13 @@
                 <button type="button" class="filter-pill" data-style="candles">Candles</button>
             </div>
             <div class="chip-row" id="chartModes" role="group" aria-label="Chart data mode">
-                <button type="button" class="filter-pill active" data-mode="weekly">Weekly</button>
-                <button type="button" class="filter-pill" data-mode="daily">Daily</button>
+                <button type="button" class="filter-pill" data-mode="weekly">Weekly</button>
+                <button type="button" class="filter-pill active" data-mode="daily">Daily</button>
             </div>
             <div class="chip-row" id="chartPanes" role="group" aria-label="Chart panes">
                 <button type="button" class="filter-pill" data-pane="volume" aria-pressed="true">Volume</button>
                 <button type="button" class="filter-pill" data-pane="rsi" aria-pressed="true">RSI</button>
                 <button type="button" class="filter-pill" data-pane="pe" aria-pressed="false">P/E</button>
-            </div>
-            <div class="chip-row" id="chartView" role="group" aria-label="Chart view">
-                <button type="button" class="filter-pill chart-fs-btn" id="chartFsBtn" aria-pressed="false" aria-label="Full screen"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button>
             </div>
             </div>
         </div>
@@ -2089,30 +2097,27 @@
     <script>
     // Chart tools fold (2026-11-16): the chart's default face is
     // the quick picks, the stock picker and the canvas. The range,
-    // style, mode, pane and full-screen groups live behind this
-    // one toggle — nothing is removed, every control works exactly
-    // as before from inside the fold, and the choice persists per
-    // browser in the chart's own key family. Toggling fires the
-    // window resize the chart and the stage-fit already listen to,
-    // so the canvas and the key's floor are re-measured in both
-    // states; the fold lives inside #chart-body, so full-screen
-    // mode offers the same toggle with the same state.
+    // style, mode and pane groups live behind this one toggle —
+    // nothing is removed, every control works exactly as before
+    // from inside the fold. Opening state (Johnny, 2026-11-23):
+    // the fold starts COLLAPSED on every visit — the open/closed
+    // choice is not carried across visits; opening or closing it
+    // lasts the visit. Toggling fires the window resize the chart
+    // and the stage-fit already listen to, so the canvas and the
+    // key's floor are re-measured in both states; the fold lives
+    // inside #chart-body, so full-screen mode offers the same
+    // toggle with the same state.
     (function () {
         "use strict";
-        var TOOLS_KEY = "jbo-chart-tools-v1";
         var btn = document.getElementById("chartToolsBtn");
         var tools = document.getElementById("chartTools");
         if (!btn || !tools) return;
-        function setOpen(open, store) {
+        function setOpen(open) {
             tools.hidden = !open;
             btn.setAttribute("aria-expanded", open ? "true" : "false");
-            if (store) { try { window.localStorage.setItem(TOOLS_KEY, open ? "1" : "0"); } catch (e) { /* storage unavailable */ } }
             window.dispatchEvent(new Event("resize"));
         }
-        var startOpen = false;
-        try { startOpen = window.localStorage.getItem(TOOLS_KEY) === "1"; } catch (e) { /* storage unavailable */ }
-        if (startOpen) setOpen(true, false);
-        btn.addEventListener("click", function () { setOpen(tools.hidden, true); });
+        btn.addEventListener("click", function () { setOpen(tools.hidden); });
     })();
     </script>
     <!-- Investment Scoreboard -->
@@ -6922,7 +6927,8 @@ if (typeof module !== "undefined") {
     // shared loader), and Weekly is the view the toggle offers.
     // In Daily the gauges take their canonical daily forms
     // (200-day / 50-day averages, daily RSI, 20-day volume average)
-    // and every range (1Y / 5Y / 10Y / All) draws daily bars. Until
+    // and every range (1D / 1W / 1M / 6M / 1Y / 5Y / 10Y / All)
+    // draws daily bars. Until
     // 2026-11-20 the daily file carried only the last five years,
     // so Daily was refused on 10Y and All and the chart fell back
     // to Weekly there; the pipeline now fetches daily bars from
@@ -6955,15 +6961,23 @@ if (typeof module !== "undefined") {
         var RSI_GUIDE_COLOR = "rgba(126, 87, 194, 0.5)";
         // The P/E pane's median line: the P/E's own teal, same treatment.
         var PE_GUIDE_COLOR = "rgba(45, 212, 191, 0.5)";
-        var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1", MODE_KEY = "jbo-chart-mode-v1", IND_KEY = "jbo-chart-ind-v1";
+        var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1", IND_KEY = "jbo-chart-ind-v1";
         var PICK_KEYS = ["SPX", "IXIC", "GOLD", "BTC", "VIX"];
-        var RANGE_WEEKS = { "1Y": 52, "5Y": 260, "10Y": 520, "ALL": Infinity };
+        // Weekly ranges, counted in week bars (52 to a year).
+        // The short ranges (2026-11-23) convert the same way the
+        // year ranges do — a label's span in bars of the current
+        // granularity: 1D and 1W are both the last week bar (a
+        // span under a week has no smaller weekly unit), 1M is
+        // 4 (21 trading days ≈ 4.2 weeks), 6M is half of 52.
+        var RANGE_WEEKS = { "1D": 1, "1W": 1, "1M": 4, "6M": 26, "1Y": 52, "5Y": 260, "10Y": 520, "ALL": Infinity };
         // Daily ranges, counted in trading days (252 to a year):
         // 1Y / 5Y / 10Y are fixed counts of days; All is the whole
         // daily file, which reaches back to 2000 like the weekly
         // file (or to an instrument's own first trading day, where
-        // that is later).
-        var RANGE_DAYS = { "1Y": 252, "5Y": 1260, "10Y": 2520, "ALL": Infinity };
+        // that is later). The short ranges are trading-day counts
+        // too: 1D the last trading day, 1W the last 5, 1M the
+        // last 21, 6M the last 126.
+        var RANGE_DAYS = { "1D": 1, "1W": 5, "1M": 21, "6M": 126, "1Y": 252, "5Y": 1260, "10Y": 2520, "ALL": Infinity };
         var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         var chartData = null, loadStarted = false, loadFailed = false;
         // The Daily view's data: a second file, fetched lazily the
@@ -6998,11 +7012,14 @@ if (typeof module !== "undefined") {
             peOn = window.localStorage.getItem(PE_KEY) === "1";
             volOn = window.localStorage.getItem(VOL_KEY) !== "0";
             rsiOn = window.localStorage.getItem(RSI_KEY) !== "0";
-            // The mode persists like the pane choices: a visitor
-            // whose last view was Weekly reopens on Weekly — still
-            // the S&P 500, still the 5-year range, still a line.
-            // With nothing stored, the chart opens on Daily.
-            if (window.localStorage.getItem(MODE_KEY) === "weekly") mode = "weekly";
+            // Opening state (Johnny, 2026-11-23): the chart
+            // opens on Daily, the 5-year range and a line, on
+            // every visit — the granularity is not carried
+            // across visits. A visitor's Weekly switch lasts
+            // the visit only, like the range and the style,
+            // which were never stored. The pane choices below
+            // still persist; they are not part of the opening
+            // state he named.
         } catch (e) { /* storage unavailable: the defaults stand */ }
         var pendingKey = null;
         var hover = -1; // full-series index under the pointer; -1 = latest bar
@@ -7970,7 +7987,6 @@ if (typeof module !== "undefined") {
         function setMode(m) {
             if (m === mode) return;
             mode = m; hover = -1; zoom = null; modeNote = "";
-            try { window.localStorage.setItem(MODE_KEY, mode); } catch (err) { /* storage unavailable */ }
             syncControls();
             if (mode === "daily") ensureDaily(); else render();
         }
@@ -8203,8 +8219,10 @@ if (typeof module !== "undefined") {
         // The button at the right end of the section's title row
         // takes the WHOLE chart block — #chart — full screen (the
         // front door, the keys and the notes step aside inside
-        // the mode, so the graph itself fills the screen); the ⤢ pill in
-        // Chart tools is a second door to the same mode. Two
+        // the mode, so the graph itself fills the screen). It is
+        // the ONLY full-screen control (Johnny, 2026-11-23: no
+        // second door inside Chart tools — the title-row icon is
+        // available at all times, tools open or closed). Two
         // mechanisms, one mode: the Fullscreen API where the
         // browser offers element fullscreen, and where it does not
         // (iPhone Safari) the block pins itself over the page under
@@ -8223,18 +8241,12 @@ if (typeof module !== "undefined") {
         // restores it on exit; native fullscreen needs no lock.
         // The reader is never trapped: they tapped to get in, and
         // the way out is labelled and always in reach.
-        var fsBtn = document.getElementById("chartFsBtn");
         var fsTitleBtn = document.getElementById("chartFsTitleBtn");
         var fsSection = document.getElementById("chart");
         var fsFallback = false;
         var fsSaved = null;
         function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
         function syncFsButtons(on) {
-            if (fsBtn) {
-                fsBtn.setAttribute("aria-pressed", on ? "true" : "false");
-                fsBtn.setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
-                fsBtn.classList.toggle("chart-fs-on", on);
-            }
             if (fsTitleBtn) {
                 fsTitleBtn.setAttribute("aria-pressed", on ? "true" : "false");
                 fsTitleBtn.setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
@@ -8301,7 +8313,6 @@ if (typeof module !== "undefined") {
                 enterFsFallback();
             }
         }
-        if (fsBtn) fsBtn.addEventListener("click", toggleFs);
         if (fsTitleBtn) fsTitleBtn.addEventListener("click", toggleFs);
         document.addEventListener("fullscreenchange", syncFs);
         document.addEventListener("webkitfullscreenchange", syncFs);
@@ -8335,6 +8346,12 @@ if (typeof module !== "undefined") {
             // finger still down, that finger is ignored until it
             // lifts, so the crosshair never jumps mid-gesture.
             var ptrs = {}, gest = null, gestBlock = false, lastTap = { t: 0, x: 0, y: 0 };
+            // The mouse's drag state (2026-11-23): a press snapshots
+            // the drawn window; movement past the Bitcoin charts'
+            // 3px threshold pans a zoomed window by the dragged
+            // amount. Touch never reads this — its arbitration
+            // above is unchanged.
+            var mDrag = null;
             function ptrId(e) { return (e.pointerId === undefined || e.pointerId === null) ? "p" : e.pointerId; }
             function setZoomWindow(sF, eF) {
                 if (rangeEnd < rangeStart) return;
@@ -8421,6 +8438,9 @@ if (typeof module !== "undefined") {
                         lastTap = { t: now, x: e.clientX, y: e.clientY };
                     }
                 }
+                if (e.pointerType === "mouse" && view) {
+                    mDrag = { x: e.clientX, y: e.clientY, start: view.start, end: view.end, zoomed: (view.end - view.start) < (rangeEnd - rangeStart), moved: false };
+                }
                 onPointer(e);
             });
             canvas.addEventListener("pointermove", function (e) {
@@ -8443,10 +8463,35 @@ if (typeof module !== "undefined") {
                 // pointerdown. In the full-screen view nothing here
                 // changes: drags inspect and the two-pointer
                 // gesture pans and zooms there, as before.
+                // The mouse's drag (2026-11-23, the Bitcoin charts'
+                // contract): past a 3px threshold a held drag PANS a
+                // zoomed window — the bar under the cursor stays
+                // under the cursor, driven through the same
+                // setZoomWindow clamps the two-finger gesture uses —
+                // and the inspection is suspended while it moves.
+                // At the full range window there is nothing to pan,
+                // and the shipped behaviour below stands: in page
+                // view a held move does nothing (the reader is
+                // scrolling or selecting); in the full-screen view
+                // it inspects, as before.
+                if (e.pointerType === "mouse" && e.buttons && mDrag && mDrag.zoomed && layout && layout.plotW) {
+                    var mdx = e.clientX - mDrag.x, mdy = e.clientY - mDrag.y;
+                    if (mDrag.moved || Math.abs(mdx) + Math.abs(mdy) > 3) {
+                        mDrag.moved = true;
+                        var mc0 = mDrag.end - mDrag.start + 1;
+                        var msF = mDrag.start - (mdx / layout.plotW) * (mc0 - 1);
+                        setZoomWindow(msF, msF + mc0 - 1);
+                        canvas.style.cursor = "grabbing";
+                        return;
+                    }
+                }
                 if (!fsOn && e.buttons && e.pointerType === "mouse") return;
                 onPointer(e);
             });
-            canvas.addEventListener("pointerup", function (e) { gestureEnd(ptrId(e)); });
+            canvas.addEventListener("pointerup", function (e) {
+                gestureEnd(ptrId(e));
+                if (e.pointerType === "mouse") { mDrag = null; canvas.style.cursor = ""; }
+            });
             canvas.addEventListener("pointerleave", function (e) {
                 // A lifted touch finger fires pointerleave too (the
                 // event-stream diagnostic is in
@@ -8462,10 +8507,12 @@ if (typeof module !== "undefined") {
                 // stays after the finger lifts).
                 if (e.pointerType && e.pointerType !== "mouse") return;
                 ptrs = {}; gest = null; gestBlock = false;
+                mDrag = null; canvas.style.cursor = "";
                 if (hover !== -1) { hover = -1; render(); }
             });
             canvas.addEventListener("pointercancel", function (e) {
                 gestureEnd(ptrId(e));
+                if (e.pointerType === "mouse") { mDrag = null; canvas.style.cursor = ""; }
                 if (hover !== -1) { hover = -1; render(); }
             });
             // With two fingers down, the gesture belongs to the
@@ -8483,6 +8530,38 @@ if (typeof module !== "undefined") {
                 if (e.touches && e.touches.length >= 2) e.preventDefault();
             }, { passive: false });
             canvas.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+            // ---- mouse wheel + trackpad: zoom at the cursor ----
+            // The Bitcoin charts' wheel contract, mirrored
+            // (2026-11-23): the wheel over the chart zooms the
+            // chart and never scrolls the page (preventDefault,
+            // non-passive); the zoom centres on the cursor — the
+            // bar under it stays under it — at the Bitcoin rate,
+            // exp(deltaY × 0.0016) with line-mode deltas ×33, so a
+            // trackpad pinch (which arrives as ctrl+wheel with
+            // small deltas) zooms smoothly through the same path.
+            // The window moves through setZoomWindow, so the
+            // clamps are the touch gesture's own: the active range
+            // is the widest, 26 bars the narrowest. After the zoom
+            // the inspection re-reads the bar under the cursor in
+            // the new view, as the Bitcoin readout does. A wheel
+            // anywhere off the chart is untouched and scrolls the
+            // page as normal.
+            canvas.addEventListener("wheel", function (e) {
+                e.preventDefault();
+                if (!view || !layout || !layout.plotW || gest) return;
+                var rect = canvas.getBoundingClientRect();
+                if (!rect.width) return;
+                var dy = e.deltaY * (e.deltaMode === 1 ? 33 : 1);
+                if (!dy) return;
+                var wCount = view.end - view.start + 1;
+                var wf = (e.clientX - rect.left - 6) / layout.plotW;
+                wf = Math.max(0, Math.min(1, wf));
+                var wAnchor = view.start + wf * (view.end - view.start);
+                var wC = wCount * Math.exp(dy * 0.0016);
+                var wS = wAnchor - wf * (wC - 1);
+                setZoomWindow(wS, wS + wC - 1);
+                onPointer(e);
+            }, { passive: false });
         }
         var themeToggle = document.getElementById("theme-toggle");
         if (themeToggle) themeToggle.addEventListener("change", function () {
@@ -8522,7 +8601,6 @@ if (typeof module !== "undefined") {
                         // to Weekly and say so in the data note —
                         // never a blank or half-switched chart.
                         mode = "weekly";
-                        try { window.localStorage.setItem(MODE_KEY, "weekly"); } catch (err) { /* storage unavailable */ }
                         modeNote = "Daily data couldn’t be loaded — showing the weekly view.";
                         syncControls(); render();
                     }
