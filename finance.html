@@ -502,8 +502,8 @@
     .fin-dots-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: min(19rem, calc(100vw - 2rem)); max-height: min(24rem, 62vh); overflow-y: auto; padding: 0 0 0.35rem; }
     .fin-dots-panel[hidden] { display: none; }
     .fin-dots-head { position: sticky; display: flex; align-items: center; gap: 0.5rem; width: 100%; height: 2.75rem; padding: 0 0.8rem; box-sizing: border-box; background: var(--glass-bg-solid); color: var(--text-color); font-size: 0.9rem; font-weight: 700; z-index: 1; }
-    #finDotsBuyHead { top: 0; z-index: 2; border-radius: var(--glass-radius) var(--glass-radius) 0 0; }
-    #finDotsSellHead { top: 2.75rem; }
+    #finDotsHead { top: 0; z-index: 2; border-radius: var(--glass-radius) var(--glass-radius) 0 0; }
+    .fin-dots-side { display: inline-flex; align-items: center; gap: 0.45rem; min-width: 0; }
     .fin-dots-list { display: flex; flex-direction: column; padding: 0.15rem 0.35rem 0.3rem; }
     .fin-dots-opt { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; padding: 0.55rem 0.45rem; border: none; border-radius: 8px; background: none; color: var(--text-color); font-family: inherit; font-size: 0.95rem; text-align: left; cursor: pointer; }
     .fin-dots-opt:hover, .fin-dots-opt:focus-visible { background: var(--badge-bg); }
@@ -1541,6 +1541,10 @@
     .pulse-line .pulse-dot.sell { background: #ef4444; }
     body.light-mode .pulse-line .pulse-dot { background: #16a34a; }
     body.light-mode .pulse-line .pulse-dot.sell { background: #dc2626; }
+    /* The Chart carries no pulse line (Johnny, 2026-11-22): its
+       freshest dots live in the Latest dots dropdown beside the
+       indicator switch — one carrier for those facts, so the two
+       "last buy / last sell" rows that stood here are removed. */
     /* Fullscreen keeps its pre-frame look exactly: no frame edges, and
        the pulse lines hide like the glosses they replaced. */
     #chart:fullscreen, #chart:-webkit-full-screen, #chart.chart-fs,
@@ -1548,7 +1552,6 @@
     #screener:fullscreen, #screener:-webkit-full-screen, #screener.sc-fs,
     #committee:fullscreen, #committee:-webkit-full-screen, #committee.cm-fs,
     #backtest:fullscreen, #backtest:-webkit-full-screen, #backtest.bt-fs { border: none; border-radius: 0; }
-    #chart:fullscreen > .pulse-line, #chart:-webkit-full-screen > .pulse-line, #chart.chart-fs > .pulse-line,
     #scoreboard:fullscreen > .pulse-line, #scoreboard:-webkit-full-screen > .pulse-line, #scoreboard.sb-fs > .pulse-line,
     #screener:fullscreen > .pulse-line, #screener:-webkit-full-screen > .pulse-line, #screener.sc-fs > .pulse-line,
     #backtest:fullscreen > .pulse-line, #backtest:-webkit-full-screen > .pulse-line, #backtest.bt-fs > .pulse-line { display: none; }
@@ -1569,13 +1572,74 @@
        leaves at 393 (measured: Drill Down, Scoreboard, Committee), so
        those buttons stand on their own right-aligned row directly
        beneath the title — and the pin stays the title alone. */
+    /* --pin-bg: the pinned bars' solid backing — the card colour
+       composited over the page colour, computed per theme (dark:
+       rgba(22,27,34,.75) over #07090e = #12171d; light:
+       rgba(243,238,223,.92) over #F7F1E3 = #f3eedf) — exactly the
+       colour the framed card surface itself renders. */
+    :root { --pin-bg: #12171d; }
+    body.light-mode { --pin-bg: #f3eedf; }
     .collapsible-section > .section-title {
         display: flex; align-items: center; flex-wrap: wrap;
         font-size: 1.1rem; font-weight: 700; line-height: 1.25;
         min-height: 44px; padding-top: 0; padding-bottom: 0;
-        background-color: var(--bg-color);
-        background-image: linear-gradient(var(--card-bg), var(--card-bg));
+        background-color: var(--pin-bg);
+        background-image: none;
     }
+    /* Pin cure (2026-11-22, from Johnny's iPhone videos): the pinned
+       bars GHOSTED — section content bled through them, and one
+       section's bar painted over another's mid-scroll. The backing
+       had been the card colour laid over the page colour as a
+       gradient image; that paint is not reliable on a sticky bar on
+       iOS. The bars now wear the one solid composited colour above
+       as a plain background-color with no image, and the stacking
+       order is explicit: the site header (z-index 1000) above the
+       investor name bar (850) above the section titles (800) above
+       everything inside a section (the table header pins ride at
+       4–5 inside their own wrap, under their section's title by
+       construction). A title's travel stays fenced to its own
+       section — sticky is bounded by the section's box, so a pin
+       releases when its section ends and two pins never overlap.
+       The investor name bar shares the bars' paint, so it gets the
+       same solid backing. */
+    .investor-pin-bar { background-color: var(--pin-bg); background-image: none; }
+    /* Scoreboard board (Johnny, 2026-11-22): one screen, plug and
+       play. A plain label line, single-select investor chips whose
+       selected chip is LIT (filled accent — state readable on the
+       chip itself), a heading that names the view, and one-line
+       rows (~26px) so the label + chips + all 19 rows fit a phone
+       screen together. Tapping a chip re-grades the table in place:
+       nothing moves, nothing scrolls. */
+    .sb-lens-label { font-size: 0.95rem; line-height: 1.4; color: var(--subtext-color); margin: 2px 0 6px; }
+    #scoreboardInvestors { gap: 5px; }
+    #scoreboardInvestors .filter-pill { font-size: 11.5px; padding: 4px 7px; }
+    #scoreboardInvestors .filter-pill.sb-lens-on { background: var(--accent-color); border-color: var(--accent-color); color: #fff; font-weight: 600; }
+    .sb-board-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0 2px; }
+    .sb-board-heading { font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; font-weight: 600; margin: 0; white-space: nowrap; }
+    .sb-board-head .selector-group { display: flex; flex-direction: row; align-items: center; gap: 6px; max-width: none !important; }
+    .sb-board-head .selector-group label { margin: 0; font-size: 0.8rem; }
+    .sb-board-head .selector-group select { padding: 4px 6px; font-size: 0.85rem; }
+    /* The compact board's table rules carry the same :has()
+       selector as the two angled-header layout blocks above, so
+       they win on order: those blocks sized a 20-column table
+       (7.375rem angled header row, stacked score cell, wrapping
+       name cell) that this board no longer has. */
+    #scoreboard .spreadsheet-container:has(#scoreboardBody) table { table-layout: fixed; width: 100%; }
+    #scoreboard .spreadsheet-container:has(#scoreboardBody) th,
+    #scoreboard .spreadsheet-container:has(#scoreboardBody) td { box-sizing: border-box; padding: 1px 8px; }
+    #scoreboard .spreadsheet-container:has(#scoreboardBody) thead th { height: auto; vertical-align: middle; line-height: 1.3; }
+    #scoreboard .spreadsheet-container:has(#scoreboardBody) .score-cell-btn { line-height: 1.2; }
+    #scoreboard .spreadsheet-container:has(#scoreboardBody) th:first-child { width: 62%; white-space: nowrap; }
+    #scoreboard .spreadsheet-container:has(#scoreboardBody) th:nth-child(2) { width: 38%; min-width: 0; }
+    #scoreboard .spreadsheet-container:has(#scoreboardBody) td:first-child:not(.empty-state) { white-space: nowrap; }
+    #scoreboard .spreadsheet-container:has(#scoreboardBody) .score-cell-btn strong { display: inline; }
+    #scoreboardBody td { font-size: 12.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #scoreboardBody .sb-co-name, #scoreboardBody .sb-co-sub { display: inline; }
+    #scoreboardBody .score-cell-btn { display: block; width: 100%; padding: 1px 2px; text-align: left; }
+    #scoreboardBody .score-cell-btn strong { font-size: 13.5px; }
+    #scoreboardBody .sb-frac { color: var(--subtext-color); font-size: 11px; margin-left: 5px; }
+    #scoreboardBody .sb-bar { display: block; height: 3px; margin-top: 1px; background: var(--border-color); border-radius: 2px; overflow: hidden; }
+    #scoreboardBody .sb-bar > span { display: block; height: 100%; background: var(--accent-color); border-radius: 2px; }
     /* A section title keeps the text colour in every state — no
        link-blue flash when the Drill Down's title is tapped. */
     .section-toggle:hover, .section-toggle:active { color: inherit; }
@@ -1587,6 +1651,15 @@
         align-items: center; justify-content: center;
     }
     #screener > .chart-fs-btn, #scoreboard > .chart-fs-btn, #committee > .chart-fs-btn { display: flex; margin: 6px 0 0 auto; }
+    /* Closed sections carry no Full screen icon (Johnny, 2026-11-22):
+       on a closed Drill Down or Committee the icon read as clutter
+       and floated over the pinned title's text in his video. The
+       button appears with the opened tool — the same
+       :has(> body[hidden]) shape the chart key's fold uses — and
+       stays on screen inside full screen as the exit, since the
+       body is not hidden there. */
+    #screener:has(> #screener-body[hidden]) > #screenerFsBtn,
+    #committee:has(> #committee-body[hidden]) > #committeeFsBtn { display: none; }
     #chartFsBtn { width: 44px; height: 44px; min-width: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 </style>
 </head>
@@ -1652,7 +1725,6 @@
     </div>
     <div class="chart-section collapsible-section" id="chart">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="chart" aria-expanded="true" aria-controls="chart-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> The Chart</button><button type="button" class="filter-pill chart-share-btn" id="chartShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button><button type="button" class="filter-pill chart-fs-btn" id="chartFsTitleBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
-        <p class="pulse-line" id="chartPulse" hidden></p>
         <div class="section-body" id="chart-body">
         <div class="chip-row" id="chartPicks" role="group" aria-label="Chart quick picks">
             <button type="button" class="filter-pill active" data-key="SPX">S&amp;P 500</button>
@@ -1709,10 +1781,8 @@
         <div class="fin-dots" id="finDots">
             <button type="button" class="filter-pill" id="finDotsBtn" aria-haspopup="true" aria-expanded="false" aria-controls="finDotsPanel">Latest dots<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
             <div class="fin-dots-panel glass-bubble" id="finDotsPanel" hidden>
-                <div class="fin-dots-head" id="finDotsBuyHead"><span class="tv-key-dot tv-key-dot-buy" aria-hidden="true"></span>Latest buy dots</div>
-                <div class="fin-dots-list" id="finDotsBuy"></div>
-                <div class="fin-dots-head" id="finDotsSellHead"><span class="tv-key-dot tv-key-dot-sell" aria-hidden="true"></span>Latest sell dots</div>
-                <div class="fin-dots-list" id="finDotsSell"></div>
+                <div class="fin-dots-head" id="finDotsHead">Latest dots</div>
+                <div class="fin-dots-list" id="finDotsList"></div>
             </div>
         </div>
         </div>
@@ -1820,19 +1890,12 @@
         <button type="button" class="filter-pill chart-fs-btn" id="scoreboardFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button>
         <p class="pulse-line" id="scoreboardPulse" hidden></p>
         <div class="section-body" id="scoreboard-body">
-                    <div class="chip-row" id="scoreboardInvestors" role="group" aria-label="Investors to score against">
-                        <!-- Investor chips are rendered from SCOREBOARD_RULES below: only investors with a scored leg appear. -->
+        <p class="sb-lens-label" id="sbLensLabel">See the board through one investor&rsquo;s eyes</p>
+                    <div class="chip-row" id="scoreboardInvestors" role="group" aria-label="See the board through one investor's eyes">
+                        <!-- Chips are rendered from SCOREBOARD_RULES below, with an Everyone chip first: one tap picks the one view. -->
             </div>
-        <details class="disclaimer-note">
-          <summary><span class="disclaimer-gist">How to read this board</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
-          <div class="disclaimer-body">
-        <p>The scoreboard grades stocks by the finance committee&rsquo;s recommended framework.</p>
-        <p style="font-size: 0.85rem; color: var(--subtext-color);">Tap an investor&rsquo;s name above to add or drop their rules. Tap any result to see why.</p>
-          </div>
-        </details>
-        <p style="font-size: 0.85rem; color: var(--subtext-color);"><span style="color: var(--pass-text);">&#10003;</span> Pass &middot; <span style="color: var(--fail-text);">&#10007;</span> Fail &middot; &mdash; Couldn&rsquo;t be tested &middot; dashed outline = a judgment grade, not measured by a formula</p>
-        <p id="scoreboardNotScoredNote" style="font-size: 0.85rem; color: var(--subtext-color);">All eighteen investors are graded &mdash; eight by formula, and ten by judgment against five questions from each investor&rsquo;s own published work (their markers carry a dashed outline).</p>
-        <div class="chip-row" style="align-items: flex-end;">
+        <div class="sb-board-head" id="sbBoardHead">
+            <h3 class="sb-board-heading" id="sbTableHeading">Everyone&rsquo;s grades</h3>
             <div class="selector-group" id="scoreboardSortGroup" style="max-width: 280px;">
                 <label for="scoreboardSort">Sort</label>
                 <select id="scoreboardSort">
@@ -1841,6 +1904,27 @@
                     <option value="name">Name A&ndash;Z</option>
                 </select>
             </div>
+        </div>
+        <div class="spreadsheet-container" id="scoreboardTableWrap">
+            <table>
+                <thead>
+                    <tr id="scoreboardHead"><th>Company (Ticker)</th><th>Score</th></tr>
+                </thead>
+                <tbody id="scoreboardBody">
+                    <tr><td colspan="2" class="empty-state">Loading market data&hellip;</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <details class="disclaimer-note">
+          <summary><span class="disclaimer-gist">How to read this board</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
+          <div class="disclaimer-body">
+        <p>The scoreboard grades stocks by the finance committee&rsquo;s recommended framework.</p>
+        <p style="font-size: 0.85rem; color: var(--subtext-color);">Tap an investor&rsquo;s name above to see the board through their eyes &mdash; tap Everyone for the combined board. Tap any result to see why.</p>
+          </div>
+        </details>
+        <p style="font-size: 0.85rem; color: var(--subtext-color);"><span style="color: var(--pass-text);">&#10003;</span> Pass &middot; <span style="color: var(--fail-text);">&#10007;</span> Fail &middot; &mdash; Couldn&rsquo;t be tested &middot; dashed outline = a judgment grade, not measured by a formula</p>
+        <p id="scoreboardNotScoredNote" style="font-size: 0.85rem; color: var(--subtext-color);">All eighteen investors are graded &mdash; eight by formula, and ten by judgment against five questions from each investor&rsquo;s own published work (their markers carry a dashed outline).</p>
+        <div class="chip-row" style="align-items: flex-end;">
             <div class="sb-add" id="sbAddBlock" hidden>
                 <div class="selector-group">
                     <label for="sbAddSelect">Add a stock</label>
@@ -1876,16 +1960,6 @@
         <p id="sbAddConfirm" style="font-size: 0.85rem;" hidden></p>
         <div id="sbAddedList"></div>
         <div class="chip-row" id="sbAddedChips" role="group" aria-label="Added stocks waiting for their first grades"></div>
-        <div class="spreadsheet-container" id="scoreboardTableWrap">
-            <table>
-                <thead>
-                    <tr id="scoreboardHead"><th>Company (Ticker)</th><th>Score</th></tr>
-                </thead>
-                <tbody id="scoreboardBody">
-                    <tr><td colspan="2" class="empty-state">Loading market data&hellip;</td></tr>
-                </tbody>
-            </table>
-        </div>
         <div id="scoreboardChartWrap" hidden>
             <div class="sb-chart-box"><canvas id="sbChartCanvas" role="img" aria-label="Line chart: each stock's combined score, week by week"></canvas><div class="glass-bubble" id="sbChartTip" aria-hidden="true"></div><p id="sbChartStatus" style="font-size: 0.85rem; color: var(--subtext-color);" hidden></p></div>
             <div class="sb-chart-sub"><div id="sbChartLegend" hidden></div><p id="sbChartNote" hidden></p></div>
@@ -2015,6 +2089,7 @@
     <div class="frameworks-section collapsible-section" id="committee">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="committee" aria-expanded="false" aria-controls="committee-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> My Investor Committee</button></h2>
         <button type="button" class="filter-pill chart-fs-btn" id="committeeFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button>
+        <p class="pulse-line" id="committeePulse" hidden></p>
         <button type="button" class="investor-pin-bar" id="investorPinBar" hidden><span class="ipb-inner" id="investorPinInner"></span></button>
         <div class="section-body" id="committee-body" hidden>
         <p>Their frameworks, verified against what each investor actually said &mdash; and what they agree on.</p>
@@ -3453,6 +3528,7 @@
 <!-- Curated Financial Resources Section Positioned Below the Stock Table -->
     <div class="resources-section collapsible-section" id="resources">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="resources" aria-expanded="false" aria-controls="resources-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> Curated Financial Resources & Tools</button></h2>
+        <p class="pulse-line" id="resourcesPulse" hidden></p>
         <div class="section-body" id="resources-body" hidden>
         <div class="resource-grid">
             <a href="https://www.investor.gov/financial-tools-calculators/calculators/compound-interest-calculator" target="_blank" class="resource-card resource-card--img" style="background-image: url('calc-tool.jpg'); background-position: center top;">
@@ -3563,7 +3639,7 @@
     <!-- Legend: every acronym and investing term used on this page -->
     <div class="legend-section collapsible-section" id="legend">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="legend" aria-expanded="false" aria-controls="legend-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> Legend</button></h2>
-        <p class="section-gloss">Every word on this page, explained in plain language.</p>
+        <p class="pulse-line" id="legendPulse" hidden></p>
         <div class="section-body" id="legend-body" hidden>
         <p>Every acronym and investing term used on this page, defined in one place. The same definitions appear in a small popup when you hover (or tap) a dotted term anywhere above.</p>
         <div class="legend-grid" id="legendList"></div>
@@ -4407,25 +4483,55 @@
         let scoreboardSort = 'score-desc';
 
         // Scoreboard investor chips are rendered from SCOREBOARD_RULES itself:
-        // only investors with at least one scored leg get a chip — and a column
-        // in the table, since renderScoreboard() builds its columns from the
-        // same keys. Add a scored leg to an investor's rule and their chip and
-        // column appear automatically; remove the last leg and both disappear.
+        // only investors with at least one scored leg get a chip. Add a scored
+        // leg to an investor's rule and their chip appears automatically;
+        // remove the last leg and it disappears. (The chip once also added a
+        // table column; the compact board — Johnny, 2026-11-22 — carries the
+        // score only, and each investor's verdict lives in the score popover.)
         (function renderScoreboardInvestors() {
             const row = document.getElementById('scoreboardInvestors');
             if (!row) return;
-            Object.keys(SCOREBOARD_RULES).forEach(id => {
+            // Single-select lens (Johnny, 2026-11-22): one tap picks
+            // the one view — Everyone (the combined board, selected
+            // by default) or one investor. The selected chip is LIT
+            // (filled accent, .sb-lens-on) so its state reads on the
+            // chip itself; the rest stay quiet. No blends.
+            const allIds = Object.keys(SCOREBOARD_RULES);
+            function lens() {
+                return scoreboardSelected.size === allIds.length ? 'everyone' : (allIds.find(id => scoreboardSelected.has(id)) || 'everyone');
+            }
+            function syncChips() {
+                const cur = lens();
+                row.querySelectorAll('button[data-investor]').forEach(b => {
+                    const on = b.dataset.investor === cur;
+                    b.classList.toggle('sb-lens-on', on);
+                    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+                });
+            }
+            function pick(id) {
+                scoreboardSelected.clear();
+                if (id === 'everyone') allIds.forEach(x => scoreboardSelected.add(x));
+                else scoreboardSelected.add(id);
+                syncChips();
+                renderScoreboard();
+            }
+            const evBtn = document.createElement('button');
+            evBtn.type = 'button';
+            evBtn.className = 'filter-pill';
+            evBtn.dataset.investor = 'everyone';
+            evBtn.textContent = 'Everyone';
+            evBtn.addEventListener('click', () => pick('everyone'));
+            row.appendChild(evBtn);
+            allIds.forEach(id => {
                 const btn = document.createElement('button');
-                btn.className = 'filter-pill' + (scoreboardSelected.has(id) ? ' active' : '');
+                btn.type = 'button';
+                btn.className = 'filter-pill';
                 btn.dataset.investor = id;
                 btn.textContent = SCOREBOARD_RULES[id].label;
-                btn.addEventListener('click', () => {
-                    if (scoreboardSelected.has(id)) { scoreboardSelected.delete(id); btn.classList.remove('active'); }
-                    else { scoreboardSelected.add(id); btn.classList.add('active'); }
-                    renderScoreboard();
-                });
+                btn.addEventListener('click', () => pick(id));
                 row.appendChild(btn);
             });
+            syncChips();
             // Keep the "not scored" note accurate: its count is the investors
             // on this page with no scored leg (investor rows minus scored rules).
             // The sentence stays the same; only the number word is computed.
@@ -4467,11 +4573,21 @@
             const body = document.getElementById('scoreboardBody');
             if (!head || !body) return;
             const selected = Object.keys(SCOREBOARD_RULES).filter(id => scoreboardSelected.has(id));
-            let headHtml = '<th>Company (Ticker)</th><th>Score</th>';
-            selected.forEach(id => { headHtml += '<th class="sb-angle"><span>' + SCOREBOARD_RULES[id].label + '</span></th>'; });
-            head.innerHTML = headHtml;
+            // The heading names the view (Johnny, 2026-11-22): the
+            // combined board is "Everyone's grades"; a single
+            // investor's lens is "Lynch's grades". The scoreboard
+            // pulse names the same view while a lens is on.
+            const lensId = selected.length === 1 ? selected[0] : null;
+            const viewName = lensId
+                ? SCOREBOARD_RULES[lensId].label + (SCOREBOARD_RULES[lensId].label.endsWith('s') ? '&rsquo;' : '&rsquo;s') + ' grades'
+                : 'Everyone&rsquo;s grades';
+            const headingEl = document.getElementById('sbTableHeading');
+            if (headingEl) headingEl.innerHTML = viewName;
+            window.__sbViewName = lensId ? viewName.replace(/&rsquo;/g, '\u2019') : null;
+            if (typeof window.__sbApplyPulseView === 'function') window.__sbApplyPulseView();
+            head.innerHTML = '<th>Company (Ticker)</th><th>Score</th>';
             if (!marketDataLoaded) {
-                body.innerHTML = '<tr><td colspan="' + (2 + selected.length) + '" class="empty-state">Market data unavailable — could not load finance-data.json.</td></tr>';
+                body.innerHTML = '<tr><td colspan="2" class="empty-state">Market data unavailable — could not load finance-data.json.</td></tr>';
                 return;
             }
             if (selected.length === 0) {
@@ -4493,16 +4609,16 @@
             else if (scoreboardSort === 'score-asc') rows.sort((a, b) => (a.score === null ? 101 : a.score) - (b.score === null ? 101 : b.score) || a.t.name.localeCompare(b.t.name));
             else rows.sort((a, b) => a.t.name.localeCompare(b.t.name));
             body.innerHTML = rows.map(r => {
-                let html = '<tr><td><span class="sb-co-name"><strong>' + r.t.name + '</strong></span><span class="sb-co-sub">(' + r.t.ticker + ')' + (FOUNDER_LED.has(r.t.ticker) ? ' <span class="framework-badge badge-founder">Founder-led</span>' : '') + '</span></td>';
+                // Compact one-line row (Johnny, 2026-11-22): name ·
+                // score · a slim bar. The count rides as a short
+                // fraction; every investor's verdict and the
+                // couldn't-be-tested detail live in the score popover
+                // behind the same tap as before.
+                let html = '<tr><td><span class="sb-co-name"><strong>' + r.t.name + '</strong></span> <span class="sb-co-sub">(' + r.t.ticker + ')</span></td>';
                 let scoreInner = '<strong>' + (r.score === null ? '—' : r.score + '%') + '</strong>';
-                if (r.graded && r.graded < selected.length) {
-                    const untested = selected.length - r.graded;
-                    scoreInner += ' <small>&mdash; ' + r.passed + ' of ' + r.graded + ' tested <span class="sb-untested">&middot; ' + untested + ' rule' + (untested === 1 ? '' : 's') + ' couldn&rsquo;t be tested</span></small>';
-                } else if (r.graded) {
-                    scoreInner += ' <small>(' + r.passed + ' of ' + r.graded + ')</small>';
-                }
+                if (r.graded && selected.length > 1) scoreInner += '<span class="sb-frac">' + r.passed + '/' + r.graded + '</span>';
+                scoreInner += '<span class="sb-bar" aria-hidden="true"><span style="width:' + (r.score === null ? 0 : r.score) + '%"></span></span>';
                 html += '<td><button type="button" class="score-cell-btn score-why-btn" data-ticker="' + r.t.ticker + '" data-score="1" aria-haspopup="dialog" aria-expanded="false">' + scoreInner + '</button></td>';
-                selected.forEach(id => { html += '<td>' + badge(r.cells[id], SCOREBOARD_RULES[id].label, r.t.ticker, id, true) + '</td>'; });
                 return html + '</tr>';
             }).join('');
         }
@@ -4729,7 +4845,12 @@
                 return { label: SCOREBOARD_RULES[id].label, word, short: w.short, group: w.verdict === null ? 'untested' : (w.verdict ? 'pass' : 'fail') };
             });
             const score = graded === 0 ? null : Math.round(passed / graded * 100);
-            const heading = score === null ? 'Why there’s no score for ' + t.name + ' yet' : 'Why ' + score + '% — ' + passed + ' of ' + graded + ' tested';
+            let heading = score === null ? 'Why there’s no score for ' + t.name + ' yet' : 'Why ' + score + '% — ' + passed + ' of ' + graded + ' tested';
+            // The Founder-led marker rode in the board's name cell
+            // until the compact board (2026-11-22): at phone width
+            // the longest names plus the badge no longer fit one
+            // line, so the marker lives here, in the tap layer.
+            if (FOUNDER_LED.has(t.ticker)) heading += ' · Founder-led';
             return { heading, lines };
         }
 
@@ -7511,7 +7632,11 @@ if (typeof module !== "undefined") {
         // series whose last dot predates the visible window.
         // This list is the way to one: for every series in the
         // daily file, its newest buy day and newest sell day,
-        // each side newest first, twelve at most. It is rebuilt
+        // merged into ONE list ordered most recent first across
+        // both sides (Johnny's ruling, 2026-11-22 — buys and sells
+        // belong in a single recency order, not two groups), 24
+        // rows at most; each row keeps its side visible (the
+        // coloured dot and the Buy / Sell word). It is rebuilt
         // from the same buy / sell arrays the dots draw from —
         // when the panel opens and when the daily file lands —
         // so it follows the pipeline's nightly recomputes with
@@ -7524,18 +7649,21 @@ if (typeof module !== "undefined") {
         var dotsRoot = document.getElementById("finDots");
         var dotsOpen = false;
         function latestDots() {
-            var buys = [], sells = [];
-            if (!dailyData || !dailyData.series) return { ready: false, buys: buys, sells: sells };
+            var all = [];
+            if (!dailyData || !dailyData.series) return { ready: false, dots: all };
             Object.keys(dailyData.series).forEach(function (k) {
                 var s = dailyData.series[k];
                 if (!s) return;
                 var i, d;
-                if (s.buy && s.buy.length) { d = s.buy[0]; for (i = 1; i < s.buy.length; i++) if (s.buy[i] > d) d = s.buy[i]; buys.push({ key: k, date: d }); }
-                if (s.sell && s.sell.length) { d = s.sell[0]; for (i = 1; i < s.sell.length; i++) if (s.sell[i] > d) d = s.sell[i]; sells.push({ key: k, date: d }); }
+                if (s.buy && s.buy.length) { d = s.buy[0]; for (i = 1; i < s.buy.length; i++) if (s.buy[i] > d) d = s.buy[i]; all.push({ key: k, date: d, side: "buy" }); }
+                if (s.sell && s.sell.length) { d = s.sell[0]; for (i = 1; i < s.sell.length; i++) if (s.sell[i] > d) d = s.sell[i]; all.push({ key: k, date: d, side: "sell" }); }
             });
-            var newestFirst = function (a, b) { return a.date === b.date ? (a.key < b.key ? -1 : 1) : (a.date < b.date ? 1 : -1); };
-            buys.sort(newestFirst); sells.sort(newestFirst);
-            return { ready: true, buys: buys.slice(0, 12), sells: sells.slice(0, 12) };
+            all.sort(function (a, b) {
+                if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+                if (a.key !== b.key) return a.key < b.key ? -1 : 1;
+                return a.side === b.side ? 0 : (a.side === "buy" ? -1 : 1);
+            });
+            return { ready: true, dots: all.slice(0, 24) };
         }
         function dotsOption(entry) {
             var b = document.createElement("button");
@@ -7543,12 +7671,18 @@ if (typeof module !== "undefined") {
             b.className = "fin-dots-opt";
             b.setAttribute("data-key", entry.key);
             b.setAttribute("data-date", entry.date);
-            var sym = document.createElement("span");
-            sym.textContent = entry.key;
+            var left = document.createElement("span");
+            left.className = "fin-dots-side";
+            var dot = document.createElement("span");
+            dot.className = "tv-key-dot " + (entry.side === "buy" ? "tv-key-dot-buy" : "tv-key-dot-sell");
+            dot.setAttribute("aria-hidden", "true");
+            var word = document.createElement("span");
+            word.textContent = (entry.side === "buy" ? "Buy" : "Sell") + " · " + entry.key;
+            left.appendChild(dot); left.appendChild(word);
             var dt = document.createElement("span");
             dt.className = "fin-dots-date";
             dt.textContent = fmtDate(entry.date);
-            b.appendChild(sym); b.appendChild(dt);
+            b.appendChild(left); b.appendChild(dt);
             return b;
         }
         function dotsNote(text) {
@@ -7558,16 +7692,13 @@ if (typeof module !== "undefined") {
             return p;
         }
         function populateDots() {
-            var buyEl = document.getElementById("finDotsBuy");
-            var sellEl = document.getElementById("finDotsSell");
-            if (!buyEl || !sellEl) return;
+            var listEl = document.getElementById("finDotsList");
+            if (!listEl) return;
             var d = latestDots();
-            buyEl.textContent = ""; sellEl.textContent = "";
-            if (!d.ready) { buyEl.appendChild(dotsNote("Loading the daily data…")); return; }
-            if (d.buys.length) d.buys.forEach(function (e) { buyEl.appendChild(dotsOption(e)); });
-            else buyEl.appendChild(dotsNote("No buy dots in the data yet."));
-            if (d.sells.length) d.sells.forEach(function (e) { sellEl.appendChild(dotsOption(e)); });
-            else sellEl.appendChild(dotsNote("No sell dots in the data yet."));
+            listEl.textContent = "";
+            if (!d.ready) { listEl.appendChild(dotsNote("Loading the daily data…")); return; }
+            if (d.dots.length) d.dots.forEach(function (e) { listEl.appendChild(dotsOption(e)); });
+            else listEl.appendChild(dotsNote("No dots in the data yet."));
         }
         function setDotsOpen(open) {
             dotsOpen = open;
@@ -8577,6 +8708,8 @@ if (typeof module !== "undefined") {
             var sbSection = document.getElementById("scoreboard");
             if (sbSection) sbSection.classList.toggle("sb-view-chart", chart);
             tableWrap.style.display = chart ? "none" : "";
+            var boardHead = document.getElementById("sbBoardHead");
+            if (boardHead) boardHead.style.display = chart ? "none" : "";
             if (sortGroup) sortGroup.style.visibility = chart ? "hidden" : "";
             chartWrap.style.display = chart ? "" : "none";
             if (chart) { ensureData(); draw(); }
@@ -10360,84 +10493,71 @@ if (typeof module !== "undefined") {
             else { el.innerHTML = ""; el.hidden = true; }
         }
 
-        /* ---- The Chart: the selected instrument's latest daily close
-           and date (the daily file the chart itself loads), then the
-           freshest indicator dot in the whole universe. ---- */
-        var daily = null, freshestDot = null;
-        function computeFreshestDot(d) {
-            var best = null;
-            var series = (d && d.series) || {};
-            Object.keys(series).forEach(function (k) {
-                var s = series[k];
-                ["buy", "sell"].forEach(function (side) {
-                    var arr = s[side];
-                    if (arr && arr.length) {
-                        var dt = arr[arr.length - 1];
-                        if (!best || dt > best.date) best = { date: dt, side: side, name: s.name };
-                    }
-                });
-            });
-            return best;
-        }
-        function renderChartPulse() {
-            if (!daily) return;
-            var key = "SPX";
-            try { if (window.jboChart && typeof window.jboChart.state === "function") key = window.jboChart.state().key || key; } catch (e) { /* keep default */ }
-            var s = daily.series && daily.series[key];
-            if (!s && key !== "SPX") s = daily.series && daily.series.SPX;
-            if (!s || !s.bars || !s.bars.length) return;
-            var bar = s.bars[s.bars.length - 1];
-            var html = esc(s.name) + " &middot; " + fmtPrice(bar[4]) + " &middot; " + fmtDay(bar[0]);
-            if (freshestDot) {
-                html += " &mdash; <span class=\"pulse-dot" + (freshestDot.side === "sell" ? " sell" : "") + "\" aria-hidden=\"true\"></span> latest "
-                    + freshestDot.side + " dot: " + esc(freshestDot.name) + ", " + fmtDay(freshestDot.date);
-            }
-            setPulse("chartPulse", html);
-        }
-        if (typeof window.jboLoadDailyData === "function") {
-            window.jboLoadDailyData().then(function (d) {
-                daily = d;
-                freshestDot = computeFreshestDot(d);
-                renderChartPulse();
-            }).catch(function () { /* no data, no line */ });
-        }
-        if (typeof window.jboLoadChartSymbol === "function") {
-            var lcsOrig = window.jboLoadChartSymbol;
-            window.jboLoadChartSymbol = function (sym) { var r = lcsOrig.apply(this, arguments); setTimeout(renderChartPulse, 0); return r; };
-        }
-        var picksEl = document.getElementById("chartPicks");
-        if (picksEl) {
-            picksEl.addEventListener("click", function () { setTimeout(renderChartPulse, 0); });
-            if (window.MutationObserver) new MutationObserver(function () { renderChartPulse(); }).observe(picksEl, { attributes: true, attributeFilter: ["class"], subtree: true });
-        }
-        var stockDd = document.getElementById("chartStock");
-        if (stockDd) stockDd.addEventListener("change", function () { setTimeout(renderChartPulse, 0); });
-        var stockPanel = document.getElementById("chartStockPanel");
-        if (stockPanel) stockPanel.addEventListener("click", function () { setTimeout(renderChartPulse, 0); });
+        /* ---- The Chart carries no pulse line (Johnny, 2026-11-22):
+           the Latest dots dropdown beside the indicator switch is
+           the sole carrier of the freshest-dot facts. ---- */
 
-        /* ---- Investment Scoreboard: the board's leader in its newest
-           week, from grades-history.json — the scoreboard chart's own
-           data file (combined score = investors passing the stock out
-           of those whose tests could grade it, as a percentage). ---- */
+        /* ---- Investment Scoreboard: the board's leader, taken from
+           the table's own tally (window.jboScoreCount over the live
+           market data — the same scorer as the table's Score column
+           and the scoreboard chart's current point), so the pulse,
+           the table and the chart can never disagree. The diagnosis
+           (2026-11-22): this line previously read its leader from
+           grades-history.json's point-in-time "combined", which put
+           GOOGL on top at 65 while the table below put PLTR on top
+           at 63. The file's combined now serves only the chart's
+           historical points; the "Week of" date still comes from it
+           — it is the board's newest graded week. If the market data
+           never loads, no leader line appears: the tally or
+           nothing, never a fall-back to the file's number. ---- */
         fetch("grades-history.json").then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).then(function (d) {
             var series = (d && d.series) || {};
+            var tickers = Object.keys(series);
             var week = null;
-            Object.keys(series).forEach(function (t) {
+            tickers.forEach(function (t) {
                 var w = series[t].weeks;
                 if (w && w.length) { var last = w[w.length - 1]; if (!week || last > week) week = last; }
             });
-            if (!week) return;
-            var leader = null;
-            Object.keys(series).forEach(function (t) {
-                var e = series[t], w = e.weeks;
-                if (!w || !w.length || w[w.length - 1] !== week) return;
-                var c = e.combined;
-                if (!c || !c.length) return;
-                var v = c[c.length - 1];
-                if (typeof v === "number" && (!leader || v > leader.value)) leader = { ticker: t, value: v };
-            });
-            if (!leader) return;
-            setPulse("scoreboardPulse", "Week of " + fmtDay(week) + " &mdash; " + esc(leader.ticker) + " leads the board &middot; combined score " + leader.value);
+            if (!week || !tickers.length) return;
+            /* The tally settles in stages as the data lands (a
+               mid-load read once showed 71 for a board that settles
+               at 63), so the leader is taken only from a tally that
+               reads identically on two consecutive polls. While a
+               single-investor lens is on, the line also names the
+               view — the same words as the table's heading. */
+            var sbBase = null;
+            function applySbPulse() {
+                if (!sbBase) return;
+                setPulse("scoreboardPulse", sbBase + (window.__sbViewName ? " &middot; " + esc(window.__sbViewName) : ""));
+            }
+            window.__sbApplyPulseView = applySbPulse;
+            var tries = 0, lastSig = null;
+            var iv = setInterval(function () {
+                tries++;
+                if (tries > 90) { clearInterval(iv); return; }
+                if (typeof window.jboScoreCount !== "function") return;
+                var counts = {}, sig = "", any = false;
+                tickers.forEach(function (t) {
+                    var c = window.jboScoreCount(t);
+                    counts[t] = c;
+                    if (c) any = true;
+                    sig += c ? c.passed + "/" + c.graded : "-";
+                    sig += ",";
+                });
+                if (!any) return; // market data not in yet — keep waiting
+                if (sig !== lastSig) { lastSig = sig; return; } // not settled yet
+                clearInterval(iv);
+                var leader = null;
+                tickers.forEach(function (t) {
+                    var c = counts[t];
+                    if (!c) return;
+                    var v = Math.round(100 * c.passed / c.graded);
+                    if (!leader || v > leader.value || (v === leader.value && c.graded > leader.graded)) leader = { ticker: t, value: v, graded: c.graded };
+                });
+                if (!leader) return;
+                sbBase = "Week of " + fmtDay(week) + " &mdash; " + esc(leader.ticker) + " leads the board &middot; combined score " + leader.value;
+                applySbPulse();
+            }, 400);
         }).catch(function () { /* no data, no line */ });
 
         /* ---- Johnny's Drill Down: mirrors the Stack runner's own
@@ -10478,6 +10598,89 @@ if (typeof module !== "undefined") {
             var btOrig = window.btRender;
             window.btRender = function () { var r = btOrig.apply(this, arguments); renderBacktestPulse(); return r; };
         }
+
+        /* ---- My Investor Committee · Curated Financial Resources &
+           Tools · Legend: no live feed of their own, so each line
+           states a fact of the section itself, counted from the DOM
+           when the page loads — the number can never go stale, and
+           no title on the page stands bare beside the lined ones
+           (Johnny, 2026-11-22: "some titles have descriptions.
+           Others dont. It makes it feel inconsistent and less alive
+           and engaging."). The Legend's line keeps the sentence its
+           gloss already carried, promoted into the shared slot. ---- */
+        var cmInvestorRows = document.querySelectorAll("#committee .glance-row:not(#glance-row-johnny)").length;
+        var cmJohnnyRow = document.getElementById("glance-row-johnny");
+        if (cmInvestorRows) setPulse("committeePulse", cmInvestorRows + " investors" + (cmJohnnyRow ? ", plus Johnny" : "") + " &middot; each with their style, key test and risk stance");
+        var resCards = document.querySelectorAll("#resources .resource-card").length;
+        if (resCards) setPulse("resourcesPulse", resCards + " resources &middot; a compound-interest calculator &middot; a fear-and-greed gauge &middot; the Benner Cycle, kept as history");
+        var legendTerms = document.querySelectorAll("#legendList .legend-item").length;
+        if (legendTerms) setPulse("legendPulse", legendTerms + " terms &middot; every word on this page, explained in plain language");
+    })();
+</script>
+<script>
+    /* Close-restore (2026-11-22): closing a Finance surface returns
+       the reader to exactly where they were — the Sustainability
+       mechanism, the site standard since Johnny's "I open
+       something. Scroll a little. Close it. And im at the bottom
+       of the website." A collapse shrinks the document and the
+       browser clamps the scroll toward the new bottom; so at the
+       press that closes a surface, the surface's header position
+       is captured (a pinned header's target is its pin line: 55px,
+       the site header's height, where the section titles stick),
+       and after the collapse the header is put back at that line —
+       immediately, on the next frame, and once more at 120ms for
+       the settle. Covered: the section accordions (their pinned
+       titles are their own toggles), the Chart key, and the Chart
+       tools fold. The Latest dots panel is an overlay — it never
+       moves the page, so its closes need no restore. Full-screen
+       states are skipped: the page behind them must not move. */
+    (function () {
+        "use strict";
+        var PIN = 55;
+        var pending = null;
+        function inFullscreen() {
+            if (document.fullscreenElement || document.webkitFullscreenElement) return true;
+            return !!document.querySelector(".chart-fs, .sb-fs, .sc-fs, .cm-fs, .bt-fs");
+        }
+        function arm(el) {
+            if (!el) return;
+            var top = el.getBoundingClientRect().top;
+            pending = { el: el, target: top > PIN + 2 ? top : PIN };
+        }
+        document.addEventListener("click", function (e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+            var btn = t.closest(".section-toggle");
+            if (btn) {
+                var body = document.getElementById(btn.getAttribute("data-section") + "-body");
+                if (body && !body.hidden) arm(btn.closest(".section-title") || btn);
+                return;
+            }
+            if (t.closest("#chartToolsBtn")) {
+                var tools = document.getElementById("chartTools");
+                if (tools && !tools.hidden) arm(document.getElementById("chartToolsBtn"));
+                return;
+            }
+            var summary = t.closest("#chartKey > summary");
+            if (summary) {
+                var key = document.getElementById("chartKey");
+                if (key && key.open) arm(summary);
+            }
+        }, true);
+        document.addEventListener("click", function () {
+            if (!pending) return;
+            var p = pending;
+            pending = null;
+            if (inFullscreen()) return;
+            var restore = function () {
+                if (!p.el.isConnected) return;
+                var d = p.el.getBoundingClientRect().top - p.target;
+                if (Math.abs(d) > 1) window.scrollTo(0, window.scrollY + d);
+            };
+            restore();
+            window.requestAnimationFrame(restore);
+            setTimeout(restore, 120);
+        }, false);
     })();
 </script>
 </body>
