@@ -1806,9 +1806,23 @@
                 var stage = sec.querySelector('.gen-stage');
                 if (this.open) {
                     // Fallback for a programmatic open (no click ran):
-                    // pin now — the in-between squeeze may make this
-                    // the squeezed height, but a pin still beats none.
-                    if (stage && !stage.style.height && !deepInFs()) { stage.style.height = stage.getBoundingClientRect().height + 'px'; }
+                    // pin now. The essay is already open at this point,
+                    // so measure with it hidden (the true closed state —
+                    // see the resize re-pin below): measured as-is, the
+                    // fixed frame's grid squeezes the stage to 0 and the
+                    // pin would erase the photo.
+                    if (stage && !stage.style.height && !deepInFs()) {
+                        var bodyEl = document.getElementById(prefix + '-deepbody');
+                        var closeEl = document.getElementById(prefix + '-deepclose');
+                        var prevBody = bodyEl ? bodyEl.style.display : '';
+                        var prevClose = closeEl ? closeEl.style.display : '';
+                        if (bodyEl) { bodyEl.style.display = 'none'; }
+                        if (closeEl) { closeEl.style.display = 'none'; }
+                        var h = stage.getBoundingClientRect().height;
+                        if (bodyEl) { bodyEl.style.display = prevBody; }
+                        if (closeEl) { closeEl.style.display = prevClose; }
+                        if (h > 0) { stage.style.height = h + 'px'; }
+                    }
                     sec.classList.add('deep-open');
                 } else {
                     sec.classList.remove('deep-open');
@@ -2366,11 +2380,32 @@
                 if (!sec || !sec.classList.contains('deep-open')) { return; }
                 var stage = sec.querySelector('.gen-stage');
                 if (!stage) { return; }
+                var oldH = parseFloat(stage.style.height) || 0;
                 stage.style.height = '';
                 sec.classList.remove('deep-open');
+                // The measure must see the TRUE closed state. Stepping
+                // out of deep-open returns the section to its fixed
+                // one-screen frame, but the still-open essay inside
+                // .gen-info inflates that grid's brief row and squeezes
+                // the stage row (min-height: 0) to 0 — and iOS fires
+                // resize on every scroll as its URL bar collapses and
+                // returns, so the squeezed 0 got pinned and the photo
+                // vanished (Johnny's recording, 2026-11-23). A closed
+                // <details> renders only its summary, so hide the essay
+                // body and its close button for the measure — all in
+                // this one task, nothing paints between — and never let
+                // a zero measure replace a good pin.
+                var bodyEl = document.getElementById(p + '-deepbody');
+                var closeEl = document.getElementById(p + '-deepclose');
+                var prevBody = bodyEl ? bodyEl.style.display : '';
+                var prevClose = closeEl ? closeEl.style.display : '';
+                if (bodyEl) { bodyEl.style.display = 'none'; }
+                if (closeEl) { closeEl.style.display = 'none'; }
                 var h = stage.getBoundingClientRect().height;
+                if (bodyEl) { bodyEl.style.display = prevBody; }
+                if (closeEl) { closeEl.style.display = prevClose; }
                 sec.classList.add('deep-open');
-                stage.style.height = h + 'px';
+                stage.style.height = h > 0 ? h + 'px' : (oldH > 0 ? oldH + 'px' : '');
             });
         });
         ['animals', 'art', 'arch', 'space', 'quotes', 'engineering', 'websites', 'scifi'].forEach(function (p) {
