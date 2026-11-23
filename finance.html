@@ -160,7 +160,14 @@
        the stage instead of inside it — see the #chartKey rules
        at the key's own block. The canvas keeps exactly the
        height it had when the key was a stage child. */
-    #chart-body { display: flex; flex-direction: column; gap: 0.3rem; height: calc(100vh - 175px - 44px - 0.3rem - env(safe-area-inset-bottom, 0px)); height: calc(100dvh - 175px - 44px - 0.3rem - env(safe-area-inset-bottom, 0px)); }
+    /* The stage budget is measured in lvh, never dvh (2026-11-23):
+       dvh changes as the iOS URL bar collapses and expands during
+       scroll, so the canvas — the one flex child that takes what
+       is left — was being resized continuously mid-scroll and
+       redrawing squashed. lvh is the same full height the stage
+       was designed at (the bar-hidden state) and does not move
+       while scrolling, so the canvas's box is scroll-invariant. */
+    #chart-body { display: flex; flex-direction: column; gap: 0.3rem; height: calc(100vh - 175px - 44px - 0.3rem - env(safe-area-inset-bottom, 0px)); height: calc(100lvh - 175px - 44px - 0.3rem - env(safe-area-inset-bottom, 0px)); }
     #chart-body[hidden] { display: none; }
     #chart-body > * { margin-top: 0; margin-bottom: 0; flex: none; }
     #chart-body > .jbo-chart-frame { flex: 1 1 auto; min-height: 0; }
@@ -259,7 +266,7 @@
        chip rows share rows — the same controls, laid out for the
        width, nothing removed. */
     @media (max-width: 640px) {
-        #chart-body { gap: 0.22rem; height: calc(100vh - 175px - 44px - 0.22rem - env(safe-area-inset-bottom, 0px)); height: calc(100dvh - 175px - 44px - 0.22rem - env(safe-area-inset-bottom, 0px)); }
+        #chart-body { gap: 0.22rem; height: calc(100vh - 175px - 44px - 0.22rem - env(safe-area-inset-bottom, 0px)); height: calc(100lvh - 175px - 44px - 0.22rem - env(safe-area-inset-bottom, 0px)); }
         #chart-body .jbo-chart-datanote { font-size: 0.8rem; line-height: 1.4; }
         .chart-controls { column-gap: 0.75rem; row-gap: 0.4rem; }
         .chart-controls .selector-group { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 0.5rem; width: 100%; }
@@ -417,10 +424,17 @@
         .fut-cells { --fut-gap: 4px; overflow-x: hidden; scroll-snap-type: none; }
         .fut-cell { flex: var(--w, 1) 1 0; padding-left: 3px; padding-right: 3px; }
     }
-    .fut-cell.tick-up { background-color: rgba(34, 197, 94, 0.13); }
-    .fut-cell.tick-down { background-color: rgba(239, 68, 68, 0.13); }
-    body.light-mode .fut-cell.tick-up { background-color: rgba(22, 163, 74, 0.12); }
-    body.light-mode .fut-cell.tick-down { background-color: rgba(220, 38, 38, 0.10); }
+    /* The tick tint never lands on the selected cell (2026-11-23):
+       these rules follow .fut-cell.sel at equal specificity, so a
+       price tick on the selected cell washed its accent background
+       out to a faint tint for the settle second — the lit read was
+       lost exactly while the price moved. The selected cell still
+       flashes its price's direction colour (the .fut-price rules
+       below); only the background tint is scoped off it. */
+    .fut-cell.tick-up:not(.sel) { background-color: rgba(34, 197, 94, 0.13); }
+    .fut-cell.tick-down:not(.sel) { background-color: rgba(239, 68, 68, 0.13); }
+    body.light-mode .fut-cell.tick-up:not(.sel) { background-color: rgba(22, 163, 74, 0.12); }
+    body.light-mode .fut-cell.tick-down:not(.sel) { background-color: rgba(220, 38, 38, 0.10); }
     .fut-name { font-size: 0.74rem; font-weight: 600; line-height: 1.3; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtext-color); white-space: nowrap; }
     .fut-price { font-size: 1.08rem; font-weight: 700; line-height: 1.3; font-variant-numeric: tabular-nums; color: var(--text-color); white-space: nowrap; transition: color 1s ease; }
     .fut-cell.tick-up .fut-price { color: #22c55e; transition: none; }
@@ -507,9 +521,14 @@
     .fin-dots { position: relative; }
     #finDotsBtn .chart-tools-chev { display: inline-block; font-size: 0.72em; margin-left: 0.35rem; transition: transform var(--dur-1) var(--ease-out); }
     #finDotsBtn[aria-expanded="true"] .chart-tools-chev { transform: rotate(90deg); }
-    .fin-dots-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: min(19rem, calc(100vw - 2rem)); max-height: min(24rem, 62vh); overflow-y: auto; padding: 0 0 0.35rem; }
+    /* Anchored by its RIGHT edge (2026-11-23): the wrapper sits at
+       the right end of the indicator row, so a left-anchored panel
+       ran ~100px off the phone's right edge and its rows' dates —
+       right-aligned inside each row — were off-screen with it. */
+    .fin-dots-panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; width: min(19rem, calc(100vw - 2rem)); max-height: min(24rem, 62vh); overflow-y: auto; padding: 0 0 0.35rem; }
     .fin-dots-panel[hidden] { display: none; }
-    .fin-dots-head { position: sticky; display: flex; align-items: center; gap: 0.5rem; width: 100%; height: 2.75rem; padding: 0 0.8rem; box-sizing: border-box; background: var(--glass-bg-solid); color: var(--text-color); font-size: 0.9rem; font-weight: 700; z-index: 1; }
+    .fin-dots-head { position: sticky; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; height: 2.75rem; padding: 0 0.8rem; box-sizing: border-box; background: var(--glass-bg-solid); color: var(--text-color); font-size: 0.9rem; font-weight: 700; z-index: 1; }
+    .fin-dots-head .sb-panel-close { margin-right: -0.8rem; }
     #finDotsHead { top: 0; z-index: 2; border-radius: var(--glass-radius) var(--glass-radius) 0 0; }
     .fin-dots-side { display: inline-flex; align-items: center; gap: 0.45rem; min-width: 0; }
     .fin-dots-list { display: flex; flex-direction: column; padding: 0.15rem 0.35rem 0.3rem; }
@@ -960,8 +979,14 @@
        page (the same clamped-transform pattern as the table
        headers): the shift is clamped to the section's own box by
        arithmetic, so a pin travels only within its section and
-       releases when its section ends, in every engine. */
-    .collapsible-section > .section-title { position: relative; z-index: 800; background: var(--bg-color); margin-top: 0; padding-top: 24px; }
+       releases when its section ends, in every engine.
+       (2026-11-23: the transform pin is retired in turn — on
+       Johnny's iPhone it painted no background at all and its
+       math misplaced pins under pinch zoom. The titles pin with
+       position:sticky again, now as title-only 44px bars whose
+       travel is fenced by their section cards; see the pin rule
+       in the compact-titles style block.) */
+    .collapsible-section > .section-title { position: relative; z-index: 800; margin-top: 0; padding-top: 24px; }
     .collapsible-section > .section-title.jbo-tpin { z-index: 800; }
     .chart-section > .section-title { padding-top: 0; }
     /* Investor name pin (2026-11-20): while a committee profile is
@@ -1516,7 +1541,7 @@
        card's own rhythm spaces it — no page-level margins. */
     #futStrip { margin: 0; }
     .collapsible-section { border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); padding: 8px 16px 16px; margin-top: 24px; margin-bottom: 0; }
-    .collapsible-section > .section-title { background: var(--card-bg); padding-top: 12px; }
+    .collapsible-section > .section-title { padding-top: 12px; }
     #chart { margin-top: 0; }
     #legend { margin-bottom: 24px; }
     #chart .section-chevron { display: none; }
@@ -1564,7 +1589,22 @@
        colour the framed card surface itself renders. */
     :root { --pin-bg: #12171d; }
     body.light-mode { --pin-bg: #f3eedf; }
+    /* Pin construction (2026-11-23): the title pins with real
+       position:sticky — the construction the Sustainability page's
+       pins use — and this rule is the ONLY background declaration
+       for the title anywhere on the page: the solid composited
+       pin colour, as a plain background-color on the sticky
+       element itself, covering its whole box including the
+       buttons inside it. (The transform-driven pin it replaces
+       painted no background at all on Johnny's iPhone — band
+       prices showed straight through the pinned title — and its
+       scroll math mixed visual and layout coordinates, so under
+       pinch zoom the pin landed in the wrong place. Sticky has
+       no script and no transform: the browser's compositor keeps
+       it on the pin line in both coordinate systems, and its
+       travel is fenced by its parent section's box.) */
     .collapsible-section > .section-title {
+        position: sticky; top: 55px;
         display: flex; align-items: center; flex-wrap: wrap;
         font-size: 1.1rem; font-weight: 700; line-height: 1.25;
         min-height: 44px; padding-top: 0; padding-bottom: 0;
@@ -1669,7 +1709,12 @@
         padding: 0; gap: 0; margin-left: auto;
         align-items: center; justify-content: center;
     }
-    #screener > .chart-fs-btn, #scoreboard > .chart-fs-btn, #committee > .chart-fs-btn { display: flex; margin: 6px 0 0 auto; }
+    /* (The three sibling Full screen buttons moved inside their
+       section titles on 2026-11-23 — one bar per section, like the
+       Chart's and Backtest's — so the own-row rule that stood here
+       is gone: a lone circular button on an invisible row read as
+       a stray, and outside the title it neither pinned with the
+       title nor shared the pin's backing.) */
     /* Closed sections carry no Full screen icon (Johnny, 2026-11-22):
        on a closed Drill Down or Committee the icon read as clutter
        and floated over the pinned title's text in his video. The
@@ -1814,7 +1859,7 @@
         <div class="fin-dots" id="finDots">
             <button type="button" class="filter-pill" id="finDotsBtn" aria-haspopup="true" aria-expanded="false" aria-controls="finDotsPanel">Latest dots<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
             <div class="fin-dots-panel glass-bubble" id="finDotsPanel" hidden>
-                <div class="fin-dots-head" id="finDotsHead">Latest dots</div>
+                <div class="fin-dots-head" id="finDotsHead"><span>Latest dots</span><button type="button" class="sb-panel-close" id="finDotsClose" aria-label="Close latest dots">&times;</button></div>
                 <div class="fin-dots-list" id="finDotsList"></div>
             </div>
         </div>
@@ -1919,8 +1964,7 @@
     </script>
     <!-- Investment Scoreboard -->
     <div class="scoreboard-section collapsible-section" id="scoreboard">
-        <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="true" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> Investment Scoreboard</button></h2>
-        <button type="button" class="filter-pill chart-fs-btn" id="scoreboardFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button>
+        <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="true" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9660;</span> Investment Scoreboard</button><button type="button" class="filter-pill chart-fs-btn" id="scoreboardFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
         <p class="pulse-line" id="scoreboardPulse" hidden></p>
         <div class="section-body" id="scoreboard-body">
         <p class="sb-lens-label" id="sbLensLabel">See the board through investors&rsquo; eyes &mdash; tap names to build the view, one or several at once</p>
@@ -2023,8 +2067,7 @@
     </div>
 <!-- Johnny's Drill Down: The Stack -->
     <div class="screener-section collapsible-section" id="screener">
-        <h2 class="section-title"><button type="button" class="section-toggle" data-section="screener" aria-expanded="false" aria-controls="screener-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> Johnny&rsquo;s Drill Down: The Stack</button></h2>
-        <button type="button" class="filter-pill chart-fs-btn" id="screenerFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button>
+        <h2 class="section-title"><button type="button" class="section-toggle" data-section="screener" aria-expanded="false" aria-controls="screener-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> Johnny&rsquo;s Drill Down: The Stack</button><button type="button" class="filter-pill chart-fs-btn" id="screenerFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
         <p class="pulse-line" id="screenerPulse" hidden></p>
         <div class="section-body" id="screener-body" hidden>
         <p>My checklist for any stock, in order &mdash; a stock has to clear each step to stay in.</p>
@@ -2081,8 +2124,7 @@
     </div>
 <!-- Frameworks & Quantifiable Metrics Accordions -->
     <div class="frameworks-section collapsible-section" id="committee">
-        <h2 class="section-title"><button type="button" class="section-toggle" data-section="committee" aria-expanded="false" aria-controls="committee-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> My Investor Committee</button></h2>
-        <button type="button" class="filter-pill chart-fs-btn" id="committeeFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button>
+        <h2 class="section-title"><button type="button" class="section-toggle" data-section="committee" aria-expanded="false" aria-controls="committee-body"><span class="section-chevron" aria-hidden="true">&#9654;</span> My Investor Committee</button><button type="button" class="filter-pill chart-fs-btn" id="committeeFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
         <p class="pulse-line" id="committeePulse" hidden></p>
         <button type="button" class="investor-pin-bar" id="investorPinBar" hidden><span class="ipb-inner" id="investorPinInner"></span></button>
         <div class="section-body" id="committee-body" hidden>
@@ -7811,12 +7853,23 @@ if (typeof module !== "undefined") {
                 if (s.buy && s.buy.length) { d = s.buy[0]; for (i = 1; i < s.buy.length; i++) if (s.buy[i] > d) d = s.buy[i]; all.push({ key: k, date: d, side: "buy" }); }
                 if (s.sell && s.sell.length) { d = s.sell[0]; for (i = 1; i < s.sell.length; i++) if (s.sell[i] > d) d = s.sell[i]; all.push({ key: k, date: d, side: "sell" }); }
             });
-            all.sort(function (a, b) {
+            function byRecency(a, b) {
                 if (a.date !== b.date) return a.date < b.date ? 1 : -1;
                 if (a.key !== b.key) return a.key < b.key ? -1 : 1;
                 return a.side === b.side ? 0 : (a.side === "buy" ? -1 : 1);
-            });
-            return { ready: true, dots: all.slice(0, 24) };
+            }
+            all.sort(byRecency);
+            // The cap is per side (2026-11-23): one shared cap of 24
+            // starved the sells out of the panel entirely — the
+            // newest sell in the universe ranked 25th behind 24
+            // newer buys, so the panel read as buys-only. Each side
+            // keeps its own newest 24; the merged list stays one
+            // list, date-descending, no group headings.
+            var buys = [], sells = [];
+            all.forEach(function (e) { (e.side === "buy" ? buys : sells).push(e); });
+            var merged = buys.slice(0, 24).concat(sells.slice(0, 24));
+            merged.sort(byRecency);
+            return { ready: true, dots: merged };
         }
         function dotsOption(entry) {
             var b = document.createElement("button");
@@ -7901,6 +7954,8 @@ if (typeof module !== "undefined") {
             if (mode === "daily") ensureDaily(); else render();
         }
         if (dotsBtn) dotsBtn.addEventListener("click", function () { setDotsOpen(!dotsOpen); });
+        var dotsClose = document.getElementById("finDotsClose");
+        if (dotsClose) dotsClose.addEventListener("click", function () { setDotsOpen(false); });
         if (dotsPanel) dotsPanel.addEventListener("click", function (e) {
             var opt = e.target && e.target.closest ? e.target.closest(".fin-dots-opt") : null;
             if (!opt) return;
@@ -10308,7 +10363,14 @@ if (typeof module !== "undefined") {
     })();
     </script>
     <script>
-    /* Section title pins (pass 2, 2026-11-22): a transform on each
+    /* Section title pins (pass 2, 2026-11-22; RETIRED 2026-11-23 —
+       the titles now pin with CSS position:sticky and this driver
+       is disabled by its collect() selector matching nothing: on
+       Johnny's iPhone the transformed titles painted no background
+       (the band showed through the pin) and the driver's
+       rect-based math misplaced the pins under pinch zoom. The
+       block is kept inert for one pass as a revert path.)
+       Original design: a transform on each
        section's title, clamped to its own section's box — the
        construction the table-header pins above already use, applied
        to the titles themselves. CSS sticky was the previous
@@ -10335,7 +10397,7 @@ if (typeof module !== "undefined") {
         var items = [];
         function collect() {
             items = [];
-            document.querySelectorAll(".collapsible-section").forEach(function (sec) {
+            document.querySelectorAll(".collapsible-section-retired").forEach(function (sec) {
                 var title = sec.querySelector(":scope > .section-title");
                 if (title) items.push({ sec: sec, title: title, shift: 0 });
             });
