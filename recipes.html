@@ -803,6 +803,20 @@
     .jbo-search-clear:hover { color: var(--link-color); }
     .recipe-search-count { color: var(--subtext-color); font-size: 0.85rem; white-space: nowrap; }
     .recipe-search-empty, .combiner-search-empty { font-size: 0.9rem; color: var(--subtext-color); margin: 4px 0 0; }
+    /* Leave out (2026-11-24): dietary exclusion chips at the top of the
+       recipe list. A tapped chip is filled and its name struck through,
+       so the state reads on the chip's own face; toggling changes only
+       paint, never the chip's box, so a chip never moves when tapped. */
+    .leave-out { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.6rem; padding: 0.1rem 0 0.75rem; }
+    .leave-out-label { font-weight: 700; font-size: 0.95rem; }
+    .leave-out-chips { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .leave-out-chip { font-family: inherit; background: var(--badge-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 999px; min-height: 44px; padding: 0.35rem 0.95rem; font-size: 0.9rem; font-weight: 500; cursor: pointer; touch-action: manipulation; display: inline-flex; align-items: center; }
+    .leave-out-chip:hover { border-color: var(--link-color); }
+    .leave-out-chip:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+    .leave-out-chip[aria-pressed="true"] { background: var(--link-color); border-color: var(--link-color); color: #fff; }
+    .leave-out-chip[aria-pressed="true"] .lo-name { text-decoration: line-through; text-decoration-thickness: 2px; }
+    .leave-out-count { color: var(--subtext-color); font-size: 0.85rem; white-space: nowrap; margin-left: auto; }
+    .leave-out-empty { font-size: 0.9rem; color: var(--subtext-color); margin: 4px 0 0; }
     /* The briefing's characterizing lead (2026-11-22): the description
        opens the block, ahead of the three beats. */
     .combiner-briefing-lead { font-weight: 600; margin: 0 0 0.4rem; }
@@ -1453,6 +1467,22 @@
                 </span>
                 <span class="recipe-search-count" id="recipe-search-count" role="status" hidden></span>
             </div>
+            <div class="leave-out" id="leave-out">
+                <span class="leave-out-label" id="leave-out-label">Leave out:</span>
+                <div class="leave-out-chips" role="group" aria-labelledby="leave-out-label">
+                    <button type="button" class="leave-out-chip" data-leave="gluten" aria-pressed="false"><span class="lo-name">Gluten</span></button>
+                    <button type="button" class="leave-out-chip" data-leave="dairy" aria-pressed="false"><span class="lo-name">Dairy</span></button>
+                    <button type="button" class="leave-out-chip" data-leave="eggs" aria-pressed="false"><span class="lo-name">Eggs</span></button>
+                    <button type="button" class="leave-out-chip" data-leave="peanuts" aria-pressed="false"><span class="lo-name">Peanuts</span></button>
+                    <button type="button" class="leave-out-chip" data-leave="treenuts" aria-pressed="false"><span class="lo-name">Tree nuts</span></button>
+                    <button type="button" class="leave-out-chip" data-leave="soy" aria-pressed="false"><span class="lo-name">Soy</span></button>
+                    <button type="button" class="leave-out-chip" data-leave="shellfish" aria-pressed="false"><span class="lo-name">Shellfish</span></button>
+                    <button type="button" class="leave-out-chip" data-leave="fish" aria-pressed="false"><span class="lo-name">Fish</span></button>
+                    <button type="button" class="leave-out-chip" data-leave="sesame" aria-pressed="false"><span class="lo-name">Sesame</span></button>
+                    <button type="button" class="leave-out-chip" data-leave="meat" aria-pressed="false"><span class="lo-name">Meat</span></button>
+                </div>
+                <span class="leave-out-count" id="leave-out-count" role="status"></span>
+            </div>
             <div class="recipe-controls">
                 <div class="recipe-filters" role="group" aria-label="Filter recipes by category">
                     <button class="filter-pill active" data-filter="all">All (102)</button>
@@ -1480,6 +1510,7 @@
             </div>
             <div class="recipe-empty" id="recipe-empty" hidden>No recipes in this category yet.</div>
             <p class="recipe-search-empty" id="recipe-search-empty" hidden>No recipes match your search.</p>
+            <p class="leave-out-empty" id="leave-out-empty" hidden>No recipes match. Tap a filter above to bring recipes back.</p>
 
             <div class="standout-legend">
                 <button type="button" class="standout-legend-btn" id="standoutLegendBtn" aria-expanded="false" aria-describedby="standoutLegendTip">★ Standout</button>
@@ -8301,6 +8332,114 @@
                 if (recipeSearchEl) recipeSearchEl.focus();
             });
         }
+    </script>
+    <script>
+    /* Leave out (2026-11-24): dietary exclusion filter for the recipe
+       list. Each recipe's groups derive from its listed ingredients and
+       its nutrition-model sources, audited line by line (the audit
+       table lives in the build report). The layer composes with the
+       category pills and the search: it only adds hiding on top of the
+       state those leave, and it re-applies after either changes the
+       grid. Exclusions persist in localStorage (jbo-leave-out-v1); a
+       fresh visit starts with nothing left out. */
+    (function () {
+        var TAGS = {'misoRecipe':['soy','meat'],'yamitsukiRecipe':['sesame'],'poivreRecipe':['dairy','meat'],'peruvianRecipe':['dairy','meat'],'leeksRecipe':['dairy'],'arugulaRecipe':['dairy','treenuts'],'soupRecipe':['meat'],'carbonaraRecipe':['gluten','dairy','eggs','meat'],'porkRecipe':['fish','meat'],'beanSoupRecipe':['dairy','meat'],'iceCreamRecipe':['dairy','eggs'],'summerRollsRecipe':['gluten','peanuts','soy','shellfish','meat'],'bakedPotatoRecipe':['dairy'],'salmonRecipe':['dairy','fish','meat'],'gratinRecipe':['dairy'],'pineappleRibsRecipe':['gluten','dairy','soy','fish','meat'],'cookiesRecipe':['gluten','dairy','eggs','treenuts','sesame'],'pimentoCheeseRecipe':['dairy','eggs','fish','meat'],'deviledEggsRecipe':['eggs'],'shortRibsBraisedRecipe':['meat'],'crabCakeRecipe':['gluten','eggs','shellfish','fish','meat'],'beetMousseRecipe':['dairy'],'porkBellyRecipe':['meat'],'porkShankRecipe':['gluten','meat'],'panReductionSauceRecipe':['meat'],'porkCutletsRecipe':['gluten','dairy','eggs','meat'],'mushroomRisottoRecipe':['dairy','meat'],'mushroomCabernetSauceRecipe':['dairy'],'flatbreadDoughRecipe':['gluten'],'ribEyeSteaksRecipe':['dairy','meat'],'killaPanSauceRecipe':['dairy','meat'],'blueCheeseWalnutButterRecipe':['dairy','treenuts','fish','meat'],'skirtSteakRecipe':['meat'],'countrySlawRecipe':['eggs'],'bloodyMaryRecipe':['dairy','shellfish','fish','meat'],'ginFizzRecipe':['eggs'],'tomatoPieRecipe':['gluten','dairy','eggs'],'pieCrustRecipe':['gluten','dairy'],'collardGreensRecipe':['meat'],'jalapenoPeachChickenRecipe':['meat'],'sataySauceRecipe':['gluten','peanuts','soy','sesame'],'bearnaiseButterRecipe':['dairy'],'edamameRecipe':['soy','sesame'],'bokChoyRecipe':['gluten','dairy','soy'],'gingerSoySauceRecipe':['gluten','dairy','soy'],'grilledCornHuskRecipe':['dairy'],'anchoLimeButterRecipe':['dairy'],'peanutChileShrimpRecipe':['gluten','dairy','peanuts','shellfish','meat'],'peanutChileCrispRecipe':['peanuts','sesame'],'steakAuPoivreRecipe':['dairy','meat'],'primeRibRecipe':['gluten','dairy','meat'],'rackOfLambRecipe':['gluten','meat'],'parmesanPopcornRecipe':['dairy'],'oystersRockabillyRecipe':['gluten','dairy','shellfish','meat'],'mushroomsAsparagusCreamRecipe':['dairy'],'mashedPotatoesHerbRecipe':['dairy'],'onionRingsRecipe':['gluten'],'macaroniGratinRecipe':['gluten','dairy'],'roastChickenGarlicRecipe':['dairy','meat'],'shortRibsSimpleRecipe':['meat'],'chocChipCookiesMilkRecipe':['gluten','dairy','eggs'],'painKillerRecipe':['treenuts'],'m80SauceRecipe':['gluten','soy'],'lemonAioliRecipe':['dairy','eggs'],'sherryMushroomSoupRecipe':['dairy','meat'],'porkTenderloinBrothRecipe':['gluten','dairy','peanuts','soy','meat'],'shiitakeBrothRecipe':['soy'],'roastedGarlicBlueCheeseRecipe':['gluten','dairy'],'bistroSaladRecipe':['gluten','dairy'],'asparagusFredoRecipe':['dairy'],'meltingPotatoesRecipe':['dairy','meat'],'chocolateMousseRecipe':['eggs'],'oliveOilCakeRecipe':['gluten','dairy','eggs'],'scallopsSweetSavoryRecipe':['shellfish','meat'],'cevicheRecipe':['fish','meat'],'sardinesAnchoviesRecipe':['fish','meat'],'blueberryBbqChickenRecipe':['meat'],'cornChickenDrippingsRecipe':['meat'],'cucumberCrabDipRecipe':['dairy','shellfish','meat'],'gingerRiceRecipe':['dairy','eggs'],'cornBreadRecipe':['gluten','dairy','eggs'],'cacioGritsRecipe':['dairy'],'potatoCreamRecipe':['dairy','meat'],'hawaiianGrilledCheeseRecipe':['gluten','dairy','meat'],'cornChowderRecipe':['gluten','dairy'],'jalapenoCaramelChickenRecipe':['fish','meat'],'oatmealRecipe':['dairy'],'gnocchiRecipe':['gluten','dairy','eggs']};
+        var KEY = 'jbo-leave-out-v1';
+        var grid = document.getElementById('recipe-grid');
+        var countEl = document.getElementById('leave-out-count');
+        var emptyEl = document.getElementById('leave-out-empty');
+        if (!grid || !countEl || !emptyEl) return;
+        var wrappers = Array.prototype.slice.call(grid.querySelectorAll('.recipe-wrapper'));
+        var chips = Array.prototype.slice.call(document.querySelectorAll('.leave-out-chip'));
+        var excluded = [];
+        try {
+            var raw = JSON.parse(localStorage.getItem(KEY) || '[]');
+            if (Array.isArray(raw)) excluded = raw.filter(function (g) {
+                return chips.some(function (c) { return c.getAttribute('data-leave') === g; });
+            });
+        } catch (e) { excluded = []; }
+        function recipeId(w) {
+            var c = w.querySelector('.recipe-content');
+            if (c && c.id) return c.id;
+            var b = w.querySelector('[data-cook-for]');
+            return b ? b.getAttribute('data-cook-for') : '';
+        }
+        function isOut(w) {
+            var t = TAGS[recipeId(w)];
+            if (!t) return false;
+            for (var i = 0; i < t.length; i++) if (excluded.indexOf(t[i]) !== -1) return true;
+            return false;
+        }
+        var searchEl = document.getElementById('recipe-search');
+        function syncChips() {
+            chips.forEach(function (c) {
+                c.setAttribute('aria-pressed', excluded.indexOf(c.getAttribute('data-leave')) !== -1 ? 'true' : 'false');
+            });
+        }
+        function save() { try { localStorage.setItem(KEY, JSON.stringify(excluded)); } catch (e) {} }
+        /* fromBase=true when the category/search layer has just reset
+           every display itself: drop my flags, never touch display.
+           fromBase=false (my own toggle or a pair-link reset): undo my
+           hiding first so the base state shows through, then re-apply. */
+        function refresh(fromBase) {
+            wrappers.forEach(function (w) {
+                if (w.__loHidden) { if (!fromBase) w.style.display = ''; w.__loHidden = false; }
+            });
+            var n = 0;
+            wrappers.forEach(function (w) {
+                if (w.style.display !== 'none' && isOut(w)) { w.style.display = 'none'; w.__loHidden = true; }
+                if (w.style.display !== 'none') n++;
+            });
+            countEl.textContent = n + ' of ' + wrappers.length + ' recipes';
+            /* While a search term stands, the search row's own count
+               owns the count slot; this count returns when it clears. */
+            countEl.hidden = !!(searchEl && searchEl.value.trim());
+            var showEmpty = excluded.length > 0 && n === 0;
+            emptyEl.hidden = !showEmpty;
+            if (showEmpty) {
+                var re = document.getElementById('recipe-empty');
+                if (re) re.hidden = true;
+                var se = document.getElementById('recipe-search-empty');
+                if (se) se.hidden = true;
+            }
+        }
+        chips.forEach(function (c) {
+            c.addEventListener('click', function () {
+                var g = c.getAttribute('data-leave');
+                var i = excluded.indexOf(g);
+                if (i === -1) excluded.push(g); else excluded.splice(i, 1);
+                save(); syncChips(); refresh(false);
+            });
+        });
+        /* Re-apply after the category pills or the search change the
+           grid. These listeners register after the page's own, so the
+           base state is already settled when they run. The mobile
+           Filter bubble's mirror pills click the real pills, so the
+           delegated pill listener covers the bubble too. */
+        document.addEventListener('click', function (e) {
+            var pill = e.target && e.target.closest ? e.target.closest('.recipe-filters .filter-pill') : null;
+            if (pill) refresh(true);
+        });
+        if (searchEl) searchEl.addEventListener('input', function () { refresh(true); });
+        var clearEl = document.getElementById('recipe-search-clear');
+        if (clearEl) clearEl.addEventListener('click', function () { refresh(true); });
+        /* A pair link names a recipe to open: if an exclusion hides it,
+           clear the exclusions first (capture phase, before the page's
+           own pair handler runs) — the same reset the category layer
+           makes when a pair target sits outside the active category. */
+        document.addEventListener('click', function (e) {
+            var a = e.target && e.target.closest ? e.target.closest('.pair-link') : null;
+            if (!a || !excluded.length) return;
+            var target = document.getElementById(a.getAttribute('data-pair'));
+            var wrap = target && target.closest ? target.closest('.recipe-wrapper') : null;
+            if (wrap && wrap.__loHidden) {
+                excluded = [];
+                save(); syncChips(); refresh(false);
+            }
+        }, true);
+        syncChips();
+        refresh(true);
+    })();
     </script>
     <script>
 /* Recipes nutrition tool — renders per-recipe panels + the combiner.
