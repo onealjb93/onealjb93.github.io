@@ -104,9 +104,51 @@
             transform: translateX(-50%);
             bottom: calc(12px + env(safe-area-inset-bottom, 0px));
             display: flex;
+            flex-direction: column;
+            justify-content: center;
             align-items: center;
             gap: 8px;
             z-index: 5;
+            max-width: calc(100% - 16px);
+        }
+        .thr-controls-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        /* Build | Play: one segmented control, the mode reads on its
+           face — the pressed half is lit with the accent, the other
+           sits quiet. It takes the cluster's first row; switching it
+           moves nothing else on the stage. */
+        .thr-seg {
+            flex-basis: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        .thr-seg-group {
+            display: inline-flex;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--glass-bg);
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            backdrop-filter: blur(var(--glass-blur));
+            overflow: hidden;
+        }
+        .thr-seg-btn {
+            min-height: 44px;
+            padding: 8px 22px;
+            border: 0;
+            background: transparent;
+            color: var(--subtext-color);
+            font: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .thr-seg-btn[aria-pressed="true"] {
+            background: var(--accent-color);
+            color: #fff;
+            font-weight: 600;
         }
         .thr-btn {
             min-height: 44px;
@@ -144,7 +186,7 @@
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
-            bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+            bottom: calc(124px + env(safe-area-inset-bottom, 0px));
             display: flex;
             align-items: center;
             gap: 8px;
@@ -167,7 +209,7 @@
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
-            bottom: calc(116px + env(safe-area-inset-bottom, 0px));
+            bottom: calc(176px + env(safe-area-inset-bottom, 0px));
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
@@ -209,7 +251,7 @@
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
-            bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+            bottom: calc(178px + env(safe-area-inset-bottom, 0px));
             max-width: calc(100% - 32px);
             z-index: 6;
             padding: 8px 14px;
@@ -234,7 +276,9 @@
            face, and the row never moves when a chip is pressed. */
         .thr-picker {
             position: absolute;
-            top: 12px;
+            /* Below the shell's game picker, which owns the stage's
+               top-left now — the two rows keep their old rhythm. */
+            top: 72px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -282,7 +326,7 @@
         .thr-chip[aria-pressed="true"] .thr-chip-dot { background: #1a1206; box-shadow: none; }
         .thr-chip[data-type="cello"][aria-pressed="true"] .thr-chip-dot { background: #ffeedd; }
         /* The transient note yields the top-centre slot to the picker. */
-        .thr-note { top: 62px; }
+        .thr-note { top: 122px; }
         /* Start overlay: the glass bubble over the dimmed stage. */
         .thr-start {
             position: absolute;
@@ -375,6 +419,7 @@
             inset: 0;
             z-index: 10;
             display: grid;
+            grid-template-rows: minmax(0, 1fr);
             place-items: center;
             background: var(--scrim-bg);
             -webkit-backdrop-filter: blur(var(--scrim-blur));
@@ -394,7 +439,14 @@
             max-width: 350px;
             width: 100%;
             box-sizing: border-box;
+            /* The bubble never outgrows its stage: the panel caps at
+               the overlay's height and the prose scrolls inside it,
+               so opening the rules can never push the page around. */
+            display: flex;
+            flex-direction: column;
+            max-height: 100%;
         }
+        .thr-rules-body { overflow-y: auto; min-height: 0; }
         .thr-rules-title {
             font-size: 1.3rem;
             font-weight: 700;
@@ -425,32 +477,105 @@
 
         /* ---- AR World shell: one mode box, three modes ---- */
         main > section[hidden] { display: none !important; }
-        .ar-modes {
+        /* The game picker — one segmented pill floating at the top
+           of whichever stage is live. Same pill in every game and in
+           fullscreen; it never moves when used. */
+        .ar-picker {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 9;
             display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin: 0 0 14px;
-        }
-        .ar-mode-btn {
-            min-height: 44px;
-            padding: 8px 20px;
+            gap: 2px;
+            padding: 3px;
             border-radius: 999px;
-            border: 1px solid var(--border-color);
-            background: var(--glass-bg);
-            -webkit-backdrop-filter: blur(var(--glass-blur));
-            backdrop-filter: blur(var(--glass-blur));
-            color: var(--text-color);
+            background: rgba(8, 12, 20, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+        }
+        .ar-pick-btn {
+            min-height: 44px;
+            min-width: 44px;
+            padding: 6px 14px;
+            border: 0;
+            border-radius: 999px;
+            background: transparent;
+            color: #c9d4e4;
             font: inherit;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
+            font-weight: 550;
             cursor: pointer;
             white-space: nowrap;
             touch-action: manipulation;
         }
-        .ar-mode-btn[aria-pressed="true"] {
-            border-color: var(--accent-color);
-            box-shadow: inset 0 0 0 1px var(--accent-color);
+        .ar-pick-btn[aria-pressed="true"] {
+            background: var(--accent-color);
+            color: #ffffff;
             font-weight: 650;
         }
+        .ar-pick-btn:focus-visible {
+            outline: 2px solid var(--accent-color);
+            outline-offset: 2px;
+        }
+        /* Pseudo-fullscreen — the iPhone path (Safari there has no
+           element Fullscreen API): the whole game block pins to the
+           viewport at 100lvh and the stage flexes to fill it. */
+        body.ar-fs-lock { overflow: hidden !important; }
+        /* Pseudo-fullscreen owns the screen: the site's fixed
+           header hides for the duration (native fullscreen hides
+           it by itself). */
+        body.ar-fs-lock nav, body.ar-fs-lock header { display: none !important; }
+        section.ar-pseudo-fs {
+            position: fixed !important;
+            inset: 0;
+            height: 100lvh;
+            z-index: 400;
+            background: var(--bg-color);
+            display: flex !important;
+            flex-direction: column;
+            padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        section.ar-pseudo-fs .thr-stage,
+        section.ar-pseudo-fs .cloth-stage,
+        section.ar-pseudo-fs .art-stage { flex: 1 1 auto; height: auto; min-height: 0; }
+        /* One-time camera-permission guidance — a slim line above the
+           stages; dismissed once, gone forever; never in fullscreen
+           (the fixed section covers it). */
+        .ar-cam-hint {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 12px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: var(--glass-bg);
+            color: var(--text-color);
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+        .ar-cam-hint[hidden] { display: none; }
+        .ar-cam-hint-x {
+            appearance: none;
+            border: 0;
+            background: none;
+            color: inherit;
+            font-size: 1rem;
+            line-height: 1;
+            min-width: 44px;
+            min-height: 44px;
+            margin: -8px -6px -8px auto;
+            cursor: pointer;
+            flex: none;
+        }
+        /* "Where it plays best" — one shared rules section. */
+        .ar-best { margin-top: 12px; text-align: left; }
+        .ar-best h4 { margin: 0 0 6px; font-size: 0.95rem; }
+        .ar-best p { margin: 0 0 6px; font-size: 0.88rem; line-height: 1.5; opacity: 0.92; }
+        .ar-best p:last-child { margin-bottom: 0; }
+        .ar-best strong { font-weight: 650; }
         .ar-mode-btn:focus-visible, .cloth-btn:focus-visible, .cloth-start-btn:focus-visible,
         .cloth-touch-link:focus-visible, .art-chip:focus-visible, .art-start-btn:focus-visible,
         .art-touch-link:focus-visible, .art-fs-btn:focus-visible {
@@ -458,6 +583,31 @@
             outline-offset: 2px;
         }
         .cloth-section { width: 100%; }
+        .cloth-fs-btn {
+            flex: 0 0 auto;
+            width: 44px;
+            height: 44px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
+            cursor: pointer;
+            padding: 0;
+        }
+        .cloth-fs-btn svg { width: 22px; height: 22px; }
+        .cloth-fs-btn .cloth-fs-icon-exit { display: none; }
+        .cloth-section.cloth-fs-on .cloth-fs-btn .cloth-fs-icon-enter { display: none; }
+        .cloth-section.cloth-fs-on .cloth-fs-btn .cloth-fs-icon-exit { display: block; }
+        .cloth-section:fullscreen {
+            background: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+            box-sizing: border-box;
+        }
+        .cloth-section:fullscreen .cloth-stage { flex: 1 1 auto; height: auto; }
         .cloth-title-row { display: flex; align-items: center; justify-content: space-between; margin: 0 0 8px; }
         .cloth-title { font-size: 1.02rem; font-weight: 600; }
         .cloth-badge { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; border: 1px solid rgba(255,255,255,0.25); border-radius: 999px; padding: 3px 9px; }
@@ -708,6 +858,7 @@
             inset: 0;
             z-index: 8;
             display: grid;
+            grid-template-rows: minmax(0, 1fr);
             place-items: center;
             background: var(--scrim-bg);
             -webkit-backdrop-filter: blur(var(--scrim-blur));
@@ -730,7 +881,8 @@
             text-align: center;
             box-sizing: border-box;
         }
-        .art-rules-panel { text-align: left; padding-top: 24px; }
+        .art-rules-panel { text-align: left; padding-top: 24px; display: flex; flex-direction: column; max-height: 100%; }
+        .art-rules-body { overflow-y: auto; min-height: 0; }
         .art-start-title { font-size: 1.6rem; font-weight: 700; color: var(--header-name-color); margin-bottom: 10px; }
         .art-rules-title { font-size: 1.3rem; font-weight: 700; color: var(--header-name-color); margin: 0 44px 12px 0; }
         .art-start-line { color: var(--text-color); font-size: 0.98rem; line-height: 1.55; margin: 0 0 20px; }
@@ -836,14 +988,18 @@
     </header>
 
     <main>
-    <div class="ar-modes" role="group" aria-label="Choose a mode">
-        <button type="button" class="ar-mode-btn" data-mode="threads" aria-pressed="true">Threads</button>
-        <button type="button" class="ar-mode-btn" data-mode="cloth" aria-pressed="false">Cloth</button>
-        <button type="button" class="ar-mode-btn" data-mode="art" aria-pressed="false">Art</button>
+    <div class="ar-cam-hint" id="arCamHint" hidden>
+        <span>Stop Safari asking: tap <strong>aA</strong> → Website Settings → Camera → Allow for this site.</span>
+        <button type="button" class="ar-cam-hint-x" id="arCamHintX" aria-label="Dismiss">✕</button>
     </div>
     <section class="thr-section" id="threadsGame" aria-labelledby="threads-heading">
         <h2 class="thr-title-row" id="threads-heading"><span class="thr-title">Threads</span><button type="button" class="thr-fs-btn thr-help-btn" id="thrHelpBtn" aria-label="How to play" aria-haspopup="dialog">?</button><button type="button" class="thr-fs-btn" id="thrFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="thr-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="thr-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
         <div class="thr-stage" id="thrStage">
+            <div class="ar-picker" role="group" aria-label="Choose a game">
+                <button type="button" class="ar-pick-btn" data-game-pick="threads" aria-pressed="true">Threads</button>
+                <button type="button" class="ar-pick-btn" data-game-pick="cloth" aria-pressed="false">Cloth</button>
+                <button type="button" class="ar-pick-btn" data-game-pick="art" aria-pressed="false">Art</button>
+            </div>
             <canvas id="thrCanvas"></canvas>
             <video id="thrVideo" playsinline muted></video>
             <div class="thr-note" id="thrNote" role="status"></div>
@@ -855,9 +1011,17 @@
                 <button type="button" class="thr-chip" data-type="harp" aria-pressed="false"><span class="thr-chip-dot" aria-hidden="true"></span>Harp</button>
             </div>
             <div class="thr-controls" id="thrControls" hidden>
-                <button class="thr-btn" id="thrUndo" type="button" disabled>↩ Undo</button>
-                <span class="thr-count" id="thrCount" aria-live="polite">0 strings</span>
-                <button class="thr-btn" id="thrClear" type="button" disabled>Clear</button>
+                <div class="thr-seg">
+                    <div class="thr-seg-group" role="group" aria-label="Build or play">
+                        <button class="thr-seg-btn" id="thrModeBuild" type="button" aria-pressed="true">Build</button>
+                        <button class="thr-seg-btn" id="thrModePlay" type="button" aria-pressed="false">Play</button>
+                    </div>
+                </div>
+                <div class="thr-controls-row">
+                    <button class="thr-btn" id="thrUndo" type="button" disabled>↩ Undo</button>
+                    <span class="thr-count" id="thrCount" aria-live="polite">0 strings</span>
+                    <button class="thr-btn" id="thrClear" type="button" disabled>Clear</button>
+                </div>
             </div>
             <div class="thr-tray" id="thrTray" hidden></div>
             <div class="thr-music" id="thrMusic" hidden>
@@ -878,15 +1042,25 @@
                 <div class="thr-rules-panel">
                     <button class="thr-rules-close" id="thrRulesClose" type="button" aria-label="Close">✕</button>
                     <div class="thr-rules-title" id="thrRulesTitle">How to play</div>
+                    <div class="thr-rules-body">
+                    <p class="thr-start-line">Threads has two modes — <strong>Build</strong> and <strong>Play</strong> — switched with the Build | Play control at the bottom of the stage. Build is where strings are made and removed. Play only plays: nothing you do there can add a string or take one away.</p>
                     <ol class="thr-steps">
-                        <li><strong>Start</strong> — pinch your thumb and index finger together. A dot appears.</li>
+                        <li><strong>Start</strong> — in Build, pinch your thumb and index finger together.</li>
                         <li><strong>Drag</strong> — keep pinching and move your hand. The thread follows your fingertip and stretches.</li>
                         <li><strong>Drop</strong> — open your fingers wide. The string stays pinned.</li>
                     </ol>
-                    <p class="thr-start-line">Then play — pinch on a string to sound it, drag while pinched to keep it ringing, and let go to stop it. An open hand crossing the strings stays silent. Short strings sing high, long strings sing low.</p>
+                    <p class="thr-start-line">Remove a string in Build — pinch it and hold it still. The string thins as it lets go; when it fades, it is gone. Move your hand and it stays. Undo brings a removed string back.</p>
+                    <p class="thr-start-line">In Play — pinch on a string to sound it, drag while pinched to keep it ringing, and let go to stop it. Pinching empty space does nothing. An open hand crossing the strings stays silent. Short strings sing high, long strings sing low.</p>
                     <p class="thr-start-line">Pick an instrument at the top — Guitar, Violin, Cello or Harp — and every new string you place takes that instrument's voice and colour. Strings already placed keep theirs.</p>
                     <p class="thr-start-line">Add drums with the Drums button — Kick, Snare, Hi-hat and Hand drum. Tap a drum to play it, sweep across it to strike it. Pinch a drum with two fingers to size it: bigger drums sound deeper and louder, smaller drums higher and softer.</p>
                     <p class="thr-start-line">Record your voice with the Record button and it loops under everything you play. In Tools, Save setup keeps your web, your drums and your loop on this device only, ready next visit — nothing is uploaded.</p>
+                    <p class="thr-start-line">Prop your phone still — a steady camera keeps everything exactly where you put it, and frees both hands.</p>
+                    <div class="ar-best">
+                        <h4>Where it plays best</h4>
+                        <p><strong>Great</strong> — bright, even light on your hands; a plain background behind them; a table, counter, or shelf to prop the phone at arm's length; a still room, with nothing moving behind you. Art likes a clear wall; Cloth likes a table edge.</p>
+                        <p><strong>Rough</strong> — dim or lamplit rooms; a window behind you; busy, cluttered backgrounds; mirrors and glossy reflections; harsh sun and glare outdoors; anywhere the phone can't sit still — walking, or in a car.</p>
+                    </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -894,9 +1068,14 @@
 <section class="cloth-section" id="clothGame" hidden aria-labelledby="cloth-heading">
         <h2 class="cloth-title-row" id="cloth-heading">
             <span class="cloth-title">Cloth</span>
-            <span class="cloth-badge">Prototype</span>
+            <span style="display: flex; gap: 8px; align-items: center;"><span class="cloth-badge">Prototype</span><button type="button" class="cloth-fs-btn" id="clothFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="cloth-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="cloth-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></span>
         </h2>
         <div class="cloth-stage" id="clothStage">
+            <div class="ar-picker" role="group" aria-label="Choose a game">
+                <button type="button" class="ar-pick-btn" data-game-pick="threads" aria-pressed="false">Threads</button>
+                <button type="button" class="ar-pick-btn" data-game-pick="cloth" aria-pressed="true">Cloth</button>
+                <button type="button" class="ar-pick-btn" data-game-pick="art" aria-pressed="false">Art</button>
+            </div>
             <div class="cloth-backdrop"></div>
             <video id="clothVideo" playsinline muted></video>
             <canvas id="clothCanvas"></canvas>
@@ -913,6 +1092,7 @@
                     <p>One piece of silk, put down in front of you. Your fingertip presses it;
                        a pinch catches a handful and pulls. Hold a handful still to pin it
                        there; let go and it drops — and stays where it lands.</p>
+                    <p>Prop your phone still — a steady camera keeps everything exactly where you put it, and frees both hands.</p>
                     <button class="cloth-start-btn" id="clothStartBtn" type="button">Start camera</button>
                     <button class="cloth-touch-link" id="clothTouchBtn" type="button">Use touch instead</button>
                     <p class="cloth-start-status" id="clothStartStatus"></p>
@@ -923,6 +1103,11 @@
 <section class="art-section" id="artGame" hidden aria-labelledby="art-heading">
         <h2 class="art-title-row" id="art-heading"><span class="art-title">Art</span><button type="button" class="art-fs-btn art-help-btn" id="artHelpBtn" aria-label="How to play" aria-haspopup="dialog">?</button><button type="button" class="art-fs-btn" id="artFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="art-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="art-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
         <div class="art-stage" id="artStage">
+            <div class="ar-picker" role="group" aria-label="Choose a game">
+                <button type="button" class="ar-pick-btn" data-game-pick="threads" aria-pressed="false">Threads</button>
+                <button type="button" class="ar-pick-btn" data-game-pick="cloth" aria-pressed="false">Cloth</button>
+                <button type="button" class="ar-pick-btn" data-game-pick="art" aria-pressed="true">Art</button>
+            </div>
             <video id="artVideo" playsinline muted></video>
             <canvas id="artGL"></canvas>
             <canvas id="artOverlay"></canvas>
@@ -955,12 +1140,20 @@
                 <div class="art-rules-panel">
                     <button class="art-rules-close" id="artRulesClose" type="button" aria-label="Close">✕</button>
                     <div class="art-rules-title" id="artRulesTitle">How to paint</div>
+                    <div class="art-rules-body">
                     <ol class="art-steps">
                         <li><strong>Paint</strong> — pinch your thumb and index finger together and move. The brush follows your fingertip.</li>
                         <li><strong>Lift</strong> — open your fingers wide. The stroke ends and stays where you drew it.</li>
                         <li><strong>Tools</strong> — pick a brush (Paint, Light, Ribbon), a color, and a size below. New settings apply to the next stroke.</li>
                     </ol>
                     <p class="art-start-line">Strokes float on a plane in front of the camera. In touch mode, drag to paint and drag with two fingers to look around them.</p>
+                    <p class="art-start-line">Prop your phone still — a steady camera keeps everything exactly where you put it, and frees both hands.</p>
+                    <div class="ar-best">
+                        <h4>Where it plays best</h4>
+                        <p><strong>Great</strong> — bright, even light on your hands; a plain background behind them; a table, counter, or shelf to prop the phone at arm's length; a still room, with nothing moving behind you. Art likes a clear wall; Cloth likes a table edge.</p>
+                        <p><strong>Rough</strong> — dim or lamplit rooms; a window behind you; busy, cluttered backgrounds; mirrors and glossy reflections; harsh sun and glare outdoors; anywhere the phone can't sit still — walking, or in a car.</p>
+                    </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1084,6 +1277,46 @@
         var running = false;            // frame loop live
         var rafId = 0;
 
+        // ---- Build | Play (Johnny, 2026-11-23): Build places and
+        // removes strings; Play only plays — no gesture in Play can
+        // create or destroy geometry. The stage opens in Play when a
+        // web already exists, Build when it is empty (unless an
+        // autosaved mode was restored — that mode is the session's
+        // own and survives). ----
+        var actMode = 'build';          // 'build' | 'play'
+        var modeRestored = false;       // an autosave named the opening mode
+        var stillCoachShown = false;    // the first-run still-camera coach shows once
+        var STILL_LINE = 'Prop your phone still — a steady camera keeps everything exactly where you put it, and frees both hands.';
+        var buildBtn = document.getElementById('thrModeBuild');
+        var playBtn = document.getElementById('thrModePlay');
+        // ---- delete-by-hold (Build only): pinch or press a string
+        // and hold it STILL — the string thins as the hold builds
+        // and dissolves at DELETE_MS; any real movement cancels.
+        // The dwell mirrors Cloth's pin: one deliberate-gesture
+        // vocabulary across AR World. ----
+        var DELETE_MS = 600;            // still-hold that removes a string
+        var DELETE_TOL_PX = 12;         // movement beyond this cancels the hold
+        var delHold = null;             // {s, px, since, label} | {s, px, since, touch:true}
+        var history = [];               // undo stack: {kind:'dot'|'pair'|'del', ...}
+        function cancelDelHold() {
+            if (delHold && delHold.s) delHold.s.delT = 0;
+            delHold = null;
+        }
+        function setActMode(m) {
+            if (m !== 'build' && m !== 'play') return;
+            actMode = m;
+            buildBtn.setAttribute('aria-pressed', m === 'build' ? 'true' : 'false');
+            playBtn.setAttribute('aria-pressed', m === 'play' ? 'true' : 'false');
+            if (m === 'play') {
+                if (armedDrum) disarmDrum();
+                cancelDelHold();
+            }
+            scheduleAutosave();
+            updateHint();
+        }
+        buildBtn.addEventListener('click', function () { ensureAudio(); setActMode('build'); });
+        playBtn.addEventListener('click', function () { ensureAudio(); setActMode('play'); });
+
         var dots = [];                  // {x, y} as fractions of stage size
         var strings = [];               // {freq, name, rgb, lenPx, vibStart, vibAmp, lastPluck}
         var pull = null;                // live thread endpoint {x, y} fractions, or null
@@ -1169,54 +1402,113 @@
             for (var i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
             return Math.sqrt(sum / buf.length);
         }
-        function ksBuffer(freq) {
-            if (ksCache.has(freq)) return ksCache.get(freq);
-            var sr = actx.sampleRate, dur = 2.2, len = Math.floor(sr * dur);
+        // ---- plucked voices: a physical string, rendered per
+        // strike (Johnny, 2026-11-23: the old voice replayed one
+        // cached 2.2 s buffer per pitch — a fixed, even, digital
+        // tail, identical every time). Karplus-Strong: a noise
+        // burst excites a tuned feedback delay; the loop's lowpass
+        // eats harmonics faster than the fundamental, exactly like
+        // a real string. The per-period gain is SOLVED from the
+        // string's own T60, so decay time belongs to the string:
+        // longer/lower rings longer, shorter/higher dies faster.
+        // The instrument voices the model — excitation brightness
+        // and blend — never a different recording. ----
+        function pluckParams(freq, type) {
+            var t60 = (type === 'harp' ? 4.0 : 2.4) * Math.pow(261.63 / freq, 0.55);
+            t60 = Math.max(0.7, Math.min(5.0, t60));
+            return {
+                t60: t60,
+                blend: type === 'harp' ? 0.30 : 0.50,   // loop lowpass: lower = brighter, longer-lived harmonics
+                excLP: type === 'harp' ? 0.55 : 0.30    // excitation smoothing: lower = mellower pick
+            };
+        }
+        function renderPluck(freq, type) {
+            var sr = actx.sampleRate;
+            var P = pluckParams(freq, type);
+            var dur = Math.min(5.5, P.t60 * 1.12 + 0.15);
+            var len = Math.floor(sr * dur);
             var buf = actx.createBuffer(1, len, sr);
             var out = buf.getChannelData(0);
             var N = Math.max(2, Math.round(sr / freq));
             var ring = new Float32Array(N);
-            for (var i = 0; i < N; i++) ring[i] = Math.random() * 2 - 1;
-            var idx = 0, damp = 0.996;
+            // Excitation: one period of noise — the first quarter
+            // raw (the pick's bright transient), the rest smoothed
+            // by a one-pole so the body of the burst is string, not
+            // static. Fresh noise every strike: no two plucks of
+            // the same pitch are the same waveform.
+            var lp = 0;
+            for (var i = 0; i < N; i++) {
+                var w = Math.random() * 2 - 1;
+                lp += P.excLP * (w - lp);
+                ring[i] = i < N * 0.25 ? w : lp / Math.max(0.35, P.excLP + 0.45);
+            }
+            var gp = Math.exp(-6.9078 / (P.t60 * freq));   // per-period gain for −60 dB at T60
+            var idx = 0;
             for (var j = 0; j < len; j++) {
                 var cur = ring[idx];
                 var nxt = ring[(idx + 1) % N];
-                ring[idx] = damp * 0.5 * (cur + nxt);
+                ring[idx] = gp * ((1 - P.blend) * cur + P.blend * nxt);
                 out[j] = cur;
                 idx = (idx + 1) % N;
             }
-            ksCache.set(freq, buf);
-            return buf;
-        }
-        // Harp: the same Karplus-Strong string, voiced brighter and
-        // longer — a stiffer damping factor and a longer tail, so a
-        // sweep across harp strings rings as a glissando instead of
-        // a row of separate plucks. Retriggers are independent
-        // buffer sources, so rapid sweeps never cut a ringing note.
-        function harpBuffer(freq) {
-            if (harpCache.has(freq)) return harpCache.get(freq);
-            var sr = actx.sampleRate, dur = 3.6, len = Math.floor(sr * dur);
-            var buf = actx.createBuffer(1, len, sr);
-            var out = buf.getChannelData(0);
-            var N = Math.max(2, Math.round(sr / freq));
-            var ring = new Float32Array(N);
-            for (var i = 0; i < N; i++) ring[i] = Math.random() * 2 - 1;
-            var idx = 0, damp = 0.9995;
-            for (var j = 0; j < len; j++) {
-                var cur = ring[idx];
-                var nxt = ring[(idx + 1) % N];
-                // A gentler loop filter than the guitar's half-and-
-                // half average: the harp sounds an octave up, where
-                // the standard average eats the ring twice as fast —
-                // the light blend keeps the harp singing longer, and
-                // brighter, as a harp should.
-                ring[idx] = damp * (0.9 * cur + 0.1 * nxt);
-                out[j] = cur;
-                idx = (idx + 1) % N;
+            // Normalise to a consistent peak, then a short end fade
+            // so the buffer never cuts mid-ring.
+            var peak = 0;
+            for (var k = 0; k < len; k++) { var a = Math.abs(out[k]); if (a > peak) peak = a; }
+            var fade = Math.min(len, Math.floor(sr * 0.025)), fi;
+            if (peak > 0.01) {
+                var sc = 0.9 / peak;
+                for (fi = 0; fi < len; fi++) {
+                    out[fi] *= sc;
+                    if (fi >= len - fade) out[fi] *= (len - fi) / fade;
+                }
             }
-            harpCache.set(freq, buf);
             return buf;
         }
+        // Measured on the exact production render (the suite reads
+        // these): attack = time to 90% of peak; t60 = time for the
+        // envelope to fall 60 dB from its peak.
+        function voiceMetrics(freq, type) {
+            if (!actx) return null;
+            var buf = renderPluck(freq, type);
+            var d = buf.getChannelData(0), sr = buf.sampleRate;
+            var peak = 0, peakAt = 0;
+            for (var i = 0; i < d.length; i++) { var a = Math.abs(d[i]); if (a > peak) { peak = a; peakAt = i; } }
+            var attackAt = peakAt;
+            for (var j = 0; j <= peakAt; j++) { if (Math.abs(d[j]) >= peak * 0.9) { attackAt = j; break; } }
+            var block = 256, thresh = peak * 0.001, lastAbove = peakAt;
+            for (var b0 = 0; b0 < d.length; b0 += block) {
+                var mx = 0;
+                for (var k2 = b0; k2 < Math.min(d.length, b0 + block); k2++) { var a2 = Math.abs(d[k2]); if (a2 > mx) mx = a2; }
+                if (mx >= thresh) lastAbove = b0;
+            }
+            return { attackMs: Math.round(attackAt / sr * 10000) / 10,
+                     t60Ms: Math.round((lastAbove - peakAt) / sr * 1000),
+                     durS: Math.round(buf.duration * 100) / 100 };
+        }
+        // ---- polyphony: every strike is an independent voice.
+        // A voice belongs to one strike, never to the string as a
+        // whole: a new strike on ANOTHER string cannot touch it,
+        // and rapid successive plucks overlap in the mix. Only a
+        // re-strike of the SAME string retires that string's own
+        // earlier voice, and a pinch release fingertip-damps the
+        // voice its own hold started. ----
+        var voices = [];
+        var VOICE_CAP = 32;   // safety valve only: beyond it the OLDEST voice fades — normal play never reaches it
+        function fadeVoice(v, tau, stopAfter) {
+            if (!v || v.dead) return;
+            v.dead = true;
+            try {
+                var t = actx.currentTime;
+                v.gain.gain.cancelScheduledValues(t);
+                v.gain.gain.setValueAtTime(v.gain.gain.value, t);
+                v.gain.gain.setTargetAtTime(0, t, tau);
+                v.src.stop(t + stopAfter);
+            } catch (e) {}
+            var i = voices.indexOf(v);
+            if (i >= 0) voices.splice(i, 1);
+        }
+        function voicesOf(s) { return voices.filter(function (v) { return v.s === s; }); }
         // ---- bowed voices (violin, cello): a sawtooth through a
         // lowpass, with vibrato and a slow bow attack. The voice is
         // built once per string and gated by its gain: it sounds
@@ -1263,7 +1555,7 @@
         }
         function teardownBow(s) {
             if (!s) return;
-            dampPluck(s);   // a removed string's plucked ring dies with it
+            killVoices(s);   // a removed string's plucked ring dies with it
             if (!s.bow) return;
             var b = s.bow;
             s.bow = null; s.bowOn = false; s.sounding = false;
@@ -1278,7 +1570,7 @@
             pluckLog.push({ freq: s.freq, name: s.name, type: s.type, strength: Math.round(strength * 100) / 100, t: now });
             if (pluckLog.length > 200) pluckLog.shift();
         }
-        function pluck(s, strength) {
+        function pluck(s, strength, holder) {
             var now = performance.now();
             s.vibStart = now;
             s.vibAmp = strength;
@@ -1287,24 +1579,33 @@
             if (!actx || !master) return;
             try {
                 if (actx.state === 'suspended') actx.resume();
-                dampPluck(s);   // a re-attack retires the previous ring first
+                // A re-attack retires THIS string's own earlier
+                // voice — and no other string's.
+                voicesOf(s).forEach(function (v) { fadeVoice(v, 0.02, 0.09); });
                 var src = actx.createBufferSource();
-                src.buffer = s.type === 'harp' ? harpBuffer(s.freq) : ksBuffer(s.freq);
+                src.buffer = renderPluck(s.freq, s.type);
                 var g = actx.createGain();
                 g.gain.value = s.type === 'harp' ? 0.20 + 0.50 * strength : 0.22 + 0.55 * strength;
                 src.connect(g); g.connect(master);
-                // The live ring is tracked so a pinch release can damp
-                // it: the note sounds while pinched, stops when not.
+                var v = { s: s, src: src, gain: g, held: holder || null, born: actx.currentTime, dead: false };
+                voices.push(v);
+                // Compat for anything still reading the string's
+                // latest ring: it names the newest voice only.
                 s.liveSrc = src; s.liveGain = g;
-                src.onended = function () { if (s.liveSrc === src) { s.liveSrc = null; s.liveGain = null; } };
+                src.onended = function () {
+                    var i = voices.indexOf(v);
+                    if (i >= 0) voices.splice(i, 1);
+                    if (s.liveSrc === src) { s.liveSrc = null; s.liveGain = null; }
+                };
                 src.start();
+                while (voices.length > VOICE_CAP) fadeVoice(voices[0], 0.02, 0.09);
             } catch (e) { /* audio is a layer, never a blocker */ }
         }
         // One entry point for "a fingertip struck this string":
         // plucked voices ring; bowed voices take the touch and
         // sustain for as long as touches keep landing (the frame
         // loop starts and stops the bow from s.lastTouch).
-        function strike(s, strength) {
+        function strike(s, strength, holder) {
             var now = performance.now();
             s.lastPluck = now;
             if (TYPES[s.type] && TYPES[s.type].voice === 'bow') {
@@ -1313,7 +1614,7 @@
                 s.lastTouch = now;
                 logPluck(s, strength, now);
             } else {
-                pluck(s, strength);
+                pluck(s, strength, holder);
             }
         }
 
@@ -1339,7 +1640,7 @@
             if (s.heldBy && s.heldBy !== holder) return;   // the other hand holds it: no double attack
             if (s.heldBy === holder && s.stopAt) { s.stopAt = 0; return; }  // dropout resume: the note never stopped
             s.heldBy = holder; s.pinchHeld = true; s.stopAt = 0;
-            strike(s, PLAY_STRENGTH);
+            strike(s, PLAY_STRENGTH, holder);
         }
         function releaseHeldString(s, holder, now) {
             if (!s || s.heldBy !== holder) return;
@@ -1358,23 +1659,27 @@
                 dampPluck(s);
             }
         }
+        // A removed string's voices die with it — fast, all of them.
         function stopAllHeld() {
             for (var i = 0; i < strings.length; i++) {
                 if (strings[i].heldBy || strings[i].stopAt) finalizeStop(strings[i]);
             }
         }
-        // Damp a ringing plucked note: a quick fade, never a click.
+        // Fingertip-damp the voice a pinch hold started: a real
+        // fingertip landing on a string stops it fast and soft —
+        // an exponential settle over ~150 ms, not a linear fade
+        // and never a click. Voices the string earned from free
+        // strikes (touch strums) are not held and ring on.
         function dampPluck(s) {
-            var g = s.liveGain, src = s.liveSrc;
             s.liveGain = null; s.liveSrc = null;
-            if (!g || !actx) return;
-            try {
-                var t = actx.currentTime;
-                g.gain.cancelScheduledValues(t);
-                g.gain.setValueAtTime(g.gain.value, t);
-                g.gain.linearRampToValueAtTime(0, t + PLUCK_DAMP_MS / 1000);
-                if (src) setTimeout(function () { try { src.stop(); } catch (e) {} }, PLUCK_DAMP_MS + 60);
-            } catch (e) { /* audio is a layer, never a blocker */ }
+            if (!actx) return;
+            voicesOf(s).forEach(function (v) {
+                if (v.held) fadeVoice(v, 0.038, 0.30);
+            });
+        }
+        function killVoices(s) {
+            if (!actx) return;
+            voicesOf(s).forEach(function (v) { fadeVoice(v, 0.02, 0.09); });
         }
         // Behind DRAG_CROSSES_STRINGS (default off, Johnny's open
         // question): a pinched drag crossing another string starts
@@ -1506,80 +1811,158 @@
             markDirty();
             return d;
         }
-        // A drum reads at a glance: a membrane disc in its own
-        // colour with its glyph, and on a hit a pulse and a ripple
-        // ring — the same flash language as a vibrating string.
+        // A drum is an object in the room, not a token (Johnny,
+        // 2026-11-23: "the drums don't look realistic"): a hoop
+        // with a lit edge and tension lugs, a membrane shaded like
+        // a real head — lit centre falling to a dark bearing edge,
+        // a soft specular — grounded by a contact shadow. A strike
+        // deforms it: the centre dips, a ripple runs outward, the
+        // rim catches the light, and the shadow answers. The kind
+        // glyph survives only as a tone-on-tone print on the head,
+        // the way a maker's logo sits on a real drumhead.
+        var HOOPS = {
+            kick:  { tone: [104, 112, 124] },              // dark steel
+            snare: { tone: [172, 182, 196] },              // chrome steel
+            hat:   { tone: [178, 168, 150] },              // brassed steel
+            hand:  { tone: [150, 106, 66] }                // wood
+        };
         function drawDrum(d, now) {
             var p = toPx(d), r = drumRPx(d), T = DRUMS[d.kind];
             var el = d.hitT ? (now - d.hitT) / 1000 : 99;
             var hit = el < 0.45 ? 1 - el / 0.45 : 0;
             // The membrane does not swell like a balloon: it dips
-            // and ripples, decaying in ~0.45 s. osc drives both the
-            // rim wobble and the centre dip below.
+            // and ripples, decaying in ~0.45 s. osc drives the rim
+            // wobble, the centre dip and the ripple below.
             var osc = el < 0.6 ? Math.cos(el * 38) * Math.exp(-el * 7) * (d.hitAmp || 1) : 0;
             var rr = r * (1 + 0.028 * osc);
+            var dip = Math.max(0, osc);            // pressed-in depth, 0..~1
+            // Per-drum variation, fixed by where the drum sits —
+            // stable across frames, so drums differ like real
+            // instruments differ and never shimmer.
+            var seed = Math.abs(Math.sin(d.x * 127.1 + d.y * 311.7) * 43758.5453) % 1;
+            var bf = 0.95 + seed * 0.09;           // brightness factor
+            var hoop = (HOOPS[d.kind] || HOOPS.snare).tone;
             ctx.save();
-            if (hit > 0) {
-                ctx.strokeStyle = rgba(T.rgb, 0.55 * hit);
-                ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.arc(p.x, p.y, r + (1 - hit) * 16 + 3, 0, 7); ctx.stroke();
-            }
-            // Grounding, per the compositing standard: a soft
-            // contact shadow down-right of the shell (light from
-            // upper-left), then the shell's own side as a darker
-            // crescent under the membrane, with a sheen line where
-            // the shell catches the light. No shadowBlur.
+            // Contact shadow (light from upper-left, as everywhere
+            // on this stage): a soft ellipse under the shell that
+            // deepens slightly while the membrane is pressed in.
             var shg = ctx.createRadialGradient(p.x + 4, p.y + r * 0.98, 1, p.x + 4, p.y + r * 0.98, r * 1.05);
-            shg.addColorStop(0, 'rgba(0,0,0,0.32)'); shg.addColorStop(1, 'rgba(0,0,0,0)');
+            shg.addColorStop(0, 'rgba(0,0,0,' + (0.32 + 0.10 * dip) + ')'); shg.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = shg;
-            ctx.beginPath(); ctx.ellipse(p.x + 4, p.y + r * 0.98, r * 1.05, r * 0.30, 0, 0, 7); ctx.fill();
-            ctx.fillStyle = rgba(shadeC(T.rgb, 0.42), 0.95);
+            ctx.beginPath(); ctx.ellipse(p.x + 4, p.y + r * 0.98, r * (1.05 - 0.03 * dip), r * 0.30, 0, 0, 7); ctx.fill();
+            // The shell's side: a darker crescent under the head.
+            ctx.fillStyle = rgba(shadeC(T.rgb, 0.42 * bf), 0.95);
             ctx.beginPath(); ctx.arc(p.x, p.y + r * 0.17, rr, 0, 7); ctx.fill();
             ctx.strokeStyle = 'rgba(255,255,255,0.20)';
             ctx.lineWidth = 1.2;
             ctx.beginPath(); ctx.arc(p.x, p.y + r * 0.17, rr - 0.8, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
-            // membrane: lit from upper-left, darker at the rim
-            var g = ctx.createRadialGradient(p.x - rr * 0.32, p.y - rr * 0.32, rr * 0.1, p.x, p.y, rr);
-            g.addColorStop(0, rgba(mixC(T.rgb, [255, 255, 255], 0.35), 0.62 + 0.2 * hit));
-            g.addColorStop(0.8, rgba(T.rgb, 0.42));
-            g.addColorStop(1, rgba(shadeC(T.rgb, 0.6), 0.5));
-            ctx.fillStyle = g;
-            ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, 7); ctx.fill();
-            if (osc !== 0) {
-                // the dip: a soft dark pool at the centre while the
-                // membrane is pressed in, bright when it rebounds
-                ctx.fillStyle = osc > 0 ? 'rgba(0,0,0,' + (0.20 * osc) + ')' : 'rgba(255,255,255,' + (-0.14 * osc) + ')';
-                ctx.beginPath(); ctx.arc(p.x, p.y, rr * 0.45, 0, 7); ctx.fill();
-            }
-            ctx.strokeStyle = rgba(T.rgb, 0.95);
-            ctx.lineWidth = 2.5;
-            ctx.beginPath(); ctx.arc(p.x, p.y, rr - 1, 0, 7); ctx.stroke();
-            ctx.strokeStyle = rgba(T.rgb, 0.55);
+            // THE HOOP: a real ring — metal or wood toned, lit from
+            // the upper-left, dark at the lower-right, with a bright
+            // specular edge the strike flashes.
+            var hg = ctx.createLinearGradient(p.x - rr, p.y - rr, p.x + rr, p.y + rr);
+            hg.addColorStop(0, rgba(mixC(hoop, [255, 255, 255], 0.45), 0.98));
+            hg.addColorStop(0.5, rgba(shadeC(hoop, bf), 0.98));
+            hg.addColorStop(1, rgba(shadeC(hoop, 0.45), 0.98));
+            ctx.fillStyle = hg;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, rr, 0, 7);
+            ctx.arc(p.x, p.y, rr * 0.90, 0, 7, true);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,' + (0.38 + 0.45 * hit) + ')';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath(); ctx.arc(p.x, p.y, rr - 0.7, Math.PI * 0.95, Math.PI * 1.62); ctx.stroke();
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
             ctx.lineWidth = 1.2;
-            ctx.beginPath(); ctx.arc(p.x, p.y, rr * 0.62, 0, 7); ctx.stroke();
-            ctx.strokeStyle = 'rgba(8,10,14,0.78)';
-            ctx.fillStyle = 'rgba(8,10,14,0.78)';
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            if (d.kind === 'kick') {
-                ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2.5, rr * 0.16), 0, 7); ctx.fill();
-            } else if (d.kind === 'snare') {
-                ctx.beginPath();
-                ctx.moveTo(p.x - rr * 0.30, p.y); ctx.lineTo(p.x + rr * 0.30, p.y);
-                ctx.moveTo(p.x, p.y - rr * 0.30); ctx.lineTo(p.x, p.y + rr * 0.30);
-                ctx.stroke();
-            } else if (d.kind === 'hat') {
-                ctx.beginPath(); ctx.arc(p.x, p.y, rr * 0.36, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
-                ctx.beginPath(); ctx.arc(p.x, p.y, rr * 0.36, Math.PI * 0.12, Math.PI * 0.88); ctx.stroke();
-            } else {
-                ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2.5, rr * 0.20), 0, 7); ctx.stroke();
-                for (var fi = -1; fi <= 1; fi++) {
+            ctx.beginPath(); ctx.arc(p.x, p.y, rr - 0.7, Math.PI * 0.08, Math.PI * 0.72); ctx.stroke();
+            // Tension lugs: the hardware that holds the head on.
+            for (var li = 0; li < 8; li++) {
+                var la = li / 8 * Math.PI * 2 + 0.39;
+                var lx = p.x + Math.cos(la) * rr * 0.95, ly = p.y + Math.sin(la) * rr * 0.95;
+                ctx.fillStyle = 'rgba(0,0,0,0.30)';
+                ctx.beginPath(); ctx.arc(lx + 0.7, ly + 0.9, Math.max(1.5, rr * 0.052), 0, 7); ctx.fill();
+                ctx.fillStyle = rgba(mixC(hoop, [255, 255, 255], 0.30), 0.95);
+                ctx.beginPath(); ctx.arc(lx, ly, Math.max(1.5, rr * 0.052), 0, 7); ctx.fill();
+            }
+            // THE MEMBRANE: a head, not a fill — warm-lit centre
+            // (the kind's hue lives in it, thinned toward calfskin),
+            // falling through its mid tone to a dark bearing edge.
+            var mr = rr * 0.90;
+            var head = mixC(T.rgb, [240, 232, 216], 0.52);
+            var g = ctx.createRadialGradient(p.x - mr * 0.30, p.y - mr * 0.30, mr * 0.08, p.x, p.y, mr);
+            g.addColorStop(0, rgba(mixC(head, [255, 255, 255], 0.30 * bf), 0.96));
+            g.addColorStop(0.55, rgba(shadeC(head, bf), 0.95));
+            g.addColorStop(0.88, rgba(mixC(head, T.rgb, 0.35), 0.95));
+            g.addColorStop(1, rgba(shadeC(T.rgb, 0.52), 0.97));
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(p.x, p.y, mr, 0, 7); ctx.fill();
+            // Bearing-edge shadow: the head darkens where it meets
+            // the hoop.
+            ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+            ctx.lineWidth = Math.max(1.4, mr * 0.045);
+            ctx.beginPath(); ctx.arc(p.x, p.y, mr - ctx.lineWidth * 0.5, 0, 7); ctx.stroke();
+            // Soft specular pool, upper-left, answering the strike.
+            ctx.save();
+            ctx.translate(p.x - mr * 0.34, p.y - mr * 0.38);
+            ctx.rotate(-0.6 + seed * 0.2);
+            var sg = ctx.createRadialGradient(0, 0, 0, 0, 0, mr * 0.52);
+            sg.addColorStop(0, 'rgba(255,255,255,' + (0.13 + 0.10 * hit) + ')');
+            sg.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = sg;
+            ctx.beginPath(); ctx.ellipse(0, 0, mr * 0.52, mr * 0.30, 0, 0, 7); ctx.fill();
+            ctx.restore();
+            if (osc !== 0) {
+                // The deformation: a dark pool where the stick
+                // presses the head in (bright on the rebound), two
+                // concentric rings riding the dip, and one ripple
+                // running outward to the hoop.
+                ctx.fillStyle = osc > 0 ? 'rgba(0,0,0,' + (0.22 * osc) + ')' : 'rgba(255,255,255,' + (-0.15 * osc) + ')';
+                ctx.beginPath(); ctx.arc(p.x, p.y, mr * 0.45, 0, 7); ctx.fill();
+                ctx.strokeStyle = osc > 0 ? 'rgba(0,0,0,' + (0.16 * osc) + ')' : 'rgba(255,255,255,' + (-0.11 * osc) + ')';
+                ctx.lineWidth = 1.3;
+                ctx.beginPath(); ctx.arc(p.x, p.y, mr * (0.62 - 0.10 * dip), 0, 7); ctx.stroke();
+                ctx.beginPath(); ctx.arc(p.x, p.y, mr * (0.34 - 0.06 * dip), 0, 7); ctx.stroke();
+            }
+            if (el < 0.5) {
+                var rp = el / 0.5;
+                ctx.strokeStyle = 'rgba(255,255,255,' + (0.30 * (1 - rp)) + ')';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(p.x, p.y, mr * (0.18 + 0.78 * rp), 0, 7); ctx.stroke();
+            }
+            // The kind glyph, printed tone-on-tone on the head:
+            // an emboss pass offset down-right, then the print
+            // itself in the head's own deepened tone.
+            function glyphPaths() {
+                if (d.kind === 'kick') {
+                    ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2.5, mr * 0.16), 0, 7); ctx.fill();
+                } else if (d.kind === 'snare') {
                     ctx.beginPath();
-                    ctx.moveTo(p.x + fi * rr * 0.22, p.y - rr * 0.30);
-                    ctx.lineTo(p.x + fi * rr * 0.26, p.y - rr * 0.48);
+                    ctx.moveTo(p.x - mr * 0.30, p.y); ctx.lineTo(p.x + mr * 0.30, p.y);
+                    ctx.moveTo(p.x, p.y - mr * 0.30); ctx.lineTo(p.x, p.y + mr * 0.30);
                     ctx.stroke();
+                } else if (d.kind === 'hat') {
+                    ctx.beginPath(); ctx.arc(p.x, p.y, mr * 0.36, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(p.x, p.y, mr * 0.36, Math.PI * 0.12, Math.PI * 0.88); ctx.stroke();
+                } else {
+                    ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2.5, mr * 0.20), 0, 7); ctx.stroke();
+                    for (var fi = -1; fi <= 1; fi++) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x + fi * mr * 0.22, p.y - mr * 0.30);
+                        ctx.lineTo(p.x + fi * mr * 0.26, p.y - mr * 0.48);
+                        ctx.stroke();
+                    }
                 }
             }
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'rgba(255,255,255,0.20)';
+            ctx.fillStyle = 'rgba(255,255,255,0.20)';
+            ctx.save();
+            ctx.translate(0.9, 1.1);
+            glyphPaths();
+            ctx.restore();
+            ctx.strokeStyle = rgba(shadeC(T.rgb, 0.55), 0.60);
+            ctx.fillStyle = rgba(shadeC(T.rgb, 0.55), 0.60);
+            glyphPaths();
             ctx.restore();
         }
 
@@ -1618,7 +2001,10 @@
         function updateCount() {
             var n = strings.length;
             countEl.textContent = n + (n === 1 ? ' string' : ' strings');
-            undoBtn.disabled = dots.length === 0;
+            // Undo lives on the history, not the web: after a
+            // deletion the stage can be empty while Undo still has
+            // the deleted string to give back.
+            undoBtn.disabled = history.length === 0;
             clearBtn.disabled = dots.length === 0;
             updateHint();
         }
@@ -1631,11 +2017,15 @@
             var lenPx = dist(toPx(aF), toPx(bF));
             var p = pitchForLength(lenPx, currentType);
             var T = TYPES[currentType];
-            strings.push({ freq: p.freq, name: p.name, type: currentType, rgb: T.rgb.slice(), lenPx: Math.round(lenPx), vibStart: 0, vibAmp: 0, lastPluck: 0, lastTouch: 0, sounding: false, bowOn: false, bow: null, heldBy: null, pinchHeld: false, stopAt: 0, liveSrc: null, liveGain: null, a: { x: aF.x, y: aF.y }, b: { x: bF.x, y: bF.y }, pair: !!pair });
+            var s = { freq: p.freq, name: p.name, type: currentType, rgb: T.rgb.slice(), lenPx: Math.round(lenPx), vibStart: 0, vibAmp: 0, lastPluck: 0, lastTouch: 0, sounding: false, bowOn: false, bow: null, heldBy: null, pinchHeld: false, stopAt: 0, liveSrc: null, liveGain: null, delT: 0, a: { x: aF.x, y: aF.y }, b: { x: bF.x, y: bF.y }, pair: !!pair };
+            strings.push(s);
+            return s;
         }
         function placeDot(f) {
             dots.push({ x: f.x, y: f.y });
-            if (dots.length >= 2) spawnString(dots[dots.length - 2], dots[dots.length - 1], false);
+            var spawned = null;
+            if (dots.length >= 2) spawned = spawnString(dots[dots.length - 2], dots[dots.length - 1], false);
+            if (!restoring) history.push({ kind: 'dot', s: spawned });
             updateCount();
             markDirty();
         }
@@ -1644,19 +2034,72 @@
         function commitString(aF, bF) {
             dots.push({ x: aF.x, y: aF.y });
             dots.push({ x: bF.x, y: bF.y });
-            spawnString(aF, bF, true);
+            var s = spawnString(aF, bF, true);
+            if (!restoring) history.push({ kind: 'pair', s: s });
+            updateCount();
+            markDirty();
+        }
+        function removeStringObj(s) {
+            var i = strings.indexOf(s);
+            if (i >= 0) strings.splice(i, 1);
+            teardownBow(s);
+        }
+        function removeDotByValue(f) {
+            for (var i = dots.length - 1; i >= 0; i--) {
+                if (dots[i].x === f.x && dots[i].y === f.y) { dots.splice(i, 1); return; }
+            }
+        }
+        // Delete one string (Build mode's hold gesture). Dots the
+        // string shares with a neighbour stay — only dots no other
+        // string uses leave with it. The deletion is one Undo step.
+        function deleteString(s) {
+            var idx = strings.indexOf(s);
+            if (idx < 0) return;
+            if (delHold && delHold.s === s) delHold = null;
+            finalizeStop(s);
+            strings.splice(idx, 1);
+            teardownBow(s);
+            for (var k in prevHands) {
+                var ph = prevHands[k];
+                if (ph.playString === s) ph.playString = null;
+                if (ph.playAlso) ph.playAlso = ph.playAlso.filter(function (x) { return x !== s; });
+            }
+            if (touchBowHold === s) touchBowHold = null;
+            function dotUsed(f) {
+                return strings.some(function (o) {
+                    return (o.a.x === f.x && o.a.y === f.y) || (o.b.x === f.x && o.b.y === f.y);
+                });
+            }
+            var removedDots = [];
+            [s.a, s.b].forEach(function (f) {
+                if (dotUsed(f)) return;
+                for (var i = 0; i < dots.length; i++) {
+                    if (dots[i].x === f.x && dots[i].y === f.y) {
+                        removedDots.push({ dot: dots[i], idx: i });
+                        dots.splice(i, 1);
+                        break;
+                    }
+                }
+            });
+            if (!restoring) history.push({ kind: 'del', s: s, idx: idx, dots: removedDots });
+            if (!dots.length) pull = null;
             updateCount();
             markDirty();
         }
         function undo() {
-            if (!dots.length) return;
-            var last = strings[strings.length - 1];
-            if (last && last.pair) {
-                teardownBow(strings.pop());
-                dots.pop(); dots.pop();
-            } else {
+            var entry = history.pop();
+            if (!entry) return;
+            if (entry.kind === 'dot') {
+                if (entry.s) removeStringObj(entry.s);
                 dots.pop();
-                while (strings.length > Math.max(0, dots.length - 1)) teardownBow(strings.pop());
+            } else if (entry.kind === 'pair') {
+                removeStringObj(entry.s);
+                removeDotByValue(entry.s.a);
+                removeDotByValue(entry.s.b);
+            } else if (entry.kind === 'del') {
+                entry.dots.slice().sort(function (a, b) { return a.idx - b.idx; })
+                    .forEach(function (r) { dots.splice(Math.min(r.idx, dots.length), 0, r.dot); });
+                strings.splice(Math.min(entry.idx, strings.length), 0, entry.s);
             }
             if (!dots.length) pull = null;
             updateCount();
@@ -1665,6 +2108,8 @@
         function clearAll() {
             strings.forEach(teardownBow);
             dots = []; strings = []; pull = null; touchBowHold = null;
+            history = [];
+            cancelDelHold();
             drums = [];
             for (var k in prevHands) delete prevHands[k].drumIn;
             updateCount();
@@ -1724,6 +2169,15 @@
             var M = wireMaterial(s);
             var W = T.width;
             ctx.save();
+            // A string being held still for deletion visibly lets
+            // go: it thins toward a thread and fades as the hold
+            // builds (s.delT 0..1, driven by the frame loop). The
+            // player watches the string decide — no timer UI, the
+            // string itself is the progress bar.
+            if (s.delT) {
+                W = Math.max(0.4, W * (1 - 0.78 * s.delT));
+                ctx.globalAlpha = 1 - 0.5 * s.delT;
+            }
             // NO shadowBlur anywhere on a string: the neon halo was
             // the cheap-digital tell. A real wire reads by its body,
             // its specular, and — while it rings — its envelope.
@@ -1973,6 +2427,18 @@
                 if (!snd && bs.bowOn) bowStop(bs);
                 bs.sounding = snd;
             }
+            // Delete-by-hold progress: the frame loop owns the
+            // clock (gestures only arm and cancel), so the cue
+            // advances smoothly and the deletion lands even if no
+            // further gesture frame arrives.
+            if (delHold) {
+                if (strings.indexOf(delHold.s) < 0) delHold = null;
+                else {
+                    var dp = (now - delHold.since) / DELETE_MS;
+                    if (dp >= 1) { var ds = delHold.s; delHold = null; deleteString(ds); }
+                    else delHold.s.delT = dp;
+                }
+            }
             for (i = 0; i < strings.length; i++) drawString(strings[i], toPx(strings[i].a), toPx(strings[i].b), now);
             for (i = 0; i < drums.length; i++) drawDrum(drums[i], now);
             if (pull && pullFrom) drawLiveThread(toPx(pullFrom), toPx(pull));
@@ -2015,16 +2481,20 @@
                 for (var gk in prevHands) { if (prevHands[gk].drumGrab) grabbing = true; if (prevHands[gk].playString) playing = true; }
                 if (grabbing) t = 'Open your fingers wider to grow the drum — let go to set its size';
                 else if (armedDrum) t = 'Pinch on the stage to place the ' + DRUMS[armedDrum].label;
+                else if (delHold && delHold.s) t = 'Hold still — the string is letting go · move to keep it';
                 else if (playing) t = 'Open your fingers to stop the string';
+                else if (actMode === 'play') t = 'Play — pinch on a string to sound it';
                 else if (anyHeld()) t = 'Open your fingers wide to drop the string';
                 else if (!dots.length) t = 'Pinch thumb and index together to start a string';
-                else t = 'Pinch to start the next string · pinch on a string to play it';
+                else t = 'Pinch to build · pinch a string to play it · hold it still to remove it';
             } else {
                 if (touchGesture === 'drumsize') t = 'Pinch wider or tighter to size the drum';
                 else if (armedDrum) t = 'Tap the stage to place the ' + DRUMS[armedDrum].label;
+                else if (delHold && delHold.s) t = 'Hold still — the string is letting go · move to keep it';
                 else if (touchGesture === 'pull') t = 'Let go to pin the string';
+                else if (actMode === 'play') t = 'Play — drag across a string to sound it';
                 else if (!dots.length) t = 'Tap and drag to draw a string — let go to pin it';
-                else t = 'Drag across a string to play it · tap to keep building';
+                else t = 'Drag across a string to play it · tap to keep building · hold a string still to remove it';
             }
             if (t !== hintText) { hintText = t; hintEl.textContent = t; }
         }
@@ -2092,7 +2562,8 @@
             // A stage tap closes an open tray and does nothing else.
             if (trayKind) { closeTray(); return; }
             // An armed drum takes this tap: the drum lands here.
-            if (armedDrum) {
+            // (Build only — in Play nothing is placed, ever.)
+            if (armedDrum && actMode === 'build') {
                 var placed = placeDrum(armedDrum, f);
                 disarmDrum();
                 touchGesture = 'drum';
@@ -2123,10 +2594,25 @@
                 if (distToSeg(p, toPx(strings[i].a), toPx(strings[i].b)) <= 13) {
                     strike(strings[i], 0.8);
                     if (TYPES[strings[i].type].voice === 'bow') touchBowHold = strings[i];
+                    // Build only: a press held STILL on the string
+                    // arms its deletion (the frame loop runs the
+                    // clock; moving or lifting cancels).
+                    if (actMode === 'build' && !delHold) {
+                        delHold = { s: strings[i], px: { x: p.x, y: p.y }, since: now, touch: true };
+                    }
                     touchGesture = 'pluck';
                     gesturePtr = e.pointerId;
                     return;
                 }
+            }
+            if (actMode === 'play') {
+                // Play: a press on empty space starts a strum, not
+                // a string — sweeping across strings sounds them,
+                // and nothing is ever placed.
+                touchGesture = 'play';
+                gesturePtr = e.pointerId;
+                updateHint();
+                return;
             }
             touchGesture = 'pull';
             gesturePtr = e.pointerId;
@@ -2152,6 +2638,8 @@
             }
             if (!touchGesture) return;
             if (gesturePtr !== null && e.pointerId !== gesturePtr) return;
+            // Moving the press off its spot cancels a delete hold.
+            if (delHold && delHold.touch && dist(p, delHold.px) > DELETE_TOL_PX) cancelDelHold();
             if (touchGesture === 'pull') pull = f;
             if (touchPrev) {
                 var dt = (now - touchPrev.t) / 1000;
@@ -2164,12 +2652,13 @@
                 if (TYPES[s.type].voice === 'bow' && distToSeg(p, toPx(s.a), toPx(s.b)) <= 14) s.lastTouch = now;
             }
             // Sweeping across a drum strikes it, like a string.
-            if (touchGesture === 'pull' || touchGesture === 'pluck' || touchGesture === 'drum') {
+            if (touchGesture === 'pull' || touchGesture === 'pluck' || touchGesture === 'drum' || touchGesture === 'play') {
                 drumEntries(e.pointerId, p);
             }
         });
         function touchEnd(e) {
             if (mode !== 'touch') return;
+            if (delHold && delHold.touch) cancelDelHold();
             var pid = e.pointerId;
             var wasResize = !!drumResize;
             delete activePtrs[pid];
@@ -2310,13 +2799,13 @@
                         // placed, a placed drum is grabbed for
                         // sizing, anywhere else starts a string.
                         g.held = true; g.onN = 0; g.offN = 0;
-                        if (armedDrum) {
+                        if (armedDrum && actMode === 'build') {
                             placeDrum(armedDrum, tipFrac);
                             disarmDrum();
                             g.placedDrum = true;
                             anchorHand = label;
                         } else {
-                            var gd = drumAt(tipFrac);
+                            var gd = actMode === 'build' ? drumAt(tipFrac) : null;
                             if (gd) {
                                 g.drumGrab = gd;
                                 g.grabR0 = gd.rFrac;
@@ -2331,6 +2820,18 @@
                                     // sounds and no dot is placed.
                                     g.playString = ps;
                                     startHeldString(ps, label);
+                                    // Build only: holding this pinch
+                                    // STILL arms the string's
+                                    // deletion (frame loop runs the
+                                    // clock; movement cancels).
+                                    if (actMode === 'build' && !delHold) {
+                                        delHold = { s: ps, px: { x: tipPx.x, y: tipPx.y }, since: now, label: label };
+                                    }
+                                } else if (actMode === 'play') {
+                                    // Play: a pinch on empty space
+                                    // arms NOTHING — no anchor, no
+                                    // string, ever. The hand is held
+                                    // and simply does nothing.
                                 } else if (now < rearmUntil) {
                                     // Inside the re-arm cooldown after
                                     // the last draw: this pinch arms
@@ -2371,6 +2872,7 @@
                             // stop lands after the dropout grace) and
                             // the release pins NO dot — letting go can
                             // never start another string.
+                            if (delHold && g.playString && delHold.s === g.playString) cancelDelHold();
                             if (g.playString) releaseHeldString(g.playString, label, now);
                             if (g.playAlso) for (var pa = 0; pa < g.playAlso.length; pa++) releaseHeldString(g.playAlso[pa], label, now);
                             g.playString = null; g.playAlso = null;
@@ -2408,6 +2910,10 @@
                         g.lastTipFrac = tipFrac;
                     }
                 }
+                // A delete hold dies the moment the hand really
+                // moves: the gesture must be a held-still pinch.
+                if (delHold && delHold.label === label && g.playString === delHold.s
+                        && dist(tipPx, delHold.px) > DELETE_TOL_PX) cancelDelHold();
                 // A play pinch holds its string: a bowed string's
                 // touch refreshes while the pinch stays down, and —
                 // behind DRAG_CROSSES_STRINGS — crossings of other
@@ -2439,6 +2945,7 @@
                         if (st.playAlso) for (var rp = 0; rp < st.playAlso.length; rp++) releaseHeldString(st.playAlso[rp], gone, now);
                         st.playString = null; st.playAlso = null;
                     }
+                    if (delHold && delHold.label === gone) cancelDelHold();
                     if (anchorHand === gone) anchorHand = null;
                     delete prevHands[gone];
                 }
@@ -2455,19 +2962,99 @@
             }
             updateHint();
         }
+        var sendSince = 0;
         function pump() {
             if (!pumpOn) return;
-            if (video.readyState >= 2 && !sending && mpHands) {
-                sending = true;
-                mpHands.send({ image: video }).catch(function () {}).then(function () { sending = false; });
+            if (video.readyState >= 2 && mpHands) {
+                if (!sending) {
+                    sending = true;
+                    sendSince = performance.now();
+                    mpHands.send({ image: video }).catch(function () {}).then(function () { sending = false; });
+                } else if (performance.now() - sendSince > 1500) {
+                    // Watchdog: a send whose promise never settled
+                    // (the pipeline stalled while the page was
+                    // backgrounded) must not deadlock the pump.
+                    sending = false;
+                }
             }
             setTimeout(pump, 33);
+        }
+        // ---- leave-and-return (Johnny, 2026-11-23): coming back
+        // must be invisible. If iOS ended the camera track while
+        // the page was away, reacquire it; if the hands pipeline
+        // stalled, unstick it; clear NO state; show NO error. A
+        // failed reacquire retries quietly in the background, and
+        // only a camera that stays dead across every retry lands
+        // in touch mode — with the web exactly as it was. ----
+        var recovering = false, recoverFails = 0, recoverTimer = 0;
+        function cameraAlive() {
+            if (!stream || !stream.getVideoTracks) return false;
+            var t = stream.getVideoTracks()[0];
+            return !!t && t.readyState === 'live';
+        }
+        function recoverCamera() {
+            if (mode !== 'camera' || shellOff || recovering) return;
+            if (cameraAlive()) {
+                sending = false;
+                if (!pumpOn) { pumpOn = true; pump(); }
+                video.play().catch(function () {});
+                startLoop();
+                return;
+            }
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !mpHands) return;
+            recovering = true;
+            sending = false;
+            if (stream) {
+                if (window.ARCam) ARCam.forget(stream);
+                stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+                stream = null;
+            }
+            gumUser().then(function (st) {
+                if (shellOff || mode !== 'camera') { recovering = false; return; }
+                stream = st;
+                video.srcObject = st;
+                var trk = st.getVideoTracks ? st.getVideoTracks()[0] : null;
+                var tset = (trk && trk.getSettings) ? trk.getSettings() : {};
+                facingMode = tset.facingMode || '';
+                return video.play().catch(function () {});
+            }).then(function () {
+                recovering = false;
+                recoverFails = 0;
+                if (shellOff || mode !== 'camera') return;
+                pumpOn = true;
+                pump();
+                startLoop();
+            }).catch(function () {
+                recovering = false;
+                recoverFails++;
+                if (recoverFails >= 4) { recoverFails = 0; enterTouchMode('denied'); return; }
+                recoverTimer = setTimeout(recoverCamera, 1500 * recoverFails);
+            });
+        }
+        function gumUser() {
+            var c = { video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
+            return (window.ARCam && ARCam.acquire) ? ARCam.acquire('user', c) : navigator.mediaDevices.getUserMedia(c);
         }
         function stopCamera() {
             pumpOn = false;
             stopAllHeld();   // no string outlives the camera that holds it
-            if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+            if (stream) {
+                if (window.ARCam) ARCam.forget(stream);
+                stream.getTracks().forEach(function (t) { t.stop(); });
+                stream = null;
+            }
             video.srcObject = null;
+            handsNow = {}; prevHands = {};
+        }
+        // Shell suspend path: the video detaches but the shared
+        // stream stays alive in ARCam, so returning to Threads
+        // reattaches the SAME stream — no new getUserMedia, no new
+        // permission prompt, no camera restart.
+        function detachCamera() {
+            pumpOn = false;
+            stopAllHeld();
+            video.srcObject = null;
+            stream = null;
             handsNow = {}; prevHands = {};
         }
         function enterTouchMode(reason) {
@@ -2479,8 +3066,21 @@
             musicEl.hidden = false;
             hintEl.hidden = false;
             startLoop();
-            if (reason === 'denied') showNote('No camera here — touch mode. Tap to place a dot, drag to pull, release to pin.');
-            else if (reason === 'chosen') showNote('Touch mode — tap to place a dot, drag to pull, release to pin. Sweep across a string to play it.');
+            // Opening state: a web that already exists opens in
+            // Play (ready to play, nothing can be made by accident);
+            // an empty stage opens in Build. An autosaved mode, if
+            // one was restored, is the session's own and stands.
+            if (!modeRestored) setActMode(strings.length ? 'play' : 'build');
+            if (reason === 'chosen' && !stillCoachShown && !strings.length && !modeRestored) {
+                stillCoachShown = true;
+                showNote(STILL_LINE, 6000);
+            }
+            else if (reason === 'denied') showNote(actMode === 'play'
+                ? 'No camera here — touch mode, in Play. Drag across a string to sound it.'
+                : 'No camera here — touch mode. Tap to place a dot, drag to pull, release to pin.');
+            else if (reason === 'chosen') showNote(actMode === 'play'
+                ? 'Touch mode, in Play — drag across a string to sound it. Switch to Build to make strings.'
+                : 'Touch mode — tap to place a dot, drag to pull, release to pin. Sweep across a string to play it.');
             updateCount();
         }
         function startCamera() {
@@ -2489,10 +3089,7 @@
             startStatus.textContent = 'Starting camera…';
             var fail = function () { enterTouchMode('denied'); };
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { fail(); return; }
-            navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
-                audio: false
-            }).then(function (st) {
+            gumUser().then(function (st) {
                 stream = st;
                 video.srcObject = st;
                 // The view mirrors on every camera, front and rear
@@ -2514,6 +3111,11 @@
                 pickerEl.hidden = false;
                 musicEl.hidden = false;
                 hintEl.hidden = false;
+                if (!modeRestored) setActMode(strings.length ? 'play' : 'build');
+                if (!stillCoachShown && !strings.length && !modeRestored) {
+                    stillCoachShown = true;
+                    showNote(STILL_LINE, 6000);
+                }
                 pumpOn = true;
                 pump();
                 startLoop();
@@ -2549,16 +3151,20 @@
             }
         });
 
-        // ---- fullscreen: the whole block, glyph shows the state ----
+        // ---- fullscreen: the whole block, glyph shows the state.
+        // Native Fullscreen API where the platform has it; ARFs'
+        // pseudo-fullscreen on iPhone (no element API there). ----
         function syncFs() {
-            var on = document.fullscreenElement === section;
+            var on = document.fullscreenElement === section || section.classList.contains('ar-pseudo-fs');
             section.classList.toggle('thr-fs-on', !!on);
             fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
             resize();
         }
         fsBtn.addEventListener('click', function () {
-            if (document.fullscreenElement) { document.exitFullscreen(); }
+            if (window.ARFs) ARFs.toggle(section);
+            else if (document.fullscreenElement) { document.exitFullscreen(); }
             else if (section.requestFullscreen) { section.requestFullscreen().catch(function () {}); }
+            syncFs();
         });
         document.addEventListener('fullscreenchange', syncFs);
 
@@ -2889,9 +3495,33 @@
         var setupDirty = false;
         var restoring = false;
         function markDirty() {
+            scheduleAutosave();
             if (restoring || !savedSetupPresent) return;
             setupDirty = true;
             refreshTray();
+        }
+        // ---- autosave, always (Johnny, 2026-11-23): the full
+        // state — strings with their endpoints, drums, instrument,
+        // and the Build/Play mode — persists on EVERY change, no
+        // save button, no save action. If iOS discards the page
+        // and reloads it whole, the stage comes back exactly as
+        // left, before any tap. Same serialization as the manual
+        // setup, its own key beside it. ----
+        var autosaveTimer = 0;
+        function scheduleAutosave() {
+            if (restoring) return;
+            if (autosaveTimer) clearTimeout(autosaveTimer);
+            autosaveTimer = setTimeout(writeAutosave, 250);
+        }
+        function writeAutosave() {
+            autosaveTimer = 0;
+            try {
+                idbRun('readwrite', function (store) { store.put(collectSetup(), 'autosave'); })
+                    .catch(function () { /* storage blocked: the session still lives in memory */ });
+            } catch (e) { /* storage unavailable: same */ }
+        }
+        function flushAutosave() {
+            if (autosaveTimer) { clearTimeout(autosaveTimer); writeAutosave(); }
         }
         function idbOpen() {
             return new Promise(function (resolve, reject) {
@@ -2918,12 +3548,16 @@
             return {
                 v: 1,
                 savedAt: Date.now(),
+                uiMode: actMode,
                 type: currentType,
                 dots: dots.map(function (d) { return { x: d.x, y: d.y }; }),
                 stringTypes: strings.map(function (s) { return s.type; }),
                 stringEnds: strings.map(function (s) { return [{ x: s.a.x, y: s.a.y }, { x: s.b.x, y: s.b.y }]; }),
                 drums: drums.map(function (d) { return { kind: d.kind, x: d.x, y: d.y, rFrac: d.rFrac }; }),
-                loop: loopBlob ? { blob: loopBlob, type: loopBlob.type, duration: loopBuffer ? loopBuffer.duration : 0, savedAt: Date.now() } : null
+                // A restored loop still waiting to decode is still
+                // the loop — carry its blob, or an autosave written
+                // during the pending window would erase it.
+                loop: (loopBlob || pendingLoopBlob) ? { blob: loopBlob || pendingLoopBlob, type: (loopBlob || pendingLoopBlob).type, duration: loopBuffer ? loopBuffer.duration : 0, savedAt: Date.now() } : null
             };
         }
         function saveSetup() {
@@ -2946,6 +3580,8 @@
             restoring = true;
             strings.forEach(teardownBow);
             dots = []; strings = []; pull = null; touchBowHold = null;
+            history = [];
+            cancelDelHold();
             drums = [];
             (data.drums || []).forEach(function (dd) {
                 if (DRUMS[dd.kind]) {
@@ -2975,24 +3611,38 @@
             updateCount();
         }
         function loadSetup() {
-            idbRun('readonly', function (store) { return store.get('setup'); }).then(function (data) {
-                if (!data) return;
-                savedSetupPresent = true;
-                setupDirty = false;
-                applySetup(data);
-                tryDecodePendingLoop();
+            // The autosave is the live truth — the stage exactly as
+            // it was left, mode included. The manual setup is the
+            // older snapshot and applies only when no autosave
+            // exists yet.
+            idbRun('readonly', function (store) { return store.get('autosave'); }).then(function (auto) {
+                return idbRun('readonly', function (store) { return store.get('setup'); }).then(function (manual) {
+                    if (manual) { savedSetupPresent = true; setupDirty = false; }
+                    var data = auto || manual;
+                    if (!data) return;
+                    applySetup(data);
+                    if (auto && data.uiMode) { setActMode(data.uiMode); modeRestored = true; }
+                    tryDecodePendingLoop();
+                });
             }).catch(function () { /* storage blocked: nothing restores, nothing breaks */ });
         }
         function deleteSavedSetup() {
             return idbRun('readwrite', function (store) { store.delete('setup'); }).then(function () {
+                // The autosave goes too — a deleted setup must not
+                // resurrect itself on the next load.
+                return idbRun('readwrite', function (store) { store.delete('autosave'); }).catch(function () {});
+            }).then(function () {
                 savedSetupPresent = false;
                 setupDirty = false;
+                modeRestored = false;
                 restoring = true;
                 pauseLoop();
                 stopLoopSrc();
                 loopBuffer = null; loopBlob = null; pendingLoopBlob = null;
                 strings.forEach(teardownBow);
                 dots = []; strings = []; pull = null; touchBowHold = null; drums = [];
+                history = [];
+                cancelDelHold();
                 setType('guitar');
                 restoring = false;
                 loopBtn.hidden = true;
@@ -3013,11 +3663,8 @@
         var shellOff = false, shellResumeMode = null, shellLoopWas = false;
         function resumeCamera() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !mpHands) { enterTouchMode('denied'); return; }
-            navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
-                audio: false
-            }).then(function (st) {
-                if (shellOff) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
+            gumUser().then(function (st) {
+                if (shellOff) return;   // shared stream: leave it alive in ARCam
                 stream = st;
                 video.srcObject = st;
                 var trk = st.getVideoTracks ? st.getVideoTracks()[0] : null;
@@ -3042,7 +3689,7 @@
             if (trayKind) closeTray();
             if (recorder) stopRecording();
             if (loopPlaying) pauseLoop();
-            if (mode === 'camera') stopCamera();
+            if (mode === 'camera') detachCamera();
             stopLoop();
             if (actx && actx.state === 'running') actx.suspend();
         }
@@ -3059,18 +3706,31 @@
             shellLoopWas = false;
         }
 
-        // ---- pause when the page is hidden ----
+        // ---- leave-and-return: hidden pauses the work; visible
+        // restores the session itself — camera reacquired if iOS
+        // ended it, pipeline unstuck, web untouched, no prompts.
+        // pageshow covers the bfcache path (a discarded tab that
+        // comes back frozen instead of reloaded). ----
         document.addEventListener('visibilitychange', function () {
-            if (shellOff) return;
             if (document.hidden) {
+                flushAutosave();
+                if (shellOff) return;
                 stopLoop();
                 pauseLoop();
                 if (mode === 'camera') video.pause();
-            } else if (mode !== 'idle') {
-                startLoop();
-                if (mode === 'camera' && stream) video.play().catch(function () {});
+            } else {
+                if (shellOff) return;
+                recoverFails = 0;
+                if (mode === 'camera') recoverCamera();
+                else if (mode === 'touch') startLoop();
             }
         });
+        window.addEventListener('pageshow', function () {
+            if (shellOff || document.hidden) return;
+            if (mode === 'camera') recoverCamera();
+            else if (mode === 'touch') startLoop();
+        });
+        window.addEventListener('pagehide', function () { flushAutosave(); });
 
         resize();
         updateCount();
@@ -3091,6 +3751,18 @@
             },
             picker: function () { return currentType; },
             setType: function (t) { setType(t); },
+            actMode: function () { return actMode; },
+            setActMode: function (m) { setActMode(m); },
+            strikeString: function (i, strength) {
+                if (strings[i]) strike(strings[i], strength == null ? 0.85 : strength);
+            },
+            voices: function () {
+                return voices.map(function (v) {
+                    return { freq: v.s.freq, type: v.s.type, held: !!v.held,
+                             ageMs: Math.round((actx ? actx.currentTime - v.born : 0) * 1000) };
+                });
+            },
+            voiceMetrics: function (freq, type) { return voiceMetrics(freq, type || 'guitar'); },
             audioLevel: function () { return audioLevel(); },
             plucks: function () { return pluckLog.slice(); },
             mirror: function () { return mirror; },
@@ -4142,18 +4814,90 @@
         }
         updateCursor();
     }
+    var sendSince = 0;
     function pump() {
         if (!pumpOn) return;
-        if (video.readyState >= 2 && !sending && mpHands) {
-            sending = true;
-            mpHands.send({ image: video }).catch(function () {}).then(function () { sending = false; });
+        if (video.readyState >= 2 && mpHands) {
+            if (!sending) {
+                sending = true;
+                sendSince = performance.now();
+                mpHands.send({ image: video }).catch(function () {}).then(function () { sending = false; });
+            } else if (performance.now() - sendSince > 1500) {
+                sending = false;   // watchdog: a stalled send must not deadlock the pump
+            }
         }
         setTimeout(pump, 33);
     }
+    // Leave-and-return, shared with Threads: if iOS ended the
+    // camera track while the page was away, reacquire it quietly;
+    // clear no state; only a camera dead across every retry
+    // falls back to touch mode.
+    var recovering = false, recoverFails = 0;
+    function camAlive() {
+        if (!stream || !stream.getVideoTracks) return false;
+        var t = stream.getVideoTracks()[0];
+        return !!t && t.readyState === 'live';
+    }
+    function recoverCamera() {
+        if (mode !== 'camera' || shellOff || recovering) return;
+        if (camAlive()) {
+            sending = false;
+            if (!pumpOn) { pumpOn = true; pump(); }
+            video.play().catch(function () {});
+            startLoop();
+            return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !mpHands) return;
+        recovering = true;
+        sending = false;
+        if (stream) {
+            if (window.ARCam) ARCam.forget(stream);
+            stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+            stream = null;
+        }
+        gumUser().then(function (st) {
+            if (shellOff || mode !== 'camera') { recovering = false; return; }
+            stream = st;
+            video.srcObject = st;
+            return video.play().catch(function () {});
+        }).then(function () {
+            recovering = false;
+            recoverFails = 0;
+            if (shellOff || mode !== 'camera') return;
+            video.classList.add('on');
+            pumpOn = true;
+            pump();
+            startLoop();
+        }).catch(function () {
+            recovering = false;
+            recoverFails++;
+            if (recoverFails >= 4) { recoverFails = 0; enterTouchMode('denied'); return; }
+            setTimeout(recoverCamera, 1500 * recoverFails);
+        });
+    }
+    function gumUser() {
+        var c = { video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
+        return (window.ARCam && ARCam.acquire) ? ARCam.acquire('user', c) : navigator.mediaDevices.getUserMedia(c);
+    }
     function stopCamera() {
         pumpOn = false;
-        if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+        if (stream) {
+            if (window.ARCam) ARCam.forget(stream);
+            stream.getTracks().forEach(function (t) { t.stop(); });
+            stream = null;
+        }
         video.srcObject = null;
+        video.classList.remove('on');
+        prevHands = {};
+        if (handContact) { handContact.active = false; endGrab(handContact); }
+    }
+    // Shell suspend path: detach the video, keep the shared stream
+    // alive in ARCam — returning reattaches it with no new
+    // getUserMedia call and no camera restart.
+    function detachCamera() {
+        pumpOn = false;
+        video.srcObject = null;
+        stream = null;
         video.classList.remove('on');
         prevHands = {};
         if (handContact) { handContact.active = false; endGrab(handContact); }
@@ -4173,10 +4917,7 @@
         startStatus.textContent = 'Starting camera…';
         var fail = function () { enterTouchMode('denied'); };
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { fail(); return; }
-        navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
-            audio: false
-        }).then(function (st) {
+        gumUser().then(function (st) {
             stream = st;
             video.srcObject = st;
             return video.play();
@@ -4206,9 +4947,16 @@
         showNote('Cloth reset.');
     });
     document.addEventListener('visibilitychange', function () {
+        if (document.hidden) { stopLoop(); if (mode === 'camera') video.pause(); return; }
         if (shellOff) return;
-        if (document.hidden) { stopLoop(); if (mode === 'camera') video.pause(); }
-        else if (mode !== 'idle') { startLoop(); if (mode === 'camera' && stream) video.play().catch(function () {}); }
+        recoverFails = 0;
+        if (mode === 'camera') recoverCamera();
+        else if (mode === 'touch') startLoop();
+    });
+    window.addEventListener('pageshow', function () {
+        if (shellOff || document.hidden) return;
+        if (mode === 'camera') recoverCamera();
+        else if (mode === 'touch') startLoop();
     });
 
     // ---- AR World shell hooks: leaving stops the camera and the
@@ -4217,11 +4965,8 @@
     var shellOff = false, shellResumeMode = null;
     function resumeCamera() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !mpHands) { enterTouchMode('denied'); return; }
-        navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
-            audio: false
-        }).then(function (st) {
-            if (shellOff) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
+        gumUser().then(function (st) {
+            if (shellOff) return;   // shared stream: leave it alive in ARCam
             stream = st;
             video.srcObject = st;
             return video.play();
@@ -4239,7 +4984,7 @@
         shellOff = true;
         shellResumeMode = mode;
         for (var id in contacts) { contacts[id].active = false; endGrab(contacts[id]); }
-        if (mode === 'camera') stopCamera();
+        if (mode === 'camera') detachCamera();
         stopLoop();
     }
     function resumeCloth() {
@@ -4251,6 +4996,24 @@
         else if (shellResumeMode === 'touch') startLoop();
         shellResumeMode = null;
     }
+
+    // ---------------- fullscreen (native where offered, ARFs
+    // pseudo-fullscreen on iPhone; the button never moves) -------
+    var clothSection = document.getElementById('clothGame');
+    var clothFsBtn = document.getElementById('clothFsBtn');
+    function syncClothFs() {
+        var on = document.fullscreenElement === clothSection || clothSection.classList.contains('ar-pseudo-fs');
+        clothSection.classList.toggle('cloth-fs-on', !!on);
+        clothFsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        resize();
+    }
+    clothFsBtn.addEventListener('click', function () {
+        if (window.ARFs) ARFs.toggle(clothSection);
+        else if (document.fullscreenElement) { document.exitFullscreen(); }
+        else if (clothSection.requestFullscreen) { clothSection.requestFullscreen().catch(function () {}); }
+        syncClothFs();
+    });
+    document.addEventListener('fullscreenchange', syncClothFs);
 
     // ---------------- debug / verification API ----------------
     function strainList() {
@@ -5066,18 +5829,90 @@
             handsNow = next;
             markDirty();
         }
+        var sendSince = 0;
         function pump() {
             if (!pumpOn) return;
-            if (video.readyState >= 2 && !sending && mpHands) {
-                sending = true;
-                mpHands.send({ image: video }).catch(function () {}).then(function () { sending = false; });
+            if (video.readyState >= 2 && mpHands) {
+                if (!sending) {
+                    sending = true;
+                    sendSince = performance.now();
+                    mpHands.send({ image: video }).catch(function () {}).then(function () { sending = false; });
+                } else if (performance.now() - sendSince > 1500) {
+                    sending = false;   // watchdog: a stalled send must not deadlock the pump
+                }
             }
             setTimeout(pump, 33);
         }
+        // Leave-and-return, shared with Threads: reacquire a
+        // camera iOS ended while the page was away; clear no
+        // state; only a camera dead across every retry falls
+        // back to touch mode.
+        var recovering = false, recoverFails = 0;
+        function camAlive() {
+            if (!stream || !stream.getVideoTracks) return false;
+            var t = stream.getVideoTracks()[0];
+            return !!t && t.readyState === 'live';
+        }
+        function recoverCamera() {
+            if (mode !== 'camera' || shellOff || recovering) return;
+            if (camAlive()) {
+                sending = false;
+                if (!pumpOn) { pumpOn = true; pump(); }
+                video.play().catch(function () {});
+                startLoop();
+                return;
+            }
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !mpHands) return;
+            recovering = true;
+            sending = false;
+            if (stream) {
+                if (window.ARCam) ARCam.forget(stream);
+                stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+                stream = null;
+            }
+            gumEnv().then(function (st) {
+                if (shellOff || mode !== 'camera') { recovering = false; return; }
+                stream = st;
+                video.srcObject = st;
+                return video.play().catch(function () {});
+            }).then(function () {
+                recovering = false;
+                recoverFails = 0;
+                if (shellOff || mode !== 'camera') return;
+                stage.classList.add('cam-on');
+                computeCover();
+                pumpOn = true;
+                pump();
+                startLoop();
+            }).catch(function () {
+                recovering = false;
+                recoverFails++;
+                if (recoverFails >= 4) { recoverFails = 0; enterTouchMode('denied'); return; }
+                setTimeout(recoverCamera, 1500 * recoverFails);
+            });
+        }
+        function gumEnv() {
+            var c = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
+            return (window.ARCam && ARCam.acquire) ? ARCam.acquire('environment', c) : navigator.mediaDevices.getUserMedia(c);
+        }
         function stopCamera() {
             pumpOn = false;
-            if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+            if (stream) {
+                if (window.ARCam) ARCam.forget(stream);
+                stream.getTracks().forEach(function (t) { t.stop(); });
+                stream = null;
+            }
             video.srcObject = null;
+            stage.classList.remove('cam-on');
+            handsNow = {}; prevHands = {};
+        }
+        // Shell suspend path: detach the video, keep the shared
+        // stream alive in ARCam — returning reattaches it with no
+        // new getUserMedia call and no camera restart.
+        function detachCamera() {
+            pumpOn = false;
+            video.srcObject = null;
+            stream = null;
             stage.classList.remove('cam-on');
             handsNow = {}; prevHands = {};
         }
@@ -5098,10 +5933,7 @@
             startStatus.textContent = 'Starting camera…';
             var fail = function () { enterTouchMode('denied'); };
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { fail(); return; }
-            navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
-                audio: false
-            }).then(function (st) {
+            gumEnv().then(function (st) {
                 stream = st;
                 video.srcObject = st;
                 return video.play();
@@ -5147,29 +5979,39 @@
             if ((e.key === 'Escape' || e.key === 'Esc') && !rulesEl.hidden) closeRules();
         });
 
-        // ---- fullscreen ----
+        // ---- fullscreen: native where offered, ARFs pseudo on
+        // iPhone; the button stays in its place as the exit ----
         function syncFs() {
-            var on = document.fullscreenElement === section;
+            var on = document.fullscreenElement === section || section.classList.contains('ar-pseudo-fs');
             section.classList.toggle('art-fs-on', !!on);
             fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
             resize();
         }
         fsBtn.addEventListener('click', function () {
-            if (document.fullscreenElement) { document.exitFullscreen(); }
+            if (window.ARFs) ARFs.toggle(section);
+            else if (document.fullscreenElement) { document.exitFullscreen(); }
             else if (section.requestFullscreen) { section.requestFullscreen().catch(function () {}); }
+            syncFs();
         });
         document.addEventListener('fullscreenchange', syncFs);
 
-        // ---- pause when the page is hidden ----
+        // ---- leave-and-return: hidden pauses; visible restores
+        // the session itself (camera reacquired if iOS ended it).
         document.addEventListener('visibilitychange', function () {
-            if (shellOff) return;
             if (document.hidden) {
                 stopLoop();
                 if (mode === 'camera') video.pause();
-            } else if (mode !== 'idle') {
-                startLoop();
-                if (mode === 'camera' && stream) video.play().catch(function () {});
+                return;
             }
+            if (shellOff) return;
+            recoverFails = 0;
+            if (mode === 'camera') recoverCamera();
+            else if (mode === 'touch') startLoop();
+        });
+        window.addEventListener('pageshow', function () {
+            if (shellOff || document.hidden) return;
+            if (mode === 'camera') recoverCamera();
+            else if (mode === 'touch') startLoop();
         });
 
         // ---- deferred boot + AR World shell hooks ----
@@ -5192,11 +6034,8 @@
         var shellOff = false, shellResumeMode = null;
         function resumeCamera() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !mpHands) { enterTouchMode('denied'); return; }
-            navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
-                audio: false
-            }).then(function (st) {
-                if (shellOff) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
+            gumEnv().then(function (st) {
+                if (shellOff) return;   // shared stream: leave it alive in ARCam
                 stream = st;
                 video.srcObject = st;
                 return video.play();
@@ -5216,7 +6055,7 @@
             shellOff = true;
             shellResumeMode = mode;
             closeRules();
-            if (mode === 'camera') stopCamera();
+            if (mode === 'camera') detachCamera();
             stopLoop();
         }
         function resumeArt() {
@@ -5274,14 +6113,155 @@
     })();
     </script>
     <script>
-    // AR World shell — one mode box, three modes. The shell itself
+    // AR World shell — three games under one roof. The switcher is
+    // ONE game picker, the same segmented pill floating at the top
+    // of every stage (and inside fullscreen): Threads · Cloth · Art
+    // as game names, the game you're in pressed. The shell itself
     // asks for nothing: no camera, no microphone, no audio. Each
-    // mode's own controls ask for what that mode needs, and leaving
-    // a mode suspends it (camera tracks stopped, frame loop halted,
-    // Threads' audio context suspended) before the next one shows.
+    // game's own controls ask for what that game needs, and leaving
+    // a game suspends it (frame loop halted, camera DETACHED but the
+    // shared stream kept alive, Threads' audio context suspended)
+    // before the next one shows — so coming back never re-asks for
+    // the camera and never restarts it.
+    //
+    // ARCam — the shared camera. A page cannot grant itself a
+    // persistent camera permission; that switch is Safari's (aA →
+    // Website Settings → Camera → Allow). What the page controls is
+    // how often it asks: getUserMedia runs once per facing, the live
+    // stream is cached and handed to whichever game asks next, and
+    // tracks are only stopped when a game deliberately leaves camera
+    // mode (which also forgets the cache entry).
+    window.ARCam = (function () {
+        var cache = {};   // facing -> { stream, promise }
+        function key(facing) { return facing === 'environment' ? 'environment' : 'user'; }
+        function liveStream(s) {
+            return !!s && s.getVideoTracks().some(function (t) { return t.readyState === 'live'; });
+        }
+        function acquire(facing, constraints) {
+            var k = key(facing);
+            var c = cache[k];
+            if (c && liveStream(c.stream)) return Promise.resolve(c.stream);
+            if (c && c.promise) return c.promise;
+            var p = navigator.mediaDevices.getUserMedia(constraints).then(function (s) {
+                cache[k] = { stream: s, promise: null };
+                return s;
+            }, function (e) {
+                delete cache[k];
+                throw e;
+            });
+            cache[k] = { stream: null, promise: p };
+            return p;
+        }
+        function forget(stream) {
+            for (var k in cache) {
+                if (cache[k] && cache[k].stream === stream) delete cache[k];
+            }
+        }
+        function live(facing) {
+            var c = cache[key(facing)];
+            return !!(c && liveStream(c.stream));
+        }
+        return { acquire: acquire, forget: forget, live: live };
+    })();
+    // ARFs — fullscreen, native where the platform offers it and a
+    // pseudo-fullscreen everywhere else. iPhone Safari implements no
+    // element Fullscreen API at all, so there the game block pins to
+    // the viewport (fixed, inset 0, 100lvh), the page locks behind
+    // it, and the same button in the same place is the exit. Esc
+    // exits the pseudo path where a keyboard exists. Neither path
+    // touches the camera, the game state, or the scroll position
+    // (the pseudo path saves and restores it exactly).
+    window.ARFs = (function () {
+        var pseudoSection = null;
+        var savedY = 0;
+        function fireChange() {
+            try { document.dispatchEvent(new Event('fullscreenchange')); } catch (e) {}
+        }
+        function enterPseudo(section, yOverride) {
+            savedY = (typeof yOverride === 'number') ? yOverride
+                : (window.scrollY || window.pageYOffset || 0);
+            pseudoSection = section;
+            section.classList.add('ar-pseudo-fs');
+            document.body.classList.add('ar-fs-lock');
+            fireChange();
+        }
+        function exitPseudoCore(restoreScroll) {
+            if (!pseudoSection) return;
+            var s = pseudoSection;
+            pseudoSection = null;
+            s.classList.remove('ar-pseudo-fs');
+            document.body.classList.remove('ar-fs-lock');
+            fireChange();
+            if (restoreScroll) {
+                var y = savedY;
+                window.scrollTo(0, y);
+                // The body was scroll-locked a frame ago; a scroll
+                // issued in that same frame clamps to the locked
+                // height. Re-issue it once layout has settled.
+                requestAnimationFrame(function () { window.scrollTo(0, y); });
+            }
+        }
+        function exitPseudo() { exitPseudoCore(true); }
+        function toggle(section) {
+            if (document.fullscreenElement) { document.exitFullscreen(); return; }
+            if (pseudoSection === section) { exitPseudo(); return; }
+            if (pseudoSection) exitPseudo();
+            if (typeof section.requestFullscreen === 'function') {
+                try {
+                    var r = section.requestFullscreen();
+                    if (r && typeof r.catch === 'function') {
+                        r.catch(function () { enterPseudo(section); });
+                    }
+                } catch (e) { enterPseudo(section); }
+                return;
+            }
+            enterPseudo(section);
+        }
+        document.addEventListener('keydown', function (e) {
+            if ((e.key === 'Escape' || e.key === 'Esc') && pseudoSection) exitPseudo();
+        });
+        // Switching games inside fullscreen keeps fullscreen: the
+        // state moves to the incoming game's block (pseudo path is
+        // synchronous and keeps the saved scroll; the native path
+        // re-requests inside the same tap's gesture).
+        function transfer(fromSection, toSection) {
+            if (pseudoSection === fromSection) {
+                // Carry the saved scroll across the switch: the
+                // shell hides the old section between the two calls,
+                // and a shorter page would clamp a restored scroll
+                // before it could be re-read.
+                var y = savedY;
+                exitPseudoCore(false);
+                enterPseudo(toSection, y);
+                return true;
+            }
+            if (document.fullscreenElement === fromSection) {
+                document.exitFullscreen();
+                if (typeof toSection.requestFullscreen === 'function') {
+                    try {
+                        var r = toSection.requestFullscreen();
+                        if (r && typeof r.catch === 'function') {
+                            r.catch(function () { enterPseudo(toSection); });
+                        }
+                    } catch (e) { enterPseudo(toSection); }
+                } else {
+                    enterPseudo(toSection);
+                }
+                return true;
+            }
+            return false;
+        }
+        return {
+            toggle: toggle,
+            isPseudo: function (section) { return pseudoSection === section; },
+            exitPseudo: exitPseudo,
+            enterPseudo: enterPseudo,
+            transfer: transfer
+        };
+    })();
     (function () {
         'use strict';
-        var btns = Array.prototype.slice.call(document.querySelectorAll('.ar-mode-btn'));
+        var btns = Array.prototype.slice.call(document.querySelectorAll('.ar-pick-btn'));
         var sections = {
             threads: document.getElementById('threadsGame'),
             cloth: document.getElementById('clothGame'),
@@ -5307,19 +6287,49 @@
             if (!sections[name] || name === current) return;
             var from = hooks(current);
             if (from && from.suspend) from.suspend();
+            if (window.ARFs) ARFs.transfer(sections[current], sections[name]);
             sections[current].hidden = true;
             sections[name].hidden = false;
             current = name;
             btns.forEach(function (b) {
-                b.setAttribute('aria-pressed', b.getAttribute('data-mode') === name ? 'true' : 'false');
+                b.setAttribute('aria-pressed', b.getAttribute('data-game-pick') === name ? 'true' : 'false');
             });
             if (name === 'art') loadThree();
             var to = hooks(name);
             if (to && to.resume) to.resume();
         }
         btns.forEach(function (b) {
-            b.addEventListener('click', function () { setMode(b.getAttribute('data-mode')); });
+            b.addEventListener('click', function () { setMode(b.getAttribute('data-game-pick')); });
         });
+        // The picker floats over each stage; the stages' own pointer
+        // handlers (Threads touch building above all) must never see
+        // a picker's press as a stage press.
+        Array.prototype.forEach.call(document.querySelectorAll('.ar-picker'), function (p) {
+            ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup'].forEach(function (t) {
+                p.addEventListener(t, function (e) { e.stopPropagation(); }, false);
+            });
+        });
+        // One-time camera guidance: a returning visitor whose camera
+        // permission is still 'prompt' sees one slim line, once. The
+        // dismissal is permanent; the line never blocks the stage and
+        // never appears in fullscreen (the fullscreen block covers
+        // the page, this line included).
+        try {
+            var returning = !!window.localStorage.getItem('arWorldVisited');
+            window.localStorage.setItem('arWorldVisited', '1');
+            var dismissed = !!window.localStorage.getItem('arCamHintDismissed');
+            var hintEl = document.getElementById('arCamHint');
+            var hintX = document.getElementById('arCamHintX');
+            if (hintX) hintX.addEventListener('click', function () {
+                if (hintEl) hintEl.hidden = true;
+                try { window.localStorage.setItem('arCamHintDismissed', '1'); } catch (e) {}
+            });
+            if (returning && !dismissed && hintEl && navigator.permissions && navigator.permissions.query) {
+                navigator.permissions.query({ name: 'camera' }).then(function (st) {
+                    if (st.state === 'prompt') hintEl.hidden = false;
+                }).catch(function () {});
+            }
+        } catch (e) {}
         window.ARWorldShell = {
             mode: function () { return current; },
             setMode: setMode,
