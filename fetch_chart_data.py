@@ -120,6 +120,18 @@ untouched; the known blind spots stay blind — NBIS and TSM file
 no usable quarterly facts, and JPM reports no gross margin, so
 the veto can never fire on it.
 
+Rotation veto (added 2026-11-23): for the same 19 stocks, the
+run also builds each name's sector relative-strength regime
+from Yahoo adjusted closes (sector ETF / SPX, the sell study's
+exact construction — see the Rotation veto note above
+compute_indicator_signals) and applies the R2 veto Johnny
+adopted from sell study #2: a sell episode whose first day
+falls in a sector rotating UP is suppressed whole. In the
+study, 19 of the gate's 29 validation sell episodes on the 19
+fired into strengthening sectors and those names rose a median
++82.3% over the following year; the veto removes that failure
+mode and creates no sell signal of its own.
+
 Market context (added 2026-11-23): the same run also writes
 finance-context.json, built by market_context.py (imported
 lazily at the end of main, so a context failure can never touch
@@ -509,6 +521,53 @@ def fetch_yahoo_daily(symbol, period1, period2):
                           round(num(lows), 4), round(float(close), 4),
                           int(vol)]
         return [by_date[k] for k in sorted(by_date)]
+    raise last_exc if last_exc else ValueError("no host answered")
+
+
+def fetch_yahoo_adjclose(symbol, period1, period2):
+    """Daily ADJUSTED closes: (dates, values), oldest first.
+
+    The rotation veto's one input the plain daily fetch does
+    not carry: sell study #2 built its sector RS lines from
+    Yahoo's dividend/split-adjusted closes, so the production
+    regime reads the same series (indicators.adjclose), never
+    the raw close. Bars with no adjusted close are skipped —
+    the study's own construction. A response with no adjclose
+    block at all is a failure, not an empty series."""
+    last_exc = None
+    for host in HOSTS:
+        url = "https://%s/v8/finance/chart/%s" % (host, symbol)
+        try:
+            resp = requests.get(
+                url,
+                params={"period1": period1, "period2": period2,
+                        "interval": "1d", "events": "div,split"},
+                headers=HEADERS,
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:  # try the mirror host before giving up
+            last_exc = exc
+            continue
+        result = (data.get("chart") or {}).get("result") or []
+        if not result:
+            err = (data.get("chart") or {}).get("error") or {}
+            raise ValueError("no chart result: %s" % err)
+        adj = (result[0].get("indicators", {}).get("adjclose")
+               or [{}])[0].get("adjclose")
+        if adj is None:
+            raise ValueError("no adjclose block for %s" % symbol)
+        stamps = result[0].get("timestamp") or []
+        by_date = {}
+        for i, ts in enumerate(stamps):
+            v = adj[i] if i < len(adj) else None
+            if v is None or float(v) <= 0:
+                continue  # no adjusted close, no bar
+            d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
+            by_date[d] = float(v)
+        dates = sorted(by_date)
+        return dates, [by_date[d] for d in dates]
     raise last_exc if last_exc else ValueError("no host answered")
 
 
@@ -1076,6 +1135,34 @@ def earnings_daily_state(events, bar_dates):
 #     no captured episode in either era. It prunes false
 #     sells; the sells that survive still capture nothing,
 #     and the veto creates no sell signal of its own.
+#   R2 rotation veto (added 2026-11-23; Johnny's adoption of
+#     sell study #2's one passing candidate, from the family
+#     he named himself — sector cycles): a sell episode is
+#     also suppressed whole when the name's sector is
+#     rotating UP on the episode's first day. The regime is
+#     the study's exact construction: RS = the sector ETF's
+#     adjusted close / the SPX close (the SPX close carried
+#     forward onto the ETF's own calendar); a sector is UP
+#     when its RS line sits above its own trailing 200-day
+#     average and RS is higher than 63 trading days earlier,
+#     DOWN when below and lower, MIXED otherwise, and
+#     undefined until the 200-day average exists. The regime
+#     in force on a name's date is the ETF calendar's latest
+#     value on or before that date. Each of the 19 maps to
+#     one ETF (see _SECTOR_ETF_OF below): semiconductors to
+#     SMH, technology to XLK, staples to XLP, healthcare to
+#     XLV, financials to XLF, discretionary to XLY,
+#     industrials to XLI. In the study (validation era, the
+#     19) 19 of the gate's 29 sell episodes fired into UP
+#     sectors and those names rose a median +82.3% in the
+#     following year; suppressing them leaves 10 episodes
+#     at +21.1% / +25.3% forward 1y / 2y against the
+#     control's +25.9% / +49.4%. The honest limit stands:
+#     the kept sells still rose — the veto removes the
+#     disaster, it does not create a good sell, and it
+#     creates no sell signal of its own. The study tested
+#     the 19 only, so no other series carries the veto;
+#     buys are untouched.
 # Names the earnings family cannot see stay untouched: SPX,
 # IXIC, GOLD, BTC and the band/commodity series have no
 # earnings at all; NBIS and TSM file no usable quarterly
@@ -1131,6 +1218,22 @@ _SIGNAL_NO_PEG_KEYS = {"SPX", "IXIC", "GOLD", "BTC"} | BAND_KEYS \
 # other no-PEG key keeps -30%.
 _SIGNAL_INDEX_KEYS = {"SPX", "IXIC"}
 _SIGNAL_PERSIST = 5
+
+# The R2 rotation veto's sector map (sell study #2, verbatim):
+# each of Johnny's 19 to the one sector ETF whose relative-
+# strength regime can veto its sell episodes. The study tested
+# these 19 only — no other series is mapped, so no other series
+# carries the veto. (XLE sits in the study's ETF family but no
+# name maps to it, so the run never fetches it.)
+_SECTOR_ETF_OF = {
+    "NVDA": "SMH", "AMD": "SMH", "MU": "SMH", "TSM": "SMH",
+    "GOOGL": "XLK", "PLTR": "XLK", "MSTR": "XLK", "AAOI": "XLK",
+    "NBIS": "XLK", "CIFR": "XLK", "IREN": "XLK", "ASST": "XLK",
+    "SPCX": "XLK",
+    "WMT": "XLP", "COST": "XLP", "LLY": "XLV", "JPM": "XLF",
+    "TSLA": "XLY", "WM": "XLI",
+}
+_SECTOR_ETFS = sorted(set(_SECTOR_ETF_OF.values()))
 
 
 def _sig_ma200w(closes):
@@ -1251,13 +1354,87 @@ def _preferred_zone_buys(dates, closes):
     return sorted(out)
 
 
+def _episode_runs(idxs):
+    """Group a sorted index list into its contiguous runs —
+    the sell episodes the S4 and R2 vetoes judge whole."""
+    runs = []
+    for i in idxs:
+        if runs and i == runs[-1][-1] + 1:
+            runs[-1].append(i)
+        else:
+            runs.append([i])
+    return runs
+
+
+def _sector_rs_regimes(etf_dates, etf_adj, spx_dates, spx_closes):
+    """{etf_date: "UP"/"DOWN"/"MIXED"/None} — sell study #2's
+    sector regime, reproduced exactly (see the R2 note above).
+
+    RS rides the ETF's own calendar: each ETF bar's RS is its
+    adjusted close over the last SPX close on or before its
+    date. The 200-day average is the trailing mean of RS,
+    defined only where the full 200-bar window exists (a gap
+    in RS leaves the average undefined for the whole window
+    that contains it — the study's NaN-robust mean). A bar's
+    regime is None until that average exists and the bar 63
+    back has an RS; UP needs RS above the average and rising
+    over those 63 bars, DOWN below and falling, else MIXED."""
+    rs = []
+    for i, d in enumerate(etf_dates):
+        j = bisect.bisect_right(spx_dates, d) - 1
+        rs.append(etf_adj[i] / spx_closes[j] if j >= 0 else None)
+    out = {}
+    total = 0.0
+    gaps = 0
+    for i, d in enumerate(etf_dates):
+        v = rs[i]
+        if v is None:
+            gaps += 1
+        else:
+            total += v
+        if i >= 200:
+            old = rs[i - 200]
+            if old is None:
+                gaps -= 1
+            else:
+                total -= old
+        if i < 199 or i < 63 or gaps or rs[i - 63] is None:
+            out[d] = None
+            continue
+        ma = total / 200.0
+        chg = rs[i] / rs[i - 63] - 1.0
+        if rs[i] > ma and chg > 0:
+            out[d] = "UP"
+        elif rs[i] < ma and chg < 0:
+            out[d] = "DOWN"
+        else:
+            out[d] = "MIXED"
+    return out
+
+
+def _regime_on(etf_dates, regimes, day):
+    """The sector regime in force on a name's bar date: the
+    ETF calendar's latest regime value on or before that
+    date — None included, exactly as the study reads it (an
+    undefined day is not UP, so it vetoes nothing)."""
+    j = bisect.bisect_right(etf_dates, day) - 1
+    if j < 0:
+        return None
+    return regimes[etf_dates[j]]
+
+
 def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes,
-                              earn=None):
+                              earn=None, sector_regimes=None):
     """(buy_dates, sell_dates) for one daily series. `earn`, when
     given, is the series' earnings_daily_state: the adopted B1
     door unions its days into the buys and the S4 veto suppresses
     its clean-print sell episodes (see the formula notes above).
-    Only the 19 earnings-universe stocks ever receive one."""
+    Only the 19 earnings-universe stocks ever receive one.
+    `sector_regimes`, when given, is the series' sector ETF
+    calendar and regime map: the adopted R2 rotation veto
+    suppresses its sell episodes that open in an UP regime.
+    Only the same 19 stocks — the study's mapped names — ever
+    receive one."""
     dates = [b[0] for b in bars]
     closes = [float(b[4]) for b in bars]
     n = len(closes)
@@ -1344,12 +1521,7 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes,
         # clean print at most 126 trading days old is suppressed
         # whole.
         if sell_idx:
-            runs = []
-            for i in sell_idx:
-                if runs and i == runs[-1][-1] + 1:
-                    runs[-1].append(i)
-                else:
-                    runs.append([i])
+            runs = _episode_runs(sell_idx)
             kept = []
             for r in runs:
                 s = r[0]
@@ -1364,6 +1536,21 @@ def compute_indicator_signals(key, bars, pe, vix_dates, vix_closes,
                 if not clean:
                     kept.extend(r)
             sell_idx = kept
+    if sector_regimes is not None and sell_idx:
+        # R2 rotation veto: group the surviving sell days into
+        # episodes; an episode whose FIRST day falls in a sector
+        # rotating UP is suppressed whole — the study's exact
+        # split (its kept/dropped sets were episodes classified
+        # by the regime at the start). Runs after S4: both
+        # vetoes remove whole episodes from the same grouping,
+        # so the surviving set is the union of their removals
+        # in either order.
+        etf_dates, regimes = sector_regimes
+        kept = []
+        for r in _episode_runs(sell_idx):
+            if _regime_on(etf_dates, regimes, dates[r[0]]) != "UP":
+                kept.extend(r)
+        sell_idx = kept
     if zone_buy is not None:
         buy = zone_buy
     return buy, [dates[i] for i in sell_idx]
@@ -1483,11 +1670,15 @@ def compute_score_buy_days(key, bars, pe, vix_dates, vix_closes):
     return out
 
 
-def attach_indicator_signals(d_series, d_previous, earn_states=None):
+def attach_indicator_signals(d_series, d_previous, earn_states=None,
+                             sector_data=None):
     """Compute buy/sell dates for every daily series in place.
     `earn_states` maps any of the 19 earnings-universe keys to
     its earnings_daily_state; those series' signals carry the
-    adopted B1 door / S4 veto. Where a series' gate arrays are
+    adopted B1 door / S4 veto. `sector_data` maps any of the
+    same 19 keys to its sector ETF's (dates, regime map); those
+    series' signals carry the adopted R2 rotation veto. Where
+    a series' gate arrays are
     carried over for this run only (the transient-P/E branch
     below), the carried arrays stand whole — door and veto
     included in what is set aside, exactly as the rest of the
@@ -1541,7 +1732,8 @@ def attach_indicator_signals(d_series, d_previous, earn_states=None):
             continue
         buy, sell = compute_indicator_signals(
             key, bars, entry.get("pe"), vix_dates, vix_closes,
-            earn=(earn_states or {}).get(key))
+            earn=(earn_states or {}).get(key),
+            sector_regimes=(sector_data or {}).get(key))
         if key not in _SIGNAL_NO_PEG_KEYS and not entry.get("pe"):
             prev = d_previous.get(key) or {}
             if prev.get("pe"):
@@ -2233,11 +2425,48 @@ def main():
                 "without the earnings door/veto this run"
                 % (key, exc))
 
+    # Sector RS regimes for the adopted R2 rotation veto: one
+    # adjusted-close pull per mapped ETF, regimes built against
+    # this run's own SPX bars (the study's construction). Like
+    # the earnings state above, any failure is logged and
+    # leaves that ETF's names without the veto this run — it
+    # never touches the price or P/E data and never fails the
+    # run.
+    sector_data = {}
+    spx_entry = d_series.get("SPX") or {}
+    spx_bars = spx_entry.get("bars") or []
+    if spx_bars:
+        spx_dates = [b[0] for b in spx_bars]
+        spx_closes = [float(b[4]) for b in spx_bars]
+        for etf in _SECTOR_ETFS:
+            try:
+                etf_dates, etf_adj = fetch_yahoo_adjclose(
+                    etf, d_period1, period2)
+                if not etf_dates:
+                    raise ValueError("no adjusted closes returned")
+                regimes = _sector_rs_regimes(
+                    etf_dates, etf_adj, spx_dates, spx_closes)
+                names = [k for k, v in _SECTOR_ETF_OF.items()
+                         if v == etf]
+                for key in names:
+                    sector_data[key] = (etf_dates, regimes)
+                log("  sector: %s — %d adjusted closes; rotation "
+                    "veto live for %s"
+                    % (etf, len(etf_dates), ", ".join(sorted(names))))
+            except Exception as exc:
+                log("  sector FAILED for %s (%s) — its names ship "
+                    "without the rotation veto this run" % (etf, exc))
+            time.sleep(1)  # be polite to the endpoint
+    else:
+        log("  sector: no SPX series this run — the rotation "
+            "veto is not applied")
+
     # Johnny's indicator: buy/sell signal dates on every daily
     # series, from this run's own bars, P/E and VIX (see the
     # indicator section above compute_pe).
     try:
-        attach_indicator_signals(d_series, d_previous, earn_states)
+        attach_indicator_signals(d_series, d_previous, earn_states,
+                                 sector_data)
     except Exception as exc:
         # The dots are the daily file's purpose as much as the
         # bars: a file with signals missing or half-computed is a
