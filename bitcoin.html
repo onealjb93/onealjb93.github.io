@@ -1106,11 +1106,32 @@
                (date, "No price yet", the full corridor figures) is on
                screen at 393px. The block's height is the same in every
                inspection state (notes reserve their line), so the
-               chart below never shifts. */
-            .pl-readout { flex-wrap: wrap; overflow: visible; height: auto; gap: 8px 12px; }
-            .pl-stat { flex: 1 1 30%; min-width: 0; }
+               chart below never shifts.
+               Readout collision fix (2026-11-24, the homepage fix
+               applied here): the equal flex thirds were narrower
+               than the page's own Georgia text — "Vs. typical price"
+               ran into "Floor", the Date value ran into Spot,
+               "Production cost" and "200-day average" ran past the
+               panel. The strip is now the Finance readout's true
+               grid: two columns that size to their widest cell,
+               spread with space-between — Date beside Spot, Floor
+               beside Ceiling. Labels and values never wrap; the
+               Spot note is the one wrappable cell, so a narrow
+               screen squeezes the note inside its own cell instead
+               of into its neighbour. */
+            .pl-readout { display: grid; grid-template-columns: repeat(2, minmax(0, auto)); justify-content: space-between; overflow: visible; height: auto; column-gap: 12px; row-gap: 8px; }
+            .pl-stat { min-width: 0; }
             .pl-note { min-height: 0.74rem; }
+            #btc-view-anim .pl-note { white-space: normal; }
             .pl-value { font-size: 1.1rem; }
+        }
+        /* The narrowest phones (320px class): even the two content
+           columns plus the gap are wider than the panel at full type
+           size, so the readout steps its type down one notch — the
+           labels and values stay whole, the note wraps first. */
+        @media (max-width: 340px) {
+            #btc-view-anim .pl-value { font-size: 1rem; }
+            #btc-view-anim .pl-label { font-size: 0.6rem; }
         }
         /* Top-of-page flow (2026-11-18): the jump pill in the
            title area, the history paragraph's source line, and the
@@ -4650,9 +4671,9 @@ function zoomViewAt(px, py, w, h, factor) {
    time axis, the vertical spread change drives the price
    axis, each around the pinch midpoint's value on its own
    axis; a diagonal pinch reshapes both at once. On the
-   price axis, spreading the fingers widens the visible
-   range (the line flattens) and closing them compresses
-   the range (movements stretch taller). The wheel
+   price axis, spreading the fingers narrows the visible
+   range (movements stretch taller) and closing them
+   widens the range (the line flattens). The wheel
    and the + / - buttons keep the one-factor zoomViewAt
    above. Each axis keeps its own zoom floor from that
    function, landed on exactly; clampView still bounds the
@@ -4660,24 +4681,28 @@ function zoomViewAt(px, py, w, h, factor) {
    clamp domain). */
 function pinchAxis(start, cur) {
     /* One axis of the two-finger pinch (Y pinch, 2026-11-24):
-       a spread that starts at 20px or more on this axis scales
-       the axis by its own start/current ratio; a spread that
-       starts stacked on this axis (under 20px) holds the axis
-       at 1 until the spread passes 20px, so a level pinch never
-       drags the other axis along on finger noise. */
-    if (start >= 20) return start / Math.max(cur, 1);
-    return cur > 20 ? 20 / cur : 1;
+       the axis scales by its own start/current spread ratio
+       from the first pixel of movement — no engagement
+       threshold. A spread that starts stacked on this axis
+       (under 2px) holds the axis at 1 for that move; the
+       move handlers re-baseline the gesture the moment the
+       spread reaches 2px, so the axis engages from the
+       first real separation with no jump. */
+    if (start < 2 || cur < 2) return 1;
+    return start / Math.max(cur, 0.5);
 }
 
 function pinchAxisY(start, cur) {
     /* The price axis takes the pinch's vertical component the
-       other way round (Y pinch, 2026-11-24): fingers spreading
-       apart vertically pull the visible price range wider (the
-       line flattens); fingers closing together compress the
-       range (movements stretch taller). The stacked-start
-       rule is pinchAxis's own, mirrored. */
-    if (start >= 20) return cur / start;
-    return cur > 20 ? cur / 20 : 1;
+       the same way pinchAxis takes time (free pinch,
+       2026-11-24): fingers spreading apart vertically
+       narrow the visible price range about the anchor
+       price (movements stretch taller); fingers closing
+       together widen it — the photo model's direction,
+       one rule on both pages. The stacked-start rule is
+       pinchAxis's own. */
+    if (start < 2 || cur < 2) return 1;
+    return start / Math.max(cur, 0.5);
 }
 
 function zoomViewAtXY(px, py, w, h, fX, fY) {
@@ -4764,6 +4789,17 @@ canvas.addEventListener("pointermove", function (e) {
             var pts = ptrList();
             var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
             var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+            var curSX = Math.abs(pts[0].x - pts[1].x), curSY = Math.abs(pts[0].y - pts[1].y);
+            if ((pinchStart.sx < 2 && curSX >= 2) || (pinchStart.sy < 2 && curSY >= 2)) {
+                /* an axis that started stacked has its first real
+                   separation now: the gesture re-baselines here —
+                   current view, spreads and midpoint become the
+                   start, so the axis engages with no jump */
+                pinchStart.view = snapshot();
+                pinchStart.sx = curSX; pinchStart.sy = curSY;
+                pinchStart.midX = midX; pinchStart.midY = midY;
+                pinchStart.dist = d;
+            }
             restore(pinchStart.view);
             if (d > 0 && pinchStart.dist > 0) zoomViewAtXY(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchAxis(pinchStart.sx, Math.abs(pts[0].x - pts[1].x)), pinchAxisY(pinchStart.sy, Math.abs(pts[0].y - pts[1].y)));
             panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
@@ -4836,6 +4872,17 @@ if (window.BTC_TOUCH) window.BTC_TOUCH(canvas, {
         var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
         var d = Math.hypot(a.x - b.x, a.y - b.y);
         var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+        var curSX = Math.abs(a.x - b.x), curSY = Math.abs(a.y - b.y);
+        if ((tPinch.sx < 2 && curSX >= 2) || (tPinch.sy < 2 && curSY >= 2)) {
+            /* an axis that started stacked has its first real
+               separation now: the gesture re-baselines here —
+               current view, spreads and midpoint become the
+               start, so the axis engages with no jump */
+            tPinch.view = snapshot();
+            tPinch.sx = curSX; tPinch.sy = curSY;
+            tPinch.midX = midX; tPinch.midY = midY;
+            tPinch.dist = d;
+        }
         restore(tPinch.view);
         if (d > 0 && tPinch.dist > 0) zoomViewAtXY(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, pinchAxis(tPinch.sx, Math.abs(a.x - b.x)), pinchAxisY(tPinch.sy, Math.abs(a.y - b.y)));
         panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
@@ -6179,9 +6226,9 @@ draw();
            time axis, the vertical spread change drives the price
            axis, each around the pinch midpoint's value on its own
            axis; a diagonal pinch reshapes both at once. On the
-           price axis, spreading the fingers widens the visible
-           range (the line flattens) and closing them compresses
-           the range (movements stretch taller). The wheel
+           price axis, spreading the fingers narrows the visible
+           range (movements stretch taller) and closing them
+           widens the range (the line flattens). The wheel
            and the + / - buttons keep the one-factor zoomViewAt
            above. Each axis keeps its own zoom floor from that
            function, landed on exactly; clampView still bounds the
@@ -6189,24 +6236,28 @@ draw();
            clamp domain). */
         function pinchAxis(start, cur) {
             /* One axis of the two-finger pinch (Y pinch, 2026-11-24):
-               a spread that starts at 20px or more on this axis scales
-               the axis by its own start/current ratio; a spread that
-               starts stacked on this axis (under 20px) holds the axis
-               at 1 until the spread passes 20px, so a level pinch never
-               drags the other axis along on finger noise. */
-            if (start >= 20) return start / Math.max(cur, 1);
-            return cur > 20 ? 20 / cur : 1;
+               the axis scales by its own start/current spread ratio
+               from the first pixel of movement — no engagement
+               threshold. A spread that starts stacked on this axis
+               (under 2px) holds the axis at 1 for that move; the
+               move handlers re-baseline the gesture the moment the
+               spread reaches 2px, so the axis engages from the
+               first real separation with no jump. */
+            if (start < 2 || cur < 2) return 1;
+            return start / Math.max(cur, 0.5);
         }
 
         function pinchAxisY(start, cur) {
             /* The price axis takes the pinch's vertical component the
-               other way round (Y pinch, 2026-11-24): fingers spreading
-               apart vertically pull the visible price range wider (the
-               line flattens); fingers closing together compress the
-               range (movements stretch taller). The stacked-start
-               rule is pinchAxis's own, mirrored. */
-            if (start >= 20) return cur / start;
-            return cur > 20 ? cur / 20 : 1;
+               the same way pinchAxis takes time (free pinch,
+               2026-11-24): fingers spreading apart vertically
+               narrow the visible price range about the anchor
+               price (movements stretch taller); fingers closing
+               together widen it — the photo model's direction,
+               one rule on both pages. The stacked-start rule is
+               pinchAxis's own. */
+            if (start < 2 || cur < 2) return 1;
+            return start / Math.max(cur, 0.5);
         }
 
         function zoomViewAtXY(px, py, w, h, fX, fY) {
@@ -6308,6 +6359,17 @@ draw();
                     var pts = ptrList();
                     var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                     var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+                    var curSX = Math.abs(pts[0].x - pts[1].x), curSY = Math.abs(pts[0].y - pts[1].y);
+                    if ((pinchStart.sx < 2 && curSX >= 2) || (pinchStart.sy < 2 && curSY >= 2)) {
+                        /* an axis that started stacked has its first real
+                           separation now: the gesture re-baselines here —
+                           current view, spreads and midpoint become the
+                           start, so the axis engages with no jump */
+                        pinchStart.view = snapshot();
+                        pinchStart.sx = curSX; pinchStart.sy = curSY;
+                        pinchStart.midX = midX; pinchStart.midY = midY;
+                        pinchStart.dist = d;
+                    }
                     restore(pinchStart.view);
                     if (d > 0 && pinchStart.dist > 0) zoomViewAtXY(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchAxis(pinchStart.sx, Math.abs(pts[0].x - pts[1].x)), pinchAxisY(pinchStart.sy, Math.abs(pts[0].y - pts[1].y)));
                     panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
@@ -6389,6 +6451,17 @@ draw();
                 var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
                 var d = Math.hypot(a.x - b.x, a.y - b.y);
                 var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+                var curSX = Math.abs(a.x - b.x), curSY = Math.abs(a.y - b.y);
+                if ((tPinch.sx < 2 && curSX >= 2) || (tPinch.sy < 2 && curSY >= 2)) {
+                    /* an axis that started stacked has its first real
+                       separation now: the gesture re-baselines here —
+                       current view, spreads and midpoint become the
+                       start, so the axis engages with no jump */
+                    tPinch.view = snapshot();
+                    tPinch.sx = curSX; tPinch.sy = curSY;
+                    tPinch.midX = midX; tPinch.midY = midY;
+                    tPinch.dist = d;
+                }
                 restore(tPinch.view);
                 if (d > 0 && tPinch.dist > 0) zoomViewAtXY(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, pinchAxis(tPinch.sx, Math.abs(a.x - b.x)), pinchAxisY(tPinch.sy, Math.abs(a.y - b.y)));
                 panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
@@ -7131,9 +7204,9 @@ draw();
            time axis, the vertical spread change drives the price
            axis, each around the pinch midpoint's value on its own
            axis; a diagonal pinch reshapes both at once. On the
-           price axis, spreading the fingers widens the visible
-           range (the line flattens) and closing them compresses
-           the range (movements stretch taller). The wheel
+           price axis, spreading the fingers narrows the visible
+           range (movements stretch taller) and closing them
+           widens the range (the line flattens). The wheel
            and the + / - buttons keep the one-factor zoomViewAt
            above. Each axis keeps its own zoom floor from that
            function, landed on exactly; clampView still bounds the
@@ -7141,24 +7214,28 @@ draw();
            clamp domain). */
         function pinchAxis(start, cur) {
             /* One axis of the two-finger pinch (Y pinch, 2026-11-24):
-               a spread that starts at 20px or more on this axis scales
-               the axis by its own start/current ratio; a spread that
-               starts stacked on this axis (under 20px) holds the axis
-               at 1 until the spread passes 20px, so a level pinch never
-               drags the other axis along on finger noise. */
-            if (start >= 20) return start / Math.max(cur, 1);
-            return cur > 20 ? 20 / cur : 1;
+               the axis scales by its own start/current spread ratio
+               from the first pixel of movement — no engagement
+               threshold. A spread that starts stacked on this axis
+               (under 2px) holds the axis at 1 for that move; the
+               move handlers re-baseline the gesture the moment the
+               spread reaches 2px, so the axis engages from the
+               first real separation with no jump. */
+            if (start < 2 || cur < 2) return 1;
+            return start / Math.max(cur, 0.5);
         }
 
         function pinchAxisY(start, cur) {
             /* The price axis takes the pinch's vertical component the
-               other way round (Y pinch, 2026-11-24): fingers spreading
-               apart vertically pull the visible price range wider (the
-               line flattens); fingers closing together compress the
-               range (movements stretch taller). The stacked-start
-               rule is pinchAxis's own, mirrored. */
-            if (start >= 20) return cur / start;
-            return cur > 20 ? cur / 20 : 1;
+               the same way pinchAxis takes time (free pinch,
+               2026-11-24): fingers spreading apart vertically
+               narrow the visible price range about the anchor
+               price (movements stretch taller); fingers closing
+               together widen it — the photo model's direction,
+               one rule on both pages. The stacked-start rule is
+               pinchAxis's own. */
+            if (start < 2 || cur < 2) return 1;
+            return start / Math.max(cur, 0.5);
         }
 
         function zoomViewAtXY(px, py, w, h, fX, fY) {
@@ -7260,6 +7337,17 @@ draw();
                     var pts = ptrList();
                     var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                     var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+                    var curSX = Math.abs(pts[0].x - pts[1].x), curSY = Math.abs(pts[0].y - pts[1].y);
+                    if ((pinchStart.sx < 2 && curSX >= 2) || (pinchStart.sy < 2 && curSY >= 2)) {
+                        /* an axis that started stacked has its first real
+                           separation now: the gesture re-baselines here —
+                           current view, spreads and midpoint become the
+                           start, so the axis engages with no jump */
+                        pinchStart.view = snapshot();
+                        pinchStart.sx = curSX; pinchStart.sy = curSY;
+                        pinchStart.midX = midX; pinchStart.midY = midY;
+                        pinchStart.dist = d;
+                    }
                     restore(pinchStart.view);
                     if (d > 0 && pinchStart.dist > 0) zoomViewAtXY(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchAxis(pinchStart.sx, Math.abs(pts[0].x - pts[1].x)), pinchAxisY(pinchStart.sy, Math.abs(pts[0].y - pts[1].y)));
                     panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
@@ -7343,6 +7431,17 @@ draw();
                 var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
                 var d = Math.hypot(a.x - b.x, a.y - b.y);
                 var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+                var curSX = Math.abs(a.x - b.x), curSY = Math.abs(a.y - b.y);
+                if ((tPinch.sx < 2 && curSX >= 2) || (tPinch.sy < 2 && curSY >= 2)) {
+                    /* an axis that started stacked has its first real
+                       separation now: the gesture re-baselines here —
+                       current view, spreads and midpoint become the
+                       start, so the axis engages with no jump */
+                    tPinch.view = snapshot();
+                    tPinch.sx = curSX; tPinch.sy = curSY;
+                    tPinch.midX = midX; tPinch.midY = midY;
+                    tPinch.dist = d;
+                }
                 restore(tPinch.view);
                 if (d > 0 && tPinch.dist > 0) zoomViewAtXY(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, pinchAxis(tPinch.sx, Math.abs(a.x - b.x)), pinchAxisY(tPinch.sy, Math.abs(a.y - b.y)));
                 panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
@@ -8011,9 +8110,9 @@ draw();
            time axis, the vertical spread change drives the price
            axis, each around the pinch midpoint's value on its own
            axis; a diagonal pinch reshapes both at once. On the
-           price axis, spreading the fingers widens the visible
-           range (the line flattens) and closing them compresses
-           the range (movements stretch taller). The wheel
+           price axis, spreading the fingers narrows the visible
+           range (movements stretch taller) and closing them
+           widens the range (the line flattens). The wheel
            and the + / - buttons keep the one-factor zoomViewAt
            above. Each axis keeps its own zoom floor from that
            function, landed on exactly; clampView still bounds the
@@ -8021,24 +8120,28 @@ draw();
            clamp domain). */
         function pinchAxis(start, cur) {
             /* One axis of the two-finger pinch (Y pinch, 2026-11-24):
-               a spread that starts at 20px or more on this axis scales
-               the axis by its own start/current ratio; a spread that
-               starts stacked on this axis (under 20px) holds the axis
-               at 1 until the spread passes 20px, so a level pinch never
-               drags the other axis along on finger noise. */
-            if (start >= 20) return start / Math.max(cur, 1);
-            return cur > 20 ? 20 / cur : 1;
+               the axis scales by its own start/current spread ratio
+               from the first pixel of movement — no engagement
+               threshold. A spread that starts stacked on this axis
+               (under 2px) holds the axis at 1 for that move; the
+               move handlers re-baseline the gesture the moment the
+               spread reaches 2px, so the axis engages from the
+               first real separation with no jump. */
+            if (start < 2 || cur < 2) return 1;
+            return start / Math.max(cur, 0.5);
         }
 
         function pinchAxisY(start, cur) {
             /* The price axis takes the pinch's vertical component the
-               other way round (Y pinch, 2026-11-24): fingers spreading
-               apart vertically pull the visible price range wider (the
-               line flattens); fingers closing together compress the
-               range (movements stretch taller). The stacked-start
-               rule is pinchAxis's own, mirrored. */
-            if (start >= 20) return cur / start;
-            return cur > 20 ? cur / 20 : 1;
+               the same way pinchAxis takes time (free pinch,
+               2026-11-24): fingers spreading apart vertically
+               narrow the visible price range about the anchor
+               price (movements stretch taller); fingers closing
+               together widen it — the photo model's direction,
+               one rule on both pages. The stacked-start rule is
+               pinchAxis's own. */
+            if (start < 2 || cur < 2) return 1;
+            return start / Math.max(cur, 0.5);
         }
 
         function zoomViewAtXY(px, py, w, h, fX, fY) {
@@ -8140,6 +8243,17 @@ draw();
                     var pts = ptrList();
                     var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                     var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+                    var curSX = Math.abs(pts[0].x - pts[1].x), curSY = Math.abs(pts[0].y - pts[1].y);
+                    if ((pinchStart.sx < 2 && curSX >= 2) || (pinchStart.sy < 2 && curSY >= 2)) {
+                        /* an axis that started stacked has its first real
+                           separation now: the gesture re-baselines here —
+                           current view, spreads and midpoint become the
+                           start, so the axis engages with no jump */
+                        pinchStart.view = snapshot();
+                        pinchStart.sx = curSX; pinchStart.sy = curSY;
+                        pinchStart.midX = midX; pinchStart.midY = midY;
+                        pinchStart.dist = d;
+                    }
                     restore(pinchStart.view);
                     if (d > 0 && pinchStart.dist > 0) zoomViewAtXY(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchAxis(pinchStart.sx, Math.abs(pts[0].x - pts[1].x)), pinchAxisY(pinchStart.sy, Math.abs(pts[0].y - pts[1].y)));
                     panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
@@ -8223,6 +8337,17 @@ draw();
                 var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
                 var d = Math.hypot(a.x - b.x, a.y - b.y);
                 var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+                var curSX = Math.abs(a.x - b.x), curSY = Math.abs(a.y - b.y);
+                if ((tPinch.sx < 2 && curSX >= 2) || (tPinch.sy < 2 && curSY >= 2)) {
+                    /* an axis that started stacked has its first real
+                       separation now: the gesture re-baselines here —
+                       current view, spreads and midpoint become the
+                       start, so the axis engages with no jump */
+                    tPinch.view = snapshot();
+                    tPinch.sx = curSX; tPinch.sy = curSY;
+                    tPinch.midX = midX; tPinch.midY = midY;
+                    tPinch.dist = d;
+                }
                 restore(tPinch.view);
                 if (d > 0 && tPinch.dist > 0) zoomViewAtXY(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, pinchAxis(tPinch.sx, Math.abs(a.x - b.x)), pinchAxisY(tPinch.sy, Math.abs(a.y - b.y)));
                 panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
@@ -8944,9 +9069,9 @@ draw();
            time axis, the vertical spread change drives the price
            axis, each around the pinch midpoint's value on its own
            axis; a diagonal pinch reshapes both at once. On the
-           price axis, spreading the fingers widens the visible
-           range (the line flattens) and closing them compresses
-           the range (movements stretch taller). The wheel
+           price axis, spreading the fingers narrows the visible
+           range (movements stretch taller) and closing them
+           widens the range (the line flattens). The wheel
            and the + / - buttons keep the one-factor zoomViewAt
            above. Each axis keeps its own zoom floor from that
            function, landed on exactly; clampView still bounds the
@@ -8954,24 +9079,28 @@ draw();
            clamp domain). */
         function pinchAxis(start, cur) {
             /* One axis of the two-finger pinch (Y pinch, 2026-11-24):
-               a spread that starts at 20px or more on this axis scales
-               the axis by its own start/current ratio; a spread that
-               starts stacked on this axis (under 20px) holds the axis
-               at 1 until the spread passes 20px, so a level pinch never
-               drags the other axis along on finger noise. */
-            if (start >= 20) return start / Math.max(cur, 1);
-            return cur > 20 ? 20 / cur : 1;
+               the axis scales by its own start/current spread ratio
+               from the first pixel of movement — no engagement
+               threshold. A spread that starts stacked on this axis
+               (under 2px) holds the axis at 1 for that move; the
+               move handlers re-baseline the gesture the moment the
+               spread reaches 2px, so the axis engages from the
+               first real separation with no jump. */
+            if (start < 2 || cur < 2) return 1;
+            return start / Math.max(cur, 0.5);
         }
 
         function pinchAxisY(start, cur) {
             /* The price axis takes the pinch's vertical component the
-               other way round (Y pinch, 2026-11-24): fingers spreading
-               apart vertically pull the visible price range wider (the
-               line flattens); fingers closing together compress the
-               range (movements stretch taller). The stacked-start
-               rule is pinchAxis's own, mirrored. */
-            if (start >= 20) return cur / start;
-            return cur > 20 ? cur / 20 : 1;
+               the same way pinchAxis takes time (free pinch,
+               2026-11-24): fingers spreading apart vertically
+               narrow the visible price range about the anchor
+               price (movements stretch taller); fingers closing
+               together widen it — the photo model's direction,
+               one rule on both pages. The stacked-start rule is
+               pinchAxis's own. */
+            if (start < 2 || cur < 2) return 1;
+            return start / Math.max(cur, 0.5);
         }
 
         function zoomViewAtXY(px, py, w, h, fX, fY) {
@@ -9073,6 +9202,17 @@ draw();
                     var pts = ptrList();
                     var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                     var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+                    var curSX = Math.abs(pts[0].x - pts[1].x), curSY = Math.abs(pts[0].y - pts[1].y);
+                    if ((pinchStart.sx < 2 && curSX >= 2) || (pinchStart.sy < 2 && curSY >= 2)) {
+                        /* an axis that started stacked has its first real
+                           separation now: the gesture re-baselines here —
+                           current view, spreads and midpoint become the
+                           start, so the axis engages with no jump */
+                        pinchStart.view = snapshot();
+                        pinchStart.sx = curSX; pinchStart.sy = curSY;
+                        pinchStart.midX = midX; pinchStart.midY = midY;
+                        pinchStart.dist = d;
+                    }
                     restore(pinchStart.view);
                     if (d > 0 && pinchStart.dist > 0) zoomViewAtXY(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchAxis(pinchStart.sx, Math.abs(pts[0].x - pts[1].x)), pinchAxisY(pinchStart.sy, Math.abs(pts[0].y - pts[1].y)));
                     panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
@@ -9156,6 +9296,17 @@ draw();
                 var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
                 var d = Math.hypot(a.x - b.x, a.y - b.y);
                 var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+                var curSX = Math.abs(a.x - b.x), curSY = Math.abs(a.y - b.y);
+                if ((tPinch.sx < 2 && curSX >= 2) || (tPinch.sy < 2 && curSY >= 2)) {
+                    /* an axis that started stacked has its first real
+                       separation now: the gesture re-baselines here —
+                       current view, spreads and midpoint become the
+                       start, so the axis engages with no jump */
+                    tPinch.view = snapshot();
+                    tPinch.sx = curSX; tPinch.sy = curSY;
+                    tPinch.midX = midX; tPinch.midY = midY;
+                    tPinch.dist = d;
+                }
                 restore(tPinch.view);
                 if (d > 0 && tPinch.dist > 0) zoomViewAtXY(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, pinchAxis(tPinch.sx, Math.abs(a.x - b.x)), pinchAxisY(tPinch.sy, Math.abs(a.y - b.y)));
                 panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
