@@ -287,6 +287,7 @@ def _insider_events(cik10, cache_entry, session, log, filed_since,
         fetch_from = filed_since
     fetched = skipped = 0
     last_processed = None
+    first_skip = None
     complete = True
     for filed, accession, doc in filings:
         if filed < fetch_from or not doc:
@@ -300,6 +301,8 @@ def _insider_events(cik10, cache_entry, session, log, filed_since,
                           _archives_url(cik10, accession, doc), log))
         except Exception as exc:
             skipped += 1
+            if first_skip is None:
+                first_skip = filed
             log("  insiders %s: filing %s skipped (%s)"
                 % (cik10, accession, exc))
             last_processed = filed
@@ -320,6 +323,16 @@ def _insider_events(cik10, cache_entry, session, log, filed_since,
         filed_through = max(filed_through, filings[-1][0])
     elif last_processed:
         filed_through = max(filed_through, last_processed)
+    if first_skip is not None and filed_through > first_skip:
+        # A skipped filing must stay inside the retry window
+        # (2026-11-23 rule): never let the watermark move past
+        # the earliest skip, or the 14-day overlap eventually
+        # leaves it behind and its purchases are lost for good.
+        # It is re-fetched next run; events de-duplicate.
+        log("  insiders %s: watermark held at %s — the skipped "
+            "filing stays in the retry window"
+            % (cik10, first_skip))
+        filed_through = first_skip
     if fetched or skipped:
         log("  insiders %s: %d Form 4 filings parsed, %d "
             "skipped, %d purchase events on record%s"
@@ -541,6 +554,19 @@ def build_context_file(d_series, out_dir, log=_noop, session=None,
         with open(tmp, "w") as fh:
             json.dump(cache, fh, separators=(",", ":"))
         os.replace(tmp, cache_path)
+
+    # Completeness guard (2026-11-23 rule): a document whose
+    # spread section failed AND whose insider section is empty
+    # carries nothing but breadth — publishing it under today's
+    # date would restamp an empty context as fresh. Raise into
+    # the caller's guard instead; the previous file stands.
+    if hy_oas is None and not insiders:
+        raise ValueError("context would ship empty: the spread "
+                         "fetch failed and no insider series "
+                         "could be built — previous file stands")
+    if not through:
+        raise ValueError("context has no calendar: the caller's "
+                         "daily series carried no bars")
 
     doc = {
         "schema": SCHEMA,
