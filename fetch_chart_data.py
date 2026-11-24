@@ -2558,6 +2558,25 @@ def main():
     except Exception as exc:
         log("WARNING: intraday sessions failed (%s) — previous "
             "finance-intraday.json stands." % exc)
+
+    # ---- fine intraday layers: fine30/ + fine60/ (fetch_fine.py) ----
+    # Per-series 30-minute (~60 days) and 60-minute (~730 days)
+    # bars for the chart's longer ranges — a display layer only:
+    # indicators, signals and the readout keep computing from the
+    # daily file above. Isolated like the intraday sessions above:
+    # any failure leaves the previous fine files standing (the
+    # chart falls back to daily bars wherever a fine file is
+    # missing or stale) and never touches the chart files. The
+    # workflow's commit step picks the files up once fine30 and
+    # fine60 join the git add line.
+    try:
+        import fetch_fine
+        fetch_fine.build_fine_files(
+            d_series, os.path.dirname(os.path.abspath(daily_path)),
+            log=log)
+    except Exception as exc:
+        log("WARNING: fine layers failed (%s) — previous fine30/ "
+            "and fine60/ files stand." % exc)
     return 0
 
 
