@@ -90,31 +90,53 @@ def fetch_yahoo(symbol):
     stamps = result[0].get("timestamp") or []
     closes = quote.get("close") or []
     adjcloses = (adj or {}).get("adjclose") or []
+    if stamps and not adjcloses:
+        # This file's whole basis is total return. A response with
+        # no adjusted closes at all must fail the symbol (the run
+        # then writes nothing) rather than silently restate raw
+        # closes as adjusted ones (2026-11-23 rule).
+        raise ValueError("no adjusted closes in the response — "
+                         "refusing the raw-close fallback for a "
+                         "total-return file")
     rows = []
+    fallbacks = 0
     for i, ts in enumerate(stamps):
-        # Prefer adjusted close (total return); fall back to raw close.
+        # Prefer adjusted close (total return); fall back to raw
+        # close only for a single gapped row, and count it — the
+        # caller logs the count, so a gapped span is never silent.
         price = None
         if i < len(adjcloses) and adjcloses[i] is not None:
             price = adjcloses[i]
         elif i < len(closes) and closes[i] is not None:
             price = closes[i]
+            fallbacks += 1
         if price is None or price <= 0:
             continue
         d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
         rows.append((d, round(float(price), 4)))
     rows.sort()
-    return rows
+    return rows, fallbacks
 
 
 def main():
     out_path = sys.argv[1] if len(sys.argv) > 1 else OUT_FILE
     today = date.today().isoformat()
+    previous = {}
+    if os.path.exists(out_path):
+        try:
+            with open(out_path) as fh:
+                previous = (json.load(fh) or {}).get("series") or {}
+        except Exception as exc:
+            log("WARNING: could not read previous %s (%s); the "
+                "shrink guard below has nothing to compare against"
+                % (out_path, exc))
+            previous = {}
     series = {}
     failures = []
     for symbol, kind, name, div_rate in SERIES:
         log("=== %s ===" % symbol)
         try:
-            rows = fetch_yahoo(symbol)
+            rows, fallbacks = fetch_yahoo(symbol)
         except Exception as exc:
             log("  FAILED: %s" % exc)
             series[symbol] = {
@@ -142,6 +164,26 @@ def main():
             continue
         log("  %d weekly points, %s .. %s, last adj close $%.2f"
             % (len(rows), rows[0][0], rows[-1][0], rows[-1][1]))
+        if fallbacks:
+            log("  WARNING: %d rows fell back to raw close "
+                "(adjusted-close gaps) for %s" % (fallbacks, symbol))
+        # Completeness guard (2026-11-23 rule): a "successful"
+        # fetch that returns a shorter history than the previous
+        # file, or one ending weeks ago, is a truncated record —
+        # count it as a failure, so the run writes nothing.
+        prev_prices = (previous.get(symbol) or {}).get("prices") or []
+        if prev_prices and len(rows) < len(prev_prices):
+            log("  GUARD: %s shrank %d -> %d points — treating "
+                "as a failure" % (symbol, len(prev_prices), len(rows)))
+            if symbol not in failures:
+                failures.append(symbol)
+        if (date.fromisoformat(today)
+                - date.fromisoformat(rows[-1][0])).days > 14:
+            log("  GUARD: %s ends %s, more than 14 days before "
+                "today — treating as a failure"
+                % (symbol, rows[-1][0]))
+            if symbol not in failures:
+                failures.append(symbol)
         series[symbol] = {
             "name": name,
             "kind": kind,
