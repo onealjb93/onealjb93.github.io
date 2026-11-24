@@ -8,6 +8,16 @@
      finance-chart-first.json   (the first-paint split)
      finance-chart-daily.json   (the full daily file)
      finance-chart-data.json    (the weekly file)
+     fine30/<KEY>.json          (30-minute bars, ~60 days)
+     fine60/<KEY>.json          (hourly bars, ~730 days)
+
+   The fine files (Phase B, 2026-11-24) ride the same discipline
+   with one difference: their freshness key is `through_et`, the
+   last bar's ET date, which the fine builder writes as a
+   top-level key ahead of the bars — throughOf reads whichever
+   key the file carries. A returning visitor paints fine data
+   instantly; a stale fine file is stale only in its last
+   session, because past bars are final.
 
    Strategy per handled request:
    - A cached copy younger than 26 hours is returned immediately;
@@ -32,8 +42,8 @@
    Cache name is versioned: bump it to kill a bad cache. */
 'use strict';
 
-var CACHE = 'fin-data-v1';
-var META = 'fin-data-v1-meta';
+var CACHE = 'fin-data-v2';
+var META = 'fin-data-v2-meta';
 var HANDLED = ['finance-chart-first.json', 'finance-chart-daily.json', 'finance-chart-data.json'];
 var MAX_AGE_MS = 26 * 60 * 60 * 1000;
 
@@ -42,13 +52,22 @@ function handledName(url) {
     for (var i = 0; i < HANDLED.length; i++) {
         if (path.slice(-HANDLED[i].length) === HANDLED[i]) return HANDLED[i];
     }
+    // A fine file's cache name is its own path tail, so each of
+    // the 252 files keys its own entry and its own metadata.
+    var fm = /\/(fine30\/[^\/]+\.json|fine60\/[^\/]+\.json)$/.exec(path);
+    if (fm) return fm[1];
     return null;
 }
 
 function throughOf(text) {
     // Top-level "through" is written before "series"; the first
-    // match in the head of the file is the file's own date.
-    var m = /"through":"([^"]+)"/.exec(text.slice(0, 4096));
+    // match in the head of the file is the file's own date. Fine
+    // files carry "through_et" instead — the same idea, the
+    // fine builder's own key.
+    var head = text.slice(0, 4096);
+    var m = /"through":"([^"]+)"/.exec(head);
+    if (m) return m[1];
+    m = /"through_et":"([^"]+)"/.exec(head);
     return m ? m[1] : null;
 }
 
@@ -107,7 +126,15 @@ self.addEventListener('install', function (event) {
 });
 
 self.addEventListener('activate', function (event) {
-    event.waitUntil(self.clients.claim());
+    // A version bump retires the old caches outright: nothing
+    // under a previous name is ever read again.
+    event.waitUntil(
+        caches.keys().then(function (names) {
+            return Promise.all(names.map(function (n) {
+                return (n === CACHE || n === META) ? null : caches.delete(n);
+            }));
+        }).then(function () { return self.clients.claim(); })
+    );
 });
 
 self.addEventListener('fetch', function (event) {
