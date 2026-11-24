@@ -951,9 +951,17 @@
         }
         .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .game-arrow { display: none; }
         .games-grid > section:not(:has(.game-toggle[aria-expanded="true"])) .game-card > p {
-            font-size: 0.8rem; line-height: 1.45; margin: 0.25rem 0 0;
-            padding: 0 0.6rem 0.7rem; box-sizing: border-box;
-            height: calc(3 * 1.45 * 0.8rem + 0.7rem + 1px);
+            font-size: 0.8rem; line-height: 1.45; margin: 0.25rem 0 0.7rem;
+            padding: 0 0.6rem; box-sizing: border-box;
+            /* Exactly three line pitches, nothing more: the bottom
+               spacing rides as margin, not padding, so the clip
+               edge sits exactly at the third line's bottom. With
+               the spacing as padding (and a +1px fudge) the clip
+               ran through the padding band and a fourth line's
+               glyphs painted ~10px into it — a sliced line at
+               every width (width sweep, 2026-11-23). Whole lines
+               or nothing. */
+            height: calc(3 * 1.45 * 0.8rem);
             display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
         }
         /* Threads is a doorway card: the game lives on its own page
@@ -3472,16 +3480,17 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         }
         function sampleTargets() {
             var mode = cur.mode, s = cur.s;
-            var settled = Math.round(N * Math.pow(s, 0.8));
+            var settled = Math.round(N * Math.pow(s, 0.25));
             var rnd = fgRand((mode.m * 73856093) ^ (mode.n * 19349663) ^
                 (Math.round(s * 20) * 83492791) ^ 0x9e3779b9);
             var i, x, z, rho, th, W;
             for (i = 0; i < N; i++) {
                 if (i < settled) {
-                    if (rnd() < 0.09) {
-                        // Stray grains: on a real plate some of the
-                        // sand never reaches a line — it stops where
-                        // it fell, scattered across the whole face.
+                    if (rnd() < 0.025) {
+                        // Stray grains: on a real plate a few grains
+                        // never reach a line — a sparse scatter, two
+                        // dozen per thousand. Round 2's 9% was a
+                        // uniform coat, and a coat is a tell.
                         rho = Math.sqrt(rnd()); th = rnd() * 6.2831853;
                         x = rho * Math.cos(th); z = rho * Math.sin(th);
                         W = modeVal(mode, x, z); gSet[i] = 1;
@@ -3492,23 +3501,36 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                         x = rho * Math.cos(th); z = rho * Math.sin(th);
                         W = modeVal(mode, x, z);
                         if (Math.abs(W) < Math.abs(bW)) { bW = W; bx = x; bz = z; }
-                        if (rnd() < Math.exp(-(W / 0.105) * (W / 0.105))) { bx = x; bz = z; bW = W; break; }
+                        if (rnd() < Math.exp(-(W / 0.07) * (W / 0.07))) { bx = x; bz = z; bW = W; break; }
                     }
                     x = bx; z = bz;
                     // The line is fuzzy, not drawn: each grain stops
                     // a little off the node it was walking to, so
                     // density falls off around the line the way a
-                    // photograph of real sand falls off.
-                    x += (rnd() + rnd() + rnd() - 1.5) * 0.024;
-                    z += (rnd() + rnd() + rnd() - 1.5) * 0.024;
+                    // photograph of real sand falls off. The stop is
+                    // a grain's throw, ~1.5 mm at plate scale — round
+                    // 2's ±0.036 was a smear that kept the loud
+                    // regions coated.
+                    x += (rnd() + rnd() + rnd() - 1.5) * 0.007;
+                    z += (rnd() + rnd() + rnd() - 1.5) * 0.007;
                     rho = Math.sqrt(x * x + z * z);
                     if (rho > 0.995) { x *= 0.995 / rho; z *= 0.995 / rho; }
                     W = modeVal(mode, x, z); gSet[i] = 1;
                     }
                 } else {
-                    rho = Math.sqrt(rnd()); th = rnd() * 6.2831853;
-                    x = rho * Math.cos(th); z = rho * Math.sin(th);
-                    W = modeVal(mode, x, z); gSet[i] = 0;
+                    // Unsettled grains are mid-migration: even
+                    // before a grain settles it drifts node-ward,
+                    // so the dancing population already thins over
+                    // the loud regions instead of coating them
+                    // uniformly. Best of five draws, seeded.
+                    var ux = 0, uz = 0, uW = Infinity;
+                    for (var ut = 0; ut < 5; ut++) {
+                        rho = Math.sqrt(rnd()); th = rnd() * 6.2831853;
+                        var cx2 = rho * Math.cos(th), cz2 = rho * Math.sin(th);
+                        var cW = modeVal(mode, cx2, cz2);
+                        if (Math.abs(cW) < Math.abs(uW)) { uW = cW; ux = cx2; uz = cz2; }
+                    }
+                    x = ux; z = uz; W = uW; gSet[i] = 0;
                 }
                 posTgt[3 * i] = x; posTgt[3 * i + 1] = TOPY; posTgt[3 * i + 2] = z;
                 gW[i] = W;
@@ -3520,13 +3542,13 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 // mixture, not a dye lot. Grains resting in a settled
                 // pile sit a touch deeper in tone (a whisper of
                 // occlusion where the pile meets the plate).
-                var cv = 0.74 + gSeed[i] * 0.52;
+                var cv = 0.68 + gSeed[i] * 0.66;
                 if (gSeed[i] > 0.962) cv *= 1.45;
                 if (gSet[i]) cv *= 0.92;
                 var tint = gSeed[i] * 5.13 % 1;
                 var tr = 1, tg = 0.965 + gSeed[i] * 0.045, tb = 0.93 + gSeed[i] * 0.06;
-                if (tint < 0.12) { tr = 0.60; tg = 0.50; tb = 0.40; }
-                else if (tint > 0.88) { tr = 1.16; tg = 1.12; tb = 1.03; }
+                if (tint < 0.08) { tr = 0.60; tg = 0.50; tb = 0.40; }
+                else if (tint > 0.82) { tr = 1.16; tg = 1.12; tb = 1.03; }
                 gCol[3 * i] = cv * tr;
                 gCol[3 * i + 1] = cv * tg;
                 gCol[3 * i + 2] = cv * tb;
@@ -3689,6 +3711,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         var three = null, renderer = null, scene = null, camera = null;
         var plateU = null, sandU = null, wAttr = null, setAttr = null, colAttr = null, sandGeo = null;
         var boltG = null; // the centre bolt group; rides the plate's centre in tick()
+        var coilGlow = null, coilTop = null; // the background coil's breathing glow (tick)
         var az = -0.65, pol = 1.10, rad = 2.85, tSec = 0;
         var c2 = null, ctx2d = null;
         var fpsAcc = 0, fpsN = 0, fpsLevel = 0;
@@ -3832,6 +3855,245 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             wall.receiveShadow = true;
             scene.add(wall);
 
+            // ── The workshop (round 3): a Tesla-era laboratory
+            // around the bench, built the cheap way a photograph
+            // is built — big readable silhouettes, baked canvas
+            // textures, no shadow casting, no per-frame cost but
+            // one glow lerp. References: Dickenson V. Alley's
+            // Colorado Springs photographs (Dec 1899, Century
+            // Magazine) — the magnifying transmitter's wooden
+            // room, a chair beside the apparatus, coils standing
+            // on the floor — and the Houston Street laboratory
+            // portraits (c. 1896): spiral coils, glowing bulbs,
+            // benches of brass and glass. The plate stays the
+            // hero: everything here sits dimmer and further into
+            // the fog than the rig.
+            var room = new THREE.Group();
+            var darkWood = new THREE.MeshStandardMaterial({ color: 0x2a1e13, roughness: 0.9, metalness: 0.05, envMapIntensity: 0.25 });
+            var midWood = new THREE.MeshStandardMaterial({ color: 0x3d2c1c, roughness: 0.85, metalness: 0.05, envMapIntensity: 0.3 });
+            var brass = new THREE.MeshStandardMaterial({ color: 0x8a6b32, roughness: 0.45, metalness: 0.9, envMapIntensity: 0.7 });
+            var copper = new THREE.MeshStandardMaterial({ color: 0x74502e, roughness: 0.55, metalness: 0.85, envMapIntensity: 0.6 });
+            // The room's other three walls, its ceiling and floor:
+            // the same pine, dimmer — the room closes around the
+            // bench so an orbit never finds a void.
+            var wallMat2 = new THREE.MeshStandardMaterial({ map: wallTex, color: 0xb8a68c, roughness: 0.95, metalness: 0, envMapIntensity: 0.18 });
+            var wallF = new THREE.Mesh(new THREE.PlaneGeometry(34, 13), wallMat2);
+            wallF.position.set(0, 2.4, 5.9); wallF.rotation.y = Math.PI;
+            room.add(wallF);
+            var wallL = new THREE.Mesh(new THREE.PlaneGeometry(34, 13), wallMat2);
+            wallL.position.set(-6.5, 2.4, 0); wallL.rotation.y = Math.PI / 2;
+            room.add(wallL);
+            var wallR = new THREE.Mesh(new THREE.PlaneGeometry(34, 13), wallMat2);
+            wallR.position.set(6.5, 2.4, 0); wallR.rotation.y = -Math.PI / 2;
+            room.add(wallR);
+            var ceil = new THREE.Mesh(new THREE.PlaneGeometry(34, 34),
+                new THREE.MeshStandardMaterial({ color: 0x171310, roughness: 1, metalness: 0 }));
+            ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.6;
+            room.add(ceil);
+            var floorTex = wallTex.clone();
+            floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+            floorTex.repeat.set(4, 4); floorTex.needsUpdate = true;
+            var floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30),
+                new THREE.MeshStandardMaterial({ map: floorTex, color: 0x77644c, roughness: 1, metalness: 0, envMapIntensity: 0.15 }));
+            floor.rotation.x = -Math.PI / 2; floor.position.y = -2.42;
+            room.add(floor);
+            // The bench stands on legs — it is a work table in a
+            // room, not a floating slab.
+            [[-1.85, -1.25], [1.85, -1.25], [-1.85, 1.25], [1.85, 1.25]].forEach(function (lp) {
+                var leg = new THREE.Mesh(new THREE.BoxGeometry(0.17, 2.0, 0.17), darkWood);
+                leg.position.set(lp[0], -1.42, lp[1]);
+                room.add(leg);
+            });
+            var apron = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.14, 2.7), darkWood);
+            apron.position.y = -0.55;
+            room.add(apron);
+            // Chalkboard on the back wall: a dark board, a wood
+            // frame, and faint chalk — resonance arithmetic and a
+            // sketched coil, half rubbed away.
+            var kc = document.createElement('canvas'); kc.width = 512; kc.height = 288;
+            var kg = kc.getContext('2d');
+            kg.fillStyle = '#22271f'; kg.fillRect(0, 0, 512, 288);
+            for (var ki = 0; ki < 14; ki++) { // chalk dust smudges
+                var kgx = Math.random() * 512, kgy = Math.random() * 288, kgr = 30 + Math.random() * 80;
+                var kgrad = kg.createRadialGradient(kgx, kgy, 2, kgx, kgy, kgr);
+                kgrad.addColorStop(0, 'rgba(230,230,220,0.05)'); kgrad.addColorStop(1, 'rgba(0,0,0,0)');
+                kg.fillStyle = kgrad; kg.fillRect(kgx - kgr, kgy - kgr, kgr * 2, kgr * 2);
+            }
+            kg.strokeStyle = 'rgba(235,235,225,0.55)'; kg.fillStyle = 'rgba(235,235,225,0.55)';
+            kg.lineWidth = 1.4; kg.font = 'italic 25px Georgia, serif';
+            kg.fillText('f = 1 / 2π√(LC)', 36, 58);
+            kg.fillText('E = − dΦ / dt', 36, 104);
+            kg.fillText('ν = c / λ', 300, 58);
+            kg.fillText('Q = ωL / R', 300, 104);
+            kg.beginPath(); // a sine wave, chalked twice for the hand-drawn wobble
+            for (var kw = 0; kw <= 200; kw += 4) {
+                var kx2 = 36 + kw, ky2 = 190 + Math.sin(kw / 200 * Math.PI * 3) * 26;
+                if (kw === 0) kg.moveTo(kx2, ky2); else kg.lineTo(kx2, ky2);
+            }
+            kg.stroke();
+            kg.beginPath(); // a sketched coil: stacked arcs at the right
+            for (var kr3 = 0; kr3 < 5; kr3++) {
+                kg.beginPath(); kg.arc(392, 168 + kr3 * 15, 44 - kr3 * 5, 0.15, Math.PI - 0.15); kg.stroke();
+            }
+            kg.strokeRect(330, 236, 130, 2);
+            var boardTex = new THREE.CanvasTexture(kc);
+            boardTex.colorSpace = THREE.SRGBColorSpace;
+            var boardFrame = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.9, 0.07), midWood);
+            boardFrame.position.set(-1.6, 2.0, 5.86);
+            room.add(boardFrame);
+            var board = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 2.55),
+                new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.92, metalness: 0, envMapIntensity: 0.15 }));
+            board.position.set(-1.6, 2.0, 5.82); board.rotation.y = Math.PI;
+            room.add(board);
+            // Shelves with bottles and brass: silhouettes on the
+            // back wall, right of the board.
+            [1.6, 2.35].forEach(function (sy3) {
+                var shelf = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.07, 0.5), midWood);
+                shelf.position.set(2.3, sy3, 5.62);
+                room.add(shelf);
+            });
+            var glassMat = new THREE.MeshStandardMaterial({ color: 0x27332a, roughness: 0.22, metalness: 0.1, envMapIntensity: 0.9 });
+            var glassMat2 = new THREE.MeshStandardMaterial({ color: 0x3a2f1c, roughness: 0.22, metalness: 0.1, envMapIntensity: 0.9 });
+            [[1.05, 1.64, 0.40], [1.55, 1.64, 0.30], [2.0, 1.64, 0.48], [2.7, 1.64, 0.35], [3.25, 1.64, 0.42],
+             [1.3, 2.39, 0.32], [2.45, 2.39, 0.40], [3.1, 2.39, 0.30]].forEach(function (b, bi) {
+                var bottle = new THREE.Group();
+                var body = new THREE.Mesh(new THREE.CylinderGeometry(b[2] * 0.5, b[2] * 0.55, b[2] * 1.9, 12), bi % 2 ? glassMat : glassMat2);
+                body.position.y = b[2] * 0.95;
+                var neck = new THREE.Mesh(new THREE.CylinderGeometry(b[2] * 0.16, b[2] * 0.3, b[2] * 0.7, 10), bi % 2 ? glassMat : glassMat2);
+                neck.position.y = b[2] * 2.2;
+                bottle.add(body); bottle.add(neck);
+                bottle.position.set(b[0], b[1], 5.62);
+                room.add(bottle);
+            });
+            var shelfBox = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.38, 0.4), brass);
+            shelfBox.position.set(3.75, 1.83, 5.62);
+            room.add(shelfBox);
+            // The Tesla coil, standing back-right: a wooden base,
+            // a copper-wound column, primary rings, and the brass
+            // torus terminal. Its faint glow breathes with the
+            // tone's resonance in tick() — the one living detail.
+            var coil = new THREE.Group();
+            var coilBase = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.62, 0.25, 24), darkWood);
+            coilBase.position.y = 0.125;
+            coil.add(coilBase);
+            var column = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.23, 2.2, 20), copper);
+            column.position.y = 1.32;
+            coil.add(column);
+            for (var pr = 0; pr < 3; pr++) {
+                var ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.032, 10, 28), brass);
+                ring.rotation.x = Math.PI / 2; ring.position.y = 0.42 + pr * 0.14;
+                coil.add(ring);
+            }
+            coilTop = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.06, 12, 32),
+                new THREE.MeshStandardMaterial({ color: 0x8a6b32, roughness: 0.4, metalness: 0.9, envMapIntensity: 0.7, emissive: 0x3344aa, emissiveIntensity: 0.1 }));
+            coilTop.rotation.x = Math.PI / 2; coilTop.position.y = 2.62;
+            coil.add(coilTop);
+            coil.position.set(2.7, -2.42, 4.55);
+            room.add(coil);
+            // A side work table with a chair, back-left: more
+            // brass and glass on the table, the chair plain.
+            var sideTable = new THREE.Group();
+            var stTop = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.07, 1.05), midWood);
+            stTop.position.y = 2.07;
+            sideTable.add(stTop);
+            [[-0.85, -0.44], [0.85, -0.44], [-0.85, 0.44], [0.85, 0.44]].forEach(function (lp2) {
+                var sleg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.07, 0.1), darkWood);
+                sleg.position.set(lp2[0], 1.035, lp2[1]);
+                sideTable.add(sleg);
+            });
+            var dome = new THREE.Mesh(new THREE.SphereGeometry(0.23, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+                new THREE.MeshStandardMaterial({ color: 0x4a4238, roughness: 0.12, metalness: 0.2, envMapIntensity: 1.2 }));
+            dome.position.set(-0.45, 2.11, 0);
+            sideTable.add(dome);
+            var appBox = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.26, 0.32), brass);
+            appBox.position.set(0.45, 2.24, 0.08);
+            sideTable.add(appBox);
+            var appCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.34, 14), copper);
+            appCyl.position.set(0.45, 2.54, 0.08);
+            sideTable.add(appCyl);
+            sideTable.position.set(-3.5, -2.42, 5.45);
+            sideTable.rotation.y = 0.5;
+            room.add(sideTable);
+            var chair = new THREE.Group();
+            var seat = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.05, 0.48), midWood);
+            seat.position.y = 0.95;
+            chair.add(seat);
+            var back = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.62, 0.05), midWood);
+            back.position.set(0, 1.42, -0.22);
+            chair.add(back);
+            [[-0.22, -0.19], [0.22, -0.19], [-0.22, 0.19], [0.22, 0.19]].forEach(function (lp3) {
+                var cleg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.95, 0.05), darkWood);
+                cleg.position.set(lp3[0], 0.475, lp3[1]);
+                chair.add(cleg);
+            });
+            chair.scale.set(1.55, 1.55, 1.55);
+            chair.position.set(-2.2, -2.42, 5.5);
+            chair.rotation.y = -0.7;
+            room.add(chair);
+            // A window on the left wall: cool daylight behind
+            // muntin bars — the room's one cool note, and the
+            // visible source of the rim light.
+            var wc2 = document.createElement('canvas'); wc2.width = 128; wc2.height = 192;
+            var wg2 = wc2.getContext('2d');
+            var wgrad = wg2.createLinearGradient(0, 0, 0, 192);
+            wgrad.addColorStop(0, '#c3d3e6'); wgrad.addColorStop(1, '#8498b0');
+            wg2.fillStyle = wgrad; wg2.fillRect(0, 0, 128, 192);
+            wg2.fillStyle = 'rgba(24,20,16,0.92)';
+            wg2.fillRect(0, 0, 128, 9); wg2.fillRect(0, 183, 128, 9);
+            wg2.fillRect(0, 0, 9, 192); wg2.fillRect(119, 0, 9, 192);
+            wg2.fillRect(59, 0, 10, 192); wg2.fillRect(0, 91, 128, 10);
+            var winTex = new THREE.CanvasTexture(wc2);
+            winTex.colorSpace = THREE.SRGBColorSpace;
+            var win = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 2.55),
+                new THREE.MeshBasicMaterial({ map: winTex, color: 0x5f7086 }));
+            win.position.set(-6.44, 1.75, 1.1); win.rotation.y = Math.PI / 2;
+            room.add(win);
+            // Edison bulbs on cords: bright warm spheres with a
+            // soft halo sprite — practical lights, drawn not lit
+            // (the rig's own lights already tell their story, and
+            // the frame budget keeps the light count where it was).
+            var gc3 = document.createElement('canvas'); gc3.width = 128; gc3.height = 128;
+            var gg3 = gc3.getContext('2d');
+            var ggrad3 = gg3.createRadialGradient(64, 64, 2, 64, 64, 62);
+            ggrad3.addColorStop(0, 'rgba(255,205,130,0.85)'); ggrad3.addColorStop(0.4, 'rgba(255,180,90,0.28)');
+            ggrad3.addColorStop(1, 'rgba(255,170,80,0)');
+            gg3.fillStyle = ggrad3; gg3.fillRect(0, 0, 128, 128);
+            var bulbGlowTex = new THREE.CanvasTexture(gc3);
+            var bulbMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
+            [[-1.9, 2.05, 2.8], [1.5, 2.2, 3.1], [-3.4, 1.9, 0.6], [0.5, 2.15, -3.2]].forEach(function (bp) {
+                var cord = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 4.6 - bp[1], 6),
+                    new THREE.MeshBasicMaterial({ color: 0x0a0a0a }));
+                cord.position.set(bp[0], (4.6 + bp[1]) / 2, bp[2]);
+                room.add(cord);
+                var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.055, 14, 10), bulbMat);
+                bulb.position.set(bp[0], bp[1], bp[2]);
+                room.add(bulb);
+                var halo = new THREE.Sprite(new THREE.SpriteMaterial({
+                    map: bulbGlowTex, blending: THREE.AdditiveBlending,
+                    depthWrite: false, transparent: true, opacity: 0.42 }));
+                halo.scale.set(0.95, 0.95, 1);
+                halo.position.set(bp[0], bp[1], bp[2]);
+                room.add(halo);
+            });
+            // The coil's halo: violet-white, near-invisible at
+            // rest; tick() breathes it with the resonance.
+            var coilHaloTex = bulbGlowTex;
+            coilGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: coilHaloTex, color: 0x8fa2ff, blending: THREE.AdditiveBlending,
+                depthWrite: false, transparent: true, opacity: 0.03 }));
+            coilGlow.scale.set(1.5, 1.5, 1);
+            coilGlow.position.set(2.7, -2.42 + 2.62, 4.55);
+            room.add(coilGlow);
+            scene.add(room);
+            // The bulbs' light, as one shadowless warm point at
+            // the room's heart: it pools on the back wall and the
+            // furniture the way the drawn halos promise, for the
+            // cost of a single light in the shader. The rig's own
+            // key still owns the plate.
+            var roomLight = new THREE.PointLight(0xffb066, 16, 13, 1.7);
+            roomLight.position.set(0, 2.3, 3.1);
+            scene.add(roomLight);
+
             // Light: a warm spot from the bench lamp's side with
             // physical decay (true falloff — the pool of light on
             // the bench is the falloff, not a painted vignette), a
@@ -3937,7 +4199,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             var benchTex = new THREE.CanvasTexture(bc);
             benchTex.colorSpace = THREE.SRGBColorSpace;
             benchTex.anisotropy = 4;
-            var bench = new THREE.Mesh(new THREE.PlaneGeometry(12, 12),
+            var bench = new THREE.Mesh(new THREE.PlaneGeometry(10, 10),
                 new THREE.MeshStandardMaterial({ map: benchTex, roughness: 0.8, metalness: 0, envMapIntensity: 0.35 }));
             bench.rotation.x = -Math.PI / 2; bench.position.y = -0.42;
             bench.receiveShadow = true;
@@ -4009,12 +4271,22 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 new THREE.Vector3(0.55, -0.385, -0.44),
                 new THREE.Vector3(0.86, -0.408, -0.60),
                 new THREE.Vector3(1.30, -0.41, -0.74),
-                new THREE.Vector3(1.85, -0.41, -0.83)
+                new THREE.Vector3(1.85, -0.41, -0.83),
+                new THREE.Vector3(2.35, -0.41, -0.90)
             ]);
             var cable = new THREE.Mesh(new THREE.TubeGeometry(cableCurve, 48, 0.0165, 8),
                 new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.72, metalness: 0.05 }));
-            cable.castShadow = true; cable.receiveShadow = true;
+            cable.receiveShadow = true;
             rig.add(cable);
+            // The run ends in a plug lying flat on the bench —
+            // a cut tube end reads as a glitch from above; a
+            // connector reads as lab kit.
+            var plug = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.027, 0.1, 12),
+                new THREE.MeshStandardMaterial({ color: 0x17171a, roughness: 0.5, metalness: 0.4 }));
+            plug.rotation.z = Math.PI / 2; plug.rotation.y = 0.1;
+            plug.position.set(2.42, -0.408, -0.905);
+            plug.castShadow = false;
+            rig.add(plug);
             var post = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.088, 32),
                 new THREE.MeshStandardMaterial({ color: 0x0e0e11, roughness: 0.55, metalness: 0.55 }));
             post.position.y = -0.051; post.castShadow = true;
@@ -4158,7 +4430,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             // live in iPos (CPU-resampled on retargets); the shader
             // adds the surface ride and the unsettled jitter.
             sandU = {
-                uTime: { value: 0 }, uAmp: plateU.uAmp, uPhase: plateU.uPhase,
+                uTime: { value: 0 }, uAmp: { value: 0 }, uPhase: plateU.uPhase,
                 uAgit: { value: 0 }, uSharp: { value: 1 }
             };
             var grainBase = new THREE.OctahedronGeometry(0.0042, 0);
@@ -4177,7 +4449,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             sandGeo.setAttribute('iColor', colAttr);
             sandGeo.setAttribute('iSeed', seedAttr);
             sandGeo.instanceCount = N;
-            var sandMat = new THREE.MeshStandardMaterial({ color: 0xd9c096, roughness: 0.62, metalness: 0.0, envMapIntensity: 0.7 });
+            var sandMat = new THREE.MeshStandardMaterial({ color: 0xe2d3ac, roughness: 0.72, metalness: 0.0, envMapIntensity: 0.75 });
             sandMat.onBeforeCompile = function (shader) {
                 shader.uniforms.uTime = sandU.uTime; shader.uniforms.uAmp = sandU.uAmp;
                 shader.uniforms.uPhase = sandU.uPhase; shader.uniforms.uAgit = sandU.uAgit;
@@ -4202,13 +4474,13 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
                     'vec3 transformed = iPos;\n' +
                     'float fgJit = uAgit * (1.0 - iSet * uSharp);\n' +
-                    'transformed.x += sin(uTime * 12.7 + iSeed * 41.0) * 0.005 * fgJit;\n' +
-                    'transformed.z += cos(uTime * 10.9 + iSeed * 53.0) * 0.005 * fgJit;\n' +
+                    'transformed.x += sin(uTime * 12.7 + iSeed * 41.0) * 0.006 * fgJit;\n' +
+                    'transformed.z += cos(uTime * 10.9 + iSeed * 53.0) * 0.006 * fgJit;\n' +
                     'float fgNode = exp(-pow(iW / 0.085, 2.0));\n' +
                     'vec2 fgCell = floor(iPos.xz / 0.075);\n' +
                     'float fgClump = 0.35 + 1.15 * fract(sin(dot(fgCell, vec2(127.1, 311.7))) * 43758.5453);\n' +
-                    'transformed.y += iW * uAmp * uPhase + abs(sin(uTime * 6.3 + iSeed * 29.0)) * 0.007 * fgJit + (fract(iSeed * 13.73) * 0.0042 + fract(iSeed * 5.39) * 0.0024) * iSet * uSharp * (0.25 + 0.75 * fgNode) * fgClump;\n' +
-                    'vec3 fgP = position * (0.5 + 1.2 * pow(fract(iSeed * 7.31), 1.5));\n' +
+                    'transformed.y += iW * uAmp * uPhase + abs(sin(uTime * 6.3 + iSeed * 29.0)) * (0.012 + 0.028 * abs(iW)) * fgJit + (fract(iSeed * 13.73) * 0.0048 + fract(iSeed * 5.39) * 0.0028) * iSet * uSharp * (0.25 + 0.75 * fgNode) * fgClump;\n' +
+                    'vec3 fgP = position * (0.5 + 1.2 * pow(fract(iSeed * 7.31), 1.5)) * (1.0 - 0.45 * abs(iW) * (1.0 - iSet) * uAgit);\n' +
                     'fgP = vec3(fgP.x * fgCa - fgP.z * fgSa, fgP.y, fgP.x * fgSa + fgP.z * fgCa);\n' +
                     'fgP = vec3(fgP.x, fgP.y * fgCb - fgP.z * fgSb, fgP.y * fgSb + fgP.z * fgCb);\n' +
                     'transformed += fgP;\n');
@@ -4239,7 +4511,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             ctx2d.strokeStyle = 'rgba(255,255,255,0.10)'; ctx2d.lineWidth = Math.max(1, Rp * 0.006);
             ctx2d.beginPath(); ctx2d.arc(cx, cy, Rp, 0, 6.2831853); ctx2d.stroke();
             var gs = Math.max(1.3, Rp * 0.0075);
-            ctx2d.fillStyle = '#d9c096';
+            ctx2d.fillStyle = '#e2d3ac';
             for (var i = 0; i < N; i++) {
                 var j = reduce ? 0 : (1 - gSet[i] * cur.s);
                 var ox = Math.sin(tSec * 11 + gSeed[i] * 43) * 0.9 * j;
@@ -4359,10 +4631,23 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             stepTransition(dt);
             trackFound(now);
             if (three && renderer) {
-                plateU.uAmp.value = ampCur;
+                // The plate is RIGID. Real steel at these
+                // frequencies moves by microns — invisible in every
+                // photograph and video of a real rig — so the mesh
+                // displacement is zero and the bolt never rides.
+                // All visible motion lives in the grains: the sand
+                // keeps a subliminal surface shimmer (a tenth of
+                // the old warp, below a grain's own diameter) and
+                // its bounce does the talking.
+                plateU.uAmp.value = 0;
                 plateU.uSharp.value = cur.s;
                 plateU.uPhase.value = reduce ? 0.9 : 0.76 + 0.24 * Math.cos(phase);
-                if (boltG) boltG.position.y = 0.00755 + (cur.mode.R[0] || 0) * ampCur * plateU.uPhase.value;
+                sandU.uAmp.value = ampCur * 0.1;
+                if (coilGlow) { // the background coil breathes with the resonance — faint, never a show
+                    var br = cur.s * (0.72 + 0.28 * Math.sin(tSec * 2.1));
+                    coilGlow.material.opacity = 0.03 + 0.15 * br;
+                    if (coilTop) coilTop.material.emissiveIntensity = 0.1 + 0.45 * br;
+                }
                 sandU.uTime.value = tSec;
                 sandU.uAgit.value = reduce ? 0 : (1 - cur.s) * 0.95;
                 sandU.uSharp.value = cur.s;
