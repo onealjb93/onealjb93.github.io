@@ -462,3 +462,89 @@ function initLogoIntro() {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
 })();
+
+/* Scroll anchor (2026-11-23): ONE mechanism for the whole site --
+   true scrolling for every in-flow expander, collapsible and panel.
+   When a toggle opens or closes a block in the page flow, the
+   document's height changes around the reader; without an anchor,
+   collapsing a tall block shrinks the page and the browser clamps
+   the scroll position, dumping the reader at the page bottom (the
+   Finance "Under 20 trading days" recording). The mechanism: on a
+   toggle click (capture phase, before anything changes), record
+   the viewport position of the toggling control and of the
+   fallbacks that identify the same section (its panel, every
+   control wired to that panel, the section's own header). After
+   the change -- across the frames and the height transitions that
+   follow -- correct the scroll by the first surviving anchor's
+   delta, so the point the reader is looking at sits exactly where
+   it sat (±1px). A reader who grabs the scroll themselves (wheel
+   or touch) cancels the correction at once; the mechanism never
+   fights a deliberate scroll. Door cards are navigation, not
+   expanders -- they are excluded, and panels that float (fixed or
+   absolute) never change the document's height, so the mechanism
+   measures a zero delta and stays inert for them. */
+(function () {
+    'use strict';
+    var TOGGLE_SEL = 'summary, .info-toggle, button[aria-expanded], [data-anchor-toggle]';
+    function visible(el) {
+        if (!el || !el.isConnected) return false;
+        var cs = window.getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+        var r = el.getBoundingClientRect();
+        return r.width > 0 || r.height > 0;
+    }
+    function candidatesFor(t) {
+        var list = [];
+        function push(el) { if (el && list.indexOf(el) === -1) list.push(el); }
+        push(t);
+        var panel = null;
+        var cid = t.getAttribute ? t.getAttribute('aria-controls') : null;
+        if (cid) panel = document.getElementById(cid);
+        if (!panel && t.tagName === 'SUMMARY') panel = t.parentElement;
+        if (!panel) {
+            var oc = t.getAttribute ? t.getAttribute('onclick') : null;
+            var m = oc ? oc.match(/'([A-Za-z0-9_-]+)'/) : null;
+            if (m) panel = document.getElementById(m[1]);
+        }
+        push(panel);
+        if (panel && panel.id) {
+            var ctrls = document.querySelectorAll('[aria-controls="' + panel.id + '"]');
+            for (var i = 0; i < ctrls.length; i++) push(ctrls[i]);
+            var wrap = panel.closest ? panel.closest('.explainer-wrapper, section, details, .card') : null;
+            if (wrap) {
+                push(wrap.querySelector('.info-toggle, summary'));
+                push(wrap);
+            }
+        }
+        return list;
+    }
+    document.addEventListener('click', function (e) {
+        var t = e.target && e.target.closest ? e.target.closest(TOGGLE_SEL) : null;
+        if (!t) return;
+        if (t.classList.contains('door-card') || t.closest('[data-anchor-skip]')) return;
+        var cands = [];
+        candidatesFor(t).forEach(function (el) {
+            if (visible(el)) cands.push({ el: el, top: el.getBoundingClientRect().top });
+        });
+        if (!cands.length) return;
+        var cancelled = false;
+        function cancel() { cancelled = true; }
+        window.addEventListener('wheel', cancel, { passive: true });
+        window.addEventListener('touchmove', cancel, { passive: true });
+        [0, 60, 180, 360, 560].forEach(function (delay) {
+            setTimeout(function () {
+                if (cancelled) return;
+                for (var i = 0; i < cands.length; i++) {
+                    if (!visible(cands[i].el)) continue;
+                    var d = cands[i].el.getBoundingClientRect().top - cands[i].top;
+                    if (Math.abs(d) > 0.5) window.scrollBy(0, d);
+                    break;
+                }
+            }, delay);
+        });
+        setTimeout(function () {
+            window.removeEventListener('wheel', cancel);
+            window.removeEventListener('touchmove', cancel);
+        }, 750);
+    }, true);
+})();
