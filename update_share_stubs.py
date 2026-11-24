@@ -380,6 +380,7 @@ class Refresher:
         self.log = log
         self.changes = []        # labels of files written
         self.problems = []       # per-item problems (logged, non-fatal)
+        self.class_failures = []  # derivation classes that wiped out
         self.derived_stubs = set()   # repo-relative stub paths derived
         self.counts = {}
 
@@ -400,6 +401,21 @@ class Refresher:
         write_if_changed(self.path('s', rel_path),
                          body.encode('utf-8'), self.changes,
                          's/' + rel_path.replace(os.sep, '/'))
+
+    def _step(self, name, fn, *args):
+        """Run one derivation class, watching for a wipeout
+        (2026-11-23 rule): three or more problems and not one
+        stub derived means the class failed as a class — a
+        source-format change, not three unlucky items. Recorded
+        in class_failures; main() turns it into exit 1, so a
+        whole class can no longer freeze behind a green run."""
+        before_c = sum(self.counts.values())
+        before_p = len(self.problems)
+        out = fn(*args)
+        if len(self.problems) - before_p >= 3 and \
+                sum(self.counts.values()) == before_c:
+            self.class_failures.append(name)
+        return out
 
     # ---- recipes -------------------------------------------------------
     def derive_recipes(self, doc):
@@ -751,17 +767,24 @@ class Refresher:
                 state = json.loads(read_bytes(state_path)
                                    .decode('utf-8'))
             except Exception:
+                # Never silent (2026-11-23): a corrupt state file
+                # resets the cards' source-hash history, and the
+                # adoption path in refresh_cards then trusts it.
                 state = {}
+                self.problems.append(
+                    '%s unreadable — reset to {} (page cards '
+                    're-adopt their current images)' % STATE_NAME)
         state_before = json.dumps(state, sort_keys=True)
 
-        photos = self.derive_recipes(recipes_doc)
-        self.derive_examples(sust_doc)
+        photos = self._step('recipes', self.derive_recipes, recipes_doc)
+        self._step('examples', self.derive_examples, sust_doc)
         monday = datetime.now(timezone.utc).weekday() == 0
         cover_check = self.force_covers or monday
-        self.derive_books(media_doc, cover_check)
-        carina_url = self.derive_random(random_src, quotes, eng_entries,
-                                        web_entries, scifi_entries)
-        self.derive_finance()
+        self._step('books', self.derive_books, media_doc, cover_check)
+        carina_url = self._step('random', self.derive_random,
+                                random_src, quotes, eng_entries,
+                                web_entries, scifi_entries)
+        self._step('finance', self.derive_finance)
         self.refresh_cards(photos, sust_doc, carina_url, state)
         self.log_orphans()
 
@@ -805,6 +828,16 @@ def main(argv=None):
     for p in r.problems:
         print('PROBLEM (skipped, non-fatal): %s' % p)
     print('elapsed %.1fs' % (time.time() - started))
+    if r.class_failures:
+        # A whole derivation class produced nothing (2026-11-23
+        # rule): the refresh is partial in a way a per-item
+        # problem list cannot express — fail the run so it can
+        # never pass as green. (The workflow step is
+        # continue-on-error, so other builders' commits still
+        # land; this step simply shows red.)
+        print('ERROR: derivation class(es) wiped out: %s'
+              % ', '.join(r.class_failures))
+        return 1
     return 0
 
 
