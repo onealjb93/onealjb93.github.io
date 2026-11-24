@@ -892,6 +892,25 @@
         }
         .art-chip:disabled { opacity: 0.4; cursor: default; }
         .art-chip:disabled:hover { border-color: var(--border-color); }
+        /* Wall-frame controls float at the stage's top-right —
+           deliberately OUTSIDE the bottom panel, whose height is
+           the painting area's budget (2026-11-24). */
+        .art-frame-ui {
+            position: absolute;
+            top: 64px;
+            right: 10px;
+            z-index: 6;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+        .art-frame-ui[hidden] { display: none; }
+        .art-frame-ui .art-chip {
+            background: var(--glass-bg);
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            backdrop-filter: blur(var(--glass-blur));
+        }
         .art-sep { width: 1px; align-self: stretch; background: var(--border-color); margin: 2px 2px; }
         .art-count { font-size: 0.8rem; color: var(--subtext-color); min-width: 64px; text-align: center; }
         .art-swatch {
@@ -1185,6 +1204,10 @@
             <canvas id="artGL"></canvas>
             <canvas id="artOverlay"></canvas>
             <div class="art-note" id="artNote" role="status"></div>
+            <div class="art-frame-ui" id="artFrameUi" hidden>
+                <button class="art-chip" type="button" id="artFrameBtn">Wall frame</button>
+                <button class="art-chip" type="button" id="artFrameRm" hidden>Remove frame</button>
+            </div>
             <div class="art-panel" id="artPanel" hidden>
                 <div class="art-row" role="group" aria-label="Brush">
                     <button class="art-chip art-brush art-on" type="button" data-brush="paint">Paint</button>
@@ -1203,7 +1226,7 @@
             <div class="art-start" id="artStart">
                 <div class="art-start-panel">
                     <div class="art-start-title">Art</div>
-                    <p class="art-start-line">Pinch to paint in the air. Your strokes hang in space where you draw them.</p>
+                    <p class="art-start-line">Pinch to paint in the air. Your strokes hang in space where you draw them. Place a wall frame from the tools below and the paint lives inside it — on the wall, in the wall's perspective.</p>
                     <button class="art-start-btn" id="artStartBtn" type="button">Start camera</button>
                     <button class="art-touch-link" id="artTouchBtn" type="button">Use touch instead</button>
                     <p class="art-start-status" id="artStartStatus"></p>
@@ -5758,14 +5781,25 @@
             if (dist) orbit.dist = Math.max(14, Math.min(80, dist));
             applyOrbit();
         }
-        // Stage px -> point on the working plane (raycast through the camera).
+        // Stage px -> point on the painting plane (raycast through
+        // the camera). With a wall frame placed, the painting plane
+        // IS the frame's plane — paint takes the wall's perspective.
         var raycaster = null, planeZ = null;
         function pxToPlane(px, py) {
             if (!raycaster) { raycaster = new THREE.Raycaster(); planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); }
             var ndc = new THREE.Vector2((px / W) * 2 - 1, -(py / H) * 2 + 1);
             raycaster.setFromCamera(ndc, camera);
             var out = new THREE.Vector3();
-            return raycaster.ray.intersectPlane(planeZ, out) ? out : null;
+            var pl = wallFrame ? framePlane() : planeZ;
+            return raycaster.ray.intersectPlane(pl, out) ? out : null;
+        }
+        // Raycast onto an explicit plane (frame editing math).
+        function rayToPlane(px, py, pl) {
+            if (!raycaster) { raycaster = new THREE.Raycaster(); planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); }
+            var ndc = new THREE.Vector2((px / W) * 2 - 1, -(py / H) * 2 + 1);
+            raycaster.setFromCamera(ndc, camera);
+            var out = new THREE.Vector3();
+            return raycaster.ray.intersectPlane(pl, out) ? out : null;
         }
 
         // ---- strokes ----
@@ -5997,6 +6031,8 @@
         }
         function beginStroke(key, pt) {
             endStroke(key);
+            if (wallFrame && !frameUV(pt).inside) { frameBlocked[key] = true; return null; }
+            delete frameBlocked[key];
             var s = { brush: tool.brush, color: tool.color, size: tool.size,
                       raw: [pt.clone()], widths: [1], flows: [1], mesh: null, halo: null,
                       smoothCount: 0, vertCount: 0, lastT: performance.now(), lastPt: pt.clone() };
@@ -6008,7 +6044,19 @@
         }
         function addPoint(key, pt) {
             var s = liveByHand[key];
-            if (!s) return;
+            if (!s) {
+                // A stroke that began outside the frame starts for
+                // real at the first point inside it.
+                if (frameBlocked[key] && wallFrame && frameUV(pt).inside) beginStroke(key, pt);
+                return;
+            }
+            if (wallFrame && !frameUV(pt).inside) {
+                // The stroke stops AT the frame's border; coming
+                // back inside starts a fresh stroke.
+                endStroke(key);
+                frameBlocked[key] = true;
+                return;
+            }
             var last = s.raw[s.raw.length - 1];
             if (last.distanceTo(pt) < MIN_STEP) return;
             var now = performance.now();
@@ -6028,7 +6076,7 @@
         }
         function endStroke(key) {
             var s = liveByHand[key];
-            if (!s) return;
+            if (!s) { delete frameBlocked[key]; return; }
             delete liveByHand[key];
             if (s.raw.length < 2) {           // a tap with no travel paints a dot
                 var p = s.raw[0];
@@ -6054,6 +6102,101 @@
         }
         undoBtn.addEventListener('click', undo);
         clearBtn.addEventListener('click', clearAll);
+
+        // ---- wall frame (2026-11-24) ----
+        // The player places a frame on the wall; paint lives inside
+        // it, in the wall's perspective. Automatic surface
+        // recognition is ARKit territory (not available to web pages
+        // in iOS Safari), so the frame is user-placed: it appears
+        // leaning like a wall — top edge farther away — and the
+        // player drags it to move it and drags a corner to size it.
+        // While a frame exists, the painting plane is the frame's
+        // plane (pxToPlane above) and strokes are clipped to the
+        // frame's rectangle: a stroke stops at the border and a new
+        // one starts when the hand comes back inside. Session-only,
+        // like Cloth's placed table edge.
+        var frameBtn = document.getElementById('artFrameBtn');
+        var frameRmBtn = document.getElementById('artFrameRm');
+        var frameUi = document.getElementById('artFrameUi');
+        var wallFrame = null;        // { c, u, v } Vector3: centre, half-width, half-height
+        var frameEdit = false;       // drags move/resize instead of painting
+        var frameMesh = null, frameLine = null;
+        var frameBlocked = {};       // stroke key -> started outside the frame
+        var frameDrag = null;        // { kind:'move', off } | { kind:'corner', su, sv }
+        function frameCorners() {
+            var c = wallFrame.c, u = wallFrame.u, v = wallFrame.v;
+            return [
+                c.clone().sub(u).sub(v), c.clone().add(u).sub(v),
+                c.clone().add(u).add(v), c.clone().sub(u).add(v)
+            ];
+        }
+        function framePlane() {
+            var n = new THREE.Vector3().crossVectors(wallFrame.u, wallFrame.v).normalize();
+            return new THREE.Plane().setFromNormalAndCoplanarPoint(n, wallFrame.c);
+        }
+        function frameUV(pt) {
+            var rel = pt.clone().sub(wallFrame.c);
+            var uu = wallFrame.u, vv = wallFrame.v;
+            var det = uu.dot(uu) * vv.dot(vv) - uu.dot(vv) * uu.dot(vv);
+            if (!det) return { u: 9, v: 9, inside: false };
+            var a = (rel.dot(uu) * vv.dot(vv) - rel.dot(vv) * uu.dot(vv)) / det;
+            var b = (rel.dot(vv) * uu.dot(uu) - rel.dot(uu) * uu.dot(vv)) / det;
+            return { u: a, v: b, inside: Math.abs(a) <= 1 && Math.abs(b) <= 1 };
+        }
+        function syncFrameMeshes() {
+            if (!wallFrame) {
+                if (frameMesh) { scene.remove(frameMesh); frameMesh.geometry.dispose(); frameMesh = null; }
+                if (frameLine) { scene.remove(frameLine); frameLine.geometry.dispose(); frameLine = null; }
+                markDirty();
+                return;
+            }
+            var cs = frameCorners();
+            if (!frameMesh) {
+                frameMesh = new THREE.Mesh(new THREE.BufferGeometry(),
+                    new THREE.MeshBasicMaterial({ color: 0xffe2ae, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false }));
+                scene.add(frameMesh);
+                frameLine = new THREE.Line(new THREE.BufferGeometry(),
+                    new THREE.LineBasicMaterial({ color: 0xd8b26e, transparent: true, opacity: 0.95 }));
+                scene.add(frameLine);
+            }
+            var pos = new Float32Array([
+                cs[0].x, cs[0].y, cs[0].z, cs[1].x, cs[1].y, cs[1].z, cs[2].x, cs[2].y, cs[2].z,
+                cs[0].x, cs[0].y, cs[0].z, cs[2].x, cs[2].y, cs[2].z, cs[3].x, cs[3].y, cs[3].z
+            ]);
+            frameMesh.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            var lp = new Float32Array([
+                cs[0].x, cs[0].y, cs[0].z, cs[1].x, cs[1].y, cs[1].z, cs[2].x, cs[2].y, cs[2].z,
+                cs[3].x, cs[3].y, cs[3].z, cs[0].x, cs[0].y, cs[0].z
+            ]);
+            frameLine.geometry.setAttribute('position', new THREE.BufferAttribute(lp, 3));
+            markDirty();
+        }
+        function syncFrameBtn() {
+            frameUi.hidden = panelEl.hidden;
+            frameBtn.textContent = !wallFrame ? 'Wall frame' : (frameEdit ? 'Done — paint inside' : 'Move frame');
+            frameBtn.classList.toggle('art-on', !!wallFrame);
+            frameRmBtn.hidden = !wallFrame;
+        }
+        function placeFrame() {
+            wallFrame = { c: new THREE.Vector3(0, 0.5, -5),
+                          u: new THREE.Vector3(7.5, 0, 0),
+                          v: new THREE.Vector3(0, 4.4, -2.2) };
+            frameEdit = true;
+            syncFrameMeshes(); syncFrameBtn();
+            showNote('Wall frame placed. Drag it to move it; drag a corner to size it. Paint will live inside it.');
+        }
+        function removeFrame() {
+            wallFrame = null; frameEdit = false; frameDrag = null; frameBlocked = {};
+            syncFrameMeshes(); syncFrameBtn();
+            showNote('Wall frame removed — paint is free again.');
+        }
+        frameBtn.addEventListener('click', function () {
+            if (!wallFrame) { placeFrame(); return; }
+            frameEdit = !frameEdit;
+            syncFrameBtn();
+            if (frameEdit) showNote('Move the frame: drag inside it to move, drag a corner to size it. Then press Done.');
+        });
+        frameRmBtn.addEventListener('click', removeFrame);
 
         // ---- tool controls ----
         document.querySelectorAll('.art-brush').forEach(function (b) {
@@ -6163,6 +6306,21 @@
                 needsRender = false;
             }
             octx.clearRect(0, 0, W, H);
+            if (wallFrame && frameEdit) {
+                // Edit handles: the frame's outline and corner grips
+                // on the overlay, so placement reads at a glance.
+                var fcs = frameCorners().map(function (c3) {
+                    var pr = c3.clone().project(camera);
+                    return { x: (pr.x + 1) / 2 * W, y: (-pr.y + 1) / 2 * H };
+                });
+                octx.strokeStyle = 'rgba(216,178,110,0.9)';
+                octx.lineWidth = 1.5;
+                octx.beginPath();
+                fcs.forEach(function (q, i) { if (i) octx.lineTo(q.x, q.y); else octx.moveTo(q.x, q.y); });
+                octx.closePath(); octx.stroke();
+                octx.fillStyle = '#d8b26e';
+                fcs.forEach(function (q) { octx.beginPath(); octx.arc(q.x, q.y, 7, 0, 7); octx.fill(); });
+            }
             if (mode === 'camera') {
                 for (var k in handsNow) drawCursor(handsNow[k].tipPx, HAND_COLORS[k] || '#fff', handsNow[k].grip || 0);
             } else if (mode === 'touch' && liveByHand.pointer) {
@@ -6204,6 +6362,25 @@
                 orbitDrag = { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2,
                               dist: Math.hypot(a.x - b.x, a.y - b.y) };
             } else if (ids.length === 1) {
+                if (frameEdit && wallFrame) {
+                    // Frame editing: near a corner = resize drag;
+                    // inside the frame = move drag; elsewhere, nothing.
+                    var cs = frameCorners();
+                    frameDrag = null;
+                    for (var ci = 0; ci < 4; ci++) {
+                        var pr = cs[ci].clone().project(camera);
+                        var cpx = { x: (pr.x + 1) / 2 * W, y: (-pr.y + 1) / 2 * H };
+                        if (Math.hypot(cpx.x - p.x, cpx.y - p.y) < 30) {
+                            frameDrag = { kind: 'corner', su: ci === 0 || ci === 3 ? -1 : 1, sv: ci < 2 ? -1 : 1 };
+                            break;
+                        }
+                    }
+                    if (!frameDrag) {
+                        var hit = rayToPlane(p.x, p.y, framePlane());
+                        if (hit && frameUV(hit).inside) frameDrag = { kind: 'move', off: wallFrame.c.clone().sub(hit) };
+                    }
+                    return;
+                }
                 pointerFilter.reset();
                 var fp = pointerFilter.filter(p, performance.now() / 1000);
                 var pt = pxToPlane(fp.x, fp.y);
@@ -6224,6 +6401,28 @@
                 if (orbitDrag.dist > 0 && d > 0) orbit.dist = Math.max(14, Math.min(80, orbit.dist * orbitDrag.dist / d));
                 orbitDrag = { cx: cx, cy: cy, dist: d };
                 applyOrbit();
+            } else if (ids.length === 1 && frameDrag) {
+                var hp = rayToPlane(p.x, p.y, framePlane());
+                if (hp) {
+                    if (frameDrag.kind === 'move') {
+                        wallFrame.c.copy(hp).add(frameDrag.off);
+                    } else {
+                        // Corner drag: the opposite corner stays put;
+                        // the dragged corner lands on the pointer.
+                        var su = frameDrag.su, sv = frameDrag.sv;
+                        var opp = wallFrame.c.clone().addScaledVector(wallFrame.u, -su).addScaledVector(wallFrame.v, -sv);
+                        var wv = hp.clone().sub(opp).multiplyScalar(0.5);   // su*u' + sv*v'
+                        var uh = wallFrame.u.clone().normalize();
+                        var along = wv.dot(uh) / su;
+                        var nu = uh.multiplyScalar(along);
+                        var nv = wv.clone().addScaledVector(nu, -su).multiplyScalar(1 / sv);
+                        if (nu.length() > 1.2 && nv.length() > 1.2) {
+                            wallFrame.u.copy(nu); wallFrame.v.copy(nv);
+                            wallFrame.c.copy(opp).add(wv);
+                        }
+                    }
+                    syncFrameMeshes();
+                }
             } else if (ids.length === 1 && liveByHand.pointer) {
                 var fp2 = pointerFilter.filter(p, performance.now() / 1000);
                 var pt = pxToPlane(fp2.x, fp2.y);
@@ -6234,7 +6433,7 @@
             if (!pointers[e.pointerId]) return;
             delete pointers[e.pointerId];
             if (Object.keys(pointers).length < 2) orbitDrag = null;
-            if (Object.keys(pointers).length === 0) endStroke('pointer');
+            if (Object.keys(pointers).length === 0) { frameDrag = null; endStroke('pointer'); }
         }
         glCanvas.addEventListener('pointerup', pointerEnd);
         glCanvas.addEventListener('pointercancel', pointerEnd);
@@ -6310,7 +6509,7 @@
                     if (pinchD <= PINCH_ON_SURE || g.onN >= PINCH_CONFIRM) {
                         g.held = true; g.onN = 0; g.offN = 0;
                         var pt0 = pxToPlane(tipPx.x, tipPx.y);
-                        if (pt0) beginStroke(label, pt0);
+                        if (pt0 && !frameEdit) beginStroke(label, pt0);
                     }
                 } else {
                     g.offN = pinchD > PINCH_OFF ? g.offN + 1 : 0;
@@ -6319,7 +6518,7 @@
                         endStroke(label);
                     } else {
                         var pt1 = pxToPlane(tipPx.x, tipPx.y);
-                        if (pt1) addPoint(label, pt1);
+                        if (pt1 && !frameEdit) addPoint(label, pt1);
                     }
                 }
                 g.tipPx = tipPx; g.t = performance.now();
@@ -6436,6 +6635,7 @@
             mode = 'touch';
             startOverlay.hidden = true;
             panelEl.hidden = false;
+            syncFrameBtn();
             startLoop();
             if (reason === 'denied') showNote('No camera here — touch mode. Drag to paint; two fingers orbit the view.');
             else if (reason === 'chosen') showNote('Touch mode — drag to paint. Drag with two fingers to look around your strokes.');
@@ -6463,6 +6663,7 @@
                 computeCover();
                 startOverlay.hidden = true;
                 panelEl.hidden = false;
+                syncFrameBtn();
                 pumpOn = true;
                 pump();
                 startLoop();
@@ -6619,6 +6820,29 @@
                 renderAvgMs: stats.frames ? Math.round(stats.renderMs / stats.frames * 10) / 10 : 0,
                 renderMaxMs: Math.round(stats.renderMax * 10) / 10 }; },
             rulesOpen: function () { return !rulesEl.hidden; },
+            frame: function () {
+                if (!wallFrame) return null;
+                return { edit: frameEdit,
+                         drag: frameDrag ? frameDrag.kind : null,
+                         c: [wallFrame.c.x, wallFrame.c.y, wallFrame.c.z],
+                         screen: frameCorners().map(function (p) {
+                             var pr = p.clone().project(camera);
+                             return [Math.round((pr.x + 1) / 2 * 1000) / 1000, Math.round((-pr.y + 1) / 2 * 1000) / 1000];
+                         }),
+                         corners: frameCorners().map(function (p) { return [Math.round(p.x * 100) / 100, Math.round(p.y * 100) / 100, Math.round(p.z * 100) / 100]; }) };
+            },
+            framePlace: function () { if (!wallFrame) placeFrame(); },
+            frameDone: function () { frameEdit = false; syncFrameBtn(); },
+            frameRemove: function () { removeFrame(); },
+            frameUV: function (x, y, z) { return wallFrame ? frameUV(new THREE.Vector3(x, y, z)) : null; },
+            strokeUVs: function () {
+                if (!wallFrame) return null;
+                return strokes.map(function (s) {
+                    var m = 0;
+                    s.raw.forEach(function (p) { var uv = frameUV(p); m = Math.max(m, Math.abs(uv.u), Math.abs(uv.v)); });
+                    return Math.round(m * 1000) / 1000;
+                });
+            },
             boot: bootArt,
             booted: function () { return artBooted; },
             suspend: suspendArt,
