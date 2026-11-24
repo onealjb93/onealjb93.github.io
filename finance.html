@@ -7384,10 +7384,12 @@ if (typeof module !== "undefined") {
                 var iview = buildIntraView(key, intraKind());
                 if (iview) return iview;
             }
-            // Fine layers (Phase B, 2026-11-24): a visible window
-            // past the intraday spans draws its price path from
-            // the per-series fine files (30-minute bars inside
-            // ~62 days, hourly inside ~732) while every number
+            // Fine layers (Phase B, 2026-11-24; 5- and 15-minute
+            // rungs added the same day): a visible window past
+            // the intraday spans draws its price path from the
+            // per-series fine files (5-minute bars inside ~3
+            // days, 15-minute inside ~14, 30-minute inside ~62,
+            // hourly inside ~732) while every number
             // the chart states — the averages, the P/E, the dots,
             // the readout — keeps computing from the daily bars
             // above. Without the fine file the daily view stands,
@@ -8039,7 +8041,7 @@ if (typeof module !== "undefined") {
                     ctx.fillText(String(lv), 10 + plotW, axisY(ly + 3, rsiY, rsiY + rsiH));
                 });
                 ctx.fillStyle = subC; ctx.textAlign = "left";
-                ctx.fillText(v.intra ? "RSI · 1-min" : (v.fine ? (v.fine.rung === "30" ? "RSI · 30-min" : "RSI · hourly") : "RSI"), 8, rsiY + 11);
+                ctx.fillText(v.intra ? "RSI · 1-min" : (v.fine ? (v.fine.rung === "60" ? "RSI · hourly" : "RSI · " + v.fine.rung + "-min") : "RSI"), 8, rsiY + 11);
                 linePath(v.rsi, YR, RSI_COLOR, 2);
             }
             // P/E pane (only when switched on): the teal line over
@@ -9414,17 +9416,38 @@ if (typeof module !== "undefined") {
             var ns = v.intra.sessions.length;
             return "Intraday data from Yahoo Finance — the " + (ns === 5 ? "five" : ns) + " sessions through " + fmtDate(v.intra.sessions[ns - 1].date) + ", 1-minute bars, 4:00 AM–8:00 PM ET each session — refreshed weekday evenings with the rest of this page’s data.";
         }
-        // ---- fine layers: fine30/ + fine60/ (Phase B, 2026-11-24) ----
+        // ---- fine layers: fine5/ + fine15/ + fine30/ + fine60/ ----
+        // (Phase B, 2026-11-24; the 5- and 15-minute rungs added
+        // the same day, under Johnny's rule: get as granular as
+        // possible the more you zoom in — every window draws the
+        // finest rung that exists for it.)
         // The nightly pipeline (fetch_fine.py, riding in
         // fetch_chart_data.py) writes one small file per series
-        // per rung: 30-minute bars for the source's last ~60 days,
-        // 60-minute bars for its last ~730. The ladder keys off
-        // the VISIBLE window's span, never a control's name:
+        // per rung: 5-, 15- and 30-minute bars for the source's
+        // last ~60 days, 60-minute bars for its last ~730. The
+        // ladder keys off the VISIBLE window's span, never a
+        // control's name:
+        //   span ≤ ~3 days   → fine5 (5-minute)
+        //   span ≤ ~14 days  → fine15 (15-minute)
         //   span ≤ ~62 days  → fine30 (30-minute)
         //   span ≤ ~732 days → fine60 (hourly)
         //   wider            → the daily bars themselves
-        // with ~10% hysteresis at both seams so a window hovering
-        // on a boundary doesn't thrash between layers. The fine
+        // The seams sit where the finer rung's bars reach roughly
+        // one to three plotted points per phone-plot pixel for a
+        // session series (a 3-day window of 5-minute bars is
+        // ~400–900 bars; a 14-day window of 15-minute bars is
+        // ~300–1,300, the top of that range only for the 24/7
+        // series) — finer would smear into overplot, coarser
+        // would waste data that exists. ~10% hysteresis at every
+        // seam so a window hovering on a boundary doesn't thrash
+        // between layers. A rung whose file isn't in hand yet
+        // (still fetching, or a series the rung doesn't carry)
+        // never blocks the window: the finest rung that IS in
+        // hand draws as the stand-in while the wanted rung keeps
+        // fetching, and if nothing is in hand — or no file in
+        // hand covers the window's dates — the daily view stands,
+        // through the same null the ladder has always fallen
+        // back on. The fine
         // layer is the price path the eye reads, and nothing
         // else: the averages and the P/E step through it at their
         // daily values, the RSI honestly recomputes on the fine
@@ -9435,17 +9458,32 @@ if (typeof module !== "undefined") {
         // when it lands, and any failure — a 404 for a series the
         // rung doesn't carry, a fetch that dies — leaves the
         // daily view standing. Never worse than today.
-        var fineDocs = {};      // key -> { "30": doc, "60": doc }
+        var fineDocs = {};      // key -> { "5": doc, "15": doc, "30": doc, "60": doc }
         var fineInflight = {};  // "KEY|30" -> true while fetching
         var fineFailedAt = {};  // "KEY|30" -> ms of the last failure
         var fineWin = null;     // {key, aDate, bDate, rung}: the fine window, in ET dates
         var fineLastRung = null; // {key, rung}: the hysteresis memory
+        // The ladder, finest first; each rung holds visible
+        // windows up to its seam, in days.
+        var FINE_RUNGS = ["5", "15", "30", "60"];
+        var FINE_SEAMS = { "5": 3, "15": 14, "30": 62, "60": 732 };
+        function fineRawRung(spanDays) {
+            for (var fi = 0; fi < FINE_RUNGS.length; fi++) if (spanDays <= FINE_SEAMS[FINE_RUNGS[fi]]) return FINE_RUNGS[fi];
+            return null;
+        }
         function fineSpanRung(spanDays, key) {
-            var rung = spanDays <= 62 ? "30" : (spanDays <= 732 ? "60" : null);
+            var rung = fineRawRung(spanDays);
             var mem = (fineLastRung && fineLastRung.key === key) ? fineLastRung.rung : null;
-            if (mem === "30" && rung === "60" && spanDays <= 62 * 1.1) rung = "30";
-            else if (mem === "60" && rung === "30" && spanDays >= 62 * 0.9) rung = "60";
-            else if (mem === "60" && rung === null && spanDays <= 732 * 1.1) rung = "60";
+            if (mem && mem !== rung) {
+                var mi = FINE_RUNGS.indexOf(mem);
+                var ri = rung === null ? FINE_RUNGS.length : FINE_RUNGS.indexOf(rung);
+                // One step coarser than memory: memory holds
+                // until the span passes its own seam by 10%.
+                if (ri === mi + 1 && spanDays <= FINE_SEAMS[mem] * 1.1) rung = mem;
+                // One step finer than memory: memory holds until
+                // the span is 10% under the finer rung's seam.
+                else if (ri === mi - 1 && spanDays >= FINE_SEAMS[rung] * 0.9) rung = mem;
+            }
             return rung;
         }
         function ensureFine(key, rung) {
@@ -9473,9 +9511,13 @@ if (typeof module !== "undefined") {
         }
         function scheduleFinePrefetch() {
             // After the daily file lands and the chart is idle,
-            // warm the selected symbol's two rungs so the common
-            // zoom path is instant when it comes.
-            var warm = function () { ensureFine(cur.key, "30"); ensureFine(cur.key, "60"); };
+            // warm the selected symbol's three outer rungs so the
+            // common zoom path is instant when it comes. The
+            // 5-minute rung stays on demand: it serves only the
+            // deepest zooms, and warming every symbol's largest
+            // fine file on arrival would spend the visitor's
+            // bandwidth on a layer most visits never open.
+            var warm = function () { ensureFine(cur.key, "15"); ensureFine(cur.key, "30"); ensureFine(cur.key, "60"); };
             if (window.requestIdleCallback) requestIdleCallback(warm, { timeout: 2500 });
             else setTimeout(warm, 1500);
         }
@@ -9520,12 +9562,36 @@ if (typeof module !== "undefined") {
                 if (!rung0) return null;
                 win = { key: key, aDate: wd.aDate, bDate: wd.bDate, rung: rung0 };
             }
+            // The wanted rung is re-derived from the window's
+            // own span on every pass, so a finer file landing
+            // later upgrades the view in place — a stand-in
+            // never sticks. The candidates walk from the wanted
+            // rung coarser: the first rung whose file is in hand
+            // AND covers the window's dates draws. (Coverage
+            // matters: the sub-hourly files reach back ~60 days,
+            // the hourly file ~730, so a narrow window panned
+            // deep into the past is served by the hourly rung —
+            // the finest data that exists for it.)
+            var spanDays = (Date.parse(win.bDate) - Date.parse(win.aDate)) / 86400000;
+            var want = fineSpanRung(spanDays, key);
+            if (!want) return null;
             var byKey = fineDocs[key];
-            var doc = byKey ? byKey[win.rung] : null;
-            if (!doc) { ensureFine(key, win.rung); fineSyncZoom(win); return null; }
-            var built = buildFineView(key, win.rung, doc, win.aDate, win.bDate);
-            if (built) { fineWin = win; fineLastRung = { key: key, rung: win.rung }; }
-            return built;
+            var order = FINE_RUNGS.slice(FINE_RUNGS.indexOf(want));
+            var anyDoc = false;
+            for (var oi = 0; oi < order.length; oi++) {
+                var doc = byKey ? byKey[order[oi]] : null;
+                if (!doc) continue;
+                anyDoc = true;
+                var built = buildFineView(key, order[oi], doc, win.aDate, win.bDate);
+                if (built) {
+                    if (order[oi] !== want) ensureFine(key, want);
+                    fineWin = { key: key, aDate: win.aDate, bDate: win.bDate, rung: order[oi] };
+                    fineLastRung = { key: key, rung: order[oi] };
+                    return built;
+                }
+            }
+            if (!anyDoc) { ensureFine(key, want); fineSyncZoom(win); }
+            return null;
         }
         function fineIs247(key, s) {
             // Futures, FX and Bitcoin trade around the clock: no
@@ -9640,8 +9706,9 @@ if (typeof module !== "undefined") {
             for (var j = 0; j < firsts.length; j += step) out.push({ idx: firsts[j][0], label: fmtDate(firsts[j][1]) });
             return out;
         }
+        var FINE_RUNG_WHAT = { "5": "Prices in 5-minute bars", "15": "Prices in 15-minute bars", "30": "Prices in 30-minute bars", "60": "Prices in hourly bars" };
         function fineNoteText(v) {
-            var what = v.fine.rung === "30" ? "Prices in 30-minute bars" : "Prices in hourly bars";
+            var what = FINE_RUNG_WHAT[v.fine.rung] || "Prices in hourly bars";
             return what + " (Yahoo Finance) through " + (v.fine.through ? fmtDate(v.fine.through) : "the latest session") + " — the averages and signals still run on daily closes.";
         }
         // A gesture inside a fine view: the fractional window
@@ -9654,9 +9721,26 @@ if (typeof module !== "undefined") {
             var bars = view.s.bars, nb = bars.length;
             var ds = (dailyData && dailyData.series) ? dailyData.series[cur.key] : null;
             if (!ds || !ds.bars || !ds.bars.length) return;
-            var iA = Math.max(0, Math.min(nb - 1, Math.floor(sF)));
-            var iB = Math.max(0, Math.min(nb - 1, Math.ceil(eF)));
-            var aDate = etClock(bars[iA][0]).date, bDate = etClock(bars[iB][0]).date;
+            // The gesture's fractional window maps to dates by
+            // interpolating the drawn bars' own timestamps — and
+            // EXTRAPOLATING past either edge at that edge's own
+            // bar spacing. Clamping the indices to the drawn set
+            // (the old mapping) made a fine view a one-way trap:
+            // it could narrow but never grow, because a wider
+            // request clamped straight back to the drawn window's
+            // own dates. Extrapolation lets the date window grow
+            // past the drawn bars, so the exits above (the hourly
+            // horizon, the rung seams) can actually be reached by
+            // the same gesture that came in.
+            if (nb < 2) return;
+            var stepL = bars[1][0] - bars[0][0], stepR = bars[nb - 1][0] - bars[nb - 2][0];
+            var tAt = function (x) {
+                if (x <= 0) return bars[0][0] + x * stepL;
+                if (x >= nb - 1) return bars[nb - 1][0] + (x - (nb - 1)) * stepR;
+                var i = Math.floor(x), f = x - i;
+                return bars[i][0] + f * (bars[i + 1][0] - bars[i][0]);
+            };
+            var aDate = etClock(Math.round(tAt(sF))).date, bDate = etClock(Math.round(tAt(eF))).date;
             if (bDate < aDate) { var tmp = aDate; aDate = bDate; bDate = tmp; }
             var firstD = ds.bars[0][0], lastD = ds.bars[ds.bars.length - 1][0];
             if (aDate < firstD) aDate = firstD;
@@ -9688,7 +9772,17 @@ if (typeof module !== "undefined") {
             }
             var rung = fineSpanRung(spanDays, cur.key);
             if (!rung) return;
-            if (spanDays < 1) return; // a sub-day window outside the live edge keeps the view it has
+            if (spanDays < 1) {
+                // A sub-day window outside the live edge: the
+                // 5-minute rung is the finest data that exists
+                // for it, but the swap happens only with that
+                // file already in hand — a window this narrow
+                // has no honest daily stand-in (a single daily
+                // bar), so the view it has stands while the file
+                // is fetched for the next gesture.
+                if (!(fineDocs[cur.key] && fineDocs[cur.key]["5"])) { ensureFine(cur.key, "5"); return; }
+                rung = "5";
+            }
             fineWin = { key: cur.key, aDate: aDate, bDate: bDate, rung: rung };
             hover = -1;
             render();
@@ -9698,6 +9792,8 @@ if (typeof module !== "undefined") {
         // volume keeps its own — only the RSI entry changes, and
         // it names the closes the RSI now runs on.
         var FINE_KEY_RSI = {
+            "5": "<strong>Violet — the RSI, on 5-minute closes</strong>. How stretched the price is — pushed too far, too fast, in either direction. Dashed lines mark 70 and 30: above 70, overbought; below 30, oversold.",
+            "15": "<strong>Violet — the RSI, on 15-minute closes</strong>. How stretched the price is — pushed too far, too fast, in either direction. Dashed lines mark 70 and 30: above 70, overbought; below 30, oversold.",
             "30": "<strong>Violet — the RSI, on 30-minute closes</strong>. How stretched the price is — pushed too far, too fast, in either direction. Dashed lines mark 70 and 30: above 70, overbought; below 30, oversold.",
             "60": "<strong>Violet — the RSI, on hourly closes</strong>. How stretched the price is — pushed too far, too fast, in either direction. Dashed lines mark 70 and 30: above 70, overbought; below 30, oversold."
         };
