@@ -642,6 +642,23 @@
     }
         .cloth-rod::before { left: -13px; }
         .cloth-rod::after { right: -13px; }
+        /* The placed table edge (2026-11-24): a brass line the player
+           sets at a height on the stage; the cloth rests on the
+           tabletop behind it and drapes over its front. Dashed and
+           brighter while it is being placed. */
+        .cloth-edge {
+            position: absolute; height: 3px; border-radius: 2px; pointer-events: none;
+            background: linear-gradient(90deg, rgba(216,178,110,0), #d8b26e 12%, #d8b26e 88%, rgba(216,178,110,0));
+            box-shadow: 0 1px 5px rgba(0,0,0,0.55);
+            transform: translateY(-50%); z-index: 4;
+        }
+        .cloth-edge span {
+            position: absolute; left: 2px; top: -19px; font-size: 0.62rem; font-weight: 700;
+            letter-spacing: 0.09em; text-transform: uppercase; color: #d8b26e;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8); white-space: nowrap;
+        }
+        .cloth-edge.placing { background: linear-gradient(90deg, rgba(255,214,140,0), #ffd68c 12%, #ffd68c 88%, rgba(255,214,140,0)); }
+        .cloth-edge.placing span { color: #ffd68c; }
         .cloth-cursor {
         position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%;
         border: 2px solid rgba(165,243,252,0.9); box-shadow: 0 0 14px rgba(103,232,249,0.55), inset 0 0 8px rgba(103,232,249,0.35);
@@ -1080,18 +1097,22 @@
             <video id="clothVideo" playsinline muted></video>
             <canvas id="clothCanvas"></canvas>
             <div class="cloth-rod" id="clothRod" hidden></div>
+            <div class="cloth-edge" id="clothEdge" hidden><span>Table edge</span></div>
             <div class="cloth-cursor" id="clothCursor"></div>
             <div class="cloth-note" id="clothNote" role="status"></div>
             <div class="cloth-hint" id="clothHint" role="status" hidden>Press and drag to push the cloth — hold Shift, or touch with two fingers, to grab a handful and pull. Hold a handful still to pin it</div>
             <div class="cloth-controls" id="clothControls" hidden>
                 <button class="cloth-btn" id="clothReset" type="button">Reset cloth</button>
+                <button class="cloth-btn" id="clothEdgeBtn" type="button">Table edge</button>
             </div>
             <div class="cloth-start" id="clothStart">
                 <div class="cloth-start-panel">
                     <div class="cloth-start-title">Cloth</div>
                     <p>One piece of silk, put down in front of you. Your fingertip presses it;
                        a pinch catches a handful and pulls. Hold a handful still to pin it
-                       there; let go and it drops — and stays where it lands.</p>
+                       there; let go and it drops — and stays where it lands. Bring your hand
+                       closer and the cloth comes with it. Set a table edge from the buttons
+                       below the stage and the cloth drapes over it.</p>
                     <p>Prop your phone still — a steady camera keeps everything exactly where you put it, and frees both hands.</p>
                     <button class="cloth-start-btn" id="clothStartBtn" type="button">Start camera</button>
                     <button class="cloth-touch-link" id="clothTouchBtn" type="button">Use touch instead</button>
@@ -3850,6 +3871,8 @@
     var touchBtn = document.getElementById('clothTouchBtn');
     var startStatus = document.getElementById('clothStartStatus');
     var resetBtn = document.getElementById('clothReset');
+    var edgeBtn = document.getElementById('clothEdgeBtn');
+    var edgeEl = document.getElementById('clothEdge');
 
     var MP_VERSION = '0.4.1675469240';
     var MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@' + MP_VERSION + '/';
@@ -4002,7 +4025,12 @@
     function makeContact(id) {
         return { id: id, active: false, x: 0, y: 0, tx: 0, ty: 0, prevX: 0, prevY: 0,
                  lastTx: 0, lastTy: 0, press: 0, grabbing: false, grabK: -1, grabPts: null,
-                 dwellMs: 0, holdBlock: false, speed: 0 };
+                 dwellMs: 0, holdBlock: false, speed: 0,
+                 // Depth (2026-11-24): tz is the target depth from the
+                 // hand's apparent size (camera mode); z is the eased
+                 // value the physics uses. Touch has no depth signal
+                 // and stays at 0 — never invented.
+                 tz: 0, z: 0 };
     }
 
     function nearestPoint(x, y, maxR) {
@@ -4138,8 +4166,12 @@
             var c = contacts[id];
             if (!c.active) continue;
             c.press += (1 - c.press) * 0.35;
-            c.x += (c.tx - c.x) * 0.65;
-            c.y += (c.ty - c.y) * 0.65;
+            // Reactivity (2026-11-24): the contact point tracks its
+            // target at 0.8 per 120 Hz step (was 0.65) — the hand is
+            // answered inside a frame or two, not chased.
+            c.x += (c.tx - c.x) * 0.8;
+            c.y += (c.ty - c.y) * 0.8;
+            c.z += (c.tz - c.z) * 0.3;
             var mvx = c.tx - c.lastTx, mvy = c.ty - c.lastTy;
             c.lastTx = c.tx; c.lastTy = c.ty;
             if (c.grabbing) {
@@ -4184,14 +4216,23 @@
                     for (var gi = 0; gi < ct.grabPts.length; gi += 5) {
                         var gk = ct.grabPts[gi], gw = ct.grabPts[gi + 1], g3 = gk * 3;
                         var gx = ct.x + ct.grabPts[gi + 2], gy = ct.y + ct.grabPts[gi + 3];
-                        var gz = GRAB_Z + ct.grabPts[gi + 4] * 0.45;
-                        var blend = 0.30 * gw;
+                        // Depth (2026-11-24): the handful sits at the
+                        // hand's own depth — GRAB_Z in front of the
+                        // plane plus the hand-depth offset — so
+                        // bringing the hand closer brings the cloth
+                        // closer (and the perspective makes it read
+                        // bigger), exactly as a real handful does.
+                        var gz = GRAB_Z + ct.z + ct.grabPts[gi + 4] * 0.45;
+                        // Reactivity: 0.5 per pass (was 0.30) — with
+                        // two passes per substep the patch closes on
+                        // the hand's position the same frame.
+                        var blend = 0.5 * gw;
                         pos[g3] += (gx - pos[g3]) * blend;
                         pos[g3 + 1] += (gy - pos[g3 + 1]) * blend;
                         pos[g3 + 2] += (gz - pos[g3 + 2]) * blend;
                     }
                 } else {
-                    var cz = HOVER_Z + (PRESS_Z - HOVER_Z) * ct.press;
+                    var cz = ct.z + HOVER_Z + (PRESS_Z - HOVER_Z) * ct.press;
                     var mvx = ct.x - ct.prevX, mvy = ct.y - ct.prevY;
                     for (k = 0; k < N; k++) {
                         if (pinned[k]) continue;
@@ -4252,6 +4293,38 @@
                         prev[k3] = pos[k3] - tvx * 0.97;
                         prev[k3 + 2] = pos[k3 + 2] - tvz * 0.97;
                     }
+                }
+            }
+        }
+        // The placed table edge (2026-11-24): a support the player
+        // puts at a height on the stage. Behind the edge line
+        // (z <= EDGE_Z, the far side) the tabletop holds the cloth
+        // at edgeY; in front of it (z > EDGE_Z) the cloth hangs off
+        // the edge and falls — that difference IS the drape. Same
+        // friction language as the floor: slow points lock, fast
+        // points rub lightly, a handful in the fingers is exempt.
+        if (edgeY !== null) {
+            for (k = 0; k < N; k++) {
+                if (pinned[k]) continue;
+                k3 = k * 3;
+                if (pos[k3 + 2] > EDGE_Z) continue;
+                if (pos[k3] < -EDGE_SPAN || pos[k3] > EDGE_SPAN) continue;
+                if (pos[k3 + 1] >= edgeY) continue;
+                // Only cloth at or near the tabletop is supported:
+                // a pile resting on the floor far below the edge is
+                // UNDER the table and stays there.
+                if (pos[k3 + 1] < edgeY - 0.25) continue;
+                pos[k3 + 1] = edgeY;
+                prev[k3 + 1] = pos[k3 + 1];
+                var evx = pos[k3] - prev[k3], evz = pos[k3 + 2] - prev[k3 + 2];
+                if (gripTarget[k] > 0) {
+                    // held: no table friction
+                } else if (!pressed[k] && evx * evx + evz * evz < 0.004 * 0.004) {
+                    pos[k3] -= evx * 0.95;
+                    pos[k3 + 2] -= evz * 0.95;
+                } else {
+                    prev[k3] = pos[k3] - evx * 0.97;
+                    prev[k3 + 2] = pos[k3 + 2] - evz * 0.97;
                 }
             }
         }
@@ -4554,6 +4627,7 @@
 
     function drawCloth() {
         if (!glOK) return;
+        placeEdgeLine();
         computeNormals();
         var k;
         for (k = 0; k < N; k++) gripCur[k] += (gripTarget[k] - gripCur[k]) * 0.3;
@@ -4773,7 +4847,7 @@
                 if (pinchD >= PINCH_OFF_SURE || g.offN >= PINCH_CONFIRM) g.held = false;
             }
             g.tipPx = tipPx;
-            if (!primary) primary = { label: label, tipPx: tipPx, midPx: midPx, held: g.held };
+            if (!primary) primary = { label: label, tipPx: tipPx, midPx: midPx, held: g.held, hscale: hscale };
         }
         for (var gone in prevHands) {
             if (seen[gone]) continue;
@@ -4789,7 +4863,7 @@
         // grabbing". The grace can only hold a grab, never start one.
         var nowMs = performance.now();
         if (primary) {
-            lastPrimary = { tipPx: primary.tipPx, midPx: primary.midPx, held: primary.held, t: nowMs };
+            lastPrimary = { tipPx: primary.tipPx, midPx: primary.midPx, held: primary.held, hscale: primary.hscale, t: nowMs };
         } else if (lastPrimary && lastPrimary.held && nowMs - lastPrimary.t <= 180) {
             primary = lastPrimary;
         } else {
@@ -4803,6 +4877,18 @@
             var wpt = unproject(usePx.x, usePx.y);
             handContact.active = true;
             handContact.tx = wpt.x; handContact.ty = wpt.y;
+            // Hand depth (2026-11-24): the hand's apparent size —
+            // wrist to middle-knuckle distance in the video frame —
+            // is the depth signal MediaPipe gives a web page. Mapped
+            // against a reference hand at reading distance, it drives
+            // the contact's depth target: a bigger hand is a closer
+            // hand, and the cloth answers in depth (the projection
+            // makes closer read bigger). Clamped so a hand filling
+            // the frame cannot throw the sheet past the camera.
+            if (primary.hscale) {
+                var dz = (primary.hscale / 110 - 1) * 0.5;
+                handContact.tz = Math.max(-0.35, Math.min(0.65, dz));
+            }
             if (primary.held && !handContact.grabbing && !handContact.holdBlock) beginGrab(handContact);
             if (!primary.held) {
                 handContact.holdBlock = false;
@@ -4946,6 +5032,75 @@
         for (var id in contacts) { contacts[id].active = false; endGrab(contacts[id]); }
         showNote('Cloth reset.');
     });
+
+    // ---------------- the placed table edge (2026-11-24) ----------------
+    // Automatic surface recognition is ARKit territory and iOS
+    // Safari gives web pages none of it — so the player places the
+    // surface: press Table edge, move a hand or finger to the height
+    // of the table's front edge, press Set edge. The cloth then
+    // rests on the tabletop behind the line and drapes over its
+    // front. Session-only: it is a placement in the room, not a
+    // document setting.
+    var edgeY = null;              // world y of the tabletop (null = no table)
+    var edgePlacing = false;       // the line is following the hand/finger
+    var edgePreviewY = 0;          // live height while placing
+    // The edge line sits at the cloth's working depth: a grabbed
+    // handful comes to GRAB_Z (0.14), so the tabletop's front edge
+    // lives just in front of that — cloth behind this depth rests
+    // on the table, cloth in front of it hangs off the edge.
+    var EDGE_Z = 0.22;             // the edge line's depth
+    var EDGE_SPAN = 1.35;          // the tabletop's half-width in world x
+    function edgeCurrentY() {
+        // While placing, the line follows the active contact (the
+        // hand in camera mode, the finger in touch mode); with no
+        // contact it follows the last pointer height over the stage.
+        var c = contacts.hand && contacts.hand.active ? contacts.hand
+              : (contacts.pointer && contacts.pointer.active ? contacts.pointer : null);
+        if (c) return c.ty;
+        if (lastStagePy !== null && lastStagePy !== undefined) return unproject(0, lastStagePy).y;
+        return edgeY !== null ? edgeY : 0;
+    }
+    function syncEdgeBtn() {
+        edgeBtn.textContent = edgePlacing ? 'Set edge' : (edgeY !== null ? 'Remove edge' : 'Table edge');
+    }
+    edgeBtn.addEventListener('click', function () {
+        if (edgePlacing) {
+            edgeY = edgePreviewY;
+            edgePlacing = false;
+            showNote('Table edge set — drape the cloth over it.');
+        } else if (edgeY !== null) {
+            edgeY = null;
+            showNote('Table edge removed.');
+        } else {
+            edgePlacing = true;
+            edgePreviewY = edgeCurrentY();
+            showNote('Move your hand or finger to the table\u2019s front edge, then press Set edge.');
+        }
+        syncEdgeBtn();
+    });
+    // Pointer height over the stage, tracked in every mode (camera
+    // mode's canvas handlers are touch-only, so placement there is
+    // driven by the hand; this covers a mouse/touch hover).
+    var lastStagePy = null;
+    canvas.addEventListener('pointermove', function (e) {
+        var r = canvas.getBoundingClientRect();
+        lastStagePy = Math.max(0, Math.min(r.height, e.clientY - r.top));
+    });
+    function placeEdgeLine() {
+        var y = edgePlacing ? edgePreviewY : edgeY;
+        if (y === null || y === undefined) { edgeEl.hidden = true; return; }
+        if (edgePlacing) edgePreviewY = edgeCurrentY();
+        y = edgePlacing ? edgePreviewY : edgeY;
+        var a = project(-EDGE_SPAN, y, EDGE_Z), b = project(EDGE_SPAN, y, EDGE_Z);
+        edgeEl.hidden = false;
+        edgeEl.classList.toggle('placing', edgePlacing);
+        edgeEl.style.left = a.x + 'px';
+        edgeEl.style.top = a.y + 'px';
+        edgeEl.style.width = Math.max(0, b.x - a.x) + 'px';
+        // The line can start off-stage at phone widths; keep its
+        // label inside the stage regardless.
+        if (edgeEl.firstElementChild) edgeEl.firstElementChild.style.left = Math.max(2, -a.x + 6) + 'px';
+    }
     document.addEventListener('visibilitychange', function () {
         if (document.hidden) { stopLoop(); if (mode === 'camera') video.pause(); return; }
         if (shellOff) return;
@@ -5100,9 +5255,13 @@
         },
         contact: function () {
             var c = contacts.pointer || contacts.hand;
-            return c ? { active: c.active, grabbing: c.grabbing, grabK: c.grabK, x: c.x, y: c.y,
+            return c ? { active: c.active, grabbing: c.grabbing, grabK: c.grabK, x: c.x, y: c.y, z: c.z, tz: c.tz,
                          patch: c.grabPts ? c.grabPts.length / 5 : 0, dwellMs: Math.round(c.dwellMs) } : null;
         },
+        edgeY: function () { return edgeY; },
+        setEdge: function (y) { edgeY = (y === null || y === undefined) ? null : y; syncEdgeBtn(); return edgeY; },
+        setHandDepth: function (tz) { if (handContact) { handContact.tz = tz; return handContact.z; } return null; },
+        setDepth: function (tz) { var c = contacts.pointer || contacts.hand; if (c) { c.tz = tz; return c.z; } return null; },
         pinPointCount: function () { var n = 0; for (var k = 0; k < N; k++) if (pinned[k]) n++; return n; },
         pinnedSample: function () {
             for (var k = 0; k < N; k++) if (pinned[k]) {
