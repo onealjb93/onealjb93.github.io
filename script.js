@@ -493,10 +493,7 @@ function initLogoIntro() {
         var r = el.getBoundingClientRect();
         return r.width > 0 || r.height > 0;
     }
-    function candidatesFor(t) {
-        var list = [];
-        function push(el) { if (el && list.indexOf(el) === -1) list.push(el); }
-        push(t);
+    function panelFor(t) {
         var panel = null;
         var cid = t.getAttribute ? t.getAttribute('aria-controls') : null;
         if (cid) panel = document.getElementById(cid);
@@ -506,6 +503,13 @@ function initLogoIntro() {
             var m = oc ? oc.match(/'([A-Za-z0-9_-]+)'/) : null;
             if (m) panel = document.getElementById(m[1]);
         }
+        return panel;
+    }
+    function candidatesFor(t) {
+        var list = [];
+        function push(el) { if (el && list.indexOf(el) === -1) list.push(el); }
+        push(t);
+        var panel = panelFor(t);
         push(panel);
         if (panel && panel.id) {
             var ctrls = document.querySelectorAll('[aria-controls="' + panel.id + '"]');
@@ -522,6 +526,13 @@ function initLogoIntro() {
         var t = e.target && e.target.closest ? e.target.closest(TOGGLE_SEL) : null;
         if (!t) return;
         if (t.classList.contains('door-card') || t.closest('[data-anchor-skip]')) return;
+        /* A door's section toggle is clicked synthetically by its door
+           card, so the click that reaches this handler names the inner
+           toggle, not the door -- resolve the panel and apply the same
+           door exclusion, or the corrections fight the door's own
+           glide and close-restore on every door toggle. */
+        var doorPanel = panelFor(t);
+        if (doorPanel && doorPanel.id && document.querySelector('.door-card[aria-controls="' + doorPanel.id + '"]')) return;
         var cands = [];
         candidatesFor(t).forEach(function (el) {
             if (visible(el)) cands.push({ el: el, top: el.getBoundingClientRect().top });
