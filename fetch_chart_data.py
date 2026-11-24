@@ -1887,6 +1887,48 @@ def build_first_file(d_output, out_dir, log=print):
            len(latest), output["through"]))
 
 
+def guard_no_shrink(kind, new_series, prev_series, through, anchor,
+                    allowance_days):
+    """Completeness guard (2026-11-23, the Bitcoin rule): a run
+    whose output would shrink the published record or end it
+    early must fail, never publish. Returns a list of problems
+    (empty = the output may ship):
+      - every series the previous file carries must still be
+        present, with at least as many bars, ending no earlier;
+      - the file's through must sit within allowance_days of the
+        anchor (the last completed period this run set out to
+        reach) — the allowance covers market holidays, which
+        last_completed_day / last_completed_friday do not model.
+    A deliberate universe removal trips the first rule on
+    purpose: the run fails loudly until a human refreshes the
+    previous file, rather than a series vanishing in silence."""
+    problems = []
+    for key in sorted(prev_series):
+        prev_bars = (prev_series.get(key) or {}).get("bars") or []
+        if not prev_bars:
+            continue
+        new_bars = (new_series.get(key) or {}).get("bars") or []
+        if not new_bars:
+            problems.append("%s: %s series vanished" % (kind, key))
+        elif len(new_bars) < len(prev_bars):
+            problems.append("%s: %s shrank %d -> %d bars"
+                            % (kind, key, len(prev_bars),
+                               len(new_bars)))
+        elif new_bars[-1][0] < prev_bars[-1][0]:
+            problems.append("%s: %s ends %s, before the previous %s"
+                            % (kind, key, new_bars[-1][0],
+                               prev_bars[-1][0]))
+    if not through:
+        problems.append("%s: no series carries bars" % kind)
+    elif (anchor - date.fromisoformat(through)).days > allowance_days:
+        problems.append("%s: through %s is %d days before the last "
+                        "completed period %s"
+                        % (kind, through,
+                           (anchor - date.fromisoformat(through)).days,
+                           anchor))
+    return problems
+
+
 def main():
     out_path = sys.argv[1] if len(sys.argv) > 1 else OUT_FILE
     now_utc = datetime.now(timezone.utc)
@@ -2038,6 +2080,14 @@ def main():
         "series": series,
         "nasdaq100": [ticker for ticker, _name in NASDAQ100],
     }
+    problems = guard_no_shrink("weekly", series, previous,
+                               output["through"], through, 9)
+    if problems:
+        for p in problems:
+            log("GUARD: %s" % p)
+        log("Refusing to publish a shrunken or stale %s — the "
+            "previous file stands." % out_path)
+        return 1
     tmp_path = out_path + ".tmp"
     with open(tmp_path, "w") as fh:
         json.dump(output, fh, separators=(",", ":"))
@@ -2189,8 +2239,15 @@ def main():
     try:
         attach_indicator_signals(d_series, d_previous, earn_states)
     except Exception as exc:
-        log("WARNING: indicator signals failed (%s) — the daily file "
-            "ships without fresh signals." % exc)
+        # The dots are the daily file's purpose as much as the
+        # bars: a file with signals missing or half-computed is a
+        # truncated record (2026-11-23 rule) — fail the run and
+        # let the previous file stand.
+        log("ERROR: indicator signals failed (%s) — leaving the "
+            "previous %s untouched rather than ship a daily file "
+            "whose dots are missing or half-computed."
+            % (exc, daily_path))
+        return 1
 
     d_last_dates = [s["bars"][-1][0] for s in d_series.values() if s.get("bars")]
     d_output = {
@@ -2209,6 +2266,14 @@ def main():
         "series": d_series,
         "nasdaq100": [ticker for ticker, _name in NASDAQ100],
     }
+    problems = guard_no_shrink("daily", d_series, d_previous,
+                               d_output["through"], through_day, 4)
+    if problems:
+        for p in problems:
+            log("GUARD: %s" % p)
+        log("Refusing to publish a shrunken or stale %s — the "
+            "previous file stands." % daily_path)
+        return 1
     d_tmp_path = daily_path + ".tmp"
     with open(d_tmp_path, "w") as fh:
         json.dump(d_output, fh, separators=(",", ":"))
