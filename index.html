@@ -5258,6 +5258,57 @@ window.BTC_FINE = (function () {
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
+
+        /* Y pinch (2026-11-24): the pinch's two axes scale
+           independently — the horizontal spread change drives the
+           time axis, the vertical spread change drives the price
+           axis, each around the pinch midpoint's value on its own
+           axis; a diagonal pinch reshapes both at once. On the
+           price axis, spreading the fingers widens the visible
+           range (the line flattens) and closing them compresses
+           the range (movements stretch taller). The wheel
+           and the + / - buttons keep the one-factor zoomViewAt
+           above. Each axis keeps its own zoom floor from that
+           function, landed on exactly; clampView still bounds the
+           range (price span: never under the floor, never past the
+           clamp domain). */
+        function pinchAxis(start, cur) {
+            /* One axis of the two-finger pinch (Y pinch, 2026-11-24):
+               a spread that starts at 20px or more on this axis scales
+               the axis by its own start/current ratio; a spread that
+               starts stacked on this axis (under 20px) holds the axis
+               at 1 until the spread passes 20px, so a level pinch never
+               drags the other axis along on finger noise. */
+            if (start >= 20) return start / Math.max(cur, 1);
+            return cur > 20 ? 20 / cur : 1;
+        }
+
+        function pinchAxisY(start, cur) {
+            /* The price axis takes the pinch's vertical component the
+               other way round (Y pinch, 2026-11-24): fingers spreading
+               apart vertically pull the visible price range wider (the
+               line flattens); fingers closing together compress the
+               range (movements stretch taller). The stacked-start
+               rule is pinchAxis's own, mirrored. */
+            if (start >= 20) return cur / start;
+            return cur > 20 ? cur / 20 : 1;
+        }
+
+        function zoomViewAtXY(px, py, w, h, fX, fY) {
+            var g = geom(w, h);
+            var ax = g.logDaysAt(px), ay = g.logPriceAt(py);
+            var nx0 = ax - (ax - VX0) * fX, nx1 = ax + (VX1 - ax) * fX;
+            var ny0 = ay - (ay - VY0) * fY, ny1 = ay + (VY1 - ay) * fY;
+            if (fX < 1) {
+                var dA = Math.pow(10, ax), dLo = Math.pow(10, nx0), dHi = Math.pow(10, nx1);
+                if (dHi - dLo < 1 / 24) { var fx = (dA - dLo) / ((dHi - dLo) || 1); dLo = dA - fx / 24; if (dLo < 1) dLo = 1; dHi = dLo + 1 / 24; nx0 = Math.log10(dLo); nx1 = Math.log10(dHi); }
+            }
+            if (fY < 1) {
+                if (ny1 - ny0 < 0.01) { var fy = (ay - ny0) / ((ny1 - ny0) || 1); ny0 = ay - 0.01 * fy; ny1 = ny0 + 0.01; }
+            }
+            VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
+            return true;
+        }
         function panByPixels(dx, dy, w, h) {
             var g = geom(w, h);
             var dlx = -dx / g.iw * (VX1 - VX0), dly = dy / g.ih * (VY1 - VY0);
@@ -5276,6 +5327,12 @@ window.BTC_FINE = (function () {
             hideTip();
             draw();
         }
+
+        /* A view change clears a manual Y pinch (2026-11-24):
+           the switcher calls every registered resetY; the
+           time window is not touched. */
+        function resetY() { VY0 = Y0; VY1 = Y1; draw(); }
+        (window.BTC_Y_RESETS = window.BTC_Y_RESETS || []).push(resetY);
 
         cv.addEventListener('wheel', function (e) {
             e.preventDefault();
@@ -5318,6 +5375,7 @@ window.BTC_FINE = (function () {
                 var pts = ptrList();
                 pinchStart = {
                     dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+                    sx: Math.abs(pts[0].x - pts[1].x), sy: Math.abs(pts[0].y - pts[1].y),
                     midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2,
                     w: p.w, h: p.h, view: snapshot()
                 };
@@ -5336,7 +5394,7 @@ window.BTC_FINE = (function () {
                     var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                     var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
                     restore(pinchStart.view);
-                    if (d > 0 && pinchStart.dist > 0) zoomViewAt(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchStart.dist / d);
+                    if (d > 0 && pinchStart.dist > 0) zoomViewAtXY(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchAxis(pinchStart.sx, Math.abs(pts[0].x - pts[1].x)), pinchAxisY(pinchStart.sy, Math.abs(pts[0].y - pts[1].y)));
                     panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
                     clampView();
                     draw();
@@ -5409,7 +5467,7 @@ window.BTC_FINE = (function () {
             move: function (x, y) { showTip({ clientX: x, clientY: y }); },
             pinchStart: function (pts) {
                 var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
-                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
+                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), sx: Math.abs(a.x - b.x), sy: Math.abs(a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
                 hideTip();
             },
             pinchMove: function (pts) {
@@ -5418,7 +5476,7 @@ window.BTC_FINE = (function () {
                 var d = Math.hypot(a.x - b.x, a.y - b.y);
                 var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
                 restore(tPinch.view);
-                if (d > 0 && tPinch.dist > 0) zoomViewAt(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, tPinch.dist / d);
+                if (d > 0 && tPinch.dist > 0) zoomViewAtXY(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, pinchAxis(tPinch.sx, Math.abs(a.x - b.x)), pinchAxisY(tPinch.sy, Math.abs(a.y - b.y)));
                 panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
                 clampView();
                 draw();
@@ -6137,6 +6195,56 @@ window.BTC_FINE = (function () {
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
+
+        /* Y pinch (2026-11-24): the pinch's two axes scale
+           independently — the horizontal spread change drives the
+           time axis, the vertical spread change drives the price
+           axis, each around the pinch midpoint's value on its own
+           axis; a diagonal pinch reshapes both at once. On the
+           price axis, spreading the fingers widens the visible
+           range (the line flattens) and closing them compresses
+           the range (movements stretch taller). The wheel
+           and the + / - buttons keep the one-factor zoomViewAt
+           above. Each axis keeps its own zoom floor from that
+           function, landed on exactly; clampView still bounds the
+           range (price span: never under the floor, never past the
+           clamp domain). */
+        function pinchAxis(start, cur) {
+            /* One axis of the two-finger pinch (Y pinch, 2026-11-24):
+               a spread that starts at 20px or more on this axis scales
+               the axis by its own start/current ratio; a spread that
+               starts stacked on this axis (under 20px) holds the axis
+               at 1 until the spread passes 20px, so a level pinch never
+               drags the other axis along on finger noise. */
+            if (start >= 20) return start / Math.max(cur, 1);
+            return cur > 20 ? 20 / cur : 1;
+        }
+
+        function pinchAxisY(start, cur) {
+            /* The price axis takes the pinch's vertical component the
+               other way round (Y pinch, 2026-11-24): fingers spreading
+               apart vertically pull the visible price range wider (the
+               line flattens); fingers closing together compress the
+               range (movements stretch taller). The stacked-start
+               rule is pinchAxis's own, mirrored. */
+            if (start >= 20) return cur / start;
+            return cur > 20 ? cur / 20 : 1;
+        }
+
+        function zoomViewAtXY(px, py, w, h, fX, fY) {
+            var g = geom(w, h);
+            var ax = g.daysAt(px), ay = g.logPriceAt(py);
+            var nx0 = ax - (ax - VX0) * fX, nx1 = ax + (VX1 - ax) * fX;
+            var ny0 = ay - (ay - VY0) * fY, ny1 = ay + (VY1 - ay) * fY;
+            if (fX < 1) {
+                if (nx1 - nx0 < 1 / 24) { var fx = (ax - nx0) / ((nx1 - nx0) || 1); nx0 = ax - fx / 24; nx1 = nx0 + 1 / 24; }
+            }
+            if (fY < 1) {
+                if (ny1 - ny0 < 0.01) { var fy = (ay - ny0) / ((ny1 - ny0) || 1); ny0 = ay - 0.01 * fy; ny1 = ny0 + 0.01; }
+            }
+            VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
+            return true;
+        }
         function panByPixels(dx, dy, w, h) {
             var g = geom(w, h);
             var dlx = -dx / g.iw * (VX1 - VX0), dly = dy / g.ih * (VY1 - VY0);
@@ -6156,6 +6264,12 @@ window.BTC_FINE = (function () {
             hideTip();
             draw();
         }
+
+        /* A view change clears a manual Y pinch (2026-11-24):
+           the switcher calls every registered resetY; the
+           time window is not touched. */
+        function resetY() { VY0 = Y0; VY1 = Y1; draw(); }
+        (window.BTC_Y_RESETS = window.BTC_Y_RESETS || []).push(resetY);
 
         cv.addEventListener('wheel', function (e) {
             e.preventDefault();
@@ -6198,6 +6312,7 @@ window.BTC_FINE = (function () {
                 var pts = ptrList();
                 pinchStart = {
                     dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+                    sx: Math.abs(pts[0].x - pts[1].x), sy: Math.abs(pts[0].y - pts[1].y),
                     midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2,
                     w: p.w, h: p.h, view: snapshot()
                 };
@@ -6216,7 +6331,7 @@ window.BTC_FINE = (function () {
                     var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                     var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
                     restore(pinchStart.view);
-                    if (d > 0 && pinchStart.dist > 0) zoomViewAt(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchStart.dist / d);
+                    if (d > 0 && pinchStart.dist > 0) zoomViewAtXY(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchAxis(pinchStart.sx, Math.abs(pts[0].x - pts[1].x)), pinchAxisY(pinchStart.sy, Math.abs(pts[0].y - pts[1].y)));
                     panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
                     viewTouched = true;
                     clampView();
@@ -6291,7 +6406,7 @@ window.BTC_FINE = (function () {
             move: function (x, y) { showTip({ clientX: x, clientY: y }); },
             pinchStart: function (pts) {
                 var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
-                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
+                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), sx: Math.abs(a.x - b.x), sy: Math.abs(a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
                 hideTip();
             },
             pinchMove: function (pts) {
@@ -6300,7 +6415,7 @@ window.BTC_FINE = (function () {
                 var d = Math.hypot(a.x - b.x, a.y - b.y);
                 var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
                 restore(tPinch.view);
-                if (d > 0 && tPinch.dist > 0) zoomViewAt(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, tPinch.dist / d);
+                if (d > 0 && tPinch.dist > 0) zoomViewAtXY(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, pinchAxis(tPinch.sx, Math.abs(a.x - b.x)), pinchAxisY(tPinch.sy, Math.abs(a.y - b.y)));
                 panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
                 viewTouched = true;
                 clampView();
@@ -6961,6 +7076,56 @@ window.BTC_FINE = (function () {
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
+
+        /* Y pinch (2026-11-24): the pinch's two axes scale
+           independently — the horizontal spread change drives the
+           time axis, the vertical spread change drives the price
+           axis, each around the pinch midpoint's value on its own
+           axis; a diagonal pinch reshapes both at once. On the
+           price axis, spreading the fingers widens the visible
+           range (the line flattens) and closing them compresses
+           the range (movements stretch taller). The wheel
+           and the + / - buttons keep the one-factor zoomViewAt
+           above. Each axis keeps its own zoom floor from that
+           function, landed on exactly; clampView still bounds the
+           range (price span: never under the floor, never past the
+           clamp domain). */
+        function pinchAxis(start, cur) {
+            /* One axis of the two-finger pinch (Y pinch, 2026-11-24):
+               a spread that starts at 20px or more on this axis scales
+               the axis by its own start/current ratio; a spread that
+               starts stacked on this axis (under 20px) holds the axis
+               at 1 until the spread passes 20px, so a level pinch never
+               drags the other axis along on finger noise. */
+            if (start >= 20) return start / Math.max(cur, 1);
+            return cur > 20 ? 20 / cur : 1;
+        }
+
+        function pinchAxisY(start, cur) {
+            /* The price axis takes the pinch's vertical component the
+               other way round (Y pinch, 2026-11-24): fingers spreading
+               apart vertically pull the visible price range wider (the
+               line flattens); fingers closing together compress the
+               range (movements stretch taller). The stacked-start
+               rule is pinchAxis's own, mirrored. */
+            if (start >= 20) return cur / start;
+            return cur > 20 ? cur / 20 : 1;
+        }
+
+        function zoomViewAtXY(px, py, w, h, fX, fY) {
+            var g = geom(w, h);
+            var ax = g.daysAt(px), ay = g.valAt(py);
+            var nx0 = ax - (ax - VX0) * fX, nx1 = ax + (VX1 - ax) * fX;
+            var ny0 = ay - (ay - VY0) * fY, ny1 = ay + (VY1 - ay) * fY;
+            if (fX < 1) {
+                if (nx1 - nx0 < 7) { var fx = (ax - nx0) / ((nx1 - nx0) || 1); nx0 = ax - 7 * fx; nx1 = nx0 + 7; }
+            }
+            if (fY < 1) {
+                if (ny1 - ny0 < 0.05) { var fy = (ay - ny0) / ((ny1 - ny0) || 1); ny0 = ay - 0.05 * fy; ny1 = ny0 + 0.05; }
+            }
+            VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
+            return true;
+        }
         function panByPixels(dx, dy, w, h) {
             var g = geom(w, h);
             var dlx = -dx / g.iw * (VX1 - VX0), dly = dy / g.ih * (VY1 - VY0);
@@ -6980,6 +7145,12 @@ window.BTC_FINE = (function () {
             hideTip();
             draw();
         }
+
+        /* A view change clears a manual Y pinch (2026-11-24):
+           the switcher calls every registered resetY; the
+           time window is not touched. */
+        function resetY() { VY0 = Y0; VY1 = Y1; draw(); }
+        (window.BTC_Y_RESETS = window.BTC_Y_RESETS || []).push(resetY);
 
         cv.addEventListener('wheel', function (e) {
             e.preventDefault();
@@ -7022,6 +7193,7 @@ window.BTC_FINE = (function () {
                 var pts = ptrList();
                 pinchStart = {
                     dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+                    sx: Math.abs(pts[0].x - pts[1].x), sy: Math.abs(pts[0].y - pts[1].y),
                     midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2,
                     w: p.w, h: p.h, view: snapshot()
                 };
@@ -7040,7 +7212,7 @@ window.BTC_FINE = (function () {
                     var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                     var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
                     restore(pinchStart.view);
-                    if (d > 0 && pinchStart.dist > 0) zoomViewAt(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchStart.dist / d);
+                    if (d > 0 && pinchStart.dist > 0) zoomViewAtXY(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchAxis(pinchStart.sx, Math.abs(pts[0].x - pts[1].x)), pinchAxisY(pinchStart.sy, Math.abs(pts[0].y - pts[1].y)));
                     panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
                     viewTouched = true;
                     clampView();
@@ -7115,7 +7287,7 @@ window.BTC_FINE = (function () {
             move: function (x, y) { showTip({ clientX: x, clientY: y }); },
             pinchStart: function (pts) {
                 var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
-                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
+                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), sx: Math.abs(a.x - b.x), sy: Math.abs(a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
                 hideTip();
             },
             pinchMove: function (pts) {
@@ -7124,7 +7296,7 @@ window.BTC_FINE = (function () {
                 var d = Math.hypot(a.x - b.x, a.y - b.y);
                 var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
                 restore(tPinch.view);
-                if (d > 0 && tPinch.dist > 0) zoomViewAt(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, tPinch.dist / d);
+                if (d > 0 && tPinch.dist > 0) zoomViewAtXY(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, pinchAxis(tPinch.sx, Math.abs(a.x - b.x)), pinchAxisY(tPinch.sy, Math.abs(a.y - b.y)));
                 panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
                 viewTouched = true;
                 clampView();
@@ -7838,6 +8010,56 @@ window.BTC_FINE = (function () {
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
+
+        /* Y pinch (2026-11-24): the pinch's two axes scale
+           independently — the horizontal spread change drives the
+           time axis, the vertical spread change drives the price
+           axis, each around the pinch midpoint's value on its own
+           axis; a diagonal pinch reshapes both at once. On the
+           price axis, spreading the fingers widens the visible
+           range (the line flattens) and closing them compresses
+           the range (movements stretch taller). The wheel
+           and the + / - buttons keep the one-factor zoomViewAt
+           above. Each axis keeps its own zoom floor from that
+           function, landed on exactly; clampView still bounds the
+           range (price span: never under the floor, never past the
+           clamp domain). */
+        function pinchAxis(start, cur) {
+            /* One axis of the two-finger pinch (Y pinch, 2026-11-24):
+               a spread that starts at 20px or more on this axis scales
+               the axis by its own start/current ratio; a spread that
+               starts stacked on this axis (under 20px) holds the axis
+               at 1 until the spread passes 20px, so a level pinch never
+               drags the other axis along on finger noise. */
+            if (start >= 20) return start / Math.max(cur, 1);
+            return cur > 20 ? 20 / cur : 1;
+        }
+
+        function pinchAxisY(start, cur) {
+            /* The price axis takes the pinch's vertical component the
+               other way round (Y pinch, 2026-11-24): fingers spreading
+               apart vertically pull the visible price range wider (the
+               line flattens); fingers closing together compress the
+               range (movements stretch taller). The stacked-start
+               rule is pinchAxis's own, mirrored. */
+            if (start >= 20) return cur / start;
+            return cur > 20 ? cur / 20 : 1;
+        }
+
+        function zoomViewAtXY(px, py, w, h, fX, fY) {
+            var g = geom(w, h);
+            var ax = g.daysAt(px), ay = g.valAt(py);
+            var nx0 = ax - (ax - VX0) * fX, nx1 = ax + (VX1 - ax) * fX;
+            var ny0 = ay - (ay - VY0) * fY, ny1 = ay + (VY1 - ay) * fY;
+            if (fX < 1) {
+                if (nx1 - nx0 < 7) { var fx = (ax - nx0) / ((nx1 - nx0) || 1); nx0 = ax - 7 * fx; nx1 = nx0 + 7; }
+            }
+            if (fY < 1) {
+                if (ny1 - ny0 < 0.05) { var fy = (ay - ny0) / ((ny1 - ny0) || 1); ny0 = ay - 0.05 * fy; ny1 = ny0 + 0.05; }
+            }
+            VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
+            return true;
+        }
         function panByPixels(dx, dy, w, h) {
             var g = geom(w, h);
             var dlx = -dx / g.iw * (VX1 - VX0), dly = dy / g.ih * (VY1 - VY0);
@@ -7857,6 +8079,12 @@ window.BTC_FINE = (function () {
             hideTip();
             draw();
         }
+
+        /* A view change clears a manual Y pinch (2026-11-24):
+           the switcher calls every registered resetY; the
+           time window is not touched. */
+        function resetY() { VY0 = Y0; VY1 = Y1; draw(); }
+        (window.BTC_Y_RESETS = window.BTC_Y_RESETS || []).push(resetY);
 
         cv.addEventListener('wheel', function (e) {
             e.preventDefault();
@@ -7899,6 +8127,7 @@ window.BTC_FINE = (function () {
                 var pts = ptrList();
                 pinchStart = {
                     dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+                    sx: Math.abs(pts[0].x - pts[1].x), sy: Math.abs(pts[0].y - pts[1].y),
                     midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2,
                     w: p.w, h: p.h, view: snapshot()
                 };
@@ -7917,7 +8146,7 @@ window.BTC_FINE = (function () {
                     var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                     var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
                     restore(pinchStart.view);
-                    if (d > 0 && pinchStart.dist > 0) zoomViewAt(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchStart.dist / d);
+                    if (d > 0 && pinchStart.dist > 0) zoomViewAtXY(pinchStart.midX, pinchStart.midY, pinchStart.w, pinchStart.h, pinchAxis(pinchStart.sx, Math.abs(pts[0].x - pts[1].x)), pinchAxisY(pinchStart.sy, Math.abs(pts[0].y - pts[1].y)));
                     panByPixels(midX - pinchStart.midX, midY - pinchStart.midY, pinchStart.w, pinchStart.h);
                     viewTouched = true;
                     clampView();
@@ -7992,7 +8221,7 @@ window.BTC_FINE = (function () {
             move: function (x, y) { showTip({ clientX: x, clientY: y }); },
             pinchStart: function (pts) {
                 var a = localPos({ clientX: pts[0].x, clientY: pts[0].y }), b = localPos({ clientX: pts[1].x, clientY: pts[1].y });
-                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
+                tPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), sx: Math.abs(a.x - b.x), sy: Math.abs(a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, w: a.w, h: a.h, view: snapshot() };
                 hideTip();
             },
             pinchMove: function (pts) {
@@ -8001,7 +8230,7 @@ window.BTC_FINE = (function () {
                 var d = Math.hypot(a.x - b.x, a.y - b.y);
                 var midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
                 restore(tPinch.view);
-                if (d > 0 && tPinch.dist > 0) zoomViewAt(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, tPinch.dist / d);
+                if (d > 0 && tPinch.dist > 0) zoomViewAtXY(tPinch.midX, tPinch.midY, tPinch.w, tPinch.h, pinchAxis(tPinch.sx, Math.abs(a.x - b.x)), pinchAxisY(tPinch.sy, Math.abs(a.y - b.y)));
                 panByPixels(midX - tPinch.midX, midY - tPinch.midY, tPinch.w, tPinch.h);
                 viewTouched = true;
                 clampView();
@@ -9322,6 +9551,7 @@ window.BTC_FINE = (function () {
             syncPicker(view);
             var showEl = view === 'cost' ? vCost : (view === 'mayer' ? vMayer : (view === 'mvrv' ? vMvrv : (view === 'spiral' && vSpiral ? vSpiral : vPl)));
             var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            var prevView = current;
             current = view;
             /* View-switch anchor (2026-11-22, video fix): switching
                views swaps a tall region for a shorter or taller one;
@@ -9349,6 +9579,14 @@ window.BTC_FINE = (function () {
                 if (view === 'cost') loadCost();
                 if (view === 'mayer') loadMayer();
                 if (view === 'mvrv') loadMvrv();
+                /* a view change clears any manual Y pinch on
+                   every chart (2026-11-24): the time window
+                   stays, the price axis returns to full range */
+                if (view !== prevView && window.BTC_Y_RESETS) {
+                    for (var yi = 0; yi < window.BTC_Y_RESETS.length; yi++) {
+                        try { window.BTC_Y_RESETS[yi](); } catch (e) {}
+                    }
+                }
             }
             if (!animate || reduced) {
                 reveal();
