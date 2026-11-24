@@ -1811,16 +1811,16 @@
     </script>
     <script>
         // Logo intro click-to-finish: a visitor who does not scroll can
-        // click or tap anywhere on the intro and the logo runs the same
-        // morph up into the header. The morph in script.js is driven by
-        // accumulated wheel input eased toward a target, so the click
-        // feeds that very input — one synthetic wheel event carrying more
-        // than a full morph-range of delta. Everything after that (the
-        // damped glide, the green fade, the hint fade, the landing, the
-        // done class, the listeners detaching) is the scroll path's own
-        // code, untouched. If script.js has not wired the intro yet the
-        // feed retries briefly; if it never does, the setup failsafe
-        // above hides the intro and the click simply does nothing.
+        // click or tap anywhere on the intro and the logo plays the same
+        // glide up into the header. The glide in script.js starts on
+        // accumulated scroll intent past a small threshold, so the click
+        // feeds that very input — one synthetic wheel event carrying far
+        // more than the threshold. Everything after that (the time-based
+        // glide, the green fade, the hint fade, the landing, the done
+        // class, the listeners detaching) is the scroll path's own code,
+        // untouched. If script.js has not wired the intro yet the feed
+        // retries briefly; if it never does, the setup failsafe above
+        // hides the intro and the click simply does nothing.
         // Reduced motion never shows the intro at all, so there is
         // nothing to click — the finish there is already instant.
         (function () {
@@ -1942,23 +1942,39 @@
     // is fully sharp long before its top edge (431px down the page on
     // desktop, 440px on the phone) can reach the top of the screen.
     // Progress latches: it only moves forward.
+    // Intro coupling (2026-11-24): while the logo intro is armed the
+    // page is pinned at scrollY 0, so the scroll sharpening above can
+    // never advance and the photo sat blurred long after the landing.
+    // When the intro's glide starts ('jbo:introglide' from script.js)
+    // the photo sharpens in step with the glide instead, arriving
+    // sharp at the landing; the scroll path remains for visits where
+    // the intro never runs.
     (function () {
         var img = document.querySelector('.syn-heroimg img');
         if (!img) return;
         if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         var D = Math.max(1, Math.round(window.innerHeight * 0.18));
-        var p = 0, ticking = false, done = false;
+        var p = 0, ticking = false, done = false, settling = false;
         img.classList.add('jbo-focus-armed');
         function finish() {
             done = true;
+            img.style.transition = '';
             img.style.filter = '';
             img.style.transform = '';
             img.classList.remove('jbo-focus-armed');
             window.removeEventListener('scroll', onScroll);
         }
+        window.addEventListener('jbo:introglide', function () {
+            if (done || settling) return;
+            settling = true;
+            img.style.transition = 'filter .68s ease-out, transform .68s ease-out';
+            img.style.filter = 'blur(0px)';
+            img.style.transform = 'scale(1)';
+            setTimeout(finish, 740);
+        });
         function apply() {
             ticking = false;
-            if (done) return;
+            if (done || settling) return;
             var target = window.scrollY / D;
             if (target > 1) target = 1;
             if (target > p) p = target;

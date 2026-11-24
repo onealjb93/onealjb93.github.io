@@ -167,35 +167,48 @@ document.addEventListener('DOMContentLoaded', function () {
 
 /* Homepage logo intro: one-shot opening animation (index.html only — runs
    only when #logo-intro exists). On load the full-viewport green screen
-   shows the JBO logo centered; scrolling down shrinks it into the 32px
-   header logo while the page stays pinned at scrollY 0, so when the logo
-   lands, normal scrolling starts from the very top of the page (header,
-   name, About Me). Once the logo has landed the intro is done for the
-   session and never comes back — scrolling back to the top does not
-   re-trigger it. If the page loads already scrolled (refresh mid-page,
-   anchor, back / forward), the intro is skipped entirely and the logo is
-   already in the header. transform/opacity only, via rAF. Skipped when
-   the visitor prefers reduced motion. The header logo's landing spot is
-   measured at runtime (its at-rest position at the top of the page), so
-   it lands exactly on the header logo in both themes and on mobile. The green
-   overlay fades across most of the morph (gone by ~75% of progress,
-   ease-out cubic) while the logo keeps shrinking across the full range
-   and stays fully opaque, so the page shows through almost as soon as
-   scrolling starts but the green melts away instead of snapping off.
-   Motion model: scroll input accumulates into a *target* progress; a
-   continuous rAF loop eases the rendered progress toward it with
-   frame-rate-independent damping (the Lenis / GSAP-scrub pattern), so
-   stepped mouse-wheel notches become one smooth glide and the logo and
-   the green move as a single gesture on one master progress.
-   Settle-once (2026-11-24): the morph scrubs freely only up to a commit
-   point at half the range — past it the target pins to the end of the
-   range and the glide runs into the landing, so input can never reverse
-   the intro back over content it had already revealed. The landing
-   geometry is measured once at rest and frozen at the first input, and
-   the logo and hint are pinned to pixel anchors, so an iOS toolbar
-   resize mid-gesture cannot move the anchors and jump the logo. The
-   "Scroll to start" hint is written from the same master progress on
-   this frame path (no MutationObserver re-deriving it). */
+   shows the JBO logo centered; the first deliberate scroll intent — a
+   few px of wheel or swipe, a scroll key, or a tap — plays ONE
+   time-based glide (720 ms) that shrinks the logo into the header logo
+   while the page stays pinned at scrollY 0, so when the logo lands,
+   normal scrolling starts from the very top of the page (header, name,
+   About Me). Once the logo has landed the intro is done for the session
+   and never comes back — scrolling back to the top does not re-trigger
+   it. If the page loads already scrolled (refresh mid-page, anchor,
+   back / forward), the intro is skipped entirely and the logo is
+   already in the header. Skipped when the visitor prefers reduced
+   motion. The header logo's landing spot is measured at runtime (its
+   at-rest position at the top of the page), so it lands exactly on the
+   header logo in both themes and on mobile. The green overlay fades
+   across most of the glide (gone by ~75% of progress, ease-out cubic)
+   while the logo keeps shrinking across the full range and stays fully
+   opaque, so the page shows through almost as soon as the glide starts
+   but the green melts away instead of snapping off.
+   Motion model (rebuilt 2026-11-24): the glide is TIME-based, never a
+   function of scroll position. The previous scroll-scrubbed morph
+   inherited iOS scroll physics whole — rubber-band easing, momentum
+   steps, toolbar resizes and refresh stepping printed straight into
+   the animation, and it never read smooth on a real iPhone (Johnny's
+   videos, 2026-11-24). The glide's keyframes are sampled once from the
+   same spatial curves the scrub used (smoothstep on the logo's path,
+   ease-out cubic on the green, the hint gone by 35%), then played by
+   the Web Animations engine: no per-frame JS, no scroll coupling,
+   nothing for Low Power Mode to starve. An rAF tween over the same
+   sampled curve is the fallback where WAAPI is missing. EVERY property
+   of the landing mark rides the glide — the corner radius included:
+   the logo art is an opaque green square and the header mark is that
+   square with rounded corners (8px; 6px on small screens), so the
+   radius interpolates from square to the header's exact radius across
+   the last two-thirds of the glide and the mark arrives already in its
+   final shape — the end-state class swap then changes nothing visible.
+   The landing geometry is measured once at rest and frozen when the
+   glide starts, and the logo and hint are pinned to pixel anchors, so
+   an iOS toolbar resize mid-glide cannot move the anchors and jump the
+   logo. The "Scroll to start" hint is sampled from the same master
+   progress (no MutationObserver re-deriving it). At glide start a
+   'jbo:introglide' window event tells the hero photo's focus effect to
+   sharpen in step, so the photo is sharp at the landing instead of
+   waiting on scroll the intro has been holding at zero. */
 function initLogoIntro() {
     var intro = document.getElementById('logo-intro');
     if (!intro) return;
@@ -221,19 +234,17 @@ function initLogoIntro() {
     var brand = document.querySelector('.site-brand-logo');
     if (!logo || !bg || !brand) return;
     document.documentElement.classList.add('logo-intro-on');
-    var range = 0, start = null, target = null;
-    var vyTarget = 0; // virtual scroll px accumulated from input, 0..range
-    var vy = 0;       // rendered progress: eased toward vyTarget every frame
-    var done = false; // one-shot: once landed, the intro never re-engages
-    var committed = false; // settle-once: past the commit point the morph
-                           // only ever runs forward into its landing
-    var started = false;   // first input freezes the measured geometry
-    var rafId = null, lastTs = null;
+    var GLIDE_MS = 720;   // one choreographed glide, trigger to landing
+    var TRIGGER_PX = 8;   // accumulated scroll intent that starts it
+    var start = null, target = null, brandRadius = 0;
+    var done = false;     // one-shot: once landed, the intro never re-engages
+    var gliding = false;  // the glide is playing; input cannot steer it
+    var started = false;  // glide start freezes the measured geometry
+    var anims = [], rafId = null;
     function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
     function smooth(t) { return t * t * (3 - 2 * t); }
     function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
     function measure() {
-        range = Math.max(window.innerHeight * 0.16, 120);
         // Start = the logo's centered position, read from the overlay's
         // own rect (robust to viewport/scrollbar quirks — never assume
         // innerWidth / 2 is the visual center).
@@ -242,87 +253,112 @@ function initLogoIntro() {
         // The page stays pinned at scrollY 0 while the intro runs, so the
         // landing spot is the brand's at-rest position in the viewport at
         // the top of the page (not its stuck position once the nav pins
-        // on scroll — the nav only sticks after the intro is done).
+        // on scroll — the nav only sticks after the intro is done). The
+        // brand's corner radius is measured too: the flying mark must
+        // arrive wearing it, not receive it in the settle swap.
         var b = brand.getBoundingClientRect();
         target = {
             cx: b.left + b.width / 2,
             cy: b.top + b.height / 2,
             size: b.width
         };
-        apply();
+        brandRadius = parseFloat(window.getComputedStyle(brand).borderTopLeftRadius) || 0;
+        applyAt(0);
     }
-    function apply() {
-        if (!start || !target) return;
-        var p = clamp01(vy / range);
+    // The morph as a pure function of progress p (0 = at rest, 1 =
+    // landed) — the spatial curves the old scroll-scrub sampled, kept
+    // identical so the glide passes through the same compositions:
+    // smoothstep on the logo's path; the green phased on an ease-out
+    // cubic over the first ~75% of progress (it starts fading
+    // immediately — at p = 0.1 the green is already ~65%, so the page
+    // shows through right away — but the tail's slope is 0, so the last
+    // of the green melts away with no hard edge at zero); the hint gone
+    // by p = 0.35. The corner radius joins at p = 0.35 and reaches the
+    // header mark's exact radius at the landing, expressed in element
+    // px (visual radius divided by the current scale) so the settle
+    // swap to the real header logo changes neither the mark's shape
+    // nor its box.
+    function stateAt(p) {
         var e = smooth(p);
         var scale = 1 + (target.size / start.size - 1) * e;
         var dx = (target.cx - start.cx) * e;
         var dy = (target.cy - start.cy) * e;
-        logo.style.transform = 'translate3d(calc(-50% + ' + dx.toFixed(1) + 'px), calc(-50% + ' + dy.toFixed(1) + 'px), 0) scale(' + scale.toFixed(4) + ')';
-        // Green overlay fades across most of the morph, phased with the
-        // logo on the same master progress: ease-out cubic over the first
-        // ~75% of progress. It starts fading immediately (at p = 0.1 the
-        // green is already ~65%, so the page shows through right away),
-        // but the tail is gentle — ease-out cubic's slope is 0 at the end,
-        // so the last of the green melts away with no hard edge at zero.
-        // The old 25% window made one wheel notch drop the green from 1 to
-        // ~0.5 in a single frame while the logo had barely moved: the pop
-        // the user called glitchy.
-        var bgOpacity = 1 - easeOutCubic(clamp01(p / 0.75));
-        bg.style.opacity = bgOpacity.toFixed(3);
-        // "Scroll to start" rides the same master progress: full at rest
-        // (its CSS base opacity), gone by p = 0.35, early in the morph.
-        // Written here on the frame path; the previous inline script
-        // re-derived p from the bg opacity write via a MutationObserver
-        // firing on every frame — observer work on the frame path.
-        if (hint) hint.style.opacity = (0.75 * (1 - clamp01(p / 0.35))).toFixed(3);
-        var pe = bgOpacity <= 0.02 ? 'none' : 'auto';
-        if (intro.style.pointerEvents !== pe) intro.style.pointerEvents = pe;
+        var rVis = brandRadius * smooth(clamp01((p - 0.35) / 0.65));
+        return {
+            transform: 'translate3d(' + (-start.size / 2 + dx).toFixed(1) + 'px, ' +
+                (-start.size / 2 + dy).toFixed(1) + 'px, 0) scale(' + scale.toFixed(4) + ')',
+            borderRadius: (rVis / scale).toFixed(1) + 'px',
+            bgOpacity: (1 - easeOutCubic(clamp01(p / 0.75))).toFixed(3),
+            hintOpacity: (0.75 * (1 - clamp01(p / 0.35))).toFixed(3)
+        };
     }
-    // Damped render loop (Lenis / GSAP-scrub pattern): input sets the
-    // target, the loop eases the rendered value toward it every frame,
-    // scaled by frame delta so the feel is identical at 30/60/120 Hz.
-    // lambda ~9/s: ~110 ms time constant, settles in ~250 ms — the
-    // momentum-settle that makes stepped wheel notches read as one glide.
-    function tick(ts) {
-        rafId = null;
-        if (done) return;
-        if (lastTs === null) lastTs = ts;
-        var dt = Math.max(0, Math.min(64, ts - lastTs));
-        lastTs = ts;
-        var k = 1 - Math.exp(-dt * 0.009);
-        vy += (vyTarget - vy) * k;
-        // Settle once: at half the range the green is ~96% gone and the
-        // logo is more than halfway home — from there the morph commits.
-        // The old code stayed reversible all the way to p = 1, so the
-        // band between the green reaching zero (p = 0.75) and the finish
-        // looked fully settled yet any upward swipe reversed it and the
-        // whole intro — green, logo, hint — popped back over the page
-        // (Johnny's video, 2026-11-24). Committing here closes that band:
-        // the glide simply runs the remaining half into the landing.
-        if (!committed && vy >= range * 0.5) {
-            committed = true;
-            vyTarget = range;
+    function applyAt(p) {
+        if (!start || !target) return;
+        var s = stateAt(p);
+        logo.style.transform = s.transform;
+        logo.style.borderRadius = s.borderRadius;
+        bg.style.opacity = s.bgOpacity;
+        if (hint) hint.style.opacity = s.hintOpacity;
+    }
+    // The glide: keyframes sampled once from stateAt() and handed to
+    // the Web Animations engine, which runs them on the compositor —
+    // during the 720 ms there is no JS on the frame path at all, and
+    // nothing couples the motion to scroll position, scroll physics or
+    // refresh stepping. The fallback (no WAAPI) is an rAF tween over
+    // the same sampled curve, driven by elapsed time — still never by
+    // scroll position.
+    function buildKeyframes() {
+        var N = 24, logoK = [], bgK = [], hintK = [];
+        for (var i = 0; i <= N; i++) {
+            var p = i / N, s = stateAt(p);
+            logoK.push({ transform: s.transform, borderRadius: s.borderRadius, offset: p });
+            bgK.push({ opacity: s.bgOpacity, offset: p });
+            hintK.push({ opacity: s.hintOpacity, offset: p });
         }
-        if (vyTarget >= range && range - vy < 0.5) {
-            vy = range;
-            apply();
-            finish();
-            return;
-        }
-        apply();
-        if (Math.abs(vyTarget - vy) > 0.05) {
-            rafId = requestAnimationFrame(tick);
+        return { logo: logoK, bg: bgK, hint: hintK };
+    }
+    function startGlide() {
+        if (done || gliding) return;
+        gliding = true;
+        if (!started) { started = true; pinAnchors(); } // geometry freezes
+        // The hero photo sharpens in step with the glide (its focus
+        // effect in index.html listens for this): sharp at the landing,
+        // not after scroll the intro has been holding at zero.
+        try { window.dispatchEvent(new CustomEvent('jbo:introglide')); } catch (e) { /* older engine: the hero keeps its scroll sharpening */ }
+        // Safety net: whatever happens to the animation, the page must
+        // never stay locked — land the intro by hand if it overruns.
+        setTimeout(function () { if (gliding && !done) completeGlide(); }, GLIDE_MS + 500);
+        if (logo.animate && bg.animate) {
+            var k = buildKeyframes();
+            var timing = { duration: GLIDE_MS, easing: 'linear', fill: 'forwards' };
+            anims = [logo.animate(k.logo, timing), bg.animate(k.bg, timing)];
+            if (hint && hint.animate) anims.push(hint.animate(k.hint, timing));
+            anims[0].onfinish = completeGlide;
         } else {
-            vy = vyTarget;
-            apply();
+            var t0 = null;
+            var step = function (ts) {
+                if (done) { rafId = null; return; }
+                if (t0 === null) t0 = ts;
+                var p = clamp01((ts - t0) / GLIDE_MS);
+                applyAt(p);
+                if (p >= 1) { rafId = null; completeGlide(); return; }
+                rafId = requestAnimationFrame(step);
+            };
+            rafId = requestAnimationFrame(step);
         }
     }
-    function ensureLoop() {
-        if (rafId === null && !done) {
-            lastTs = null;
-            rafId = requestAnimationFrame(tick);
-        }
+    function completeGlide() {
+        if (done) return;
+        // Write the final frame as inline styles first, then cancel the
+        // animations: the mark on screen does not move a fraction when
+        // control passes from the animation to the settled state, and
+        // finish()'s class swap (overlay hides, header logo shows) is
+        // invisible because the flying mark already wears the header
+        // mark's exact box and corner radius.
+        applyAt(1);
+        for (var i = 0; i < anims.length; i++) { try { anims[i].cancel(); } catch (e) {} }
+        anims = [];
+        finish();
     }
     function setLocked(on) {
         document.documentElement.classList.toggle('logo-intro-locked', on);
@@ -330,14 +366,13 @@ function initLogoIntro() {
     function finish() {
         if (done) return;
         done = true;
-        vy = range;
-        apply();
+        gliding = false;
         setLocked(false);
         document.documentElement.classList.add('logo-intro-done');
         intro.style.pointerEvents = 'none';
         detach();
     }
-    // First input pins the logo (and the hint) to pixel anchors. Both are
+    // Glide start pins the logo (and the hint) to pixel anchors. Both are
     // CSS-centred (left/top 50%), so a viewport-height change mid-gesture
     // — the iOS toolbar showing or hiding — would otherwise re-centre
     // them in the new box and jump the logo even with the morph maths
@@ -357,17 +392,11 @@ function initLogoIntro() {
             hint.style.transform = 'none';
         }
     }
-    function advance(d) {
-        if (done) return;
-        if (!started) { started = true; pinAnchors(); } // geometry freezes
-        if (committed) { // settled-ward only: input can no longer reverse
-            vyTarget = range;
-            ensureLoop();
-            return;
-        }
-        vyTarget = Math.max(0, Math.min(range, vyTarget + d));
-        ensureLoop();
-    }
+    // Scroll intent only STARTS the glide; it never steers it. A few px
+    // of accumulated forward input is a deliberate gesture (one small
+    // swipe or a single wheel notch is always far more), and from that
+    // moment the choreography runs itself into the landing.
+    var wheelAcc = 0, touchAcc = 0;
     function normDelta(e) {
         var d = e.deltaY || 0;
         if (e.deltaMode === 1) d *= 16;                       // lines -> px
@@ -377,7 +406,12 @@ function initLogoIntro() {
     function onWheel(e) {
         if (done) return; // normal scrolling resumes after the intro
         e.preventDefault();
-        advance(normDelta(e));
+        if (gliding) return;
+        var d = normDelta(e);
+        if (d > 0) {
+            wheelAcc += d;
+            if (wheelAcc >= TRIGGER_PX) startGlide();
+        }
     }
     var lastTouchY = null;
     function onTouchStart(e) {
@@ -388,28 +422,31 @@ function initLogoIntro() {
         if (done || lastTouchY === null || !e.touches || !e.touches.length) return;
         e.preventDefault();
         var y = e.touches[0].clientY;
-        advance(lastTouchY - y); // swipe up = scroll down = morph forward
+        var d = lastTouchY - y; // swipe up = scroll intent
         lastTouchY = y;
+        if (gliding) return;
+        if (d > 0) {
+            touchAcc += d;
+            if (touchAcc >= TRIGGER_PX) startGlide();
+        }
     }
-    function onTouchEnd() { lastTouchY = null; }
+    function onTouchEnd() { lastTouchY = null; touchAcc = 0; }
     function isFormTarget(t) {
         return t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' ||
             t.tagName === 'TEXTAREA' || t.isContentEditable);
     }
     function onKey(e) {
         if (done || isFormTarget(e.target)) return;
-        var step = 0;
         switch (e.key) {
-            case 'ArrowDown': step = 120; break;
-            case 'PageDown': case ' ': step = Math.round(window.innerHeight * 0.9); break;
-            case 'End': step = range; break;
-            case 'ArrowUp': step = -120; break;
-            case 'PageUp': step = -Math.round(window.innerHeight * 0.9); break;
-            case 'Home': step = -range; break;
+            case 'ArrowDown': case 'PageDown': case ' ': case 'End':
+                e.preventDefault();
+                startGlide();
+                break;
+            case 'ArrowUp': case 'PageUp': case 'Home':
+                e.preventDefault(); // at rest there is nothing to reverse
+                break;
             default: return;
         }
-        e.preventDefault();
-        advance(step);
     }
     function onScroll() {
         // Safety net: the page must stay pinned while the intro runs. The
@@ -420,13 +457,12 @@ function initLogoIntro() {
         }
     }
     function onResize() {
-        // iOS fires resize when the Safari toolbar shows or hides during
-        // a drag. Re-measuring then recomputes the range (a fraction of
-        // innerHeight) and both anchor rects mid-morph, so the progress
-        // and the logo's path jump in a single frame. The geometry is
-        // measured once at rest and frozen at the first input; a resize
-        // before any input (a genuine orientation change) still lands
-        // the logo correctly.
+        // iOS fires resize when the Safari toolbar shows or hides. The
+        // geometry is measured once at rest and frozen when the glide
+        // starts — the glide's keyframes are already computed, so a
+        // resize mid-glide recomputes nothing and the logo's path
+        // cannot jump. A resize before the glide (a genuine orientation
+        // change) still re-measures and lands the logo correctly.
         if (started) return;
         measure();
     }
