@@ -43,6 +43,16 @@
         </a>
         <div class="site-nav-right">
             <a class="golden-star" href="bitcoin.html#btc-value" title="Rare buy — Johnny's ₿ Indicator is in its buy band" aria-label="Rare buy — Johnny's ₿ Indicator is in its buy band" hidden><span class="golden-star-stars" aria-hidden="true">●</span></a> <a class="golden-star top-star" href="bitcoin.html#btc-value" title="Rare sell — Johnny's ₿ Indicator is in its sell band" aria-label="Rare sell — Johnny's ₿ Indicator is in its sell band" hidden><span class="golden-star-stars" aria-hidden="true">●</span></a> <a class="golden-star hold-star" href="bitcoin.html#btc-value" title="Hold — Johnny's ₿ Indicator is between its buy band and its sell band" aria-label="Hold — Johnny's ₿ Indicator is between its buy band and its sell band" hidden><span class="golden-star-stars" aria-hidden="true">●</span></a>
+            <!-- Live spot price (2026-11-20): filled by the polling script
+                 at the end of the body; empty until the first real Coinbase
+                 price lands, in a fixed-width slot, so the header never
+                 moves when the number arrives or changes. The price is a
+                 link to the valuation section — the indicator dot's exact
+                 destination — so the dot and the price act as one tappable
+                 unit. The id stays on the link, so the polling script fills
+                 it unchanged; the aria-label names the link once, so the
+                 five-second text updates never rename it. -->
+            <a class="btc-header-price" id="btcHeaderPrice" href="bitcoin.html#btc-value" aria-label="Live Bitcoin price — go to the valuation section"></a>
             <div class="site-nav-menu">
                 <button class="site-nav-toggle" id="nav-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="nav-menu">Explore pages ▾</button>
                 <div class="site-nav-dropdown" id="nav-menu" role="menu">
@@ -424,6 +434,34 @@
             .tier-body { padding: 18px 10px 6px; }
         }
         @media (prefers-reduced-motion: reduce) { .guidance-toggle { transition: none; } }
+        /* Live header price (2026-11-23, site-wide format unification):
+           the header is the Bitcoin page's header on every page — logo,
+           indicator dot and live Bitcoin price grouped, then Explore
+           pages and the theme switch. The price slot's width is FIXED —
+           9.4ch, sized for the widest plausible string ($9,999,999) in
+           tabular figures — so an update swaps text only: no box moves.
+           Bitcoin orange #f7931a on the dark header; the light theme
+           takes the deeper tint #a35c06 (contrast, colour only). Below
+           480px the figures step down a touch; below 380px the header
+           cluster tightens and below 360px the page padding narrows, so
+           logo, dot, price, Explore and the switch fit one row. These
+           rules are the Bitcoin page's own, copied unchanged. */
+        .btc-header-price { display: inline-block; flex-shrink: 0; width: 9.4ch; padding: 6px 0; font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; font-size: 0.85rem; font-weight: 600; font-variant-numeric: tabular-nums; color: #f7931a; text-decoration: none; white-space: nowrap; line-height: 1; }
+        body.light-mode .btc-header-price { color: #a35c06; }
+        .btc-header-price:hover { text-decoration: none; opacity: 1; }
+        @media (max-width: 480px) {
+            .btc-header-price { font-size: 0.82rem; }
+        }
+        @media (max-width: 380px) {
+            .site-nav { gap: 6px; }
+            .site-nav-right { gap: 4px; }
+            .site-nav-toggle { padding: 0 8px; font-size: 0.79rem; }
+            .site-brand-logo { width: 25px; height: 25px; }
+            .btc-header-price { font-size: 0.78rem; width: 9.2ch; }
+        }
+        @media (max-width: 360px) {
+            body { padding: 0 11px; }
+        }
     </style>
 
     <!-- START HERE: what this page offers -->
@@ -1760,5 +1798,54 @@
         });
     })();
 </script>
+    <script>
+    /* Live header price (2026-11-23, site-wide format unification):
+       Bitcoin's spot price beside the header's indicator dot, from
+       the same Coinbase spot endpoint and on the same five-second
+       poll as the Bitcoin page's header. The slot is fixed-width, so
+       an update is a text swap only: nothing moves, and scroll and
+       focus are never touched. A failed fetch keeps the last real
+       price on screen; the slot is only ever filled with a fetched
+       price. The poller also publishes window.BTC_LIVE, the registry
+       the Bitcoin page's charts read; nothing on this page consumes
+       it, so there it is inert. */
+    window.BTC_LIVE = window.BTC_LIVE || (function () {
+        var subs = [], value = null;
+        return {
+            get: function () { return value; },
+            onChange: function (fn) {
+                subs.push(fn);
+                if (value !== null) { try { fn(value); } catch (e) {} }
+            },
+            _set: function (v) {
+                if (!(v > 0) || v === value) { return; }
+                value = v;
+                for (var i = 0; i < subs.length; i++) { try { subs[i](v); } catch (e) {} }
+            }
+        };
+    })();
+    (function () {
+        var el = document.getElementById('btcHeaderPrice');
+        if (!el || !window.fetch) { return; }
+        var last = null;
+        function tick() {
+            fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(function (r) {
+                if (!r.ok) { throw new Error('HTTP ' + r.status); }
+                return r.json();
+            }).then(function (j) {
+                var v = parseFloat(j && j.data && j.data.amount);
+                if (!(v > 0)) { return; }
+                if (window.BTC_LIVE) { window.BTC_LIVE._set(v); }
+                var s = '$' + Math.round(v).toLocaleString('en-US');
+                if (s !== last) { last = s; el.textContent = s; }
+            }).catch(function () { /* keep the last real price */ });
+        }
+        tick();
+        setInterval(function () { if (!document.hidden) { tick(); } }, 5000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) { tick(); }
+        });
+    })();
+    </script>
 </body>
 </html>
