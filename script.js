@@ -186,11 +186,28 @@ document.addEventListener('DOMContentLoaded', function () {
    continuous rAF loop eases the rendered progress toward it with
    frame-rate-independent damping (the Lenis / GSAP-scrub pattern), so
    stepped mouse-wheel notches become one smooth glide and the logo and
-   the green move as a single gesture on one master progress. */
+   the green move as a single gesture on one master progress.
+   Settle-once (2026-11-24): the morph scrubs freely only up to a commit
+   point at half the range — past it the target pins to the end of the
+   range and the glide runs into the landing, so input can never reverse
+   the intro back over content it had already revealed. The landing
+   geometry is measured once at rest and frozen at the first input, and
+   the logo and hint are pinned to pixel anchors, so an iOS toolbar
+   resize mid-gesture cannot move the anchors and jump the logo. The
+   "Scroll to start" hint is written from the same master progress on
+   this frame path (no MutationObserver re-deriving it). */
 function initLogoIntro() {
     var intro = document.getElementById('logo-intro');
     if (!intro) return;
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // Late-load guard: if script.js arrived after the boot failsafe had
+    // already hidden the intro, never pop it in over the page — the
+    // visitor already has the normal header.
+    if (window.__logoIntroLate) {
+        document.documentElement.classList.remove('logo-intro-on');
+        window.__logoIntroReady = true;
+        return;
+    }
     // One-shot: if the page loads already scrolled, skip the intro — the
     // logo is already in the header.
     if ((window.scrollY || window.pageYOffset || 0) > 0) {
@@ -200,6 +217,7 @@ function initLogoIntro() {
     }
     var logo = document.getElementById('logo-intro-logo');
     var bg = intro.querySelector('.logo-intro-bg');
+    var hint = document.getElementById('logo-intro-hint');
     var brand = document.querySelector('.site-brand-logo');
     if (!logo || !bg || !brand) return;
     document.documentElement.classList.add('logo-intro-on');
@@ -207,6 +225,9 @@ function initLogoIntro() {
     var vyTarget = 0; // virtual scroll px accumulated from input, 0..range
     var vy = 0;       // rendered progress: eased toward vyTarget every frame
     var done = false; // one-shot: once landed, the intro never re-engages
+    var committed = false; // settle-once: past the commit point the morph
+                           // only ever runs forward into its landing
+    var started = false;   // first input freezes the measured geometry
     var rafId = null, lastTs = null;
     function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
     function smooth(t) { return t * t * (3 - 2 * t); }
@@ -249,7 +270,14 @@ function initLogoIntro() {
         // the user called glitchy.
         var bgOpacity = 1 - easeOutCubic(clamp01(p / 0.75));
         bg.style.opacity = bgOpacity.toFixed(3);
-        intro.style.pointerEvents = bgOpacity <= 0.02 ? 'none' : 'auto';
+        // "Scroll to start" rides the same master progress: full at rest
+        // (its CSS base opacity), gone by p = 0.35, early in the morph.
+        // Written here on the frame path; the previous inline script
+        // re-derived p from the bg opacity write via a MutationObserver
+        // firing on every frame — observer work on the frame path.
+        if (hint) hint.style.opacity = (0.75 * (1 - clamp01(p / 0.35))).toFixed(3);
+        var pe = bgOpacity <= 0.02 ? 'none' : 'auto';
+        if (intro.style.pointerEvents !== pe) intro.style.pointerEvents = pe;
     }
     // Damped render loop (Lenis / GSAP-scrub pattern): input sets the
     // target, the loop eases the rendered value toward it every frame,
@@ -264,6 +292,18 @@ function initLogoIntro() {
         lastTs = ts;
         var k = 1 - Math.exp(-dt * 0.009);
         vy += (vyTarget - vy) * k;
+        // Settle once: at half the range the green is ~96% gone and the
+        // logo is more than halfway home — from there the morph commits.
+        // The old code stayed reversible all the way to p = 1, so the
+        // band between the green reaching zero (p = 0.75) and the finish
+        // looked fully settled yet any upward swipe reversed it and the
+        // whole intro — green, logo, hint — popped back over the page
+        // (Johnny's video, 2026-11-24). Committing here closes that band:
+        // the glide simply runs the remaining half into the landing.
+        if (!committed && vy >= range * 0.5) {
+            committed = true;
+            vyTarget = range;
+        }
         if (vyTarget >= range && range - vy < 0.5) {
             vy = range;
             apply();
@@ -297,8 +337,34 @@ function initLogoIntro() {
         intro.style.pointerEvents = 'none';
         detach();
     }
+    // First input pins the logo (and the hint) to pixel anchors. Both are
+    // CSS-centred (left/top 50%), so a viewport-height change mid-gesture
+    // — the iOS toolbar showing or hiding — would otherwise re-centre
+    // them in the new box and jump the logo even with the morph maths
+    // frozen. The pin writes exactly the box each element already
+    // occupies, so the frame it lands on is unchanged; from then on only
+    // the transform moves the logo.
+    function pinAnchors() {
+        if (start) {
+            logo.style.left = start.cx + 'px';
+            logo.style.top = start.cy + 'px';
+        }
+        if (hint) {
+            var hr = hint.getBoundingClientRect();
+            hint.style.left = hr.left + 'px';
+            hint.style.top = hr.top + 'px';
+            hint.style.marginTop = '0';
+            hint.style.transform = 'none';
+        }
+    }
     function advance(d) {
         if (done) return;
+        if (!started) { started = true; pinAnchors(); } // geometry freezes
+        if (committed) { // settled-ward only: input can no longer reverse
+            vyTarget = range;
+            ensureLoop();
+            return;
+        }
         vyTarget = Math.max(0, Math.min(range, vyTarget + d));
         ensureLoop();
     }
@@ -353,7 +419,17 @@ function initLogoIntro() {
             window.scrollTo(0, 0);
         }
     }
-    function onResize() { measure(); }
+    function onResize() {
+        // iOS fires resize when the Safari toolbar shows or hides during
+        // a drag. Re-measuring then recomputes the range (a fraction of
+        // innerHeight) and both anchor rects mid-morph, so the progress
+        // and the logo's path jump in a single frame. The geometry is
+        // measured once at rest and frozen at the first input; a resize
+        // before any input (a genuine orientation change) still lands
+        // the logo correctly.
+        if (started) return;
+        measure();
+    }
     function detach() {
         if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
         window.removeEventListener('wheel', onWheel);
