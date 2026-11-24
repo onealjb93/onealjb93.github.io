@@ -8,7 +8,9 @@ photo references that were current on build day. This script re-derives
 every doorway's og:title / og:description / og:image — and the three photo
 page-cards — from the CURRENT sources of truth in the repo checkout:
 
-    recipes.html        recipe titles + the photos embedded as data URIs
+    recipes.html        recipe titles + photos (data URIs, or the
+                        images/ files the page references since the
+                        2026-11-21 photo extraction)
     sustainability.html example names, hooks and photos
     media.html          book titles, authors, ratings
     random.html         the POOLS data (photo entries + stage URLs)
@@ -417,6 +419,23 @@ class Refresher:
             self.class_failures.append(name)
         return out
 
+    def _photo_bytes(self, src):
+        """A recipe photo's bytes, from wherever the page carries
+        the photo: a base64 data URI (the page's original form) or
+        the images/ file the src references (the form since the
+        2026-11-21 extraction moved the photos out of the page and
+        into standalone files beside it). Either way the bytes are
+        the photo itself, stored byte-for-byte exactly as before."""
+        if src.startswith('data:'):
+            mime, b64 = src[5:].split(';base64,', 1)
+            assert mime == 'image/jpeg', 'photo mime %s' % mime
+            return base64.b64decode(b64)
+        rel = src.split('?', 1)[0].split('#', 1)[0].lstrip('/')
+        assert rel, 'photo has no src'
+        raw = read_bytes(self.path(rel))
+        assert raw[:2] == b'\xff\xd8', 'photo not a JPEG: %s' % src
+        return raw
+
     # ---- recipes -------------------------------------------------------
     def derive_recipes(self, doc):
         """Returns {recipe_id: photo_bytes} for the page-card step."""
@@ -429,10 +448,7 @@ class Refresher:
                 name = text_of(title_el, skip_class='standout-badge')
                 photo = by_class(w, 'recipe-card-photo')
                 src = photo[0].get('src') or ''
-                assert src.startswith('data:'), 'photo not a data URI'
-                mime, b64 = src[5:].split(';base64,', 1)
-                assert mime == 'image/jpeg', 'photo mime %s' % mime
-                raw = base64.b64decode(b64)
+                raw = self._photo_bytes(src)
                 photos[rid] = raw
                 write_if_changed(self.path('s', 'img',
                                            'recipe-%s.jpg' % rid),
