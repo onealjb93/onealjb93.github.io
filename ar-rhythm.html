@@ -6,12 +6,12 @@
     <meta name="color-scheme" content="dark light">
     <meta name="darkreader-lock">
     <title>AR World - Johnny O'Neal</title>
-    <meta name="description" content="AR World — three camera toys in one place. Threads: weave a web of light strings with your hands and play it. Cloth: press and pull a hanging sheet of silk. Art: paint ribbons of light in the air.">
+    <meta name="description" content="AR World — three camera toys in one place. Threads: weave a web of light strings with your hands and play it. Cloth: grab, move, pin and put down a sheet of silk. Art: paint ribbons of light in the air.">
     <link rel="canonical" href="https://johnny-oneal.com/ar-rhythm.html">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Johnny O'Neal">
     <meta property="og:title" content="AR World - Johnny O'Neal">
-    <meta property="og:description" content="AR World — three camera toys in one place. Threads: weave a web of light strings with your hands and play it. Cloth: press and pull a hanging sheet of silk. Art: paint ribbons of light in the air.">
+    <meta property="og:description" content="AR World — three camera toys in one place. Threads: weave a web of light strings with your hands and play it. Cloth: grab, move, pin and put down a sheet of silk. Art: paint ribbons of light in the air.">
     <meta property="og:url" content="https://johnny-oneal.com/ar-rhythm.html">
     <meta property="og:image" content="https://johnny-oneal.com/og-games.jpg">
     <meta property="og:image:width" content="1200">
@@ -19,7 +19,7 @@
     <meta property="og:image:alt" content="AR World — Threads, Cloth and Art">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="AR World - Johnny O'Neal">
-    <meta name="twitter:description" content="AR World — three camera toys in one place. Threads: weave a web of light strings with your hands and play it. Cloth: press and pull a hanging sheet of silk. Art: paint ribbons of light in the air.">
+    <meta name="twitter:description" content="AR World — three camera toys in one place. Threads: weave a web of light strings with your hands and play it. Cloth: grab, move, pin and put down a sheet of silk. Art: paint ribbons of light in the air.">
     <meta name="twitter:image" content="https://johnny-oneal.com/og-games.jpg">
     <link rel="icon" type="image/png" href="JBO%20Logo.%20green%20background.png">
     <link rel="apple-touch-icon" href="JBO%20Logo.%20green%20background.png">
@@ -903,15 +903,16 @@
             <div class="cloth-rod" id="clothRod" hidden></div>
             <div class="cloth-cursor" id="clothCursor"></div>
             <div class="cloth-note" id="clothNote" role="status"></div>
-            <div class="cloth-hint" id="clothHint" role="status" hidden>Press and drag to push the cloth — hold Shift, or touch with two fingers, to grab and pull</div>
+            <div class="cloth-hint" id="clothHint" role="status" hidden>Press and drag to push the cloth — hold Shift, or touch with two fingers, to grab a handful and pull. Hold a handful still to pin it</div>
             <div class="cloth-controls" id="clothControls" hidden>
                 <button class="cloth-btn" id="clothReset" type="button">Reset cloth</button>
             </div>
             <div class="cloth-start" id="clothStart">
                 <div class="cloth-start-panel">
                     <div class="cloth-start-title">Cloth</div>
-                    <p>One piece of silk, pinned along its top edge. Your fingertip presses it;
-                       a pinch catches it and pulls — watch the wrinkles gather.</p>
+                    <p>One piece of silk, put down in front of you. Your fingertip presses it;
+                       a pinch catches a handful and pulls. Hold a handful still to pin it
+                       there; let go and it drops — and stays where it lands.</p>
                     <button class="cloth-start-btn" id="clothStartBtn" type="button">Start camera</button>
                     <button class="cloth-touch-link" id="clothTouchBtn" type="button">Use touch instead</button>
                     <p class="cloth-start-status" id="clothStartStatus"></p>
@@ -2960,10 +2961,16 @@
     // ================================================================
     // Threads — Cloth (prototype, standalone; does not touch Threads)
     //
-    // A verlet point-and-spring sheet, pinned along its top edge,
-    // rendered as silk: per-vertex normals, wrap diffuse, Blinn-Phong
-    // plus a Kajiya-Kay streak along the warp, a fresnel sheen, and a
-    // procedural weave. Camera mode reuses Threads' plumbing:
+    // A verlet point-and-spring sheet at a declared real scale (the
+    // sheet is 1.0 m wide; gravity is a true 9.8 m/s^2), simulated at
+    // a fixed 120 Hz with air drag on the sheet's face. It starts put
+    // down on the floor of the lower frame; the player holds a
+    // handful by pinching, moves it, pins it by holding still, and
+    // puts it down by letting go. Rendered as silk: per-vertex
+    // normals with woven micro-normals, wrap diffuse, Blinn-Phong
+    // plus a Kajiya-Kay streak along the warp, a fresnel sheen,
+    // crease self-shadowing, a contact shadow, and camera grain.
+    // Camera mode reuses Threads' plumbing:
     // MediaPipe Hands from the jsDelivr CDN, cover-fit landmark
     // mapping, the pinch recogniser with hysteresis / two-frame
     // confirmation / three-frame dropout grace, and mirroring always
@@ -3002,39 +3009,70 @@
     var DX = REST_W / (COLS - 1);                   // rest spacing x (0.10)
     var DY = DX;                                    // square weave
     var REST_H = DY * (ROWS - 1);                   // 1.80
-    var TOP_Y = 0.98;                               // pin line height (world)
-    var GRAV = -5.5;
-    var DAMP = 0.985;                               // velocity kept per step
-    var DT = 1 / 60;
-    var ITERS = 3;
+    var TOP_Y = 0.98;                               // (legacy) old pin line; nothing hangs from it now
+    // Scale, declared: the sheet is 1.0 m wide, so one world unit is
+    // 1 / 2.40 m and real gravity (9.8 m/s^2) is -23.5 units/s^2.
+    // The old build ran GRAV -5.5 with DAMP 0.985 per step: the sheet
+    // took about a second to reach a parachute terminal speed, which
+    // is why it felt floaty. Now gravity is real, in-plane damping is
+    // light, and the braking comes from air drag on the face of the
+    // sheet (normal direction, speed-dependent): a falling sheet
+    // billows and brakes like fabric; an edge-on sheet falls fast.
+    var M_PER_UNIT = 1.0 / REST_W;                  // metres per world unit
+    var GRAV = -9.8 / M_PER_UNIT;                   // -23.5 units/s^2
+    var DT = 1 / 120;                               // fixed step: feel is frame-rate independent
+    var ITERS = 2;                                  // constraint passes per 120 Hz substep (4 per 60 Hz): fabric, not jelly
+    var VEL_KEEP = Math.exp(-0.25 * DT);            // light in-plane damping per step
+    var AIR_K = 3.0;                                // normal air-drag coefficient
     var MAX_STEP_MOVE = 0.09;                       // per-step displacement clamp (stability)
+    var FLOOR_Y = null;                             // world y of the floor (set by fitCamera)
+    var FLOOR_FRICTION = 0.55;                      // tangential velocity kept per floor-contact step
 
     var pos = new Float32Array(N * 3);
     var prev = new Float32Array(N * 3);
     var pinned = new Uint8Array(N);
     var pinPos = new Float32Array(N * 3);
+    var pressed = new Uint8Array(N);        // points a press contact is moving this step (exempt from the static floor lock)
+    var gripTarget = new Float32Array(N);   // handful highlight per point (rendering)
+    var gripCur = new Float32Array(N);
+    var pinAttr = new Float32Array(N);      // 1 where the player has pinned (rendering)
+    var pinAttrDirty = true;
 
     function idx(i, j) { return j * COLS + i; }
 
     function seedCloth() {
+        // The sheet starts PUT DOWN: a soft pile on the floor in the
+        // lower frame — rows layered front-to-back in z, gathered
+        // narrower than its rest width so the slack sits in folds.
+        // Nothing is pinned and nothing hangs: no cloth over the
+        // face, ever, unless his own hand or pins put it there.
+        quietSteps = 0; sleeping = false;
+        var fy = (FLOOR_Y === null ? -0.92 : FLOOR_Y);
         for (var j = 0; j < ROWS; j++) {
             for (var i = 0; i < COLS; i++) {
                 var k = idx(i, j), k3 = k * 3;
-                var x, y = TOP_Y - j * DY, z;
-                if (j === 0) {
-                    x = -PIN_SPAN / 2 + i * (PIN_SPAN / (COLS - 1));
-                    z = 0;
-                    pinned[k] = 1;
-                } else {
-                    x = -REST_W / 2 + i * DX;
-                    // seed a gentle asymmetric ripple so folds choose sides honestly
-                    z = 0.012 * Math.sin(i * 0.65 + j * 0.4) + 0.007 * Math.sin(i * 1.7 - j * 0.9);
-                }
+                var u = i / (COLS - 1), v = j / (ROWS - 1);
+                // Laid out near rest spacing (a compressed stack is a
+                // spring block that creeps outward for seconds — the
+                // first pile seed did exactly that), in loose fold
+                // ridges running across the sheet.
+                var x = -1.10 + u * 2.20;
+                var z = -0.75 + v * 1.50;
+                var y = fy + 0.02
+                    + 0.045 * Math.pow(Math.abs(Math.sin(v * 9.4 + 0.6)), 1.5) * (0.7 + 0.3 * Math.sin(u * 5.0))
+                    + 0.030 * Math.sin(u * 7.3 + v * 4.1)
+                    + 0.015 * Math.sin(u * 19.0 - v * 13.0);
+                // A dropped sheet never lands as a perfect rectangle:
+                // edges wander a little, and one corner tucks under.
+                x *= 1 - 0.028 * Math.sin(v * 12.9 + 1.1) - 0.018 * Math.sin(u * 15.7);
+                z += 0.03 * Math.sin(u * 11.3 + v * 5.2);
+                if (i < 4 && j > ROWS - 5) { z -= 0.16 * (1 - i / 4); y += 0.028 * (1 - i / 4); }
                 pos[k3] = x; pos[k3 + 1] = y; pos[k3 + 2] = z;
                 prev[k3] = x; prev[k3 + 1] = y; prev[k3 + 2] = z;
-                if (pinned[k]) { pinPos[k3] = x; pinPos[k3 + 1] = y; pinPos[k3 + 2] = z; }
+                pinned[k] = 0;
             }
         }
+        refreshPinAttr();
     }
 
     // ---------------- springs ----------------
@@ -3090,12 +3128,23 @@
     // contacted point is pushed away from the viewer, never through it.
     var PRESS_Z = 0.04;      // sphere centre when fully pressed
     var HOVER_Z = 0.30;      // sphere centre when just touching
-    var GRAB_R = 0.40;       // grab search radius
-    var GRAB_Z = 0.14;       // grabbed point pulls this far toward the viewer
+    var GRAB_R = 0.40;       // grab search radius (for the patch centre)
+    var GRAB_Z = 0.14;       // grabbed patch pulls this far toward the viewer
+    // The four verbs (Johnny, 2026-11-23): HOLD = pinch a PATCH — a
+    // weighted handful of points, not one vertex (a one-vertex grab
+    // both missed easily and spiked the sheet). MOVE = drag while
+    // pinched. PUT = let go: it falls, drapes where it lands, stays.
+    // PIN = hold a grabbed patch still for PIN_DWELL_MS: the patch
+    // fastens where it is. Pinch a pinned patch to free it.
+    var PATCH_R = 0.36;      // unpin radius (world units)
+    var PATCH_CELLS = 3.2;   // handful radius along the fabric (grid cells)
+    var PIN_DWELL_MS = 500;  // hold-still time that turns a grab into a pin
+    var PIN_STILL_SPEED = 0.15; // hand speed (units/s) under which a grab counts as still
 
     function makeContact(id) {
         return { id: id, active: false, x: 0, y: 0, tx: 0, ty: 0, prevX: 0, prevY: 0,
-                 press: 0, grabbing: false, grabK: -1, speed: 0 };
+                 lastTx: 0, lastTy: 0, press: 0, grabbing: false, grabK: -1, grabPts: null,
+                 dwellMs: 0, holdBlock: false, speed: 0 };
     }
 
     function nearestPoint(x, y, maxR) {
@@ -3110,43 +3159,141 @@
     }
 
     function beginGrab(c) {
-        var k = nearestPoint(c.tx, c.ty, GRAB_R);
-        if (k >= 0) { c.grabbing = true; c.grabK = k; }
+        // A pinch landing on pinned fabric frees that patch first.
+        var freed = false;
+        for (var k = 0; k < N; k++) {
+            if (!pinned[k]) continue;
+            var fx = pos[k * 3] - c.tx, fy = pos[k * 3 + 1] - c.ty;
+            if (fx * fx + fy * fy <= PATCH_R * PATCH_R) { pinned[k] = 0; freed = true; }
+        }
+        if (freed) refreshPinAttr();
+        var centre = nearestPoint(c.tx, c.ty, GRAB_R);
+        if (centre < 0) { refreshGripAttr(); return false; }
+        // The handful: a disc measured ALONG THE FABRIC (grid cells
+        // from the centre point), not through space — in a compressed
+        // pile a spatial disc would swallow a third of the sheet
+        // (measured: 171 of 475 points), while a 3-cell disc is a
+        // handful (~29 points) in every state of the cloth. Each
+        // point keeps its offset from the grab point so the patch
+        // moves as fabric in fingers, not as one spike.
+        var ci = centre % COLS, cj = (centre / COLS) | 0, cz = pos[centre * 3 + 2];
+        var pts = [];
+        for (k = 0; k < N; k++) {
+            if (pinned[k]) continue;
+            var di = (k % COLS) - ci, dj = ((k / COLS) | 0) - cj;
+            var gd = Math.sqrt(di * di + dj * dj);
+            if (gd > PATCH_CELLS) continue;
+            var w = 0.35 + 0.65 * (0.5 + 0.5 * Math.cos(Math.PI * gd / PATCH_CELLS));
+            pts.push(k, w, pos[k * 3] - c.tx, pos[k * 3 + 1] - c.ty, pos[k * 3 + 2] - cz);
+        }
+        if (!pts.length) { refreshGripAttr(); return false; }
+        c.grabbing = true; c.grabK = centre; c.grabPts = pts; c.dwellMs = 0;
+        refreshGripAttr();
+        return true;
     }
-    function endGrab(c) { c.grabbing = false; c.grabK = -1; }
+    function endGrab(c) {
+        c.grabbing = false; c.grabK = -1; c.grabPts = null; c.dwellMs = 0;
+        refreshGripAttr();
+    }
+    function pinGrabbed(c) {
+        if (!c.grabPts) return;
+        for (var gi = 0; gi < c.grabPts.length; gi += 5) {
+            var k = c.grabPts[gi], k3 = k * 3;
+            pinned[k] = 1;
+            pinPos[k3] = pos[k3]; pinPos[k3 + 1] = pos[k3 + 1]; pinPos[k3 + 2] = pos[k3 + 2];
+        }
+        c.grabbing = false; c.grabK = -1; c.grabPts = null; c.dwellMs = 0;
+        c.holdBlock = true;   // the still-held pinch must open before it can grab again
+        refreshPinAttr();
+        refreshGripAttr();
+        showNote('Pinned. Pinch the pinned patch to free it.');
+    }
+    function refreshGripAttr() {
+        gripTarget.fill(0);
+        for (var id in contacts) {
+            var c = contacts[id];
+            if (!c.grabbing || !c.grabPts) continue;
+            for (var gi = 0; gi < c.grabPts.length; gi += 5) {
+                var k = c.grabPts[gi];
+                if (c.grabPts[gi + 1] > gripTarget[k]) gripTarget[k] = c.grabPts[gi + 1];
+            }
+        }
+    }
+    function refreshPinAttr() {
+        for (var k = 0; k < N; k++) pinAttr[k] = pinned[k] ? 1 : 0;
+        pinAttrDirty = true;
+    }
 
     // ---------------- physics ----------------
     var simT = 0;
+    var quietSteps = 0, sleeping = false;
     function stepPhysics() {
         simT += DT;
+        pressed.fill(0);
         var i, k, k3;
-        // integrate
+        // Sleep: a sheet that has been quiet for ~0.75 s is damped
+        // firmly to rest (the game-physics cure for slow payout
+        // creep — fold length otherwise pays out as a minutes-long
+        // crawl). Any active contact with intent wakes it instantly.
+        var disturbed = false;
+        for (var cid0 in contacts) {
+            var c0 = contacts[cid0];
+            if (c0.active && (c0.grabbing || c0.press > 0.05)) { disturbed = true; break; }
+        }
+        if (disturbed) { quietSteps = 0; sleeping = false; }
+        // Air drag reads the face normals the renderer computed for
+        // the previous frame (one frame of lag in drag direction is
+        // imperceptible, and it keeps normals off the step's cost).
+        var meanDisp = 0;
+        // integrate: real gravity, light in-plane damping, and air
+        // drag on the sheet's face — the velocity component along the
+        // normal is braked in proportion to its own speed, so a
+        // broadside fall billows to a fabric terminal speed while an
+        // edge-on fall stays fast. No fake wind: still air, real fall.
         for (k = 0; k < N; k++) {
             if (pinned[k]) continue;
             k3 = k * 3;
             var x = pos[k3], y = pos[k3 + 1], z = pos[k3 + 2];
-            var vx = (x - prev[k3]) * DAMP, vy = (y - prev[k3 + 1]) * DAMP, vz = (z - prev[k3 + 2]) * DAMP;
+            var vx = (x - prev[k3]) * VEL_KEEP, vy = (y - prev[k3 + 1]) * VEL_KEEP, vz = (z - prev[k3 + 2]) * VEL_KEEP;
+            var nx = normals[k3], ny = normals[k3 + 1], nz = normals[k3 + 2];
+            var vn = vx * nx + vy * ny + vz * nz;          // per-step displacement along the normal
+            var dragF = 1 - Math.exp(-AIR_K * Math.abs(vn));
+            vx -= nx * vn * dragF; vy -= ny * vn * dragF; vz -= nz * vn * dragF;
             var sp2 = vx * vx + vy * vy + vz * vz;
             if (sp2 > MAX_STEP_MOVE * MAX_STEP_MOVE) {
                 var s = MAX_STEP_MOVE / Math.sqrt(sp2);
                 vx *= s; vy *= s; vz *= s;
             }
-            var hang = (k / COLS | 0) / (ROWS - 1);        // 0 at pins, 1 at hem
-            var wx = 0.15 * Math.sin(simT * 0.6 + y * 1.5 + x * 0.4) * hang;
-            var wz = 0.10 * Math.sin(simT * 0.43 + x * 0.8 - y * 0.6) * hang;
+            if (sleeping) { vx *= 0.88; vy *= 0.88; vz *= 0.88; }
             prev[k3] = x; prev[k3 + 1] = y; prev[k3 + 2] = z;
-            pos[k3] = x + vx + wx * DT * DT;
+            pos[k3] = x + vx;
             pos[k3 + 1] = y + vy + GRAV * DT * DT;
-            pos[k3 + 2] = z + vz + wz * DT * DT;
+            pos[k3 + 2] = z + vz;
+            meanDisp += Math.sqrt(vx * vx + vy * vy + vz * vz);
         }
-        // ease contact press depth toward its target
+        if (!disturbed) {
+            if (meanDisp / N < 0.0012) { quietSteps++; if (quietSteps > 90) sleeping = true; }
+            else quietSteps = 0;
+        }
+        // ease contact press depth toward its target; run the pin dwell
         for (var id in contacts) {
             var c = contacts[id];
             if (!c.active) continue;
-            var target = c.grabbing ? 1 : 1;               // contact is binary here; depth handled below
             c.press += (1 - c.press) * 0.35;
             c.x += (c.tx - c.x) * 0.65;
             c.y += (c.ty - c.y) * 0.65;
+            var mvx = c.tx - c.lastTx, mvy = c.ty - c.lastTy;
+            c.lastTx = c.tx; c.lastTy = c.ty;
+            if (c.grabbing) {
+                // PIN dwell counts CONTINUOUS stillness only: any
+                // step at or above the still speed zeroes it, so a
+                // slow drag (which pauses between input events) can
+                // never accumulate its way into a pin.
+                var spd = Math.sqrt(mvx * mvx + mvy * mvy) / DT;
+                if (spd < PIN_STILL_SPEED) c.dwellMs += DT * 1000;
+                else c.dwellMs = 0;
+                if (c.dwellMs >= PIN_DWELL_MS) pinGrabbed(c);
+            }
         }
         // constraints
         for (var it = 0; it < ITERS; it++) {
@@ -3165,20 +3312,26 @@
                 pos[a3] += dx * fa; pos[a3 + 1] += dy * fa; pos[a3 + 2] += dz * fa;
                 pos[b3] -= dx * fb; pos[b3 + 1] -= dy * fb; pos[b3 + 2] -= dz * fb;
             }
-            // pins
-            for (k = 0; k < COLS; k++) {
-                k3 = idx(k, 0) * 3;
+            // pins (any point the player has pinned, anywhere)
+            for (k = 0; k < N; k++) {
+                if (!pinned[k]) continue;
+                k3 = k * 3;
                 pos[k3] = pinPos[k3]; pos[k3 + 1] = pinPos[k3 + 1]; pos[k3 + 2] = pinPos[k3 + 2];
             }
-            // contacts: grab pulls, press pushes (sphere constraint)
+            // contacts: grab pulls its patch, press pushes (sphere constraint)
             for (var cid in contacts) {
                 var ct = contacts[cid];
                 if (!ct.active) continue;
-                if (ct.grabbing && ct.grabK >= 0) {
-                    var g3 = ct.grabK * 3;
-                    pos[g3] += (ct.x - pos[g3]) * 0.34;
-                    pos[g3 + 1] += (ct.y - pos[g3 + 1]) * 0.34;
-                    pos[g3 + 2] += (GRAB_Z - pos[g3 + 2]) * 0.34;
+                if (ct.grabbing && ct.grabPts) {
+                    for (var gi = 0; gi < ct.grabPts.length; gi += 5) {
+                        var gk = ct.grabPts[gi], gw = ct.grabPts[gi + 1], g3 = gk * 3;
+                        var gx = ct.x + ct.grabPts[gi + 2], gy = ct.y + ct.grabPts[gi + 3];
+                        var gz = GRAB_Z + ct.grabPts[gi + 4] * 0.45;
+                        var blend = 0.30 * gw;
+                        pos[g3] += (gx - pos[g3]) * blend;
+                        pos[g3 + 1] += (gy - pos[g3 + 1]) * blend;
+                        pos[g3 + 2] += (gz - pos[g3 + 2]) * blend;
+                    }
                 } else {
                     var cz = HOVER_Z + (PRESS_Z - HOVER_Z) * ct.press;
                     var mvx = ct.x - ct.prevX, mvy = ct.y - ct.prevY;
@@ -3193,6 +3346,53 @@
                         pos[k3] += px * push + mvx * 0.38;
                         pos[k3 + 1] += py * push + mvy * 0.38;
                         pos[k3 + 2] += pz * push;
+                        pressed[k] = 1;
+                    }
+                }
+            }
+        }
+        // the floor: what is put down lands here and stays — into-
+        // floor velocity dies, tangential velocity is rubbed away by
+        // friction, so a dropped sheet piles and drapes instead of
+        // skating or springing back.
+        if (FLOOR_Y !== null) {
+            for (k = 0; k < N; k++) {
+                if (pinned[k]) continue;
+                k3 = k * 3;
+                if (pos[k3 + 1] < FLOOR_Y) {
+                    pos[k3 + 1] = FLOOR_Y;
+                    prev[k3 + 1] = pos[k3 + 1];
+                    // static lock on the floor itself: a slow point's
+                    // tangential step is mostly cancelled (springs
+                    // dragging a corner along the floor otherwise
+                    // slide it ~0.7 units at near-zero measured speed)
+                    var fvx = pos[k3] - prev[k3], fvz = pos[k3 + 2] - prev[k3 + 2];
+                    if (gripTarget[k] <= 0 && !pressed[k] && fvx * fvx + fvz * fvz < 0.004 * 0.004) {
+                        pos[k3] -= fvx * 0.95;
+                        pos[k3 + 2] -= fvz * 0.95;
+                    }
+                    prev[k3] = pos[k3] - (pos[k3] - prev[k3]) * FLOOR_FRICTION;
+                    prev[k3 + 2] = pos[k3 + 2] - (pos[k3 + 2] - prev[k3 + 2]) * FLOOR_FRICTION;
+                } else if (pos[k3 + 1] < FLOOR_Y + 0.22) {
+                    // Grounded band: cloth resting on cloth that rests
+                    // on the floor. The slow payout of fold length is
+                    // CONSTRAINT-driven (springs reposition points
+                    // directly), so velocity damping cannot stop it —
+                    // static friction must act on position: a slow
+                    // point's tangential step is mostly cancelled, the
+                    // way real cloth locks onto what it lies on. Fast
+                    // motion keeps only light dynamic friction, and
+                    // points in a player's handful are exempt (fingers
+                    // out-grip the floor).
+                    var tvx = pos[k3] - prev[k3], tvz = pos[k3 + 2] - prev[k3 + 2];
+                    if (gripTarget[k] > 0) {
+                        // held: no floor friction
+                    } else if (!pressed[k] && tvx * tvx + tvz * tvz < 0.004 * 0.004) {
+                        pos[k3] -= tvx * 0.95;
+                        pos[k3 + 2] -= tvz * 0.95;
+                    } else {
+                        prev[k3] = pos[k3] - tvx * 0.97;
+                        prev[k3 + 2] = pos[k3 + 2] - tvz * 0.97;
                     }
                 }
             }
@@ -3212,6 +3412,9 @@
         var needW = (PIN_SPAN * 0.60) / (tan * aspect);
         var needH = (REST_H * 0.62) / tan;
         camDist = Math.max(2.4, Math.min(14, Math.max(needW, needH)));
+        // The floor sits at 80% of the frame height (at the cloth
+        // plane): the lower frame is where the sheet lives at rest.
+        FLOOR_Y = camY - 0.60 * camDist * tan;
     }
     // world (z=plane) -> stage px
     function project(x, y, z) {
@@ -3233,33 +3436,87 @@
     // ---------------- WebGL rendering ----------------
     var gl = canvas.getContext('webgl', { alpha: true, antialias: false, preserveDrawingBuffer: true });
     var glOK = !!gl;
-    var prog, aPos, aNor, aTan, aUV, aEdge, uMVP, uCam, uTime;
-    var posBuf, norBuf, tanBuf, uvBuf, edgeBuf, idxBuf, nIdx = 0;
+    var prog, aPos, aNor, aTan, aUV, aEdge, aAO, aGrip, uMVP, uCam, uTime;
+    var progSh, shPos, shMVP, shOff, shCol;
+    var progPin, pinPosLoc, pinAttrLoc, pinMVP, pinScale;
+    var posBuf, norBuf, tanBuf, uvBuf, edgeBuf, idxBuf, aoBuf, gripBuf, pinBuf, nIdx = 0;
     var normals = new Float32Array(N * 3);
     var tangents = new Float32Array(N * 3);
+    var aoArr = new Float32Array(N);        // crease ambient occlusion per point
 
     var VS = [
         'attribute vec3 aPos; attribute vec3 aNor; attribute vec3 aTan;',
-        'attribute vec2 aUV; attribute float aEdge;',
+        'attribute vec2 aUV; attribute float aEdge; attribute float aAO; attribute float aGrip;',
         'uniform mat4 uMVP;',
         'varying vec3 vN; varying vec3 vT; varying vec3 vWp; varying vec2 vUv; varying float vEdge;',
-        'void main(){ vN = aNor; vT = normalize(aTan); vWp = aPos; vUv = aUV; vEdge = aEdge;',
+        'varying float vAO; varying float vGrip;',
+        'void main(){ vN = aNor; vT = normalize(aTan); vWp = aPos; vUv = aUV; vEdge = aEdge; vAO = aAO; vGrip = aGrip;',
         '  gl_Position = uMVP * vec4(aPos, 1.0); }'
+    ].join('\n');
+    // Contact shadow pass: the sheet drawn flat-dark, offset away
+    // from the light and pushed behind itself — a soft grounding
+    // shadow so the cloth sits IN the scene, not pasted on it.
+    var VS_SH = [
+        'attribute vec3 aPos;',
+        'uniform mat4 uMVP; uniform vec3 uOff;',
+        'void main(){ gl_Position = uMVP * vec4(aPos + uOff, 1.0); }'
+    ].join('\n');
+    var FS_SH = [
+        'precision mediump float;',
+        'uniform vec4 uCol;',
+        'void main(){ gl_FragColor = uCol; }'
+    ].join('\n');
+    // Pin markers: brass points at the player's pinned points, lit
+    // from the upper left like the rest of the scene.
+    var VS_PIN = [
+        'attribute vec3 aPos; attribute float aPin;',
+        'uniform mat4 uMVP; uniform float uScale;',
+        'varying float vPin;',
+        'void main(){ vPin = aPin;',
+        '  vec4 mv = uMVP * vec4(aPos, 1.0);',
+        '  if (aPin < 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }',
+        '  gl_Position = mv;',
+        '  gl_PointSize = uScale * 0.055 / max(0.1, mv.w); }'
+    ].join('\n');
+    var FS_PIN = [
+        'precision mediump float;',
+        'varying float vPin;',
+        'void main(){',
+        '  vec2 pc = gl_PointCoord - 0.5;',
+        '  float d = length(pc) * 2.0;',
+        '  if (d > 1.0) discard;',
+        '  vec3 col = mix(vec3(0.72, 0.55, 0.25), vec3(0.30, 0.21, 0.09), smoothstep(0.55, 1.0, d));',
+        '  float hl = smoothstep(0.55, 0.0, length(gl_PointCoord - vec2(0.34, 0.34)));',
+        '  col += vec3(0.35, 0.30, 0.18) * hl;',
+        '  gl_FragColor = vec4(col, 1.0);',
+        '}'
     ].join('\n');
     var FS = [
         'precision mediump float;',
         'varying vec3 vN; varying vec3 vT; varying vec3 vWp; varying vec2 vUv; varying float vEdge;',
+        'varying float vAO; varying float vGrip;',
         'uniform vec3 uCam; uniform float uTime; uniform sampler2D uWeave;',
         'void main(){',
         '  vec3 N = normalize(vN);',
         '  vec3 V = normalize(uCam - vWp);',
         '  if (dot(N, V) < 0.0) N = -N;',                       // silk reads from both sides
+        // woven micro-normals from the baked weave texture's own
+        // gradient (texture taps, not trig — per-pixel trig is the
+        // one thing software GL and phone batteries both hate): the
+        // weave is in the normals, not just the brightness, so light
+        // breaks over the threads as the sheet turns.
+        '  vec2 wUv = vUv * vec2(24.0, 18.0);',
+        '  float wC = texture2D(uWeave, wUv).r;',
+        '  float wX = texture2D(uWeave, wUv + vec2(0.0078, 0.0)).r;',
+        '  float wY = texture2D(uWeave, wUv + vec2(0.0, 0.0078)).r;',
+        '  vec3 Bt = normalize(cross(N, vT));',
+        '  N = normalize(N + (normalize(vT) * (wX - wC) + Bt * (wY - wC)) * 1.35);',
         '  vec3 L = normalize(vec3(-0.45, 0.75, 0.85));',
         '  vec3 Hv = normalize(L + V);',
         '  vec3 base = vec3(0.045, 0.335, 0.40);',             // peacock teal silk
         '  vec3 hemCol = vec3(0.030, 0.235, 0.285);',
         // woven texture (baked once): fine warp/weft modulation
-        '  float weave = texture2D(uWeave, vUv * vec2(24.0, 18.0)).r;',
+        '  float weave = wC;',
         '  base *= 0.94 + weave * 0.12;',
         '  float wrap = clamp((dot(N, L) + 0.55) / 1.55, 0.0, 1.0);',
         '  vec3 col = base * (0.36 + 0.78 * wrap);',
@@ -3286,6 +3543,16 @@
         '  float stitchBand = smoothstep(0.16, 0.05, abs(vEdge - 0.55));',
         '  float dash = step(0.45, fract((vUv.x * 24.0 + vUv.y * 18.0) * 2.2));',
         '  col += vec3(0.85, 0.78, 0.60) * stitchBand * dash * 0.35;',
+        // crease self-shadowing + the grabbed handful reads lighter,
+        // like fabric pulled toward the light in your fingers
+        '  col *= vAO;',
+        '  col = mix(col, col * 1.3 + vec3(0.04, 0.09, 0.10), vGrip * 0.75);',
+        // camera grain: the sheet shares the feed's noise floor, so
+        // it composites into the photograph instead of floating on
+        // it. The noise comes from the weave texture's own baked
+        // per-texel randomness, re-read at a scrambled scale.
+        '  float grn = texture2D(uWeave, vUv * vec2(61.7, 47.3) + mod(uTime, 7.0) * 0.013).g;',
+        '  col += (grn - 0.59) * 0.05;',
         '  gl_FragColor = vec4(col, 1.0);',
         '}'
     ].join('\n');
@@ -3309,11 +3576,32 @@
         aTan = gl.getAttribLocation(prog, 'aTan');
         aUV = gl.getAttribLocation(prog, 'aUV');
         aEdge = gl.getAttribLocation(prog, 'aEdge');
+        aAO = gl.getAttribLocation(prog, 'aAO');
+        aGrip = gl.getAttribLocation(prog, 'aGrip');
         uMVP = gl.getUniformLocation(prog, 'uMVP');
         uCam = gl.getUniformLocation(prog, 'uCam');
         uTime = gl.getUniformLocation(prog, 'uTime');
         posBuf = gl.createBuffer(); norBuf = gl.createBuffer(); tanBuf = gl.createBuffer();
         uvBuf = gl.createBuffer(); edgeBuf = gl.createBuffer(); idxBuf = gl.createBuffer();
+        aoBuf = gl.createBuffer(); gripBuf = gl.createBuffer(); pinBuf = gl.createBuffer();
+        progSh = gl.createProgram();
+        gl.attachShader(progSh, compile(gl.VERTEX_SHADER, VS_SH));
+        gl.attachShader(progSh, compile(gl.FRAGMENT_SHADER, FS_SH));
+        gl.linkProgram(progSh);
+        if (!gl.getProgramParameter(progSh, gl.LINK_STATUS)) throw new Error(gl.getShaderInfoLog(progSh));
+        shPos = gl.getAttribLocation(progSh, 'aPos');
+        shMVP = gl.getUniformLocation(progSh, 'uMVP');
+        shOff = gl.getUniformLocation(progSh, 'uOff');
+        shCol = gl.getUniformLocation(progSh, 'uCol');
+        progPin = gl.createProgram();
+        gl.attachShader(progPin, compile(gl.VERTEX_SHADER, VS_PIN));
+        gl.attachShader(progPin, compile(gl.FRAGMENT_SHADER, FS_PIN));
+        gl.linkProgram(progPin);
+        if (!gl.getProgramParameter(progPin, gl.LINK_STATUS)) throw new Error(gl.getShaderInfoLog(progPin));
+        pinPosLoc = gl.getAttribLocation(progPin, 'aPos');
+        pinAttrLoc = gl.getAttribLocation(progPin, 'aPin');
+        pinMVP = gl.getUniformLocation(progPin, 'uMVP');
+        pinScale = gl.getUniformLocation(progPin, 'uScale');
         // static uv + edge-distance attributes
         var uv = new Float32Array(N * 2), edge = new Float32Array(N);
         for (var j = 0; j < ROWS; j++) for (var i = 0; i < COLS; i++) {
@@ -3373,6 +3661,19 @@
             normals[k * 3] = nx / l; normals[k * 3 + 1] = ny / l; normals[k * 3 + 2] = nz / l;
             var tl = Math.sqrt(tx * tx + ty * ty + tz * tz) || 1;
             tangents[k * 3] = tx / tl; tangents[k * 3 + 1] = ty / tl; tangents[k * 3 + 2] = tz / tl;
+            // Crease AO: neighbours displaced along +N from this
+            // point mean it sits in a valley — darken it. Ridges get
+            // a breath of lift. This is the soft self-shadowing that
+            // makes folds read as folds.
+            var nbs = [il, ir, ju, jd], dsum = 0;
+            for (var q = 0; q < 4; q++) {
+                var nb3 = nbs[q] * 3;
+                dsum += (pos[nb3] - pos[k * 3]) * normals[k * 3]
+                      + (pos[nb3 + 1] - pos[k * 3 + 1]) * normals[k * 3 + 1]
+                      + (pos[nb3 + 2] - pos[k * 3 + 2]) * normals[k * 3 + 2];
+            }
+            var dd = dsum / 4;
+            aoArr[k] = dd > 0 ? Math.max(0.5, 1 - 2.6 * dd) : Math.min(1.1, 1 - 1.0 * dd);
         }
     }
 
@@ -3396,35 +3697,64 @@
     function drawCloth() {
         if (!glOK) return;
         computeNormals();
+        var k;
+        for (k = 0; k < N; k++) gripCur[k] += (gripTarget[k] - gripCur[k]) * 0.3;
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        gl.useProgram(prog);
-        gl.uniformMatrix4fv(uMVP, false, mvpMatrix());
-        gl.uniform3f(uCam, 0, camY, camDist);
-        gl.uniform1f(uTime, simT);
+        var mvp = mvpMatrix();
         function bind(buf, loc, size, data) {
             gl.bindBuffer(gl.ARRAY_BUFFER, buf);
             if (data) gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
             gl.enableVertexAttribArray(loc);
             gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
         }
-        bind(posBuf, aPos, 3, pos);
+        // contact shadow first (no depth write): the sheet, flat and
+        // dark, thrown away from the light onto whatever is behind it
+        gl.useProgram(progSh);
+        gl.uniformMatrix4fv(shMVP, false, mvp);
+        bind(posBuf, shPos, 3, pos);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
+        gl.depthMask(false);
+        gl.uniform3f(shOff, 0.13, -0.21, -0.55);
+        gl.uniform4f(shCol, 0.02, 0.03, 0.05, 0.16);
+        gl.drawElements(gl.TRIANGLES, nIdx, gl.UNSIGNED_SHORT, 0);
+        // a second, closer throw: the soft contact darkness that
+        // grounds the sheet where it meets the floor
+        gl.uniform3f(shOff, 0.05, -0.09, -0.28);
+        gl.uniform4f(shCol, 0.02, 0.03, 0.05, 0.12);
+        gl.drawElements(gl.TRIANGLES, nIdx, gl.UNSIGNED_SHORT, 0);
+        gl.depthMask(true);
+        // the sheet itself
+        gl.useProgram(prog);
+        gl.uniformMatrix4fv(uMVP, false, mvp);
+        gl.uniform3f(uCam, 0, camY, camDist);
+        gl.uniform1f(uTime, simT);
+        bind(posBuf, aPos, 3, null);
         bind(norBuf, aNor, 3, normals);
         bind(tanBuf, aTan, 3, tangents);
         bind(uvBuf, aUV, 2, null);
         bind(edgeBuf, aEdge, 1, null);
+        bind(aoBuf, aAO, 1, aoArr);
+        bind(gripBuf, aGrip, 1, gripCur);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
         gl.drawElements(gl.TRIANGLES, nIdx, gl.UNSIGNED_SHORT, 0);
+        // the player's pins, as small brass hardware
+        gl.useProgram(progPin);
+        gl.uniformMatrix4fv(pinMVP, false, mvp);
+        gl.uniform1f(pinScale, canvas.height * (1 / Math.tan(FOV / 2)) / 2);
+        bind(posBuf, pinPosLoc, 3, null);
+        gl.bindBuffer(gl.ARRAY_BUFFER, pinBuf);
+        if (pinAttrDirty) { gl.bufferData(gl.ARRAY_BUFFER, pinAttr, gl.DYNAMIC_DRAW); pinAttrDirty = false; }
+        gl.enableVertexAttribArray(pinAttrLoc);
+        gl.vertexAttribPointer(pinAttrLoc, 1, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.POINTS, 0, N);
+        gl.useProgram(prog);
     }
 
     // ---------------- rod ----------------
-    function placeRod() {
-        var a = project(-PIN_SPAN / 2 - 0.07, TOP_Y, 0), b = project(PIN_SPAN / 2 + 0.07, TOP_Y, 0);
-        rodEl.style.left = a.x + 'px';
-        rodEl.style.top = a.y + 'px';
-        rodEl.style.width = (b.x - a.x) + 'px';
-        rodEl.hidden = false;
-    }
+    // Retired: nothing hangs from a rod any more. The element stays
+    // hidden; pins are the player's own, drawn in the GL pass.
+    function placeRod() { rodEl.hidden = true; }
 
     // ---------------- sizing ----------------
     function resize() {
@@ -3435,6 +3765,7 @@
         canvas.height = Math.round(H * dpr);
         fitCamera();
         placeRod();
+        if (mode === 'idle') seedCloth();   // spawn against the true floor for this viewport
     }
     window.addEventListener('resize', resize);
 
@@ -3460,8 +3791,8 @@
         if (fpsTimer >= 500) { fpsVal = Math.round(fpsCount * 1000 / fpsTimer); fpsCount = 0; fpsTimer = 0; }
         accum += Math.min(0.05, dtms / 1000);
         var steps = 0;
-        while (accum >= DT && steps < 3) { stepPhysics(); accum -= DT; steps++; }
-        if (steps === 3) accum = 0;
+        while (accum >= DT && steps < 8) { stepPhysics(); accum -= DT; steps++; }
+        if (steps === 8) accum = 0;
         drawCloth();
         updateCursor();
         frameJsMs += performance.now() - jsT0; frameJsN++;
@@ -3502,8 +3833,9 @@
         var c = pointerContact(id);
         var wantGrab = e.shiftKey || e.button === 2 || Object.keys(activePointers).length >= 1;
         activePointers[e.pointerId] = true;
-        c.active = true; c.press = 0;
+        c.active = true; c.press = 0; c.holdBlock = false;
         c.tx = wpt.x; c.ty = wpt.y; c.x = wpt.x; c.y = wpt.y; c.prevX = wpt.x; c.prevY = wpt.y;
+        c.lastTx = wpt.x; c.lastTy = wpt.y;
         endGrab(c);
         if (wantGrab) beginGrab(c);
         updateCursor();
@@ -3519,7 +3851,7 @@
         delete activePointers[e.pointerId];
         if (Object.keys(activePointers).length) return;
         var c = contacts.pointer;
-        if (c) { c.active = false; endGrab(c); }
+        if (c) { c.active = false; c.holdBlock = false; endGrab(c); }
         updateCursor();
     }
     canvas.addEventListener('pointerup', pointerEnd);
@@ -3535,6 +3867,7 @@
     var PINCH_CONFIRM = 2, GRACE_FRAMES = 3;
     var prevHands = {};   // label -> {held, onN, offN, absent, tipPx, t}
     var handContact = null;
+    var lastPrimary = null;   // last seen primary hand, for the 180 ms dropout grace
 
     function loadScript(src) {
         return new Promise(function (resolve, reject) {
@@ -3561,6 +3894,10 @@
             seen[label] = true;
             var fx = MIRROR ? function (p) { return 1 - p.x; } : function (p) { return p.x; };
             var tipPx = { x: cover.ox + fx(L[8]) * cover.dw, y: cover.oy + L[8].y * cover.dh };
+            var thumbPx = { x: cover.ox + fx(L[4]) * cover.dw, y: cover.oy + L[4].y * cover.dh };
+            // A pinch holds the cloth BETWEEN the fingertips: the
+            // grab point is the pinch midpoint, not the index tip.
+            var midPx = { x: (tipPx.x + thumbPx.x) / 2, y: (tipPx.y + thumbPx.y) / 2 };
             var tipV = { x: fx(L[8]) * vw, y: L[8].y * vh };
             var thumbV = { x: fx(L[4]) * vw, y: L[4].y * vh };
             var wristV = { x: fx(L[0]) * vw, y: L[0].y * vh };
@@ -3578,7 +3915,7 @@
                 if (pinchD >= PINCH_OFF_SURE || g.offN >= PINCH_CONFIRM) g.held = false;
             }
             g.tipPx = tipPx;
-            if (!primary) primary = { label: label, tipPx: tipPx, held: g.held };
+            if (!primary) primary = { label: label, tipPx: tipPx, midPx: midPx, held: g.held };
         }
         for (var gone in prevHands) {
             if (seen[gone]) continue;
@@ -3586,15 +3923,33 @@
             st.absent++;
             if (st.absent > GRACE_FRAMES) delete prevHands[gone];
         }
+        // Dropout grace, time-based like Threads (180 ms): a hand
+        // that vanishes mid-pinch keeps its contact — frozen at the
+        // last seen spot — for up to 180 ms. The old code cut the
+        // contact on the first empty result, so a one-frame tracking
+        // flicker dropped the grab: half of "it doesn't recognise my
+        // grabbing". The grace can only hold a grab, never start one.
+        var nowMs = performance.now();
+        if (primary) {
+            lastPrimary = { tipPx: primary.tipPx, midPx: primary.midPx, held: primary.held, t: nowMs };
+        } else if (lastPrimary && lastPrimary.held && nowMs - lastPrimary.t <= 180) {
+            primary = lastPrimary;
+        } else {
+            lastPrimary = null;
+        }
         // drive the cloth contact from the primary (first) hand
         if (!handContact) handContact = makeContact('hand');
         contacts.hand = handContact;
         if (primary) {
-            var wpt = unproject(primary.tipPx.x, primary.tipPx.y);
+            var usePx = primary.held ? primary.midPx : primary.tipPx;
+            var wpt = unproject(usePx.x, usePx.y);
             handContact.active = true;
             handContact.tx = wpt.x; handContact.ty = wpt.y;
-            if (primary.held && !handContact.grabbing) beginGrab(handContact);
-            if (!primary.held && handContact.grabbing) endGrab(handContact);
+            if (primary.held && !handContact.grabbing && !handContact.holdBlock) beginGrab(handContact);
+            if (!primary.held) {
+                handContact.holdBlock = false;
+                if (handContact.grabbing) endGrab(handContact);
+            }
         } else {
             handContact.active = false;
             endGrab(handContact);
@@ -3651,7 +4006,7 @@
             startOverlay.hidden = true;
             controlsEl.hidden = false;
             hintEl.hidden = false;
-            hintEl.textContent = 'Fingertip presses the cloth — pinch to grab it and pull';
+            hintEl.textContent = 'Fingertip presses the cloth — pinch to grab a handful, hold it still to pin it, let go to put it down';
             pumpOn = true;
             pump();
             startLoop();
@@ -3796,7 +4151,37 @@
         },
         contact: function () {
             var c = contacts.pointer || contacts.hand;
-            return c ? { active: c.active, grabbing: c.grabbing, grabK: c.grabK, x: c.x, y: c.y } : null;
+            return c ? { active: c.active, grabbing: c.grabbing, grabK: c.grabK, x: c.x, y: c.y,
+                         patch: c.grabPts ? c.grabPts.length / 5 : 0, dwellMs: Math.round(c.dwellMs) } : null;
+        },
+        pinPointCount: function () { var n = 0; for (var k = 0; k < N; k++) if (pinned[k]) n++; return n; },
+        pinnedSample: function () {
+            for (var k = 0; k < N; k++) if (pinned[k]) {
+                return { i: k % COLS, j: (k / COLS) | 0, x: pos[k * 3], y: pos[k * 3 + 1], z: pos[k * 3 + 2] };
+            }
+            return null;
+        },
+        floorY: function () { return FLOOR_Y; },
+        boundsScreenFrac: function () {
+            var mn = 1, mx = 0;
+            for (var k = 0; k < N; k++) {
+                var p = project(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]);
+                var f = p.y / Math.max(1, H);
+                if (f < mn) mn = f; if (f > mx) mx = f;
+            }
+            return { min: mn, max: mx };
+        },
+        pixelProbeAt: function (i, j) {
+            if (!glOK) return null;
+            var s = project(pos[idx(i, j) * 3], pos[idx(i, j) * 3 + 1], pos[idx(i, j) * 3 + 2]);
+            var dpr = canvas.width / Math.max(1, W);
+            var gx = Math.max(0, Math.min(canvas.width - 10, Math.round(s.x * dpr) - 5));
+            var gy = Math.max(0, Math.min(canvas.height - 10, canvas.height - Math.round(s.y * dpr) - 5));
+            var px = new Uint8Array(4 * 100);
+            gl.readPixels(gx, gy, 10, 10, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            var r = 0, g = 0, b = 0;
+            for (var q = 0; q < 100; q++) { r += px[q * 4]; g += px[q * 4 + 1]; b += px[q * 4 + 2]; }
+            return { r: r / 100, g: g / 100, b: b / 100 };
         },
         settleSpeed: function () {
             var m = 0;
