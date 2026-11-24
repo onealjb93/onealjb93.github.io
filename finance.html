@@ -203,6 +203,13 @@
        pinch — which run identically inline and full screen, the
        way the Scoreboard chart's already do. */
     .jbo-chart-frame canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: crosshair; }
+    /* The span indicator (2026-11-23): a non-interactive overlay
+       in the chart's top-left corner naming the visible window --
+       dates plus span at a zoom, "All · <first> – <last>" at the
+       full view. It replaces the removed range buttons as the
+       window's readout; it is never a control and takes no
+       layout row. */
+    .fin-span-ind { position: absolute; top: 25px; left: 10px; z-index: 3; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.01em; color: var(--subtext-color); pointer-events: none; white-space: nowrap; }
     .chart-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem 1rem; }
     .chart-controls .chip-row { margin: 0; }
     .chart-controls .selector-group label { display: block; font-size: 0.8rem; line-height: 1.3; color: var(--subtext-color); margin-bottom: 0.2rem; }
@@ -288,6 +295,15 @@
        tally beside the picker — a door to its score popover. It
        wears the pill grammar but toggles nothing. */
     .chart-verdict-chip[hidden] { display: none; }
+    /* The chart section's line gets its own slot (2026-11-23):
+       a full-width row directly under the section title, above
+       the futures strip. It used to ride the controls row as a
+       pill, where the pinned title and its buttons could cover
+       it; on its own row nothing can sit on it, and the reserved
+       min-height means the strip never jumps when it lands. */
+    .chart-line-row { min-height: 1.55rem; margin: 0 0 8px; }
+    .chart-verdict-chip { display: block; width: 100%; padding: 2px; background: none; border: none; font: inherit; font-size: 0.95rem; font-weight: 600; line-height: 1.45; text-align: left; color: var(--subtext-color); cursor: pointer; }
+    .chart-verdict-chip:hover { color: var(--link-color); }
     /* Section glosses (2026-11-16): one plain muted line under a
        section heading — what the section is, in plain words,
        visible before the section is even opened. */
@@ -322,8 +338,6 @@
            trims (this breakpoint already trims every pill's
            padding from 14px to 8px); the type size and the pill
            height are untouched. */
-        #chartRanges { gap: 0.35rem; }
-        #chartRanges .filter-pill { padding-left: 6px; padding-right: 6px; }
         #chartPicks { gap: 0.3rem; }
         #chartPicks .filter-pill { padding-left: 5px; padding-right: 5px; font-size: 0.8rem; }
     }
@@ -375,8 +389,35 @@
        their contents in a wrapping row, and full screen takes
        the strip down to one slim row (see the :fullscreen
        rules under the strip). */
-    .fin-readout { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 10px 0 12px; padding: 0 2px 10px; border-bottom: 1px solid var(--border-color); }
+    /* The readout is a true aligned grid (2026-11-23): four
+       columns at phone width (Date / Close / 200-day / 50-day
+       over RSI / P/E / Volume, columns aligned), one row of
+       seven on wide screens. The right padding reserves the
+       colour toggle's corner so no value can slide under it. */
+    .fin-readout { display: grid; grid-template-columns: repeat(3, minmax(0, auto)); justify-content: space-between; column-gap: 10px; row-gap: 8px; margin: 10px 0 12px; padding: 0 64px 10px 2px; border-bottom: 1px solid var(--border-color); }
     .fin-readout[hidden] { display: none; }
+    @media (min-width: 769px) {
+        .fin-readout { grid-template-columns: repeat(7, minmax(0, auto)); padding-right: 96px; }
+    }
+    /* Mock A (approved 2026-11-23): the three-dot pill at the
+       readout's top-right corner. Grey dots = values white;
+       lit dots = each value in its Chart key colour. The state
+       is felt on the pill's own dots; the pill never moves. */
+    .fin-readout-wrap { position: relative; }
+    .fin-color-pill { position: absolute; top: 4px; right: 2px; z-index: 2; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 44px; height: 44px; padding: 0 10px; background: none; border: 1px solid var(--border-color); border-radius: 999px; cursor: pointer; }
+    .fin-color-pill[hidden] { display: none; }
+    .fin-color-pill .fin-dot { width: 9px; height: 9px; border-radius: 50%; background: #8a8f98; }
+    html.fin-color-on .fin-color-pill .fin-dot.o { background: #FF9800; }
+    html.fin-color-on .fin-color-pill .fin-dot.b { background: #2962FF; }
+    html.fin-color-on .fin-color-pill .fin-dot.p { background: #7E57C2; }
+    html.fin-color-on body.light-mode .fin-color-pill .fin-dot.o { background: #e65100; }
+    html.fin-color-on .fin-stat[data-key="ma200"] .fin-stat-value { color: #FF9800; }
+    html.fin-color-on .fin-stat[data-key="ma50"] .fin-stat-value { color: #2962FF; }
+    html.fin-color-on .fin-stat[data-key="rsi"] .fin-stat-value { color: #7E57C2; }
+    html.fin-color-on .fin-stat[data-key="pe"] .fin-stat-value { color: #2dd4bf; }
+    html.fin-color-on .fin-stat[data-key="vol"] .fin-stat-value { color: color-mix(in srgb, var(--text-color) 55%, transparent); }
+    html.fin-color-on body.light-mode .fin-stat[data-key="ma200"] .fin-stat-value { color: #e65100; }
+    html.fin-color-on body.light-mode .fin-stat[data-key="pe"] .fin-stat-value { color: #0f766e; }
     .fin-stat { display: flex; flex-direction: column; min-width: 0; }
     .fin-stat-label { font-size: 0.72rem; font-weight: 600; line-height: 1.25; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtext-color); white-space: nowrap; }
     .fin-stat-value { font-size: 1.05rem; font-weight: 700; line-height: 1.25; color: var(--text-color); white-space: nowrap; }
@@ -392,7 +433,7 @@
        layout there; Finance's seven values stay, in one row,
        scrolling sideways inside the strip if a narrow screen
        ever needs it). */
-    #chart:fullscreen .fin-readout, #chart:-webkit-full-screen .fin-readout, #chart.chart-fs .fin-readout { flex-wrap: nowrap; overflow-x: auto; gap: 4px 14px; margin: 6px 0 8px; padding: 0 2px 6px; scrollbar-width: none; }
+    #chart:fullscreen .fin-readout, #chart:-webkit-full-screen .fin-readout, #chart.chart-fs .fin-readout { grid-template-columns: repeat(7, minmax(0, auto)); overflow-x: auto; column-gap: 14px; margin: 6px 0 8px; padding: 0 76px 6px 2px; scrollbar-width: none; }
     #chart:fullscreen .fin-readout::-webkit-scrollbar, #chart:-webkit-full-screen .fin-readout::-webkit-scrollbar, #chart.chart-fs .fin-readout::-webkit-scrollbar { display: none; }
     #chart:fullscreen .fin-stat, #chart:-webkit-full-screen .fin-stat, #chart.chart-fs .fin-stat { flex: none; }
     #chart:fullscreen .fin-stat-label, #chart:-webkit-full-screen .fin-stat-label, #chart.chart-fs .fin-stat-label { font-size: 0.66rem; }
@@ -1979,6 +2020,13 @@
                 if (t === 'light') { document.body.classList.add('light-mode'); }
                 document.documentElement.style.colorScheme = (t === 'light') ? 'light' : 'dark';
             } catch (e) { /* storage blocked: stay on the dark default */ }
+            // Readout colours before first paint (2026-11-23): the
+            // stored Mock A toggle choice rides the <html> class, so
+            // a returning visitor who left colours on sees coloured
+            // values from the first frame -- no white flash.
+            try {
+                if (localStorage.getItem('finReadoutColor') === '1') { document.documentElement.classList.add('fin-color-on'); }
+            } catch (e) { /* storage blocked: colours stay off */ }
         })();
     </script>
 
@@ -2009,7 +2057,7 @@
                     <a href="sustainability.html" role="menuitem">Sustainability</a>
                     <a href="media.html" role="menuitem">Books and Podcasts</a>
                     <a href="games.html" role="menuitem">Games</a>
-                    <a href="random.html" role="menuitem">Random Generator</a>
+                    <a href="random.html" role="menuitem">Look Around</a>
                     <a href="messageboard.html" role="menuitem">Message Board</a>
                 </div>
             </div>
@@ -2038,6 +2086,7 @@
     <div class="chart-section collapsible-section" id="chart">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="chart" aria-expanded="true" aria-controls="chart-body"><span class="section-chevron" aria-hidden="true">&#9660;</span><span class="section-toggle-text">The Chart</span></button><button type="button" class="filter-pill chart-share-btn" id="chartShare" aria-label="Share this chart" title="Share this chart"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button><button type="button" class="filter-pill chart-fs-btn" id="chartFsTitleBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
         <div class="section-body" id="chart-body">
+        <div class="chart-line-row"><button type="button" class="chart-verdict-chip" id="chartVerdictChip" hidden></button></div>
         <div class="fut-strip" id="futStrip" aria-label="Live indexes and futures — tap one to chart it">
             <div class="fut-mode" id="futMode">Futures</div>
             <div class="fut-cells" id="futCells"></div>
@@ -2060,26 +2109,11 @@
                     </div>
                 </div>
             </div>
-            <button type="button" class="filter-pill chart-verdict-chip" id="chartVerdictChip" hidden></button>
             <button type="button" class="filter-pill" id="chartToolsBtn" aria-expanded="false" aria-controls="chartTools">Chart tools<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
             <div id="chartTools" hidden>
-            <div class="chip-row" id="chartRanges" role="group" aria-label="Chart range">
-                <button type="button" class="filter-pill" data-range="1D">1D</button>
-                <button type="button" class="filter-pill" data-range="1W">1W</button>
-                <button type="button" class="filter-pill" data-range="1M">1M</button>
-                <button type="button" class="filter-pill" data-range="6M">6M</button>
-                <button type="button" class="filter-pill" data-range="1Y">1Y</button>
-                <button type="button" class="filter-pill active" data-range="5Y">5Y</button>
-                <button type="button" class="filter-pill" data-range="10Y">10Y</button>
-                <button type="button" class="filter-pill" data-range="ALL">All</button>
-            </div>
             <div class="chip-row" id="chartStyles" role="group" aria-label="Chart style">
                 <button type="button" class="filter-pill active" data-style="line">Line</button>
                 <button type="button" class="filter-pill" data-style="candles">Candles</button>
-            </div>
-            <div class="chip-row" id="chartModes" role="group" aria-label="Chart data mode">
-                <button type="button" class="filter-pill" data-mode="weekly">Weekly</button>
-                <button type="button" class="filter-pill active" data-mode="daily">Daily</button>
             </div>
             <div class="chip-row" id="chartPanes" role="group" aria-label="Chart panes">
                 <button type="button" class="filter-pill" data-pane="volume" aria-pressed="true">Volume</button>
@@ -2098,9 +2132,9 @@
             </div>
         </div>
         </div>
-        <div class="fin-readout" id="finReadout" aria-live="polite" hidden></div>
+        <div class="fin-readout-wrap"><div class="fin-readout" id="finReadout" aria-live="polite" hidden></div><button type="button" class="fin-color-pill" id="finColorPill" aria-label="Color the readings" aria-pressed="false" hidden><span class="fin-dot o" aria-hidden="true"></span><span class="fin-dot b" aria-hidden="true"></span><span class="fin-dot p" aria-hidden="true"></span></button></div>
         <p class="fin-chart-status" id="finChartStatus" hidden></p>
-        <div class="jbo-chart-frame" id="jboChartFrame"><canvas id="jboChartCanvas" aria-label="Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"></canvas></div>
+        <div class="jbo-chart-frame" id="jboChartFrame"><div class="fin-span-ind" id="finSpanInd" aria-hidden="true"></div><canvas id="jboChartCanvas" aria-label="Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"></canvas></div>
         <p class="jbo-chart-note" id="jboChartNote" hidden></p>
         <p class="jbo-chart-note fin-ind-btcnote" id="finIndBtcNote" hidden>A deeper Bitcoin indicator lives on the <a href="bitcoin.html">Bitcoin page</a>.</p>
         </div>
@@ -7156,28 +7190,12 @@ if (typeof module !== "undefined") {
         var PE_GUIDE_COLOR = "rgba(45, 212, 191, 0.5)";
         var PE_KEY = "jbo-chart-pe-v1", VOL_KEY = "jbo-chart-vol-v1", RSI_KEY = "jbo-chart-rsi-v1", IND_KEY = "jbo-chart-ind-v1";
         var PICK_KEYS = ["SPX", "IXIC", "GOLD", "BTC", "VIX"];
-        // Weekly ranges, counted in week bars (52 to a year).
-        // The short ranges (2026-11-23) convert the same way the
-        // year ranges do — a label's span in bars of the current
-        // granularity: 1D and 1W are both the last week bar (a
-        // span under a week has no smaller weekly unit), 1M is
-        // 4 (21 trading days ≈ 4.2 weeks), 6M is half of 52.
-        var RANGE_WEEKS = { "1D": 1, "1W": 1, "1M": 4, "6M": 26, "1Y": 52, "5Y": 260, "10Y": 520, "ALL": Infinity };
-        // Daily ranges, counted in trading days (252 to a year):
-        // 1Y / 5Y / 10Y are fixed counts of days; All is the whole
-        // daily file, which reaches back to 2000 like the weekly
-        // file (or to an instrument's own first trading day, where
-        // that is later). The short ranges are trading-day counts
-        // too: 1D the last trading day, 1W the last 5, 1M the
-        // last 21, 6M the last 126.
-        var RANGE_DAYS = { "1D": 1, "1W": 5, "1M": 21, "6M": 126, "1Y": 252, "5Y": 1260, "10Y": 2520, "ALL": Infinity };
         var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         var chartData = null, loadStarted = false, loadFailed = false;
-        // The Daily view's data: a second file, fetched lazily the
-        // first time the visitor switches to Daily (or on load when
-        // Daily was the last-used mode). The weekly file stays the
-        // registry — the dropdowns populate from it in both modes —
-        // and the daily file only supplies the bars the chart draws.
+        // The chart's bars come from the daily file, fetched on
+        // load. The weekly file stays the registry — the
+        // dropdowns populate from it — and the daily file
+        // supplies the bars the chart draws.
         var dailyData = null, dailyStarted = false, dailyFailed = false;
         // The first-paint split of the daily file, when it has
         // arrived and the full file hasn't: it honestly serves the
@@ -7211,16 +7229,14 @@ if (typeof module !== "undefined") {
             series.SPX = { name: spx.name, symbol: spx.symbol, bars: spx.bars, pe: spx.pe, buy: sig(spx.buy), sell: sig(spx.sell), score_buys: sig(spx.score_buys) };
             return { last_updated: f.last_updated, through: f.through, series: series, nasdaq100: f.nasdaq100 };
         }
-        // The chart opens on Daily (2026-11-22): daily bars are the
-        // working data — the gauges, the RSI and the indicator dots
-        // all run on daily closes — and Weekly is the toggle's other
-        // view, one tap away, aggregating the same history by week.
-        var mode = "daily";
-        // Why the chart is showing Weekly when Daily was asked for
-        // (a daily file that failed to arrive) — shown at the head
-        // of the data note until the next clean switch.
+        // The chart has exactly one mode (2026-11-23): daily
+        // bars. The Daily | Weekly toggle and the range buttons
+        // are gone -- the window is set by gesture alone and
+        // opens at the full view. modeNote survives as the data
+        // note's prefix slot (a daily file that failed to arrive
+        // explains itself there).
         var modeNote = "";
-        var cur = { key: "SPX", range: "5Y", style: "line" };
+        var cur = { key: "SPX", range: "ALL", style: "line" };
         // Pane toggles: Volume and RSI start on (the shipped look),
         // P/E starts off; a stored "0"/"1" overrides per pane.
         var peOn = false, volOn = true, rsiOn = true;
@@ -7334,35 +7350,35 @@ if (typeof module !== "undefined") {
                 s = chartData.series[key];
                 if (!s || !s.bars || !s.bars.length) return null;
             }
-            // In Daily mode the drawn bars come from the daily
-            // file; the weekly series above stays the existence
-            // check (one registry for both modes) whenever the
-            // weekly file has arrived. Before it has, the
-            // first-paint file can serve the Daily view for the
-            // one series it carries in full — the same bars from
-            // the same run, replaced wholesale when the full
-            // daily file lands.
-            if (mode === "daily") {
-                var dsrc = dailyData || firstData;
-                if (!dsrc) return null;
-                s = dsrc.series[key];
-                if (!s || !s.bars || !s.bars.length) return null;
-            } else if (!s) return null;
-            // Intraday ranges (Daily 1D / 1W with the sessions file
-            // in): the view is 1-minute bars, and the branch returns
-            // before the indicator mapping below — Johnny's buy /
-            // sell dots are computed from daily closes, so they
-            // never draw on an intraday view. Without the file (or
-            // without this series in it) the daily bars render as
-            // usual: no error, no dead state.
-            if (mode === "daily" && INTRA_RANGES[cur.range]) {
-                var iview = buildIntraView(key);
+            // The drawn bars always come from the daily file;
+            // the weekly series above stays the existence check
+            // (the one registry) whenever that file has arrived.
+            // Before the daily file lands, the first-paint file
+            // can serve the view for the one series it carries in
+            // full — the same bars from the same run, replaced
+            // wholesale when the full daily file lands.
+            var dsrc = dailyData || firstData;
+            if (!dsrc) return null;
+            s = dsrc.series[key];
+            if (!s || !s.bars || !s.bars.length) return null;
+            // Intraday (2026-11-23, gesture-keyed): when the
+            // gesture-set window ends at the latest bar and spans
+            // no more than eight days, the view is 1-minute bars —
+            // zooming into today / this week is how the intraday
+            // layer is reached now that the range buttons are
+            // gone. The branch returns before the indicator
+            // mapping below — Johnny's buy / sell dots are
+            // computed from daily closes, so they never draw on
+            // an intraday view. Without the file (or without this
+            // series in it) the daily bars render as usual.
+            if (intraWanted()) {
+                var iview = buildIntraView(key, intraKind());
                 if (iview) return iview;
             }
             var closes = s.bars.map(function (b) { return b[4]; });
             var volumes = s.bars.map(function (b) { return b[5]; });
             var n = s.bars.length;
-            var count = Math.min(n, (mode === "daily" ? RANGE_DAYS : RANGE_WEEKS)[cur.range]);
+            var count = n;
             // The pipeline's P/E array, only trusted when it lines
             // up 1:1 with the bars; anything else reads as absent.
             var peArr = (s.pe && s.pe.length === s.bars.length) ? s.pe : null;
@@ -7374,7 +7390,7 @@ if (typeof module !== "undefined") {
             // the daily file hasn't arrived yet.
             var buySet = null, sellSet = null, scoreSet = null;
             if (indOn) {
-                var dsig = mode === "daily" ? s : (dailyData && dailyData.series ? dailyData.series[key] : null);
+                var dsig = s;
                 if (dsig && (dsig.buy || dsig.sell || dsig.score_buys)) {
                     buySet = {}; sellSet = {}; scoreSet = {};
                     var sigDates = s.bars.map(function (b) { return b[0]; });
@@ -7399,7 +7415,7 @@ if (typeof module !== "undefined") {
                 s: s, closes: closes,
                 ma200: sma(closes, 200), ma50: sma(closes, 50), rsi: rsiWilder(closes, 14),
                 volMa: sma(volumes, 20),
-                pe: peArr, peMedian: peMedianOf(peArr, mode === "daily" ? 252 : 52),
+                pe: peArr, peMedian: peMedianOf(peArr, 252),
                 buySet: buySet, sellSet: sellSet, scoreSet: scoreSet,
                 isBench: PICK_KEYS.indexOf(key) >= 0,
                 start: n - count, end: n - 1,
@@ -7415,7 +7431,7 @@ if (typeof module !== "undefined") {
             // did before the score dots existed.
             var keyScoreEl = document.getElementById("keyScoreItem");
             if (keyScoreEl) {
-                var dcur = mode === "daily" ? (v && v.s) : (dailyData && dailyData.series ? dailyData.series[cur.key] : null);
+                var dcur = (v && v.s);
                 keyScoreEl.hidden = !(dcur && dcur.score_buys && dcur.score_buys.length);
             }
             return v;
@@ -7436,7 +7452,7 @@ if (typeof module !== "undefined") {
                 if (v.hasVolume && volOn) irows.push({ label: "Volume", value: fmtVol(b[5]), color: null, chip: "" });
                 return irows;
             }
-            var per = mode === "daily" ? "day" : "week";
+            var per = "day";
             var rows = [{ label: "Close", value: fmtNum(b[4]), color: null, chip: "close" }];
             rows.push({ label: "200-" + per, value: v.ma200[idx] === null ? "—" : fmtNum(v.ma200[idx]), color: MA200_COLOR, chip: "" });
             rows.push({ label: "50-" + per, value: v.ma50[idx] === null ? "—" : fmtNum(v.ma50[idx]), color: MA50_COLOR, chip: "" });
@@ -7484,7 +7500,7 @@ if (typeof module !== "undefined") {
             // The "not enough history for the average lines" note is
             // about daily bars; an intraday view never shows it.
             if (v.intra) return "";
-            var n = v.s.bars.length, per = mode === "daily" ? "day" : "week";
+            var n = v.s.bars.length, per = "day";
             if (n >= 200) return "";
             if (n < 50) return v.s.name + " has " + n + " " + per + "s of trading history — not enough yet for the 50-" + per + " or 200-" + per + " lines (they need 50 and 200 " + per + "s). The price and the RSI still draw.";
             return v.s.name + " has " + n + " " + per + "s of trading history — the 200-" + per + " line appears once it reaches 200 " + per + "s.";
@@ -7494,15 +7510,17 @@ if (typeof module !== "undefined") {
             var note = document.getElementById("jboChartNote");
             var dataNote = document.getElementById("jboChartDataNote");
             if (loadFailed) {
-                showTipStatus("The chart data couldn’t be loaded — the weekly data file didn’t arrive. The rest of the page is unaffected.");
+                showTipStatus("The chart data couldn’t be loaded — the chart data file didn’t arrive. The rest of the page is unaffected.");
                 return;
             }
             if (!chartData && !firstServes()) { showTipStatus("Loading chart data…"); return; }
-            if (mode === "daily" && !dailyData && !firstServes()) { showTipStatus("Loading daily data…"); return; }
-            // A 1D / 1W range waits for the intraday file the same
-            // way Daily waits for the daily file; if the file failed
-            // to arrive, the daily bars below render instead.
-            if (mode === "daily" && INTRA_RANGES[cur.range] && !intraData && !intraFailed) { ensureIntra(); showTipStatus("Loading intraday data…"); return; }
+            if (dailyFailed && !dailyData && !firstServes()) { showTipStatus("Daily data couldn’t be loaded — the daily data file didn’t arrive. The rest of the page is unaffected."); return; }
+            if (!dailyData && !firstServes()) { showTipStatus("Loading daily data…"); return; }
+            // A window zoomed into the last few days waits for
+            // the intraday file the same way the daily view waits
+            // for the daily file; if the file failed to arrive,
+            // the daily bars below render instead.
+            if (intraWanted() && !intraData && !intraFailed) { ensureIntra(); showTipStatus("Loading intraday data…"); return; }
             view = computeView();
             if (!view) { showTipStatus("No chart data for this instrument yet."); return; }
             rangeStart = view.start; rangeEnd = view.end;
@@ -7511,10 +7529,10 @@ if (typeof module !== "undefined") {
             // FULL series in computeViewFor, so a bar at the
             // window's edge carries exactly the values it carries
             // unzoomed — the window only chooses what is drawn.
-            if (zoom) {
+            if (zoom && !view.intra) {
                 var zs = Math.max(rangeStart, Math.min(zoom.start, rangeEnd));
                 var ze = Math.max(rangeStart, Math.min(zoom.end, rangeEnd));
-                if (ze - zs + 1 >= rangeEnd - rangeStart + 1 || ze - zs + 1 < Math.min(26, rangeEnd - rangeStart + 1)) zoom = null;
+                if (ze - zs + 1 >= rangeEnd - rangeStart + 1 || ze - zs + 1 < Math.min(5, rangeEnd - rangeStart + 1)) zoom = null;
                 else { zoom = { start: zs, end: ze }; view.start = zs; view.end = ze; }
             }
             if (hover < view.start || hover > view.end) hover = -1;
@@ -7527,11 +7545,12 @@ if (typeof module !== "undefined") {
                 // the file is a snapshot of completed sessions,
                 // never a live feed, and the note says so plainly.
                 if (view.intra) dataNote.textContent = (modeNote ? modeNote + " " : "") + intraNoteText(view);
-                else dataNote.textContent = (modeNote ? modeNote + " " : "") + (mode === "daily" ? "Daily" : "Weekly") + " data from Yahoo Finance through " + fmtDate(view.s.bars[view.end][0]) + " — refreshed weekday evenings with the rest of this page’s data.";
+                else dataNote.textContent = (modeNote ? modeNote + " " : "") + "Daily data from Yahoo Finance through " + fmtDate(view.s.bars[view.end][0]) + " — refreshed weekday evenings with the rest of this page’s data.";
             }
             draw();
             updateTip();
             syncIntraKey();
+            updateSpanInd(view);
         }
 
         // ---- the readout strip above the chart ----
@@ -7548,12 +7567,16 @@ if (typeof module !== "undefined") {
             var status = document.getElementById("finChartStatus");
             if (status) status.hidden = true;
             strip.hidden = false;
+            var pill0 = document.getElementById("finColorPill");
+            if (pill0) pill0.hidden = false;
             var idx = (hover >= view.start && hover <= view.end) ? hover : view.end;
             var b = view.s.bars[idx];
             strip.textContent = "";
+            var KEY_BY_LABEL = { "Close": "close", "200-day": "ma200", "50-day": "ma50", "RSI": "rsi", "P/E": "pe", "Volume": "vol" };
             function stat(label, value) {
                 var cell = document.createElement("div");
                 cell.className = "fin-stat";
+                if (KEY_BY_LABEL[label]) cell.setAttribute("data-key", KEY_BY_LABEL[label]);
                 var lab = document.createElement("span");
                 lab.className = "fin-stat-label";
                 lab.textContent = label;
@@ -7564,8 +7587,47 @@ if (typeof module !== "undefined") {
                 strip.appendChild(cell);
             }
             if (view.intra) stat("Time", fmtIntraStamp(b));
-            else stat(mode === "weekly" ? "Week ending" : "Date", fmtDate(b[0]));
+            else stat("Date", fmtDate(b[0]));
             tipRows(view, idx).forEach(function (r) { stat(r.label, r.value); });
+        }
+        // The span indicator (2026-11-23): the overlay in the
+        // chart frame's top-left corner naming the visible
+        // window. Full view: "All · 2016 – 2026". A window:
+        // "Mar 2026 – Jun 2026 · 3 months". An intraday view
+        // names its sessions. Updated on every render, so it
+        // tracks pan and zoom live; it is text only, never a
+        // control, and lives in the frame's overlay layer, so
+        // updating it moves nothing.
+        function spanLabelFor(aStr, bStr) {
+            var days = Math.round((Date.parse(bStr) - Date.parse(aStr)) / 86400000);
+            if (days <= 13) return Math.max(1, days) + (days === 1 ? " day" : " days");
+            var months = Math.round(days / 30.44);
+            if (months < 1) return days + " days";
+            if (months < 24) return months + (months === 1 ? " month" : " months");
+            var years = days / 365.25;
+            var y = Math.round(years * 10) / 10;
+            return (y % 1 === 0 ? String(y) : y.toFixed(1)) + " years";
+        }
+        function monYear(dstr) {
+            var d = new Date(Date.parse(dstr));
+            return MONTHS[d.getUTCMonth()] + " " + d.getUTCFullYear();
+        }
+        function updateSpanInd(v) {
+            var ind = document.getElementById("finSpanInd");
+            if (!ind || !v || !v.s || !v.s.bars || !v.s.bars.length) return;
+            if (v.intra) {
+                var ns = v.intra.sessions ? v.intra.sessions.length : 0;
+                var fd = v.intra.sessions && ns ? fmtDate(v.intra.sessions[0].date) : "";
+                var ld = v.intra.sessions && ns ? fmtDate(v.intra.sessions[ns - 1].date) : "";
+                ind.textContent = ns <= 1 ? fd : fd + " – " + ld + " · " + ns + " days";
+                return;
+            }
+            var a = v.s.bars[v.start][0], b = v.s.bars[v.end][0];
+            if (v.start === 0 && v.end === v.s.bars.length - 1) {
+                ind.textContent = "All · " + new Date(Date.parse(a)).getUTCFullYear() + " – " + new Date(Date.parse(b)).getUTCFullYear();
+            } else {
+                ind.textContent = monYear(a) + " – " + monYear(b) + " · " + spanLabelFor(a, b);
+            }
         }
         // Loading / failure / no-data states speak through the
         // status line in the strip's place above the frame — the
@@ -7576,7 +7638,25 @@ if (typeof module !== "undefined") {
             var strip = document.getElementById("finReadout");
             if (status) { status.textContent = msg; status.hidden = false; }
             if (strip) strip.hidden = true;
+            var pill1 = document.getElementById("finColorPill");
+            if (pill1) pill1.hidden = true;
         }
+        // Mock A colour toggle (2026-11-23): flips the <html>
+        // class the pre-paint script set from the stored choice;
+        // the dots on the pill itself carry the state.
+        (function () {
+            var pill = document.getElementById("finColorPill");
+            if (!pill) return;
+            var sync = function () {
+                pill.setAttribute("aria-pressed", document.documentElement.classList.contains("fin-color-on") ? "true" : "false");
+            };
+            sync();
+            pill.addEventListener("click", function () {
+                var on = document.documentElement.classList.toggle("fin-color-on");
+                try { window.localStorage.setItem("finReadoutColor", on ? "1" : "0"); } catch (e) { /* storage blocked */ }
+                sync();
+            });
+        })();
 
         // ---- axis ladders (2026-11-22) ----
         // The Y step for a visible range: the 1 / 2 / 2.5 / 5 × 10^n
@@ -8383,7 +8463,6 @@ if (typeof module !== "undefined") {
         // byte-for-byte; the Teal P/E entry names no period and
         // never changes.
         var KEY_IDS = ["keyMa200", "keyMa50", "keyRsi", "keyVolma"];
-        var weeklyKeyHtml = null;
         var DAILY_KEY_HTML = {
             keyMa200: "<strong>Amber &mdash; the 200-day average</strong>. Two hundred trading days in one line: below it, a stock has historically been cheap.",
             keyMa50: "<strong>Blue &mdash; the 50-day average</strong>. Fifty trading days of price: above it, the trend is up and intact; below it, the trend is broken.",
@@ -8391,21 +8470,12 @@ if (typeof module !== "undefined") {
             keyVolma: "<strong>Grey &mdash; the 20-day volume average</strong>. Bars poking above it mean a heavy trading day; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring."
         };
         function syncModeText() {
-            if (!weeklyKeyHtml) {
-                weeklyKeyHtml = {};
-                KEY_IDS.forEach(function (id) {
-                    var el = document.getElementById(id);
-                    if (el) weeklyKeyHtml[id] = el.innerHTML;
-                });
-            }
             KEY_IDS.forEach(function (id) {
                 var el = document.getElementById(id);
-                if (el) el.innerHTML = mode === "daily" ? DAILY_KEY_HTML[id] : weeklyKeyHtml[id];
+                if (el) el.innerHTML = DAILY_KEY_HTML[id];
             });
             var cv = document.getElementById("jboChartCanvas");
-            if (cv) cv.setAttribute("aria-label", mode === "daily"
-                ? "Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"
-                : "Weekly price chart with 200-week and 50-week moving averages, volume, weekly RSI and an optional P/E pane");
+            if (cv) cv.setAttribute("aria-label", "Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane");
             // syncControls() runs this on every series switch, so
             // while an intraday view is up this write would replace
             // the intraday key wording with the mode wording and
@@ -8422,15 +8492,7 @@ if (typeof module !== "undefined") {
             // to the placeholder.
             var sel = document.getElementById("chartStock");
             if (sel) sel.value = (stockKeys().indexOf(cur.key) >= 0 || ndxKeys().indexOf(cur.key) >= 0 || BAND_KEYS.indexOf(cur.key) >= 0) ? cur.key : "";
-            var modes = document.getElementById("chartModes");
-            if (modes) modes.querySelectorAll("button[data-mode]").forEach(function (b) {
-                b.classList.toggle("active", b.getAttribute("data-mode") === mode);
-            });
             syncModeText();
-            var ranges = document.getElementById("chartRanges");
-            if (ranges) ranges.querySelectorAll("button[data-range]").forEach(function (b) {
-                b.classList.toggle("active", b.getAttribute("data-range") === cur.range);
-            });
             var styles = document.getElementById("chartStyles");
             if (styles) styles.querySelectorAll("button[data-style]").forEach(function (b) {
                 b.classList.toggle("active", b.getAttribute("data-style") === cur.style);
@@ -8455,7 +8517,7 @@ if (typeof module !== "undefined") {
             if (source !== "band") pickerKey = key;
             document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: key, band: source === "band" } }));
             syncControls();
-            if (mode === "daily") ensureDaily(); else render();
+            ensureDaily();
         }
         // A strip pick whose series the pipeline has not landed
         // yet (the new instruments arrive on the next workflow
@@ -8468,7 +8530,7 @@ if (typeof module !== "undefined") {
             cur.key = key; hover = -1; zoom = null; modeNote = "";
             document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: key, band: true } }));
             syncControls();
-            if (mode === "daily") ensureDaily(); else render();
+            ensureDaily();
         }
         window.__chartBandSelect = setKeyBand;
         document.addEventListener("jbo:band-pick", function (e) {
@@ -8488,27 +8550,6 @@ if (typeof module !== "undefined") {
             // three, exactly as a tap on the cell itself does.
             if (BAND_KEYS.indexOf(stockSel.value) >= 0) setKeyBand(stockSel.value);
             else setKey(stockSel.value);
-        });
-        var rangesEl = document.getElementById("chartRanges");
-        if (rangesEl) rangesEl.addEventListener("click", function (e) {
-            var btn = e.target && e.target.closest ? e.target.closest("button[data-range]") : null;
-            if (!btn) return;
-            var r = btn.getAttribute("data-range");
-            modeNote = "";
-            cur.range = r; hover = -1; zoom = null;
-            syncControls(); render();
-        });
-        // ---- Weekly / Daily mode ----
-        function setMode(m) {
-            if (m === mode) return;
-            mode = m; hover = -1; zoom = null; modeNote = "";
-            syncControls();
-            if (mode === "daily") ensureDaily(); else render();
-        }
-        var modesEl = document.getElementById("chartModes");
-        if (modesEl) modesEl.addEventListener("click", function (e) {
-            var btn = e.target && e.target.closest ? e.target.closest("button[data-mode]") : null;
-            if (btn) setMode(btn.getAttribute("data-mode"));
         });
         var stylesEl = document.getElementById("chartStyles");
         if (stylesEl) stylesEl.addEventListener("click", function (e) {
@@ -8696,36 +8737,28 @@ if (typeof module !== "undefined") {
             cur.key = key; modeNote = "";
             pickerKey = key;
             document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: key, band: false } }));
-            var s = mode === "daily" ? (dailyData && dailyData.series ? dailyData.series[key] : null) : chartData.series[key];
-            if (!s || !s.bars || !s.bars.length) { hover = -1; zoom = null; syncControls(); if (mode === "daily") ensureDaily(); else render(); return; }
+            var s = (dailyData && dailyData.series ? dailyData.series[key] : null);
+            if (!s || !s.bars || !s.bars.length) { hover = -1; zoom = null; syncControls(); ensureDaily(); return; }
             var n = s.bars.length;
             var loI = 0, hiI = n - 1, ans = -1;
             while (loI <= hiI) { var mid = (loI + hiI) >> 1; if (s.bars[mid][0] >= dateStr) { ans = mid; hiI = mid - 1; } else { loI = mid + 1; } }
             if (ans < 0) ans = n - 1;
-            var counts = mode === "daily" ? RANGE_DAYS : RANGE_WEEKS;
-            var order = ["1Y", "5Y", "10Y", "ALL"], chosen = "ALL", ri;
-            // The range must hold the full window below (504 days /
-            // 104 weeks): a range smaller than the window (the 1Y
-            // range, for any dot inside the last year) collapses
-            // the window to the whole range with no zoom set, and
-            // the pinch clamp then makes widening a no-op — the
-            // timeframe feels stuck. Skip ranges too small to hold
-            // the window; ALL always qualifies.
-            var Wcap = mode === "daily" ? 504 : 104;
-            for (ri = 0; ri < order.length; ri++) { if (order[ri] !== "ALL" && counts[order[ri]] < Wcap) continue; if (ans >= n - Math.min(n, counts[order[ri]])) { chosen = order[ri]; break; } }
-            cur.range = chosen;
-            var rangeCount = Math.min(n, counts[chosen]);
-            var W = Math.min(rangeCount, mode === "daily" ? 504 : 104);
-            if (W >= rangeCount) { zoom = null; }
+            // The dot's window (2026-11-23): a 504-trading-day
+            // window centred on the dot, set as the gesture zoom
+            // over the full series — the range buttons that used
+            // to hold it are gone. A series shorter than the
+            // window simply shows in full.
+            var W = Math.min(n, 504);
+            if (W >= n) { zoom = null; }
             else {
                 var start = ans - Math.floor(W / 2);
-                if (start < n - rangeCount) start = n - rangeCount;
+                if (start < 0) start = 0;
                 if (start > n - W) start = n - W;
                 zoom = { start: start, end: start + W - 1 };
             }
             hover = ans;
             syncControls();
-            if (mode === "daily") ensureDaily(); else render();
+            ensureDaily();
         }
         if (dotsBtn) dotsBtn.addEventListener("click", function () { setDotsOpen(!dotsOpen); });
         var dotsClose = document.getElementById("finDotsClose");
@@ -8890,10 +8923,33 @@ if (typeof module !== "undefined") {
             // above is unchanged.
             var mDrag = null;
             function ptrId(e) { return (e.pointerId === undefined || e.pointerId === null) ? "p" : e.pointerId; }
-            function setZoomWindow(sF, eF) {
+            function setZoomWindow(sF, eF, wheelTick) {
                 if (rangeEnd < rangeStart) return;
+                // Inside an intraday view (2026-11-23) the window
+                // steps between its two rungs and home: spreading
+                // deep into the sessions view tightens the daily
+                // trigger window to the last two bars, which
+                // re-renders as the single-session view; pinching
+                // wider in the session view steps back to the
+                // sessions; wider in the sessions view hands the
+                // chart back to the full daily view (double-tap
+                // does the same). Anything else is a clean stop —
+                // the minute bars are the finest data there is.
+                // A latch keeps one gesture to one step.
+                if (view && view.intra) {
+                    var ic = Math.round(eF - sF + 1), irc = view.end - view.start + 1;
+                    if (intraLatch) return;
+                    var ds = (dailyData && dailyData.series) ? dailyData.series[cur.key] : null;
+                    var nb = ds && ds.bars ? ds.bars.length : 0;
+                    if (view.intra.kind === "1W" && (ic < irc * 0.45 || (wheelTick && ic < irc)) && nb >= 2) {
+                        zoom = { start: nb - 2, end: nb - 1 }; hover = -1; latchIntra(); render();
+                    } else if (view.intra.kind === "1D" && ic >= irc && nb >= 2) {
+                        zoom = { start: Math.max(0, nb - 6), end: nb - 1 }; hover = -1; latchIntra(); render();
+                    } else if (ic >= irc && zoom) { zoom = null; hover = -1; render(); }
+                    return;
+                }
                 var rc = rangeEnd - rangeStart + 1;
-                var minC = Math.min(26, rc);
+                var minC = Math.min(5, rc);
                 var c = Math.round(eF - sF + 1);
                 if (c < minC) c = minC;
                 if (c > rc) c = rc;
@@ -9096,7 +9152,7 @@ if (typeof module !== "undefined") {
                 var wAnchor = view.start + wf * (view.end - view.start);
                 var wC = wCount * Math.exp(dy * 0.0016);
                 var wS = wAnchor - wf * (wC - 1);
-                setZoomWindow(wS, wS + wC - 1);
+                setZoomWindow(wS, wS + wC - 1, true);
                 onPointer(e);
             }, { passive: false });
         }
@@ -9127,32 +9183,47 @@ if (typeof module !== "undefined") {
         // file, or for a series it doesn't carry, 1D / 1W fall back
         // to the daily bars (1 / 5 of them) with no error.
         var intraData = null, intraStarted = false, intraFailed = false;
-        var INTRA_RANGES = { "1D": true, "1W": true };
-        if (!("1D" in RANGE_DAYS)) RANGE_DAYS["1D"] = 1;
-        if (!("1W" in RANGE_DAYS)) RANGE_DAYS["1W"] = 5;
-        if (!("1D" in RANGE_WEEKS)) RANGE_WEEKS["1D"] = 1;
-        if (!("1W" in RANGE_WEEKS)) RANGE_WEEKS["1W"] = 1;
-        // The 1D / 1W buttons join the range row when the page
-        // doesn't carry them yet (a later ranges build ships its
-        // own; these are only the stand-ins until then).
-        (function () {
-            var rangesEl = document.getElementById("chartRanges");
-            if (!rangesEl || rangesEl.querySelector('button[data-range="1D"]')) return;
-            ["1D", "1W"].forEach(function (r) {
-                var b = document.createElement("button");
-                b.type = "button";
-                b.className = "filter-pill";
-                b.setAttribute("data-range", r);
-                b.textContent = r;
-                var anchor = rangesEl.querySelector('button[data-range="1Y"]');
-                rangesEl.insertBefore(b, anchor || null);
-            });
-        })();
+        // The intraday trigger (2026-11-23): the gesture-set
+        // window over the daily series decides. A window that
+        // ends at the latest bar and spans eight days or less
+        // wants the 1-minute bars; a day and a half or less is
+        // the single-session view, anything wider the sessions
+        // view. No window (the full view) never wants them.
+        function intraSpanDays() {
+            if (!zoom || !dailyData || !dailyData.series) return null;
+            var s = dailyData.series[cur.key];
+            if (!s || !s.bars || !s.bars.length) return null;
+            if (zoom.end < s.bars.length - 1 || zoom.start < 0 || zoom.start >= s.bars.length) return null;
+            return (Date.parse(s.bars[zoom.end][0]) - Date.parse(s.bars[zoom.start][0])) / 86400000;
+        }
+        function intraWanted() {
+            var d = intraSpanDays();
+            return d !== null && d <= 8;
+        }
+        function intraKind() {
+            // The trigger window's bar count names the rung: a
+            // window pinched down to the last two daily bars is
+            // asking for the single session; anything wider is
+            // the sessions view. (Calendar span misreads across
+            // weekends — two bars can span three days.)
+            if (zoom && (zoom.end - zoom.start + 1) <= 2) return "1D";
+            return "1W";
+        }
+        // One gesture, one intraday rung step: setZoomWindow's
+        // kind steps latch for a beat so the rest of the same
+        // gesture (whose bar counts still belong to the view it
+        // started in) can't bounce the view back.
+        var intraLatch = false, intraLatchTimer = 0;
+        function latchIntra() {
+            intraLatch = true;
+            clearTimeout(intraLatchTimer);
+            intraLatchTimer = setTimeout(function () { intraLatch = false; }, 350);
+        }
         function ensureIntra() {
             if (intraData || (intraStarted && !intraFailed)) return;
             intraStarted = true; intraFailed = false;
             fetch("finance-intraday.json").then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-                .then(function (d) { intraData = d; if (mode === "daily" && INTRA_RANGES[cur.range]) render(); })
+                .then(function (d) { intraData = d; if (intraWanted()) render(); })
                 .catch(function () { intraFailed = true; });
         }
         // Eastern Time, always: a session is a New York session
@@ -9184,11 +9255,11 @@ if (typeof module !== "undefined") {
             var ec = etClock(bar[0]);
             return fmtDate(ec.date) + " · " + ec.label;
         }
-        function buildIntraView(key) {
+        function buildIntraView(key, kind) {
             if (!intraData || !intraData.series) return null;
             var is = intraData.series[key];
             if (!is || !is.sessions || !is.sessions.length) return null;
-            var picked = cur.range === "1D" ? [is.sessions[is.sessions.length - 1]] : is.sessions;
+            var picked = kind === "1D" ? [is.sessions[is.sessions.length - 1]] : is.sessions;
             var bars = [], shade = [], sessInfo = [];
             picked.forEach(function (sn) {
                 var a = bars.length;
@@ -9227,7 +9298,7 @@ if (typeof module !== "undefined") {
                 isBench: PICK_KEYS.indexOf(key) >= 0,
                 start: 0, end: bars.length - 1,
                 hasVolume: bars.some(function (b) { return b[5] > 0; }),
-                intra: { kind: cur.range, sessions: sessInfo, shade: shade }
+                intra: { kind: kind, sessions: sessInfo, shade: shade }
             };
         }
         function intraTicks(v, start, end) {
@@ -9294,18 +9365,14 @@ if (typeof module !== "undefined") {
                     dailyData = d;
                     if (typeof populateDots === "function") populateDots();
                     paintDdRows();
-                    if (mode === "daily" || indOn) render();
+                    render();
                 })
                 .catch(function () {
                     dailyFailed = true;
-                    if (mode === "daily") {
-                        // The daily file didn't arrive: fall back
-                        // to Weekly and say so in the data note —
-                        // never a blank or half-switched chart.
-                        mode = "weekly";
-                        modeNote = "Daily data couldn’t be loaded — showing the weekly view.";
-                        syncControls(); render();
-                    }
+                    // No weekly fallback remains (2026-11-23): the
+                    // chart says plainly that its data didn't
+                    // arrive — never a blank or half-switched chart.
+                    showTipStatus("Daily data couldn’t be loaded — the daily data file didn’t arrive. The rest of the page is unaffected.");
                 });
             render(); // the loading status, while the file is on its way
         }
@@ -9326,7 +9393,7 @@ if (typeof module !== "undefined") {
                     populateNdxSelect();
                     if (pendingKey && chartData.series[pendingKey]) { cur.key = pendingKey; pickerKey = pendingKey; document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: pendingKey, band: false } })); pendingKey = null; zoom = null; }
                     syncControls();
-                    if (mode === "daily") ensureDaily(); else render();
+                    ensureDaily();
                 })
                 .catch(function () { loadFailed = true; render(); });
         }
@@ -9343,7 +9410,7 @@ if (typeof module !== "undefined") {
             // loaders (ensureDaily, the shared weekly promise).
             var start = function () {
                 loadWeeklyChain();
-                if (mode === "daily") ensureDaily();
+                ensureDaily();
             };
             if (window.requestIdleCallback) window.requestIdleCallback(start, { timeout: 1500 });
             else setTimeout(start, 1500);
@@ -9393,7 +9460,7 @@ if (typeof module !== "undefined") {
             var section = document.getElementById("chart");
             if (section && section.scrollIntoView) section.scrollIntoView({ behavior: "smooth", block: "start" });
             if (chartData) {
-                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; modeNote = ""; pickerKey = symbol; document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: symbol, band: false } })); syncControls(); if (mode === "daily") ensureDaily(); else render(); }
+                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; modeNote = ""; pickerKey = symbol; document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: symbol, band: false } })); syncControls(); ensureDaily(); }
             } else {
                 pendingKey = symbol;
                 ensure();
@@ -9406,13 +9473,13 @@ if (typeof module !== "undefined") {
                 var v = computeViewFor(key);
                 if (!v) return null;
                 if (idx === undefined || idx === null || idx < 0 || idx >= v.s.bars.length) idx = v.end;
-                return { name: v.s.name, date: v.intra ? fmtIntraStamp(v.s.bars[idx]) : (mode === "daily" ? "" : "Week ending ") + fmtDate(v.s.bars[idx][0]), rows: tipRows(v, idx) };
+                return { name: v.s.name, date: v.intra ? fmtIntraStamp(v.s.bars[idx]) : fmtDate(v.s.bars[idx][0]), rows: tipRows(v, idx) };
             },
             tipPos: tipPos,
             state: function () {
                 return {
                     key: cur.key, range: cur.range, style: cur.style, pe: peOn, vol: volOn, rsi: rsiOn,
-                    mode: mode, dailyLoaded: !!dailyData, modeNote: modeNote,
+                    mode: "daily", dailyLoaded: !!dailyData, modeNote: modeNote,
                     loaded: !!chartData, failed: loadFailed, hover: hover,
                     tipOpen: hover >= 0,
                     fs: fsOn,
@@ -9713,25 +9780,13 @@ if (typeof module !== "undefined") {
                     label = cell ? cell.textContent.trim() : key;
                 }
             }
-            var modeBtn = document.querySelector('#chartModes button.active');
-            return { key: key, label: label, mode: (modeBtn && modeBtn.getAttribute('data-mode')) || 'weekly' };
+            return { key: key, label: label, mode: 'daily' };
         }
         var finBtn = document.getElementById('chartShare');
         if (finBtn) {
             finBtn.addEventListener('click', function () {
                 var c = currentChart();
-                var mine = c.key && document.querySelector(
-                    '#chartStockMine .stock-dd-opt[data-key="' +
-                    c.key.replace(/"/g, '') + '"]');
-                if (c.key && c.mode === 'weekly' && mine) {
-                    // One of Johnny's 19 in the Weekly view the
-                    // snapshot draws: share its doorway, whose
-                    // preview is that stock's own nightly chart
-                    // snapshot (the /s/finance/ doorways).
-                    jboShareNow(document.title, c.label || c.key,
-                        location.origin + '/s/finance/' +
-                        encodeURIComponent(c.key) + '.html');
-                } else if (c.key) {
+                if (c.key) {
                     jboShareNow(document.title, c.label || c.key,
                         jboShareUrl('#chart=' + encodeURIComponent(c.key) + ':' + c.mode));
                 } else {
@@ -9739,14 +9794,15 @@ if (typeof module !== "undefined") {
                 }
             });
         }
-        // A shared link applies the ticker and timeframe once the chart's
-        // data has built its controls; anything unknown degrades silently.
-        // Links shared from the retired Grades view (:grades) still match,
-        // so their ticker applies — the chart itself is Price only now,
-        // so they land on that stock's price chart.
+        // A shared link applies the ticker once the chart's data
+        // has built its controls; anything unknown degrades
+        // silently. The mode suffix is still parsed (weekly /
+        // daily / grades links are in the wild) but no longer
+        // applied — the chart has one mode now, so every link
+        // lands on that stock's daily chart.
         var fm = (location.hash || '').match(/^#chart=([^:]+):(weekly|daily|grades)$/);
         if (fm) {
-            var fKey = decodeURIComponent(fm[1]), fMode = fm[2], fTries = 0;
+            var fKey = decodeURIComponent(fm[1]), fTries = 0;
             var fIv = setInterval(function () {
                 fTries++;
                 var opt = document.querySelector('.stock-dd-opt[data-key="' + fKey.replace(/"/g, '') + '"]');
@@ -9757,10 +9813,6 @@ if (typeof module !== "undefined") {
                     if (tog && tog.getAttribute('aria-expanded') === 'false') { tog.click(); }
                     if (opt) { opt.click(); }
                     else if (typeof window.__chartBandSelect === "function") { window.__chartBandSelect(fKey); }
-                    if (fMode === 'daily') {
-                        var db = document.querySelector('#chartModes button[data-mode="daily"]');
-                        if (db && !db.classList.contains('active')) { db.click(); }
-                    }
                     var sec = document.getElementById('chart');
                     if (sec) { sec.scrollIntoView(); }
                 } else if (fTries > 40) { clearInterval(fIv); }
@@ -12550,70 +12602,13 @@ if (typeof module !== "undefined") {
     })();
 </script>
 <script>
-    /* Close-restore (2026-11-22): closing a Finance surface returns
-       the reader to exactly where they were — the Sustainability
-       mechanism, the site standard since Johnny's "I open
-       something. Scroll a little. Close it. And im at the bottom
-       of the website." A collapse shrinks the document and the
-       browser clamps the scroll toward the new bottom; so at the
-       press that closes a surface, the surface's header position
-       is captured (a pinned header's target is its pin line: 55px,
-       the site header's height, where the section titles stick),
-       and after the collapse the header is put back at that line —
-       immediately, on the next frame, and once more at 120ms for
-       the settle. Covered: the section accordions (their pinned
-       titles are their own toggles), the Chart key, and the Chart
-       tools fold. The Latest dots panel is an overlay — it never
-       moves the page, so its closes need no restore. Full-screen
-       states are skipped: the page behind them must not move. */
-    (function () {
-        "use strict";
-        var PIN = 55;
-        var pending = null;
-        function inFullscreen() {
-            if (document.fullscreenElement || document.webkitFullscreenElement) return true;
-            return !!document.querySelector(".chart-fs, .sb-fs, .sc-fs, .cm-fs, .bt-fs");
-        }
-        function arm(el) {
-            if (!el) return;
-            var top = el.getBoundingClientRect().top;
-            pending = { el: el, target: top > PIN + 2 ? top : PIN };
-        }
-        document.addEventListener("click", function (e) {
-            var t = e.target;
-            if (!t || !t.closest) return;
-            var btn = t.closest(".section-toggle");
-            if (btn) {
-                var body = document.getElementById(btn.getAttribute("data-section") + "-body");
-                if (body && !body.hidden) arm(btn.closest(".section-title") || btn);
-                return;
-            }
-            if (t.closest("#chartToolsBtn")) {
-                var tools = document.getElementById("chartTools");
-                if (tools && !tools.hidden) arm(document.getElementById("chartToolsBtn"));
-                return;
-            }
-            var summary = t.closest("#chartKey > summary");
-            if (summary) {
-                var key = document.getElementById("chartKey");
-                if (key && key.open) arm(summary);
-            }
-        }, true);
-        document.addEventListener("click", function () {
-            if (!pending) return;
-            var p = pending;
-            pending = null;
-            if (inFullscreen()) return;
-            var restore = function () {
-                if (!p.el.isConnected) return;
-                var d = p.el.getBoundingClientRect().top - p.target;
-                if (Math.abs(d) > 1) window.scrollTo(0, window.scrollY + d);
-            };
-            restore();
-            window.requestAnimationFrame(restore);
-            setTimeout(restore, 120);
-        }, false);
-    })();
+    /* Close-restore lives in the shared scroll-anchor mechanism
+       in script.js (2026-11-23): the page-local fold that used to
+       sit here covered the section accordions, the Chart key and
+       the Chart tools; the shared mechanism covers the same
+       surfaces by their toggle controls (button[aria-expanded]
+       and summary) on every page, so the local copy is retired
+       rather than left as a second system. */
 </script>
     <script>
     /* Live header price (2026-11-23, site-wide format unification):
