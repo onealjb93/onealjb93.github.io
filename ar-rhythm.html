@@ -4320,7 +4320,45 @@
         function markDirty() { needsRender = true; }
         var strokes = [];               // finished + live strokes, in order
         var liveByHand = {};            // hand label / 'pointer' -> live stroke
-        var MIN_STEP = 0.30;            // world units between samples
+        // Sampling step, world units. It was 0.30 — at ~30 camera
+        // results a second, a slow deliberate stroke moves less than
+        // that per result, so small careful movements were discarded
+        // until they had piled up into a coarse jump: the "not
+        // sensitive enough" complaint, in one constant. The fingertip
+        // is One-Euro filtered now (below), so stillness reads as
+        // stillness and the step can be ~1 px on stage.
+        var MIN_STEP = 0.05;            // world units between samples
+        // One Euro filter (Casiez et al.): an adaptive low-pass whose
+        // cutoff rises with speed. At rest the cutoff sits at
+        // minCutoff and hand tremor is smoothed to nothing; in a fast
+        // sweep the cutoff opens and the point passes ~1:1 with no
+        // lag. This is the standard cure for exactly this trade —
+        // jitter rejection without eating slow deliberate motion.
+        function makeOneEuro(minCutoff, beta, dCutoff) {
+            var xPrev = null, dxPrev = 0, tPrev = 0;
+            function alpha(cutoff, dt) { var tau = 1 / (2 * Math.PI * cutoff); return 1 / (1 + tau / dt); }
+            return {
+                reset: function () { xPrev = null; dxPrev = 0; },
+                filter: function (x, t) {
+                    if (xPrev === null) { xPrev = x; tPrev = t; return x; }
+                    var dt = Math.max(0.001, t - tPrev); tPrev = t;
+                    var aD = alpha(dCutoff, dt);
+                    var dxHat = aD * ((x - xPrev) / dt) + (1 - aD) * dxPrev; dxPrev = dxHat;
+                    var a = alpha(minCutoff + beta * Math.abs(dxHat), dt);
+                    var out = a * x + (1 - a) * xPrev; xPrev = out;
+                    return out;
+                }
+            };
+        }
+        function makeOneEuro2D() {
+            var fx = makeOneEuro(0.9, 0.05, 1.0), fy = makeOneEuro(0.9, 0.05, 1.0);
+            return {
+                reset: function () { fx.reset(); fy.reset(); },
+                filter: function (p, t) { return { x: fx.filter(p.x, t), y: fy.filter(p.y, t) }; }
+            };
+        }
+        var tipFilters = {};            // hand label -> OneEuro2D (stage px space)
+        var pointerFilter = makeOneEuro2D();
         function baseWidth(s) { return SIZES[s.size] * (s.brush === 'ribbon' ? 1.6 : 1); }
 
         function smoothPoints(raw) {
@@ -4333,11 +4371,15 @@
         // turns to face the viewer (Paint, Light). facing 'plane':
         // the band lies in the working plane (Ribbon). Rounded caps
         // are fans at both ends. widthAt(i, n) -> width multiplier.
-        function buildRibbon(pts, width, facing, widthAt) {
+        function buildRibbon(pts, width, facing, widthAt, flowAt) {
             var n = pts.length;
-            var pos = [], idx = [];
+            var pos = [], idx = [], uvs = [], flows = [];
             var camP = camera.position;
             var i, p, t, side, w;
+            // v runs along the stroke in world units (the paint
+            // shader's streaks are sized in it); u runs across.
+            var vRun = [0];
+            for (i = 1; i < n; i++) vRun.push(vRun[i - 1] + pts[i].distanceTo(pts[i - 1]));
             function tangentAt(i) {
                 var a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
                 var v = new THREE.Vector3().subVectors(b, a);
@@ -4359,6 +4401,9 @@
                 w = width * (widthAt ? widthAt(i, n) : 1) / 2;
                 pos.push(p.x - side.x * w, p.y - side.y * w, p.z - side.z * w,
                          p.x + side.x * w, p.y + side.y * w, p.z + side.z * w);
+                uvs.push(0, vRun[i], 1, vRun[i]);
+                var fl = flowAt ? flowAt(i, n) : 1;
+                flows.push(fl, fl);
             }
             for (i = 0; i < n - 1; i++) {
                 var a = 2 * i, b = a + 1, c = a + 2, d = a + 3;
@@ -4371,6 +4416,8 @@
                 var hw = width * (widthAt ? widthAt(ci, n) : 1) / 2;
                 var center = pos.length / 3;
                 pos.push(c.x, c.y, c.z);
+                uvs.push(0.5, vRun[ci]);
+                flows.push(flowAt ? flowAt(ci, n) : 1);
                 var SEG = 7, ring = [];
                 for (var k = 0; k <= SEG; k++) {
                     var th = (k / SEG) * Math.PI;
@@ -4379,6 +4426,8 @@
                     var dz = sd.z * Math.cos(th) + tg.z * Math.sin(th) * outSign;
                     ring.push(pos.length / 3);
                     pos.push(c.x + dx * hw, c.y + dy * hw, c.z + dz * hw);
+                    uvs.push(0.5 - 0.5 * Math.cos(th), vRun[ci]);
+                    flows.push(flowAt ? flowAt(ci, n) : 1);
                 }
                 for (var k2 = 0; k2 < SEG; k2++) {
                     if (outSign > 0) idx.push(center, ring[k2 + 1], ring[k2]);
@@ -4388,6 +4437,8 @@
             if (n >= 2) { cap(0, -1); cap(n - 1, 1); }
             var g = new THREE.BufferGeometry();
             g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+            g.setAttribute('aFlow', new THREE.Float32BufferAttribute(flows, 1));
             g.setIndex(idx);
             return g;
         }
@@ -4399,8 +4450,39 @@
                     blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
                 });
             }
+            if (s.brush === 'paint') {
+                // Real media, not a vector line: the alpha feathers
+                // at the edges (paint laid down, not cut out), fine
+                // lengthwise streaks break the body (dry-brush), and
+                // the per-point flow thins the paint where the hand
+                // moves fast and pools it where it moves slow.
+                var m = new THREE.ShaderMaterial({
+                    uniforms: { uColor: { value: col }, uOpacity: { value: 0.96 } },
+                    vertexShader: [
+                        'attribute float aFlow;',
+                        'varying vec2 vUvR; varying float vFlow;',
+                        'void main() { vUvR = uv; vFlow = aFlow;',
+                        '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }'
+                    ].join('\n'),
+                    fragmentShader: [
+                        'uniform vec3 uColor; uniform float uOpacity;',
+                        'varying vec2 vUvR; varying float vFlow;',
+                        'float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
+                        'void main() {',
+                        '  float edge = smoothstep(0.0, 0.16, vUvR.x) * smoothstep(1.0, 0.84, vUvR.x);',
+                        '  float streak = hash(vec2(floor(vUvR.y * 18.0), floor(vUvR.x * 3.0)));',
+                        '  float body = 0.94 + streak * 0.10;',
+                        '  float a = uOpacity * (0.25 + 0.75 * edge) * vFlow;',
+                        '  gl_FragColor = vec4(uColor * body, a);',
+                        '}'
+                    ].join('\n'),
+                    transparent: true, side: THREE.DoubleSide
+                });
+                m.opacity = 0.96;   // read by the verification API
+                return m;
+            }
             return new THREE.MeshBasicMaterial({
-                color: col, transparent: true, opacity: s.brush === 'ribbon' ? 0.88 : 0.96,
+                color: col, transparent: true, opacity: 0.88,
                 side: THREE.DoubleSide
             });
         }
@@ -4409,16 +4491,17 @@
             markDirty();
             var pts = smoothPoints(s.raw);
             var facing = s.brush === 'ribbon' ? 'plane' : 'camera';
-            var widthAt = null;
-            if (s.brush === 'ribbon') {
-                widthAt = function (i, n) {
-                    // interpolate the per-sample speed factors onto the smoothed points
-                    var f = (i / Math.max(1, n - 1)) * (s.widths.length - 1);
-                    var lo = Math.floor(f), hi = Math.min(s.widths.length - 1, lo + 1);
-                    return s.widths[lo] + (s.widths[hi] - s.widths[lo]) * (f - lo);
+            // interpolate a per-sample array onto the smoothed points
+            function interp(arr) {
+                return function (i, n) {
+                    var f = (i / Math.max(1, n - 1)) * (arr.length - 1);
+                    var lo = Math.floor(f), hi = Math.min(arr.length - 1, lo + 1);
+                    return arr[lo] + (arr[hi] - arr[lo]) * (f - lo);
                 };
             }
-            var geo = buildRibbon(pts, baseWidth(s), facing, widthAt);
+            var widthAt = s.brush === 'ribbon' ? interp(s.widths) : null;
+            var flowAt = s.brush === 'paint' ? interp(s.flows) : null;
+            var geo = buildRibbon(pts, baseWidth(s), facing, widthAt, flowAt);
             if (!s.mesh) {
                 s.mesh = new THREE.Mesh(geo, strokeMaterial(s, false));
                 s.mesh.frustumCulled = false;
@@ -4452,7 +4535,7 @@
         function beginStroke(key, pt) {
             endStroke(key);
             var s = { brush: tool.brush, color: tool.color, size: tool.size,
-                      raw: [pt.clone()], widths: [1], mesh: null, halo: null,
+                      raw: [pt.clone()], widths: [1], flows: [1], mesh: null, halo: null,
                       smoothCount: 0, vertCount: 0, lastT: performance.now(), lastPt: pt.clone() };
             strokes.push(s);
             liveByHand[key] = s;
@@ -4471,8 +4554,12 @@
             // Ribbon: hand roll is not in the landmarks — width follows
             // speed instead (fast sweep = narrow silk, slow = wide).
             var wf = s.brush === 'ribbon' ? Math.max(0.35, Math.min(1.15, 26 / (26 + speed))) : 1;
+            // Paint flow: a slow hand lays a full body of paint; a
+            // fast sweep starves it (alpha down to ~0.8).
+            var fl = s.brush === 'paint' ? Math.max(0.80, Math.min(1.0, 1.06 - speed * 0.004)) : 1;
             s.raw.push(pt.clone());
             s.widths.push(wf);
+            s.flows.push(fl);
             s.lastT = now; s.lastPt = pt.clone();
             rebuildStroke(s);
         }
@@ -4485,6 +4572,7 @@
                 var r = baseWidth(s) * 0.5;
                 s.raw.push(new THREE.Vector3(p.x + r, p.y, p.z));
                 s.widths.push(1);
+                s.flows.push(1);
                 rebuildStroke(s);
             }
             updateCount();
@@ -4653,7 +4741,9 @@
                 orbitDrag = { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2,
                               dist: Math.hypot(a.x - b.x, a.y - b.y) };
             } else if (ids.length === 1) {
-                var pt = pxToPlane(p.x, p.y);
+                pointerFilter.reset();
+                var fp = pointerFilter.filter(p, performance.now() / 1000);
+                var pt = pxToPlane(fp.x, fp.y);
                 if (pt) beginStroke('pointer', pt);
             }
         });
@@ -4672,7 +4762,8 @@
                 orbitDrag = { cx: cx, cy: cy, dist: d };
                 applyOrbit();
             } else if (ids.length === 1 && liveByHand.pointer) {
-                var pt = pxToPlane(p.x, p.y);
+                var fp2 = pointerFilter.filter(p, performance.now() / 1000);
+                var pt = pxToPlane(fp2.x, fp2.y);
                 if (pt) addPoint('pointer', pt);
             }
         });
@@ -4736,6 +4827,12 @@
                 // Landmarks flip at the source (mirror), exactly as Threads.
                 var fx = function (p) { return 1 - p.x; };
                 var tipPx = { x: cover.ox + fx(L[8]) * cover.dw, y: cover.oy + L[8].y * cover.dh };
+                // One Euro on the fingertip, in stage px: tremor dies
+                // at rest, deliberate motion passes. Filtered every
+                // frame (held or not) so the estimate is already
+                // settled when a pinch engages the brush.
+                if (!tipFilters[label]) tipFilters[label] = makeOneEuro2D();
+                tipPx = tipFilters[label].filter(tipPx, performance.now() / 1000);
                 var tipV = { x: fx(L[8]) * vw, y: L[8].y * vh };
                 var thumbV = { x: fx(L[4]) * vw, y: L[4].y * vh };
                 var wristV = { x: fx(L[0]) * vw, y: L[0].y * vh };
@@ -4777,6 +4874,7 @@
                 } else {
                     if (st.held) { st.held = false; endStroke(gone); }
                     delete prevHands[gone];
+                    if (tipFilters[gone]) { tipFilters[gone].reset(); delete tipFilters[gone]; }
                 }
             }
             handsNow = next;
@@ -4965,6 +5063,7 @@
                         blending: s.mesh ? s.mesh.material.blending : null,
                         opacity: s.mesh ? s.mesh.material.opacity : null,
                         hasHalo: !!s.halo,
+                        path: s.raw.map(function (p) { return [Math.round(p.x * 100) / 100, Math.round(p.y * 100) / 100]; }),
                         first: s.raw.length ? { x: Math.round(s.raw[0].x * 100) / 100, y: Math.round(s.raw[0].y * 100) / 100, z: Math.round(s.raw[0].z * 100) / 100 } : null
                     };
                 });
