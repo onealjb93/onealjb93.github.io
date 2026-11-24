@@ -222,9 +222,9 @@
             font-size: 0.85rem;
             text-align: center;
             pointer-events: none;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            /* The coach text is never clipped: the pill wraps to a
+               second line when a hint runs long, growing upward from
+               its fixed bottom anchor. */
         }
         .thr-hint[hidden] { display: none; }
         /* Instrument picker: one row of tinted chips at the top of
@@ -1087,6 +1087,7 @@
         var dots = [];                  // {x, y} as fractions of stage size
         var strings = [];               // {freq, name, rgb, lenPx, vibStart, vibAmp, lastPluck}
         var pull = null;                // live thread endpoint {x, y} fractions, or null
+        var pullFrom = null;            // camera draw: the pending anchor the thread stretches from
         var pluckLog = [];              // verification record of plucks
 
         var mirror = true;              // always: view + web + landmarks flip together
@@ -1329,7 +1330,7 @@
             var best = null, bestD = PINCH_SNAP_PX;
             for (var i = 0; i < strings.length; i++) {
                 if (strings[i].lenPx < SNAP_MIN_LEN_PX) continue;
-                var d = distToSeg(px, toPx(dots[i]), toPx(dots[i + 1]));
+                var d = distToSeg(px, toPx(strings[i].a), toPx(strings[i].b));
                 if (d <= bestD) { bestD = d; best = strings[i]; }
             }
             return best;
@@ -1383,7 +1384,7 @@
             for (var i = 0; i < strings.length; i++) {
                 var s = strings[i];
                 if (s === g.playString || s.heldBy) continue;
-                if (segInt(g.tipPx, curPx, toPx(dots[i]), toPx(dots[i + 1]))) {
+                if (segInt(g.tipPx, curPx, toPx(s.a), toPx(s.b))) {
                     if (!g.playAlso) g.playAlso = [];
                     g.playAlso.push(s);
                     startHeldString(s, label);
@@ -1606,7 +1607,7 @@
             for (var i = 0; i < strings.length; i++) {
                 var s = strings[i];
                 if (now - s.lastPluck < 90) continue;
-                var a = toPx(dots[i]), b = toPx(dots[i + 1]);
+                var a = toPx(s.a), b = toPx(s.b);
                 if (segInt(prevPx, curPx, a, b)) {
                     strike(s, Math.max(0.15, Math.min(1, speedPxS / 900)));
                 }
@@ -1621,22 +1622,42 @@
             clearBtn.disabled = dots.length === 0;
             updateHint();
         }
+        // Every string carries its own two endpoints (fractions).
+        // Touch building chains dots — each new dot extends the web
+        // from the previous one. A camera pinch-drag instead commits
+        // a self-contained pair. Every geometry reader uses s.a/s.b,
+        // so separate gestures never grow a connecting segment.
+        function spawnString(aF, bF, pair) {
+            var lenPx = dist(toPx(aF), toPx(bF));
+            var p = pitchForLength(lenPx, currentType);
+            var T = TYPES[currentType];
+            strings.push({ freq: p.freq, name: p.name, type: currentType, rgb: T.rgb.slice(), lenPx: Math.round(lenPx), vibStart: 0, vibAmp: 0, lastPluck: 0, lastTouch: 0, sounding: false, bowOn: false, bow: null, heldBy: null, pinchHeld: false, stopAt: 0, liveSrc: null, liveGain: null, a: { x: aF.x, y: aF.y }, b: { x: bF.x, y: bF.y }, pair: !!pair });
+        }
         function placeDot(f) {
             dots.push({ x: f.x, y: f.y });
-            if (dots.length >= 2) {
-                var a = toPx(dots[dots.length - 2]), b = toPx(dots[dots.length - 1]);
-                var lenPx = dist(a, b);
-                var p = pitchForLength(lenPx, currentType);
-                var T = TYPES[currentType];
-                strings.push({ freq: p.freq, name: p.name, type: currentType, rgb: T.rgb.slice(), lenPx: Math.round(lenPx), vibStart: 0, vibAmp: 0, lastPluck: 0, lastTouch: 0, sounding: false, bowOn: false, bow: null, heldBy: null, pinchHeld: false, stopAt: 0, liveSrc: null, liveGain: null });
-            }
+            if (dots.length >= 2) spawnString(dots[dots.length - 2], dots[dots.length - 1], false);
+            updateCount();
+            markDirty();
+        }
+        // One deliberate pinch cycle commits exactly one string:
+        // its two dots land together, linked to nothing else.
+        function commitString(aF, bF) {
+            dots.push({ x: aF.x, y: aF.y });
+            dots.push({ x: bF.x, y: bF.y });
+            spawnString(aF, bF, true);
             updateCount();
             markDirty();
         }
         function undo() {
             if (!dots.length) return;
-            dots.pop();
-            while (strings.length > Math.max(0, dots.length - 1)) teardownBow(strings.pop());
+            var last = strings[strings.length - 1];
+            if (last && last.pair) {
+                teardownBow(strings.pop());
+                dots.pop(); dots.pop();
+            } else {
+                dots.pop();
+                while (strings.length > Math.max(0, dots.length - 1)) teardownBow(strings.pop());
+            }
             if (!dots.length) pull = null;
             updateCount();
             markDirty();
@@ -1952,11 +1973,12 @@
                 if (!snd && bs.bowOn) bowStop(bs);
                 bs.sounding = snd;
             }
-            for (i = 0; i < strings.length; i++) drawString(strings[i], toPx(dots[i]), toPx(dots[i + 1]), now);
+            for (i = 0; i < strings.length; i++) drawString(strings[i], toPx(strings[i].a), toPx(strings[i].b), now);
             for (i = 0; i < drums.length; i++) drawDrum(drums[i], now);
-            if (dots.length && pull) drawLiveThread(toPx(dots[dots.length - 1]), toPx(pull));
+            if (pull && pullFrom) drawLiveThread(toPx(pullFrom), toPx(pull));
+            else if (dots.length && pull) drawLiveThread(toPx(dots[dots.length - 1]), toPx(pull));
             for (i = 0; i < dots.length; i++) drawDot(toPx(dots[i]));
-            for (i = 0; i < strings.length; i++) drawMedallion(toPx(dots[i]), strings[i].type);
+            for (i = 0; i < strings.length; i++) drawMedallion(toPx(strings[i].a), strings[i].type);
             if (mode === 'camera') {
                 for (var k in handsNow) drawCursor(handsNow[k].tipPx, HAND_COLORS[k] || '#fff', handsNow[k].grip || 0);
             } else if (mode === 'touch' && touchGesture === 'pull' && pull) {
@@ -2098,7 +2120,7 @@
             // A tap directly on a string strikes it — and only that.
             // A bowed string keeps sounding while the touch holds it.
             for (var i = 0; i < strings.length; i++) {
-                if (distToSeg(p, toPx(dots[i]), toPx(dots[i + 1])) <= 13) {
+                if (distToSeg(p, toPx(strings[i].a), toPx(strings[i].b)) <= 13) {
                     strike(strings[i], 0.8);
                     if (TYPES[strings[i].type].voice === 'bow') touchBowHold = strings[i];
                     touchGesture = 'pluck';
@@ -2139,7 +2161,7 @@
             // Resting on a bowed string keeps the bow on it.
             for (var i = 0; i < strings.length; i++) {
                 var s = strings[i];
-                if (TYPES[s.type].voice === 'bow' && distToSeg(p, toPx(dots[i]), toPx(dots[i + 1])) <= 14) s.lastTouch = now;
+                if (TYPES[s.type].voice === 'bow' && distToSeg(p, toPx(s.a), toPx(s.b)) <= 14) s.lastTouch = now;
             }
             // Sweeping across a drum strikes it, like a string.
             if (touchGesture === 'pull' || touchGesture === 'pluck' || touchGesture === 'drum') {
@@ -2186,22 +2208,30 @@
         // ---- camera mode: MediaPipe Hands ----
         var stream = null, mpHands = null, pumpOn = false, sending = false;
         // The pinch recogniser. A state change is earned, never sampled
-        // from one frame: inside the sure zones (fingers clearly
-        // touching, fingers clearly wide) a single frame decides; in
-        // the uncertain band between the two hysteresis thresholds, two
-        // consecutive frames must agree. The thresholds sit far enough
-        // apart that a hand hovering at either one cannot chatter the
-        // state. A hand missing from up to GRACE_FRAMES results frames
-        // keeps its state frozen — a tracking dropout mid-drag neither
-        // drops nor pins the string; past the grace it retires quietly
-        // and never places a dot.
+        // from one frame: a pinch engages on one clearly-touching frame
+        // or two agreeing band frames; a release must be earned the
+        // same way at the wide threshold — the coach says "open your
+        // fingers wide", so nothing lets go inside the band. The
+        // thresholds sit far enough apart that a hand hovering at
+        // either one cannot chatter the state. A hand missing from up
+        // to GRACE_FRAMES results frames keeps its state frozen — a
+        // tracking dropout mid-drag neither drops nor pins the string;
+        // past the grace it retires quietly and never places a dot.
+        // A draw pinch commits NOTHING while it is held: pinch-down
+        // records a pending anchor, and the release commits exactly
+        // one string — anchor to the fingertip's last held position —
+        // and only when the drag truly travelled DRAW_MIN_PX. After
+        // any draw release, REARM_MS must pass before the next pinch
+        // can arm a new string, so ordinary repeated pinching can
+        // never mint geometry by accident.
         var PINCH_ON_SURE = 0.22;   // pinchD at or under: fingers touching
         var PINCH_ON = 0.38;        // engage threshold (hysteresis, low side)
-        var PINCH_OFF = 0.52;       // release threshold (hysteresis, high side)
-        var PINCH_OFF_SURE = 0.72;  // pinchD at or over: unmistakably open
+        var PINCH_OFF = 0.72;       // release threshold: fingers wide open
         var PINCH_CONFIRM = 2;      // frames that must agree inside the band
         var GRACE_FRAMES = 3;       // landmark dropouts forgiven mid-gesture
-        var DROP_MIN_PX = 14;       // a release pins only past this travel
+        var DRAW_MIN_PX = 50;       // a draw commits only past this drag
+        var REARM_MS = 300;         // cooldown after a draw release
+        var rearmUntil = 0;         // next pinch may arm a draw after this
         // ---- pinch-to-play tuning (Johnny's model, 2026-11-23): a
         // string sounds only while a pinch holds it — pinch is the
         // only door in, release is the only way out. Grouped here so
@@ -2301,9 +2331,25 @@
                                     // sounds and no dot is placed.
                                     g.playString = ps;
                                     startHeldString(ps, label);
+                                } else if (now < rearmUntil) {
+                                    // Inside the re-arm cooldown after
+                                    // the last draw: this pinch arms
+                                    // nothing, and stays inert for the
+                                    // whole cycle however long it is
+                                    // held — the next fresh pinch
+                                    // after the cooldown is the next
+                                    // chance to draw.
+                                    g.drawBlocked = true;
                                 } else {
-                                    placeDot(tipFrac);
-                                    anchorHand = label;
+                                    // DRAW pinch: pinch-down only
+                                    // records the pending anchor. No
+                                    // dot, no segment — the string
+                                    // exists only if the release
+                                    // commits it (see DROP below).
+                                    g.pendingAnchor = { x: tipFrac.x, y: tipFrac.y };
+                                    g.pendingPx = { x: tipPx.x, y: tipPx.y };
+                                    g.lastTipPx = tipPx;
+                                    g.lastTipFrac = tipFrac;
                                 }
                             }
                         }
@@ -2317,8 +2363,8 @@
                         var factor = Math.exp((pinchD - g.grabPinch0) * 2.4);
                         g.drumGrab.rFrac = Math.max(DRUM_R_MIN, Math.min(DRUM_R_MAX, g.grabR0 * factor));
                     }
-                    g.offN = pinchD > PINCH_OFF ? g.offN + 1 : 0;
-                    if (pinchD >= PINCH_OFF_SURE || g.offN >= PINCH_CONFIRM) {
+                    g.offN = pinchD >= PINCH_OFF ? g.offN + 1 : 0;
+                    if (g.offN >= PINCH_CONFIRM) {
                         g.held = false; g.offN = 0; g.onN = 0;
                         if (g.playString || g.playAlso) {
                             // PLAY pinch ends: the string stops (its
@@ -2335,15 +2381,31 @@
                             markDirty();
                         } else if (g.placedDrum) {
                             g.placedDrum = false;
-                        } else if (dots.length && dist(tipPx, toPx(dots[dots.length - 1])) > DROP_MIN_PX) {
-                            // DROP: letting go after a drag pins the
-                            // string where the fingers opened. A
-                            // pinch opened on the spot already placed
-                            // its dot on the way in, so it adds
-                            // nothing here.
-                            placeDot(tipFrac);
+                        } else if (g.pendingAnchor) {
+                            // DROP: the one commit of the cycle. The
+                            // endpoint is the fingertip's LAST HELD
+                            // position — where the string was actually
+                            // stretched to — never this detection
+                            // frame's tip, sampled after the hand has
+                            // opened and travelled. A pinch released
+                            // without a real drag commits nothing.
+                            if (g.pendingPx && g.lastTipPx && dist(g.pendingPx, g.lastTipPx) >= DRAW_MIN_PX) {
+                                commitString(g.pendingAnchor, g.lastTipFrac);
+                            }
+                            g.pendingAnchor = null; g.pendingPx = null;
+                            rearmUntil = now + REARM_MS;
+                        } else if (g.drawBlocked) {
+                            g.drawBlocked = false;
+                            rearmUntil = now + REARM_MS;
                         }
                         updateHint();
+                    } else if (g.pendingAnchor && pinchD < PINCH_OFF) {
+                        // Still holding: remember where the fingertip
+                        // rests — the release commits to this point,
+                        // not to wherever the hand is when the
+                        // opening is finally detected.
+                        g.lastTipPx = tipPx;
+                        g.lastTipFrac = tipFrac;
                     }
                 }
                 // A play pinch holds its string: a bowed string's
@@ -2382,15 +2444,14 @@
                 }
             }
             handsNow = next;
-            // The live thread pulls from the last dot to the fingertip of
-            // the hand that placed it; if that hand leaves the frame, the
-            // other hand takes over; if none is tracked, it rests.
-            if (dots.length) {
-                if (anchorHand && next[anchorHand]) pull = next[anchorHand].tipFrac;
-                else {
-                    var any = next.Left || next.Right;
-                    if (any) pull = any.tipFrac;
-                }
+            // The live thread exists only while a draw pinch is held:
+            // it stretches from the pending anchor to that hand's
+            // fingertip. An open hand trails nothing — there is no
+            // "next dot" for a thread to point at any more.
+            pull = null; pullFrom = null;
+            for (var pk in prevHands) {
+                var ph = prevHands[pk];
+                if (ph.pendingAnchor && ph.tipFrac) { pullFrom = ph.pendingAnchor; pull = ph.tipFrac; break; }
             }
             updateHint();
         }
@@ -2860,6 +2921,7 @@
                 type: currentType,
                 dots: dots.map(function (d) { return { x: d.x, y: d.y }; }),
                 stringTypes: strings.map(function (s) { return s.type; }),
+                stringEnds: strings.map(function (s) { return [{ x: s.a.x, y: s.a.y }, { x: s.b.x, y: s.b.y }]; }),
                 drums: drums.map(function (d) { return { kind: d.kind, x: d.x, y: d.y, rFrac: d.rFrac }; }),
                 loop: loopBlob ? { blob: loopBlob, type: loopBlob.type, duration: loopBuffer ? loopBuffer.duration : 0, savedAt: Date.now() } : null
             };
@@ -2893,9 +2955,19 @@
                 }
             });
             var sd = data.dots || [], st = data.stringTypes || [];
-            for (var i = 0; i < sd.length; i++) {
-                if (i > 0 && st[i - 1] && TYPES[st[i - 1]]) setType(st[i - 1]);
-                placeDot({ x: sd[i].x, y: sd[i].y });
+            var ends = data.stringEnds || [];
+            if (ends.length && ends.length === st.length) {
+                // Strings saved with their own endpoints restore as
+                // the same independent strings — never re-chained.
+                for (var j = 0; j < ends.length; j++) {
+                    if (st[j] && TYPES[st[j]]) setType(st[j]);
+                    commitString(ends[j][0], ends[j][1]);
+                }
+            } else {
+                for (var i = 0; i < sd.length; i++) {
+                    if (i > 0 && st[i - 1] && TYPES[st[i - 1]]) setType(st[i - 1]);
+                    placeDot({ x: sd[i].x, y: sd[i].y });
+                }
             }
             if (data.type && TYPES[data.type]) setType(data.type);
             if (data.loop && data.loop.blob) pendingLoopBlob = data.loop.blob;
@@ -3013,7 +3085,7 @@
                     return { freq: s.freq, name: s.name, type: s.type, rgb: s.rgb.slice(),
                              width: (TYPES[s.type] || TYPES.guitar).width, lenPx: s.lenPx,
                              sounding: !!s.sounding, bowOn: !!s.bowOn, held: !!s.heldBy,
-                             a: { x: dots[i].x, y: dots[i].y }, b: { x: dots[i + 1].x, y: dots[i + 1].y },
+                             a: { x: s.a.x, y: s.a.y }, b: { x: s.b.x, y: s.b.y },
                              vibAge: s.vibStart ? performance.now() - s.vibStart : -1, vibAmp: s.vibAmp };
                 });
             },
