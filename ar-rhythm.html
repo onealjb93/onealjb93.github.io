@@ -1119,6 +1119,25 @@
                     Math.round(a[2] + (b[2] - a[2]) * u)];
         }
         function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+        function shadeC(c, f) { return [Math.min(255, Math.round(c[0] * f)), Math.min(255, Math.round(c[1] * f)), Math.min(255, Math.round(c[2] * f))]; }
+        function mixC(c, t, k) { return [Math.round(c[0] + (t[0] - c[0]) * k), Math.round(c[1] + (t[1] - c[1]) * k), Math.round(c[2] + (t[2] - c[2]) * k)]; }
+        // A string's wire, by pitch: below ~G3 the wire is WOUND
+        // (darker, warmer, its specular broken into helical dashes);
+        // above it the wire is PLAIN steel/nylon (bright core, one
+        // clean specular). The instrument's hue tints both.
+        function wireMaterial(s) {
+            // Wound below ~E4 (330 Hz): on real instruments the
+            // cello's strings and the violin's G and D (196 / 293
+            // Hz) are wound; plain steel/nylon runs from there up.
+            var wound = s.freq < 330;
+            if (wound) return { wound: true, core: mixC(shadeC(s.rgb, 0.72), [146, 110, 62], 0.35), hi: mixC(s.rgb, [255, 226, 178], 0.45) };
+            // Plain wire: brightened, but the speculars stay TINTED
+            // with the instrument's hue and capped under the core's
+            // own brightness — a white-hot highlight on every wire
+            // would wash the four instruments into one colour, and
+            // each string must stay identifiable by its tint.
+            return { wound: false, core: mixC(s.rgb, [232, 236, 244], 0.20), hi: mixC(s.rgb, [255, 255, 255], 0.6) };
+        }
 
         // ---- audio: plucked (Karplus-Strong) and bowed voices
         // through a limiter. An analyser taps the master bus so the
@@ -1493,22 +1512,44 @@
             var p = toPx(d), r = drumRPx(d), T = DRUMS[d.kind];
             var el = d.hitT ? (now - d.hitT) / 1000 : 99;
             var hit = el < 0.45 ? 1 - el / 0.45 : 0;
-            var rr = r * (1 + 0.10 * hit * (d.hitAmp || 1));
+            // The membrane does not swell like a balloon: it dips
+            // and ripples, decaying in ~0.45 s. osc drives both the
+            // rim wobble and the centre dip below.
+            var osc = el < 0.6 ? Math.cos(el * 38) * Math.exp(-el * 7) * (d.hitAmp || 1) : 0;
+            var rr = r * (1 + 0.028 * osc);
             ctx.save();
             if (hit > 0) {
                 ctx.strokeStyle = rgba(T.rgb, 0.55 * hit);
                 ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.arc(p.x, p.y, r + (1 - hit) * 16 + 3, 0, 7); ctx.stroke();
             }
-            var g = ctx.createRadialGradient(p.x, p.y, rr * 0.1, p.x, p.y, rr);
-            g.addColorStop(0, rgba(T.rgb, 0.48 + 0.27 * hit));
-            g.addColorStop(0.8, rgba(T.rgb, 0.30));
-            g.addColorStop(1, rgba(T.rgb, 0.15));
+            // Grounding, per the compositing standard: a soft
+            // contact shadow down-right of the shell (light from
+            // upper-left), then the shell's own side as a darker
+            // crescent under the membrane, with a sheen line where
+            // the shell catches the light. No shadowBlur.
+            var shg = ctx.createRadialGradient(p.x + 4, p.y + r * 0.98, 1, p.x + 4, p.y + r * 0.98, r * 1.05);
+            shg.addColorStop(0, 'rgba(0,0,0,0.32)'); shg.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = shg;
+            ctx.beginPath(); ctx.ellipse(p.x + 4, p.y + r * 0.98, r * 1.05, r * 0.30, 0, 0, 7); ctx.fill();
+            ctx.fillStyle = rgba(shadeC(T.rgb, 0.42), 0.95);
+            ctx.beginPath(); ctx.arc(p.x, p.y + r * 0.17, rr, 0, 7); ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.20)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath(); ctx.arc(p.x, p.y + r * 0.17, rr - 0.8, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+            // membrane: lit from upper-left, darker at the rim
+            var g = ctx.createRadialGradient(p.x - rr * 0.32, p.y - rr * 0.32, rr * 0.1, p.x, p.y, rr);
+            g.addColorStop(0, rgba(mixC(T.rgb, [255, 255, 255], 0.35), 0.62 + 0.2 * hit));
+            g.addColorStop(0.8, rgba(T.rgb, 0.42));
+            g.addColorStop(1, rgba(shadeC(T.rgb, 0.6), 0.5));
             ctx.fillStyle = g;
-            ctx.shadowColor = rgba(T.rgb, 0.85);
-            ctx.shadowBlur = 10 + 16 * hit;
             ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, 7); ctx.fill();
-            ctx.shadowBlur = 0;
+            if (osc !== 0) {
+                // the dip: a soft dark pool at the centre while the
+                // membrane is pressed in, bright when it rebounds
+                ctx.fillStyle = osc > 0 ? 'rgba(0,0,0,' + (0.20 * osc) + ')' : 'rgba(255,255,255,' + (-0.14 * osc) + ')';
+                ctx.beginPath(); ctx.arc(p.x, p.y, rr * 0.45, 0, 7); ctx.fill();
+            }
             ctx.strokeStyle = rgba(T.rgb, 0.95);
             ctx.lineWidth = 2.5;
             ctx.beginPath(); ctx.arc(p.x, p.y, rr - 1, 0, 7); ctx.stroke();
@@ -1659,59 +1700,113 @@
             var bowSnd = T.voice === 'bow' && s.sounding;
             var lenPx = dist(a, b);
             var nx = -(b.y - a.y) / (lenPx || 1), ny = (b.x - a.x) / (lenPx || 1);
+            var M = wireMaterial(s);
+            var W = T.width;
             ctx.save();
-            ctx.strokeStyle = rgba(s.rgb, (vibrating || bowSnd) ? 0.95 : 0.8);
-            ctx.lineWidth = T.width + (vibrating ? 0.5 : 0);
-            ctx.shadowColor = rgba(s.rgb, 0.9);
-            ctx.shadowBlur = s.type === 'harp' ? (vibrating ? 24 : 16) : (vibrating || bowSnd) ? 18 : 11;
-            ctx.beginPath();
-            if (bowSnd && !reduceMotion) {
-                // A bowed string shimmers for as long as it sounds:
-                // a small, steady shimmer that never decays away.
-                var ampB = Math.min(5, lenPx * 0.018) + 1.2;
-                var phaseB = 2 * Math.PI * 8.5 * (now / 1000);
-                var STEPSB = 22;
-                for (var i = 0; i <= STEPSB; i++) {
-                    var uB = i / STEPSB;
-                    var offB = ampB * Math.sin(Math.PI * uB) * Math.sin(phaseB - uB * 2.2);
-                    var xB = a.x + (b.x - a.x) * uB + nx * offB;
-                    var yB = a.y + (b.y - a.y) * uB + ny * offB;
-                    if (i === 0) ctx.moveTo(xB, yB); else ctx.lineTo(xB, yB);
-                }
-            } else if (vibrating && !reduceMotion) {
-                var env = Math.max(Math.exp(-el * 3.1) * s.vibAmp,
-                (s.pinchHeld && T.voice !== 'bow') ? 0.3 : 0);
-                var amp = env * Math.min(16, lenPx * 0.07);
-                var visF = Math.max(7, Math.min(16, s.freq / 24));
-                var phase = 2 * Math.PI * visF * el;
-                var STEPS = 22;
-                for (var j = 0; j <= STEPS; j++) {
-                    var u = j / STEPS;
-                    var off = amp * Math.sin(Math.PI * u) * Math.sin(phase);
-                    var x = a.x + (b.x - a.x) * u + nx * off;
-                    var y = a.y + (b.y - a.y) * u + ny * off;
+            // NO shadowBlur anywhere on a string: the neon halo was
+            // the cheap-digital tell. A real wire reads by its body,
+            // its specular, and — while it rings — its envelope.
+            function envPath(amp, scale) {
+                // the spindle outline: out along +env, back along -env
+                var STEPS = 22, j, u, off;
+                ctx.beginPath();
+                for (j = 0; j <= STEPS; j++) {
+                    u = j / STEPS; off = amp * scale * Math.sin(Math.PI * u);
+                    var x = a.x + (b.x - a.x) * u + nx * off, y = a.y + (b.y - a.y) * u + ny * off;
                     if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                 }
-            } else {
-                ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+                for (j = STEPS; j >= 0; j--) {
+                    u = j / STEPS; off = amp * scale * Math.sin(Math.PI * u);
+                    ctx.lineTo(a.x + (b.x - a.x) * u - nx * off, a.y + (b.y - a.y) * u - ny * off);
+                }
+                ctx.closePath();
             }
-            ctx.stroke();
-            // The violin's shimmer rides as a bright highlight line.
-            if (bowSnd && s.type === 'violin' && !reduceMotion) {
-                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-                ctx.lineWidth = 0.8;
-                ctx.shadowBlur = 6;
+            function edgeCurve(amp, sign) {
+                var STEPS = 22, j, u, off;
                 ctx.beginPath();
-                var phaseV = 2 * Math.PI * 8.5 * (now / 1000) + 0.9;
-                var ampV = Math.min(5, lenPx * 0.018) + 1.2;
-                for (var k = 0; k <= 22; k++) {
-                    var uV = k / 22;
-                    var offV = ampV * Math.sin(Math.PI * uV) * Math.sin(phaseV - uV * 2.2);
-                    var xV = a.x + (b.x - a.x) * uV + nx * offV + nx * 1.4;
-                    var yV = a.y + (b.y - a.y) * uV + ny * offV + ny * 1.4;
-                    if (k === 0) ctx.moveTo(xV, yV); else ctx.lineTo(xV, yV);
+                for (j = 0; j <= STEPS; j++) {
+                    u = j / STEPS; off = sign * amp * Math.sin(Math.PI * u);
+                    var x = a.x + (b.x - a.x) * u + nx * off, y = a.y + (b.y - a.y) * u + ny * off;
+                    if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                 }
                 ctx.stroke();
+            }
+            function wireLine(alpha, width, color, dash) {
+                ctx.strokeStyle = rgba(color, alpha);
+                ctx.lineWidth = width;
+                ctx.setLineDash(dash || []);
+                ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            // A ringing string is seen the way eyes and cameras see
+            // it: the wire sweeps its whole spindle envelope many
+            // times per frame, so the ENVELOPE is what renders —
+            // filled, brightest at the edges where the wire lingers
+            // at its extremes, with the instantaneous wire faint
+            // inside it. Not a bent zigzag line.
+            if ((vibrating || bowSnd) && !reduceMotion) {
+                var amp, phase;
+                if (bowSnd) {
+                    amp = Math.min(5, lenPx * 0.018) + 1.2;
+                    phase = 2 * Math.PI * 8.5 * (now / 1000);
+                } else {
+                    var env = Math.max(Math.exp(-el * 3.1) * s.vibAmp,
+                    (s.pinchHeld && T.voice !== 'bow') ? 0.3 : 0);
+                    amp = env * Math.min(16, lenPx * 0.07);
+                    var visF = Math.max(7, Math.min(16, s.freq / 24));
+                    phase = 2 * Math.PI * visF * el;
+                }
+                envPath(amp, 1);
+                ctx.fillStyle = rgba(M.core, 0.10); ctx.fill();
+                envPath(amp, 0.55);
+                ctx.fillStyle = rgba(M.core, 0.12); ctx.fill();
+                ctx.strokeStyle = rgba(M.hi, 0.55); ctx.lineWidth = 1.1;
+                edgeCurve(amp, 1); edgeCurve(amp, -1);
+                // the instantaneous wire, faint, at its true position
+                var STEPS2 = 22;
+                ctx.strokeStyle = rgba(M.core, 0.5); ctx.lineWidth = Math.max(0.8, W * 0.8);
+                ctx.beginPath();
+                for (var j2 = 0; j2 <= STEPS2; j2++) {
+                    var u2 = j2 / STEPS2;
+                    var off2 = amp * Math.sin(Math.PI * u2) * Math.sin(phase - (bowSnd ? u2 * 2.2 : 0));
+                    var x2 = a.x + (b.x - a.x) * u2 + nx * off2, y2 = a.y + (b.y - a.y) * u2 + ny * off2;
+                    if (j2 === 0) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
+                }
+                ctx.stroke();
+            } else {
+                // At rest the wire still has body: a soft shade under
+                // it (light from upper-left), the core, and a specular
+                // riding its top edge.
+                ctx.save();
+                ctx.translate(1.2, 1.6);
+                wireLine(0.30, W + 1.4, [0, 0, 0]);
+                ctx.restore();
+                wireLine(0.85, W, M.core);
+                ctx.save();
+                ctx.translate(-nx * 0 + -0.5, -0.5);
+                if (M.wound) {
+                    // the winding breaks the specular into dashes
+                    wireLine(0.18, Math.max(0.7, W * 0.36), M.hi, [3, 2.4]);
+                } else {
+                    wireLine(0.18, Math.max(0.7, W * 0.36), M.hi);
+                }
+                ctx.restore();
+                // a specular that travels the wire as it catches
+                // light: a brightened SEGMENT of the wire itself —
+                // never a blob around it (a blob reads as a smudge
+                // and fattens the wire's measured thickness).
+                var ut = (now * 0.00006 + s.lenPx * 0.0013) % 1;
+                var u0 = Math.max(0, ut - 0.07), u1 = Math.min(1, ut + 0.07);
+                var sx = a.x + (b.x - a.x) * u0, sy = a.y + (b.y - a.y) * u0;
+                var ex = a.x + (b.x - a.x) * u1, ey = a.y + (b.y - a.y) * u1;
+                var gg = ctx.createLinearGradient(sx, sy, ex, ey);
+                gg.addColorStop(0, rgba(M.hi, 0));
+                gg.addColorStop(0.5, rgba(M.hi, 0.16));
+                gg.addColorStop(1, rgba(M.hi, 0));
+                ctx.strokeStyle = gg;
+                ctx.lineWidth = Math.max(0.8, W * 0.5);
+                ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
             }
             ctx.restore();
         }
@@ -1725,14 +1820,33 @@
             var T = TYPES[type] || TYPES.guitar;
             var r = T.medR;
             ctx.save();
-            ctx.shadowColor = rgba(T.rgb, 0.85);
-            ctx.shadowBlur = 10;
+            // Lit hardware, not a glowing token: a soft contact
+            // shadow thrown down-right (the light sits upper-left,
+            // the site-wide convention), a body lit from that same
+            // corner, a dark rim, and a bright rim arc where the
+            // light catches the edge. No shadowBlur.
+            ctx.fillStyle = 'rgba(0,0,0,0.34)';
+            ctx.beginPath(); ctx.ellipse(p.x + 3.5, p.y + 5.5, r * 1.07, r * 0.99, 0, 0, 7); ctx.fill();
+            // The metal stays its instrument's colour (a placed
+            // string must announce its instrument); the light is
+            // modelled as restrained overlays on the flat metal —
+            // a soft highlight pool upper-left and a shade arc
+            // lower-right — not a gradient that recolours the disc.
             ctx.fillStyle = rgba(T.rgb, 0.96);
             ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(10,8,4,0.35)';
+            var g = ctx.createRadialGradient(p.x - r * 0.34, p.y - r * 0.34, 0, p.x - r * 0.34, p.y - r * 0.34, r * 0.62);
+            g.addColorStop(0, 'rgba(255,255,255,0.22)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(p.x, p.y, r - 1, Math.PI * 0.15, Math.PI * 0.8); ctx.stroke();
+            ctx.strokeStyle = 'rgba(10,8,4,0.40)';
             ctx.lineWidth = 1;
             ctx.beginPath(); ctx.arc(p.x, p.y, r - 0.5, 0, 7); ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,255,255,0.38)';
+            ctx.beginPath(); ctx.arc(p.x, p.y, r - 1.1, Math.PI * 0.95, Math.PI * 1.65); ctx.stroke();
             ctx.strokeStyle = type === 'cello' ? 'rgba(255,238,214,0.92)' : 'rgba(22,16,8,0.88)';
             ctx.lineWidth = type === 'cello' ? 1.9 : 1.6;
             ctx.lineCap = 'round';
@@ -1756,8 +1870,8 @@
             ctx.restore();
         }
         function drawDot(p) {
-            var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15);
-            g.addColorStop(0, 'rgba(190,245,255,0.55)');
+            var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 11);
+            g.addColorStop(0, 'rgba(190,245,255,0.26)');
             g.addColorStop(1, 'rgba(103,232,249,0)');
             ctx.fillStyle = g;
             ctx.beginPath(); ctx.arc(p.x, p.y, 15, 0, 7); ctx.fill();
@@ -1772,10 +1886,10 @@
             var bright = Math.max(0.55, Math.min(1, 0.55 + d / 650));
             ctx.save();
             ctx.strokeStyle = 'rgba(160,240,255,' + (0.5 * bright) + ')';
-            ctx.lineWidth = 6; ctx.shadowColor = SIG.glow; ctx.shadowBlur = 16;
+            ctx.lineWidth = 6; ctx.shadowColor = SIG.glow; ctx.shadowBlur = 6;
             ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
             ctx.strokeStyle = 'rgba(255,255,255,' + bright + ')';
-            ctx.lineWidth = 2.2; ctx.shadowBlur = 8;
+            ctx.lineWidth = 2.2; ctx.shadowBlur = 3;
             ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
             ctx.restore();
         }
