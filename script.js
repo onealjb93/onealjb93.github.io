@@ -167,48 +167,67 @@ document.addEventListener('DOMContentLoaded', function () {
 
 /* Homepage logo intro: one-shot opening animation (index.html only — runs
    only when #logo-intro exists). On load the full-viewport green screen
-   shows the JBO logo centered; the first deliberate scroll intent — a
-   few px of wheel or swipe, a scroll key, or a tap — plays ONE
-   time-based glide (720 ms) that shrinks the logo into the header logo
-   while the page stays pinned at scrollY 0, so when the logo lands,
-   normal scrolling starts from the very top of the page (header, name,
-   About Me). Once the logo has landed the intro is done for the session
-   and never comes back — scrolling back to the top does not re-trigger
-   it. If the page loads already scrolled (refresh mid-page, anchor,
-   back / forward), the intro is skipped entirely and the logo is
-   already in the header. Skipped when the visitor prefers reduced
+   shows the JBO logo centered. The visitor can play with it: a touch
+   drag (or the mouse wheel) drives the morph DIRECTLY — the logo
+   shrinks into the header under the finger, at the finger's speed,
+   freely reversible any number of times, over a short drag range
+   (~20% of the viewport height, clamped to 140–180 px — never the old
+   ~760 px swipe). Nothing commits while a finger is down: letting go
+   past halfway settles the logo into the header, letting go before
+   halfway settles it back open, and a flick carries through in its own
+   direction; the settle starts at the release speed, so there is no
+   speed step at the handoff. A tap (or a scroll key) instead plays the
+   choreographed 720 ms time-based glide from the v2 rebuild. Either
+   way the page stays pinned at scrollY 0 until the logo lands, so
+   normal scrolling then starts from the very top of the page (header,
+   name, About Me). Once the logo has landed the intro is done for the
+   session and never comes back — scrolling back to the top does not
+   re-trigger it. If the page loads already scrolled (refresh mid-page,
+   anchor, back / forward), the intro is skipped entirely and the logo
+   is already in the header. Skipped when the visitor prefers reduced
    motion. The header logo's landing spot is measured at runtime (its
    at-rest position at the top of the page), so it lands exactly on the
    header logo in both themes and on mobile. The green overlay fades
-   across most of the glide (gone by ~75% of progress, ease-out cubic)
+   across most of the morph (gone by ~75% of progress, ease-out cubic)
    while the logo keeps shrinking across the full range and stays fully
-   opaque, so the page shows through almost as soon as the glide starts
+   opaque, so the page shows through almost as soon as the morph starts
    but the green melts away instead of snapping off.
-   Motion model (rebuilt 2026-11-24): the glide is TIME-based, never a
-   function of scroll position. The previous scroll-scrubbed morph
-   inherited iOS scroll physics whole — rubber-band easing, momentum
-   steps, toolbar resizes and refresh stepping printed straight into
-   the animation, and it never read smooth on a real iPhone (Johnny's
-   videos, 2026-11-24). The glide's keyframes are sampled once from the
-   same spatial curves the scrub used (smoothstep on the logo's path,
-   ease-out cubic on the green, the hint gone by 35%), then played by
-   the Web Animations engine: no per-frame JS, no scroll coupling,
-   nothing for Low Power Mode to starve. An rAF tween over the same
-   sampled curve is the fallback where WAAPI is missing. EVERY property
-   of the landing mark rides the glide — the corner radius included:
-   the logo art is an opaque green square and the header mark is that
+   Motion model (v2, 2026-11-24; drag path added the same day at
+   Johnny's request — "I want to be able to scroll it too… if i scroll
+   it needs to feel perfectly smooth too"): there is ONE morph, a pure
+   function of a master progress p, sampled from the spatial curves the
+   original scrub used (smoothstep on the logo's path, ease-out cubic
+   on the green, the hint gone by 35%). Two drivers move p. The glide
+   driver is time-based: keyframes sampled once from the morph and
+   played by the Web Animations engine, no per-frame JS. The drag
+   driver is the visitor's own hand: drag distance maps 1:1 onto p
+   through the same sampled curve, and the only work on the frame path
+   is writing transform + opacity + border-radius from that curve —
+   geometry frozen for the gesture, no layout reads, no observers.
+   What the first scroll-scrub died of (Johnny's videos, 2026-11-24)
+   was never direct manipulation itself; it was coupling the morph to
+   the PAGE's scroll position, so iOS scroll physics — rubber-band
+   easing, momentum steps, toolbar resizes, refresh stepping — printed
+   into the animation. Here the page cannot scroll at all while the
+   intro runs, and p answers to the finger alone. EVERY property of
+   the landing mark rides the morph — the corner radius included: the
+   logo art is an opaque green square and the header mark is that
    square with rounded corners (8px; 6px on small screens), so the
    radius interpolates from square to the header's exact radius across
-   the last two-thirds of the glide and the mark arrives already in its
+   the last two-thirds of progress and the mark arrives already in its
    final shape — the end-state class swap then changes nothing visible.
-   The landing geometry is measured once at rest and frozen when the
-   glide starts, and the logo and hint are pinned to pixel anchors, so
-   an iOS toolbar resize mid-glide cannot move the anchors and jump the
-   logo. The "Scroll to start" hint is sampled from the same master
-   progress (no MutationObserver re-deriving it). At glide start a
-   'jbo:introglide' window event tells the hero photo's focus effect to
+   The landing geometry is measured once at rest and frozen at the
+   first interaction, and the logo and hint are pinned to pixel
+   anchors, so an iOS toolbar resize mid-gesture cannot move the
+   anchors and jump the logo. The "Scroll to start" hint is sampled
+   from the same master progress (no MutationObserver re-deriving it).
+   A 'jbo:introglide' window event, fired once when the morph first
+   moves forward in earnest, tells the hero photo's focus effect to
    sharpen in step, so the photo is sharp at the landing instead of
-   waiting on scroll the intro has been holding at zero. */
+   waiting on scroll the intro has been holding at zero. NO timer ever
+   acts while a touch is held — the intro is a little game the visitor
+   plays at their own pace; the only idle timer belongs to the desktop
+   wheel, and a touch cancels it. */
 function initLogoIntro() {
     var intro = document.getElementById('logo-intro');
     if (!intro) return;
@@ -234,13 +253,28 @@ function initLogoIntro() {
     var brand = document.querySelector('.site-brand-logo');
     if (!logo || !bg || !brand) return;
     document.documentElement.classList.add('logo-intro-on');
-    var GLIDE_MS = 720;   // one choreographed glide, trigger to landing
-    var TRIGGER_PX = 8;   // accumulated scroll intent that starts it
-    var start = null, target = null, brandRadius = 0;
+    var GLIDE_MS = 720;   // the tap glide, trigger to landing
+    var GLIDE_RATE = 1000 / GLIDE_MS; // the glide's progress rate (p per second)
+    // One full drag of the morph: a fifth of the viewport height,
+    // clamped so it stays a short, playable pull on any screen — and
+    // never the ~760 px swipe the first version demanded.
+    var DRAG_RANGE = Math.round(Math.min(180, Math.max(140, window.innerHeight * 0.20)));
+    var COMMIT_P = 0.5;   // release at or past halfway lands; before, reopens
+    var FLICK_V = 1.4;    // release speed (p/second) that carries its own direction
+                          // (~240 px/s of finger travel: a real flick, never a gentle release)
+    var MIN_RATE = 0.9;   // a dead-slow release still settles promptly
+    var WHEEL_IDLE_MS = 150; // desktop wheel: input stopped -> settle
+    var start = null, target = null, brandRadius = 0, hintPin = null;
     var done = false;     // one-shot: once landed, the intro never re-engages
-    var gliding = false;  // the glide is playing; input cannot steer it
-    var started = false;  // glide start freezes the measured geometry
+    var gliding = false;  // a time-based settle/glide is playing
+    var started = false;  // first interaction freezes the measured geometry
+    var prog = 0;         // the master progress: the morph is a pure function of it
     var anims = [], rafId = null;
+    var settleInfo = null;   // {from, to, dur} of the running WAAPI settle
+    var settleTimer = null;  // force-land safety net for a running settle
+    var scrubRaf = null, pendingP = null; // drag writes, coalesced to one per frame
+    var wheelIdleTimer = null;
+    var heroSignaled = false;
     function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
     function smooth(t) { return t * t * (3 - 2 * t); }
     function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
@@ -263,6 +297,13 @@ function initLogoIntro() {
             size: b.width
         };
         brandRadius = parseFloat(window.getComputedStyle(brand).borderTopLeftRadius) || 0;
+        // The hint's anchor is measured here too, at rest, so pinning it
+        // at the first interaction needs no layout read on the gesture
+        // path — the frame path stays writes-only from the first touch.
+        if (hint) {
+            var hr0 = hint.getBoundingClientRect();
+            hintPin = { left: hr0.left, top: hr0.top };
+        }
         applyAt(0);
     }
     // The morph as a pure function of progress p (0 = at rest, 1 =
@@ -292,60 +333,138 @@ function initLogoIntro() {
             hintOpacity: (0.75 * (1 - clamp01(p / 0.35))).toFixed(3)
         };
     }
+    function signalHero() {
+        if (heroSignaled) return;
+        heroSignaled = true;
+        // The hero photo sharpens in step with the morph (its focus
+        // effect in index.html listens for this): sharp at the landing,
+        // not after scroll the intro has been holding at zero.
+        try { window.dispatchEvent(new CustomEvent('jbo:introglide')); } catch (e) { /* older engine: the hero keeps its scroll sharpening */ }
+    }
+    // The ONLY writer on the morph's frame path, for every driver: the
+    // tap glide's fallback, a settle, and the visitor's own drag. Three
+    // style writes from the precomputed curve — no layout reads, no
+    // measurements, nothing else per frame.
     function applyAt(p) {
         if (!start || !target) return;
+        prog = p;
+        if (p >= 0.04) signalHero();
         var s = stateAt(p);
         logo.style.transform = s.transform;
         logo.style.borderRadius = s.borderRadius;
         bg.style.opacity = s.bgOpacity;
         if (hint) hint.style.opacity = s.hintOpacity;
     }
-    // The glide: keyframes sampled once from stateAt() and handed to
-    // the Web Animations engine, which runs them on the compositor —
-    // during the 720 ms there is no JS on the frame path at all, and
-    // nothing couples the motion to scroll position, scroll physics or
-    // refresh stepping. The fallback (no WAAPI) is an rAF tween over
-    // the same sampled curve, driven by elapsed time — still never by
-    // scroll position.
-    function buildKeyframes() {
+    // First interaction of any kind freezes the measured geometry and
+    // pins the anchors, so nothing later — a resize, the iOS toolbar —
+    // can move the morph's path mid-gesture or mid-glide.
+    function freeze() {
+        if (started) return;
+        started = true;
+        pinAnchors();
+    }
+    // Time-based motion: keyframes sampled once from stateAt() over
+    // the span being travelled and handed to the Web Animations
+    // engine, which runs them on the compositor — while one plays
+    // there is no JS on the frame path at all. Progress advances at a
+    // constant rate through the sampled curve (the curve itself
+    // carries all the easing, exactly as in the v2 glide), so a settle
+    // that starts at the visitor's release speed has no speed step at
+    // the handoff: the morph's own velocity is the curve's slope times
+    // the progress rate, and the rate is continuous. The fallback (no
+    // WAAPI) is an rAF tween over the same curve at the same rate.
+    function buildKeyframes(from, to) {
         var N = 24, logoK = [], bgK = [], hintK = [];
         for (var i = 0; i <= N; i++) {
-            var p = i / N, s = stateAt(p);
-            logoK.push({ transform: s.transform, borderRadius: s.borderRadius, offset: p });
-            bgK.push({ opacity: s.bgOpacity, offset: p });
-            hintK.push({ opacity: s.hintOpacity, offset: p });
+            var off = i / N, s = stateAt(from + (to - from) * off);
+            logoK.push({ transform: s.transform, borderRadius: s.borderRadius, offset: off });
+            bgK.push({ opacity: s.bgOpacity, offset: off });
+            hintK.push({ opacity: s.hintOpacity, offset: off });
         }
         return { logo: logoK, bg: bgK, hint: hintK };
     }
-    function startGlide() {
-        if (done || gliding) return;
+    function startSettle(to, rate) {
+        if (done) return;
+        cancelSettle(true);
+        flushScrub();
+        freeze();
+        if (Math.abs(to - prog) < 0.0015) {
+            applyAt(to);
+            if (to === 1) completeGlide();
+            return;
+        }
         gliding = true;
-        if (!started) { started = true; pinAnchors(); } // geometry freezes
-        // The hero photo sharpens in step with the glide (its focus
-        // effect in index.html listens for this): sharp at the landing,
-        // not after scroll the intro has been holding at zero.
-        try { window.dispatchEvent(new CustomEvent('jbo:introglide')); } catch (e) { /* older engine: the hero keeps its scroll sharpening */ }
+        var from = prog, dur = Math.abs(to - from) / rate * 1000;
         // Safety net: whatever happens to the animation, the page must
-        // never stay locked — land the intro by hand if it overruns.
-        setTimeout(function () { if (gliding && !done) completeGlide(); }, GLIDE_MS + 500);
+        // never stay locked — land the intro by hand if a landing
+        // overruns. (A reopen that overruns simply stops at rest.)
+        if (settleTimer !== null) clearTimeout(settleTimer);
+        settleTimer = setTimeout(function () {
+            settleTimer = null;
+            if (gliding && !done) { if (to === 1) completeGlide(); else settleDone(0); }
+        }, dur + 500);
         if (logo.animate && bg.animate) {
-            var k = buildKeyframes();
-            var timing = { duration: GLIDE_MS, easing: 'linear', fill: 'forwards' };
+            var k = buildKeyframes(from, to);
+            var timing = { duration: dur, easing: 'linear', fill: 'forwards' };
+            settleInfo = { from: from, to: to, dur: dur };
             anims = [logo.animate(k.logo, timing), bg.animate(k.bg, timing)];
             if (hint && hint.animate) anims.push(hint.animate(k.hint, timing));
-            anims[0].onfinish = completeGlide;
+            anims[0].onfinish = function () { settleDone(to); };
         } else {
-            var t0 = null;
+            var t0 = null, dir = to > from ? 1 : -1;
             var step = function (ts) {
-                if (done) { rafId = null; return; }
+                if (done || !gliding) { rafId = null; return; }
                 if (t0 === null) t0 = ts;
-                var p = clamp01((ts - t0) / GLIDE_MS);
+                var p = from + dir * (ts - t0) / 1000 * rate;
+                if ((dir > 0 && p >= to) || (dir < 0 && p <= to)) {
+                    rafId = null;
+                    applyAt(to);
+                    settleDone(to);
+                    return;
+                }
                 applyAt(p);
-                if (p >= 1) { rafId = null; completeGlide(); return; }
                 rafId = requestAnimationFrame(step);
             };
             rafId = requestAnimationFrame(step);
         }
+    }
+    function settleDone(to) {
+        if (settleTimer !== null) { clearTimeout(settleTimer); settleTimer = null; }
+        settleInfo = null;
+        if (to === 1) { completeGlide(); return; }
+        // Back at rest: the intro is armed again, exactly as it loaded.
+        // Write the rest frame inline, then cancel the animations — a
+        // finished fill-forwards animation would otherwise override
+        // the inline styles of the visitor's next drag.
+        gliding = false;
+        applyAt(0);
+        for (var i = 0; i < anims.length; i++) { try { anims[i].cancel(); } catch (e) {} }
+        anims = [];
+    }
+    // Stop a running settle where it stands: adopt the frame the
+    // compositor is currently showing as inline styles, so taking the
+    // morph back into the hand (or into a new settle) never jumps.
+    function cancelSettle(adopt) {
+        if (!gliding) return;
+        var pNow = prog;
+        if (settleInfo && anims.length && anims[0].currentTime !== null && anims[0].currentTime !== undefined) {
+            pNow = settleInfo.from + (settleInfo.to - settleInfo.from) *
+                clamp01(anims[0].currentTime / settleInfo.dur);
+        }
+        if (settleTimer !== null) { clearTimeout(settleTimer); settleTimer = null; }
+        settleInfo = null;
+        gliding = false;
+        for (var i = 0; i < anims.length; i++) { try { anims[i].cancel(); } catch (e) {} }
+        anims = [];
+        if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+        if (adopt) applyAt(pNow);
+    }
+    // The tap glide: the v2 choreography — the whole morph at the
+    // glide's own rate. From rest that is exactly 720 ms.
+    function startGlide() {
+        if (done) return;
+        signalHero();
+        startSettle(1, GLIDE_RATE);
     }
     function completeGlide() {
         if (done) return;
@@ -355,10 +474,57 @@ function initLogoIntro() {
         // finish()'s class swap (overlay hides, header logo shows) is
         // invisible because the flying mark already wears the header
         // mark's exact box and corner radius.
+        if (settleTimer !== null) { clearTimeout(settleTimer); settleTimer = null; }
+        settleInfo = null;
+        gliding = false;
         applyAt(1);
         for (var i = 0; i < anims.length; i++) { try { anims[i].cancel(); } catch (e) {} }
         anims = [];
         finish();
+    }
+    // Drag writes are coalesced to one per animation frame: however
+    // many move events a gesture delivers, the frame path renders the
+    // latest progress once — applyAt() and nothing else.
+    function queueScrub(pT) {
+        pendingP = pT;
+        if (scrubRaf === null) {
+            scrubRaf = requestAnimationFrame(function () {
+                scrubRaf = null;
+                if (pendingP !== null) { var p = pendingP; pendingP = null; applyAt(p); }
+            });
+        }
+    }
+    function flushScrub() {
+        if (scrubRaf !== null) { cancelAnimationFrame(scrubRaf); scrubRaf = null; }
+        if (pendingP !== null) { var p = pendingP; pendingP = null; applyAt(p); }
+    }
+    // Release speed from the gesture's own final samples (the last
+    // ~100 ms — the horizon velocity trackers use, because a flick
+    // accelerates into liftoff and a longer average understates the
+    // speed the hand actually let go at): a hold still before letting
+    // go reads as zero, however fast the drag was earlier.
+    function releaseVelocity(samples) {
+        var now = performance.now();
+        var s = [];
+        for (var i = 0; i < samples.length; i++) {
+            if (now - samples[i].t <= 100) s.push(samples[i]);
+        }
+        if (s.length < 2) return 0;
+        var dt = (s[s.length - 1].t - s[0].t) / 1000;
+        if (dt <= 0.016) return 0;
+        return (s[s.length - 1].p - s[0].p) / dt;
+    }
+    // Letting go: a flick carries through in its own direction;
+    // otherwise the halfway rule decides. Either way the settle starts
+    // at the release speed (never slower than a prompt minimum), so
+    // the handoff has no speed step.
+    function releaseSettle(samples) {
+        var v = releaseVelocity(samples);
+        var to;
+        if (v >= FLICK_V) to = 1;
+        else if (v <= -FLICK_V) to = 0;
+        else to = prog >= COMMIT_P ? 1 : 0;
+        startSettle(to, Math.max(Math.abs(v), MIN_RATE));
     }
     function setLocked(on) {
         document.documentElement.classList.toggle('logo-intro-locked', on);
@@ -367,6 +533,9 @@ function initLogoIntro() {
         if (done) return;
         done = true;
         gliding = false;
+        if (wheelIdleTimer !== null) { clearTimeout(wheelIdleTimer); wheelIdleTimer = null; }
+        if (scrubRaf !== null) { cancelAnimationFrame(scrubRaf); scrubRaf = null; }
+        pendingP = null;
         setLocked(false);
         document.documentElement.classList.add('logo-intro-done');
         intro.style.pointerEvents = 'none';
@@ -385,18 +554,67 @@ function initLogoIntro() {
             logo.style.top = start.cy + 'px';
         }
         if (hint) {
-            var hr = hint.getBoundingClientRect();
+            var hr = hintPin || hint.getBoundingClientRect();
             hint.style.left = hr.left + 'px';
             hint.style.top = hr.top + 'px';
             hint.style.marginTop = '0';
             hint.style.transform = 'none';
         }
     }
-    // Scroll intent only STARTS the glide; it never steers it. A few px
-    // of accumulated forward input is a deliberate gesture (one small
-    // swipe or a single wheel notch is always far more), and from that
-    // moment the choreography runs itself into the landing.
-    var wheelAcc = 0, touchAcc = 0;
+    // Direct manipulation. The drag is ABSOLUTE, not incremental:
+    // progress is a pure function of where the finger is relative to
+    // where the drag began (dragStartP + (dragStartY - y) / range),
+    // so reversing direction retraces the exact same mapping — no
+    // hysteresis, no ratchet, no accumulated error, any number of
+    // times, and nothing of any kind commits while the finger is down.
+    // Holding the morph perfectly still mid-way is just a drag that
+    // isn't moving: no timer runs on the touch path at all.
+    var touchId = null, dragStartY = 0, dragStartP = 0, velSamples = [];
+    function findTouch(e) {
+        if (!e.changedTouches) return null;
+        for (var i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === touchId) return e.changedTouches[i];
+        }
+        return null;
+    }
+    function onTouchStart(e) {
+        if (done || touchId !== null || !e.changedTouches || !e.changedTouches.length) return;
+        // A touch owns the morph outright: the wheel's idle timer dies
+        // here and cannot fire while any finger is down.
+        if (wheelIdleTimer !== null) { clearTimeout(wheelIdleTimer); wheelIdleTimer = null; }
+        if (gliding) cancelSettle(true); // grab the morph mid-settle, no jump
+        freeze();
+        var t = e.changedTouches[0];
+        touchId = t.identifier;
+        dragStartY = t.clientY;
+        dragStartP = prog;
+        velSamples = [{ t: performance.now(), p: prog }];
+    }
+    function onTouchMove(e) {
+        if (done || touchId === null) return;
+        var t = findTouch(e);
+        if (!t) return;
+        e.preventDefault();
+        var pT = clamp01(dragStartP + (dragStartY - t.clientY) / DRAG_RANGE);
+        queueScrub(pT);
+        velSamples.push({ t: performance.now(), p: pT });
+        if (velSamples.length > 60) velSamples.shift();
+    }
+    function onTouchEnd(e) {
+        if (touchId === null || !findTouch(e)) return;
+        touchId = null;
+        flushScrub(); // the release frame is the finger's exact last position
+        if (done) return;
+        releaseSettle(velSamples);
+        velSamples = [];
+    }
+    // The wheel scrubs the same progress while it flows — deltas land
+    // on the same 1:1 mapping — and when the flow stops (a short idle,
+    // desktop only) the same release rule settles it. One synthetic
+    // event is not a wheel at all: the tap-to-finish feed in index.html
+    // dispatches a single wheel event with deltaY 10000, which no real
+    // device emits — that is a tap, and it plays the glide.
+    var wheelSamples = [];
     function normDelta(e) {
         var d = e.deltaY || 0;
         if (e.deltaMode === 1) d *= 16;                       // lines -> px
@@ -406,31 +624,28 @@ function initLogoIntro() {
     function onWheel(e) {
         if (done) return; // normal scrolling resumes after the intro
         e.preventDefault();
-        if (gliding) return;
         var d = normDelta(e);
-        if (d > 0) {
-            wheelAcc += d;
-            if (wheelAcc >= TRIGGER_PX) startGlide();
-        }
+        if (Math.abs(d) >= 1000) { startGlide(); return; }
+        if (touchId !== null) return; // a held finger owns the morph
+        if (gliding) cancelSettle(true);
+        freeze();
+        var base = pendingP !== null ? pendingP : prog;
+        var pT = clamp01(base + d / DRAG_RANGE);
+        queueScrub(pT);
+        wheelSamples.push({ t: performance.now(), p: pT });
+        if (wheelSamples.length > 60) wheelSamples.shift();
+        if (wheelIdleTimer !== null) clearTimeout(wheelIdleTimer);
+        wheelIdleTimer = setTimeout(onWheelIdle, WHEEL_IDLE_MS);
     }
-    var lastTouchY = null;
-    function onTouchStart(e) {
-        if (done || !e.touches || !e.touches.length) return;
-        lastTouchY = e.touches[0].clientY;
+    function onWheelIdle() {
+        wheelIdleTimer = null;
+        // Desktop wheel only: a touch that arrived meanwhile owns the
+        // morph, and a running settle is already the answer.
+        if (done || touchId !== null || gliding) return;
+        flushScrub();
+        releaseSettle(wheelSamples);
+        wheelSamples = [];
     }
-    function onTouchMove(e) {
-        if (done || lastTouchY === null || !e.touches || !e.touches.length) return;
-        e.preventDefault();
-        var y = e.touches[0].clientY;
-        var d = lastTouchY - y; // swipe up = scroll intent
-        lastTouchY = y;
-        if (gliding) return;
-        if (d > 0) {
-            touchAcc += d;
-            if (touchAcc >= TRIGGER_PX) startGlide();
-        }
-    }
-    function onTouchEnd() { lastTouchY = null; touchAcc = 0; }
     function isFormTarget(t) {
         return t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' ||
             t.tagName === 'TEXTAREA' || t.isContentEditable);
@@ -443,7 +658,10 @@ function initLogoIntro() {
                 startGlide();
                 break;
             case 'ArrowUp': case 'PageUp': case 'Home':
-                e.preventDefault(); // at rest there is nothing to reverse
+                e.preventDefault();
+                // After wheel play there is something to reverse: the
+                // morph settles back open. At rest it stays at rest.
+                if (gliding || prog > 0) startSettle(0, GLIDE_RATE);
                 break;
             default: return;
         }
@@ -472,6 +690,7 @@ function initLogoIntro() {
         window.removeEventListener('touchstart', onTouchStart);
         window.removeEventListener('touchmove', onTouchMove);
         window.removeEventListener('touchend', onTouchEnd);
+        window.removeEventListener('touchcancel', onTouchEnd);
         window.removeEventListener('keydown', onKey);
         window.removeEventListener('scroll', onScroll);
         window.removeEventListener('resize', onResize);
@@ -483,6 +702,7 @@ function initLogoIntro() {
     window.addEventListener('touchstart', onTouchStart, { passive: true });
     window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchEnd);
     window.addEventListener('keydown', onKey);
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onResize);
