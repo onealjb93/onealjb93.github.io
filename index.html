@@ -2373,6 +2373,7 @@
             <p class="pl-fine">The MVRV Z-Score is (market cap &minus; realized cap) &divide; the standard deviation of market cap, the standard deviation built up day by day over the full history. Market cap and the MVRV ratio are CoinMetrics&rsquo; daily figures, from <span id="mv-hist-start">Jul 18, 2010</span>. Realized cap itself is a paid metric on their API, so here it is worked out from the two figures they publish free &mdash; realized cap = market cap &divide; the MVRV ratio, the ratio&rsquo;s own definition, so nothing is estimated. The line starts <span id="mv-line-start">Feb 2, 2011</span>, once the history behind the standard deviation is 200 days deep &mdash; a standard deviation over a days-old market would say nothing. If the live fetch fails, the chart and figures stand as of Nov 16, 2026. The 0 and 7 lines are the MVRV Z-Score&rsquo;s long-standing reference points &mdash; not buy or sell signals.</p>
         </details>
         </div>
+            <p class="pl-fine" id="btcFineNote" hidden></p>
             <!-- The Spiral as the fifth chart view (2026-11-22):
                  the same stage, taken-apart graph, readout, legends
                  and fine print the Spiral card carried, living in
@@ -4305,6 +4306,123 @@ taReady = true;
 if (live) refreshLive();
 window.__spiralReady = true;
 </script>
+<script>
+/* The fine layer for the model charts (Phase B, 2026-11-24):
+   the same fine30/BTC.json and fine60/BTC.json the Finance chart
+   reads (one file, two readers — Yahoo hourly, built nightly by
+   fetch_fine.py). Display-only, exactly as on the Finance page:
+   the four models, the score, the overlay dots and the readouts
+   compute from the daily closes exactly as they always have;
+   the fine layer is only the price path the eye reads, on the
+   two charts that draw a price path (power law, production
+   cost). The Mayer and MVRV charts draw derived daily ratios —
+   a multiple and a z-score — so there is no price path on them
+   to refine; like the Spiral (daily by design), they stay
+   daily. The seam rule: the fine path never draws the current
+   UTC day — from today 00:00 UTC the chart draws exactly what
+   it draws without the layer, the last daily close into the
+   live Coinbase point — and a stale fine file hands its
+   uncovered dates back to the daily points. Engagement is
+   per-date, keyed to the visible span with the Finance
+   ladder's own thresholds and hysteresis:
+     span ≤ ~62 days → 30-minute · ≤ ~732 days → hourly. */
+window.BTC_FINE = (function () {
+    var GENESIS = Date.UTC(2009, 0, 3), DAY = 86400000;
+    var docs = {}, inflight = {}, failedAt = {}, subs = [];
+    var lastRung = null, state = {};
+    function todayDay() { return Math.floor((Date.now() - GENESIS) / DAY); }
+    function rungFor(spanDays) {
+        var rung = spanDays <= 62 ? "30" : (spanDays <= 732 ? "60" : null);
+        if (lastRung === "30" && rung === "60" && spanDays <= 62 * 1.1) rung = "30";
+        else if (lastRung === "60" && rung === "30" && spanDays >= 62 * 0.9) rung = "60";
+        else if (lastRung === "60" && rung === null && spanDays <= 732 * 1.1) rung = "60";
+        return rung;
+    }
+    function ensure(rung) {
+        if (docs[rung] || inflight[rung]) return;
+        if (failedAt[rung] && Date.now() - failedAt[rung] < 30000) return;
+        inflight[rung] = true;
+        fetch("fine" + rung + "/BTC.json").then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+            .then(function (d) {
+                docs[rung] = d; delete inflight[rung]; delete failedAt[rung];
+                subs.slice().forEach(function (fn) { fn(); });
+            })
+            .catch(function () { delete inflight[rung]; failedAt[rung] = Date.now(); });
+    }
+    /* pts: the chart's own daily points [[day, price], …];
+       dMin/dMax: the visible window in days since genesis.
+       Returns {pts, rung, through} — the daily points with the
+       fine path merged in — or null when the daily points stand
+       exactly as they are (wide span, file on its way, file
+       missing, or a window the file doesn't touch). */
+    function display(pts, dMin, dMax) {
+        if (!pts || pts.length < 2) return null;
+        var rung = rungFor(dMax - dMin);
+        if (!rung) return null;
+        var doc = docs[rung];
+        if (!doc) { ensure(rung); return null; }
+        var bars = doc.bars || [];
+        if (!bars.length) return null;
+        var today = todayDay(), covered = {}, fine = [];
+        for (var i = 0; i < bars.length; i++) {
+            if (bars[i][0] * 1000 >= GENESIS + today * DAY) break; // never the current UTC day
+            var fd = (bars[i][0] * 1000 - GENESIS) / DAY;
+            covered[Math.floor(fd)] = true;
+            fine.push([fd, bars[i][4]]);
+        }
+        if (!fine.length) return null;
+        var f0 = fine[0][0], f1 = fine[fine.length - 1][0];
+        if (dMax < f0 || dMin > f1 + 1) return null; // the window doesn't touch the coverage
+        var out = [];
+        for (var j = 0; j < pts.length; j++) {
+            var d = pts[j][0];
+            if (d >= today || d < f0 || d > f1 + 1 || !covered[d]) out.push(pts[j]);
+        }
+        for (var k = 0; k < fine.length; k++) out.push(fine[k]);
+        out.sort(function (a, b) { return a[0] - b[0]; });
+        lastRung = rung;
+        return { pts: out, rung: rung, through: doc.through_et || null };
+    }
+    function fmtThrough(iso) {
+        if (!iso) return "the latest session";
+        var p = String(iso).split("-");
+        if (p.length !== 3) return String(iso);
+        var M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return M[Number(p[1]) - 1] + " " + Number(p[2]) + ", " + p[0];
+    }
+    /* One data note for the whole chart card, under the views:
+       it names the layer only while the visible view is a price
+       chart whose fine path is actually drawn. */
+    function renderNote() {
+        var el = document.getElementById("btcFineNote");
+        if (!el) return;
+        var views = ["powerlaw", "cost", "mayer", "mvrv", "spiral"], cur = null;
+        for (var i = 0; i < views.length; i++) {
+            var sec = document.getElementById("btc-view-" + views[i]);
+            if (sec && !sec.hidden) { cur = views[i]; break; }
+        }
+        var st = cur ? state[cur] : null;
+        if (!st) { el.hidden = true; return; }
+        el.hidden = false;
+        el.textContent = "Prices in " + (st.rung === "30" ? "30-minute" : "hourly") + " bars (Yahoo Finance) through " + fmtThrough(st.through) + " — the models, score and dots still run on daily closes.";
+    }
+    function report(view, fd) {
+        state[view] = fd ? { rung: fd.rung, through: fd.through } : null;
+        renderNote();
+    }
+    if (window.MutationObserver) {
+        ["powerlaw", "cost", "mayer", "mvrv", "spiral"].forEach(function (v) {
+            var sec = document.getElementById("btc-view-" + v);
+            if (sec) new MutationObserver(renderNote).observe(sec, { attributes: true, attributeFilter: ["hidden"] });
+        });
+    }
+    return {
+        display: display,
+        report: report,
+        onChange: function (fn) { subs.push(fn); }
+    };
+})();
+</script>
     <script>
     /* The one gesture system for every chart on this page (settled
        2026-11-22, video fix): ONE finger on a chart moves ONLY the
@@ -4499,6 +4617,18 @@ window.__spiralReady = true;
                 }
                 return out;
             }
+            if (span <= 62) {
+                /* Inside two months the month ladder would label
+                   almost nothing (Phase B, 2026-11-24): day ticks
+                   on the dates themselves, stepped so the axis
+                   stays readable at the fine layer's spans. */
+                var dStep = span <= 12 ? 1 : (span <= 35 ? 3 : 7);
+                for (var dd = Math.ceil(dMin); dd <= Math.floor(dMax); dd += dStep) {
+                    var dt = dateOf(dd);
+                    out.push({ days: dd, label: MONTHS[dt.getUTCMonth()] + ' ' + dt.getUTCDate(), major: dt.getUTCDate() === 1 });
+                }
+                return out;
+            }
             var monthStep = span > 300 ? 3 : 1;
             var start = dateOf(dMin), y = start.getUTCFullYear();
             var m = Math.floor(start.getUTCMonth() / monthStep) * monthStep;
@@ -4558,6 +4688,14 @@ window.__spiralReady = true;
             ctx.font = (small ? 10 : 11) + 'px system-ui, -apple-system, sans-serif';
             ctx.textBaseline = 'middle';
             var dMin = Math.pow(10, VX0), dMax = Math.pow(10, VX1);
+            /* Fine layer (Phase B, 2026-11-24): while the visible
+               span is inside the fine files' reach, the price path
+               below draws from window.BTC_FINE's merged points —
+               the corridor, the floor, the dots and the readout
+               keep running on PTS, the daily record. */
+            var FD = window.BTC_FINE ? window.BTC_FINE.display(PTS, dMin, dMax) : null;
+            var PATH = FD ? FD.pts : PTS;
+            if (window.BTC_FINE) window.BTC_FINE.report('powerlaw', FD);
 
             /* grid + y labels: whole decades zoomed out, finer log steps in */
             var step = yTickStep();
@@ -4636,8 +4774,8 @@ window.__spiralReady = true;
             /* actual price */
             ctx.strokeStyle = cPrice; ctx.lineWidth = 2; ctx.lineJoin = 'round';
             ctx.beginPath();
-            for (var i = 0; i < PTS.length; i++) {
-                var pd = PTS[i][0], px2 = g.x(pd), py2 = g.y(PTS[i][1]);
+            for (var i = 0; i < PATH.length; i++) {
+                var pd = PATH[i][0], px2 = g.x(pd), py2 = g.y(PATH[i][1]);
                 i === 0 ? ctx.moveTo(px2, py2) : ctx.lineTo(px2, py2);
             }
             ctx.stroke();
@@ -4662,13 +4800,13 @@ window.__spiralReady = true;
                chart's record steps over the day. The days come from
                window.BTC_BANDS, the published daily record. */
             function bandPos(day) {
-                var n = PTS.length;
-                if (day < PTS[0][0] || day > PTS[n - 1][0]) return null;
+                var n = PATH.length;
+                if (day < PATH[0][0] || day > PATH[n - 1][0]) return null;
                 var lo = 0, hi = n - 1;
-                while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (PTS[mid][0] <= day) lo = mid; else hi = mid; }
-                var x0 = g.x(PTS[lo][0]), y0 = g.y(PTS[lo][1]);
-                if (PTS[lo][0] === day) return [x0, y0];
-                var x1 = g.x(PTS[hi][0]), y1 = g.y(PTS[hi][1]), xd = g.x(day);
+                while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (PATH[mid][0] <= day) lo = mid; else hi = mid; }
+                var x0 = g.x(PATH[lo][0]), y0 = g.y(PATH[lo][1]);
+                if (PATH[lo][0] === day) return [x0, y0];
+                var x1 = g.x(PATH[hi][0]), y1 = g.y(PATH[hi][1]), xd = g.x(day);
                 return [xd, y0 + (y1 - y0) * ((xd - x0) / (x1 - x0))];
             }
             if (window.BTC_OVERLAY !== false && window.BTC_BANDS) {
@@ -4693,6 +4831,7 @@ window.__spiralReady = true;
             if (hover >= 0 && hover < PTS.length) {
                 var hd = PTS[hover][0], hx = g.x(hd), hy = g.y(PTS[hover][1]);
                 if (snapHoverDay) { var sbp = bandPos(snapHoverDay); if (sbp) { hd = snapHoverDay; hx = sbp[0]; hy = sbp[1]; } }
+                if (!snapHoverDay && PATH !== PTS) { var fbp = bandPos(hd); if (fbp) { hx = fbp[0]; hy = fbp[1]; } }
                 ctx.strokeStyle = cGuide; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(hx, g.padT); ctx.lineTo(hx, g.padT + g.ih); ctx.stroke();
                 var hb = window.BTC_OVERLAY !== false && window.BTC_BANDS ? window.BTC_BANDS.bandOf(hd) : null;
@@ -4871,9 +5010,25 @@ window.__spiralReady = true;
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
             var ax = g.logDaysAt(px), ay = g.logPriceAt(py);
-            if (factor < 1) { var lim = Math.max(0.01 / (VX1 - VX0), 0.01 / (VY1 - VY0)); if (lim > 1) lim = 1; if (factor < lim) factor = lim; }
             var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
             var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
+            if (factor < 1) {
+                /* Zoom floor (2026-11-23, kept): the move is CLAMPED
+                   so the span lands exactly on the floor instead of
+                   the old reject-the-move guard — a rejected move
+                   left the pinch handler's restored gesture-start
+                   snapshot on screen, so the view POPPED back out
+                   mid-pinch. Phase B (2026-11-24): the clamps are
+                   per-axis, because the floor is now the DATA, not
+                   a fraction of the log range: the x axis stops at
+                   a 7-day window (the reach of the hourly fine
+                   data that now backs the zoom) and the y axis
+                   keeps its own 0.01 of log price. A pinch-in
+                   never widens either axis. */
+                var dA = Math.pow(10, ax), dLo = Math.pow(10, nx0), dHi = Math.pow(10, nx1);
+                if (dHi - dLo < 7) { var fx = (dA - dLo) / ((dHi - dLo) || 1); dLo = dA - 7 * fx; if (dLo < 1) dLo = 1; dHi = dLo + 7; nx0 = Math.log10(dLo); nx1 = Math.log10(dHi); }
+                if (ny1 - ny0 < 0.01) { var fy = (ay - ny0) / ((ny1 - ny0) || 1); ny0 = ay - 0.01 * fy; ny1 = ny0 + 0.01; }
+            }
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
@@ -5048,6 +5203,7 @@ window.__spiralReady = true;
         /* repaint when the band-day record refreshes (the nightly
            series landing, or the current day joining a band) */
         if (window.BTC_BANDS) window.BTC_BANDS.onChange(function () { draw(); });
+        if (window.BTC_FINE) window.BTC_FINE.onChange(function () { draw(); });
         /* Cream round (2026-11-20): the stage restyles with the
            theme (CSS); on a flip the canvas repaints in the new
            palette — the scoreboard's own pattern on finance.html. */
@@ -5406,6 +5562,18 @@ window.__spiralReady = true;
                 }
                 return out;
             }
+            if (span <= 62) {
+                /* Inside two months the month ladder would label
+                   almost nothing (Phase B, 2026-11-24): day ticks
+                   on the dates themselves, stepped so the axis
+                   stays readable at the fine layer's spans. */
+                var dStep = span <= 12 ? 1 : (span <= 35 ? 3 : 7);
+                for (var dd = Math.ceil(dMin); dd <= Math.floor(dMax); dd += dStep) {
+                    var dt = dateOf(dd);
+                    out.push({ days: dd, label: MONTHS[dt.getUTCMonth()] + ' ' + dt.getUTCDate(), major: dt.getUTCDate() === 1 });
+                }
+                return out;
+            }
             var monthStep = span > 300 ? 3 : 1;
             var start = dateOf(dMin), y = start.getUTCFullYear();
             var m = Math.floor(start.getUTCMonth() / monthStep) * monthStep;
@@ -5495,6 +5663,14 @@ window.__spiralReady = true;
             ctx.save();
             ctx.beginPath(); ctx.rect(g.padL, g.padT, g.iw, g.ih); ctx.clip();
 
+            /* Fine layer (Phase B, 2026-11-24): while the visible
+               span is inside the fine files' reach, the price path
+               below draws from window.BTC_FINE's merged points —
+               the cost line, the zones, the dots and the readout
+               keep running on PTS, the daily record. */
+            var FD = window.BTC_FINE ? window.BTC_FINE.display(PTS, VX0, VX1) : null;
+            var PATH = FD ? FD.pts : PTS;
+            if (window.BTC_FINE) window.BTC_FINE.report('cost', FD);
             function seriesLine(arr, scale, color, width, dash) {
                 ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []);
                 ctx.beginPath();
@@ -5514,7 +5690,7 @@ window.__spiralReady = true;
             /* the production-cost floor */
             seriesLine(CTS, 1, cBuy, 2);
             /* actual price */
-            seriesLine(PTS, 1, cPrice, 2);
+            seriesLine(PATH, 1, cPrice, 2);
 
             /* every dot on this chart takes the color of the zone
                its own value sits in (2026-11-19): green in the buy
@@ -5538,13 +5714,13 @@ window.__spiralReady = true;
                chart's record steps over the day. The days come from
                window.BTC_BANDS, the published daily record. */
             function bandPos(day) {
-                var n = PTS.length;
-                if (day < PTS[0][0] || day > PTS[n - 1][0]) return null;
+                var n = PATH.length;
+                if (day < PATH[0][0] || day > PATH[n - 1][0]) return null;
                 var lo = 0, hi = n - 1;
-                while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (PTS[mid][0] <= day) lo = mid; else hi = mid; }
-                var x0 = g.x(PTS[lo][0]), y0 = g.y(PTS[lo][1]);
-                if (PTS[lo][0] === day) return [x0, y0];
-                var x1 = g.x(PTS[hi][0]), y1 = g.y(PTS[hi][1]), xd = g.x(day);
+                while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (PATH[mid][0] <= day) lo = mid; else hi = mid; }
+                var x0 = g.x(PATH[lo][0]), y0 = g.y(PATH[lo][1]);
+                if (PATH[lo][0] === day) return [x0, y0];
+                var x1 = g.x(PATH[hi][0]), y1 = g.y(PATH[hi][1]), xd = g.x(day);
                 return [xd, y0 + (y1 - y0) * ((xd - x0) / (x1 - x0))];
             }
             if (window.BTC_OVERLAY !== false && window.BTC_BANDS) {
@@ -5569,6 +5745,7 @@ window.__spiralReady = true;
             if (hover >= 0 && hover < PTS.length) {
                 var hd = PTS[hover][0], hx = g.x(hd), hy = g.y(PTS[hover][1]);
                 if (snapHoverDay) { var sbp = bandPos(snapHoverDay); if (sbp) { hd = snapHoverDay; hx = sbp[0]; hy = sbp[1]; } }
+                if (!snapHoverDay && PATH !== PTS) { var fbp = bandPos(hd); if (fbp) { hx = fbp[0]; hy = fbp[1]; } }
                 ctx.strokeStyle = cGuide; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(hx, g.padT); ctx.lineTo(hx, g.padT + g.ih); ctx.stroke();
                 var hb = window.BTC_OVERLAY !== false && window.BTC_BANDS ? window.BTC_BANDS.bandOf(hd) : null;
@@ -5716,9 +5893,19 @@ window.__spiralReady = true;
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
             var ax = g.daysAt(px), ay = g.logPriceAt(py);
-            if (factor < 1) { var lim = Math.max(20 / (VX1 - VX0), 0.01 / (VY1 - VY0)); if (lim > 1) lim = 1; if (factor < lim) factor = lim; }
             var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
             var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
+            if (factor < 1) {
+                /* Zoom floor (Phase B, 2026-11-24): per-axis
+                   clamps, landed on exactly — a pinch-in never
+                   widens either axis and the move is never
+                   rejected. The x floor is a 7-day window, the
+                   reach of the hourly fine data that now backs
+                   the zoom; the y floor keeps the chart's own
+                   0.01 of log price. */
+                if (nx1 - nx0 < 7) { var fx = (ax - nx0) / ((nx1 - nx0) || 1); nx0 = ax - 7 * fx; nx1 = nx0 + 7; }
+                if (ny1 - ny0 < 0.01) { var fy = (ay - ny0) / ((ny1 - ny0) || 1); ny0 = ay - 0.01 * fy; ny1 = ny0 + 0.01; }
+            }
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
@@ -5897,6 +6084,7 @@ window.__spiralReady = true;
         /* repaint when the band-day record refreshes (the nightly
            series landing, or the current day joining a band) */
         if (window.BTC_BANDS) window.BTC_BANDS.onChange(function () { draw(); });
+        if (window.BTC_FINE) window.BTC_FINE.onChange(function () { draw(); });
         /* Cream round (2026-11-20): the stage restyles with the
            theme (CSS); on a flip the canvas repaints in the new
            palette — the scoreboard's own pattern on finance.html. */
@@ -6214,6 +6402,18 @@ window.__spiralReady = true;
                 }
                 return out;
             }
+            if (span <= 62) {
+                /* Inside two months the month ladder would label
+                   almost nothing (Phase B, 2026-11-24): day ticks
+                   on the dates themselves, stepped so the axis
+                   stays readable at the fine layer's spans. */
+                var dStep = span <= 12 ? 1 : (span <= 35 ? 3 : 7);
+                for (var dd = Math.ceil(dMin); dd <= Math.floor(dMax); dd += dStep) {
+                    var dt = dateOf(dd);
+                    out.push({ days: dd, label: MONTHS[dt.getUTCMonth()] + ' ' + dt.getUTCDate(), major: dt.getUTCDate() === 1 });
+                }
+                return out;
+            }
             var monthStep = span > 300 ? 3 : 1;
             var start = dateOf(dMin), y = start.getUTCFullYear();
             var m = Math.floor(start.getUTCMonth() / monthStep) * monthStep;
@@ -6518,9 +6718,18 @@ window.__spiralReady = true;
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
             var ax = g.daysAt(px), ay = g.valAt(py);
-            if (factor < 1) { var lim = Math.max(20 / (VX1 - VX0), 0.05 / (VY1 - VY0)); if (lim > 1) lim = 1; if (factor < lim) factor = lim; }
             var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
             var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
+            if (factor < 1) {
+                /* Zoom floor (Phase B, 2026-11-24): per-axis
+                   clamps, landed on exactly — a pinch-in never
+                   widens either axis and the move is never
+                   rejected. The x floor is a 7-day window, the
+                   same gesture system as the price charts; the
+                   y floor keeps the chart's own 0.05. */
+                if (nx1 - nx0 < 7) { var fx = (ax - nx0) / ((nx1 - nx0) || 1); nx0 = ax - 7 * fx; nx1 = nx0 + 7; }
+                if (ny1 - ny0 < 0.05) { var fy = (ay - ny0) / ((ny1 - ny0) || 1); ny0 = ay - 0.05 * fy; ny1 = ny0 + 0.05; }
+            }
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
@@ -7074,6 +7283,18 @@ window.__spiralReady = true;
                 }
                 return out;
             }
+            if (span <= 62) {
+                /* Inside two months the month ladder would label
+                   almost nothing (Phase B, 2026-11-24): day ticks
+                   on the dates themselves, stepped so the axis
+                   stays readable at the fine layer's spans. */
+                var dStep = span <= 12 ? 1 : (span <= 35 ? 3 : 7);
+                for (var dd = Math.ceil(dMin); dd <= Math.floor(dMax); dd += dStep) {
+                    var dt = dateOf(dd);
+                    out.push({ days: dd, label: MONTHS[dt.getUTCMonth()] + ' ' + dt.getUTCDate(), major: dt.getUTCDate() === 1 });
+                }
+                return out;
+            }
             var monthStep = span > 300 ? 3 : 1;
             var start = dateOf(dMin), y = start.getUTCFullYear();
             var m = Math.floor(start.getUTCMonth() / monthStep) * monthStep;
@@ -7374,9 +7595,18 @@ window.__spiralReady = true;
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
             var ax = g.daysAt(px), ay = g.valAt(py);
-            if (factor < 1) { var lim = Math.max(20 / (VX1 - VX0), 0.05 / (VY1 - VY0)); if (lim > 1) lim = 1; if (factor < lim) factor = lim; }
             var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
             var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
+            if (factor < 1) {
+                /* Zoom floor (Phase B, 2026-11-24): per-axis
+                   clamps, landed on exactly — a pinch-in never
+                   widens either axis and the move is never
+                   rejected. The x floor is a 7-day window, the
+                   same gesture system as the price charts; the
+                   y floor keeps the chart's own 0.05. */
+                if (nx1 - nx0 < 7) { var fx = (ax - nx0) / ((nx1 - nx0) || 1); nx0 = ax - 7 * fx; nx1 = nx0 + 7; }
+                if (ny1 - ny0 < 0.05) { var fy = (ay - ny0) / ((ny1 - ny0) || 1); ny0 = ay - 0.05 * fy; ny1 = ny0 + 0.05; }
+            }
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
