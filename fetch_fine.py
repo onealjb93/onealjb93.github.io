@@ -7,6 +7,9 @@ file per series per rung beside the chart files:
 
     fine30/<KEY>.json   30-minute bars, the source's last ~60 days
     fine60/<KEY>.json   60-minute bars, the source's last ~730 days
+    fine15/<KEY>.json   15-minute bars, the source's last ~60 days
+    fine5/<KEY>.json    5-minute bars, the source's last ~60 days,
+                        headline markets only (see RUNGS below)
 
 Why these rungs (verified empirically against the Yahoo v8 chart
 API on 2026-11-23, the pipeline's own source and user agent):
@@ -64,12 +67,25 @@ FETCH_SLEEP = 0.5  # be polite to the endpoint
 
 # span_days stays one day inside Yahoo's verified walls (60 / 730
 # days, both strict); keep_days trims a file to its rung's horizon
-# so a file can never outgrow the range it serves.
+# so a file can never outgrow the range it serves. The sub-30m
+# rungs (15m, 5m) sit under the same 60-day wall as 30m
+# (2026-11-24). fine5 is restricted to the headline markets —
+# BTC, the two cash indexes, gold — because a 5-minute file for
+# each of the 128 series would add ~50 MB of wholesale-replaced
+# files to every nightly commit, while the equity series
+# already carry a finer layer at tight zooms in
+# finance-intraday.json (1-minute, last five sessions). The
+# "only" set names page keys; a key absent from the daily
+# series is simply not built.
 RUNGS = [
     {"interval": "30m", "subdir": "fine30", "span_days": 59,
      "keep_days": 62},
     {"interval": "60m", "subdir": "fine60", "span_days": 729,
      "keep_days": 732},
+    {"interval": "15m", "subdir": "fine15", "span_days": 59,
+     "keep_days": 62},
+    {"interval": "5m", "subdir": "fine5", "span_days": 59,
+     "keep_days": 62, "only": {"BTC", "SPX", "IXIC", "GOLD"}},
 ]
 
 
@@ -164,8 +180,10 @@ def build_fine_files(d_series, out_dir, log=_noop, session=None,
         sub = os.path.join(out_dir, rung["subdir"])
         os.makedirs(sub, exist_ok=True)
         written, kept, failed = 0, 0, []
+        rung_only = rung.get("only")
         keys = [k for k in d_series
-                if only_keys is None or k in only_keys]
+                if (only_keys is None or k in only_keys)
+                and (rung_only is None or k in rung_only)]
         for key in keys:
             meta = d_series[key]
             symbol = meta.get("symbol") or key
