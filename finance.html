@@ -8298,6 +8298,36 @@ if (typeof module !== "undefined") {
             var s = dsrc && dsrc.series ? dsrc.series[k] : null;
             return s ? ddQuoteFromBars(s.bars) : null;
         }
+        // The live layer's base (2026-11-24): a /quote row's day
+        // move is its live price against the latest completed
+        // session's close, read from the same daily series the
+        // chart loads — never the quote's own change_pct, whose
+        // reference close can lag a session behind (on the
+        // morning of 2026-11-24 every stock row carried Friday's
+        // base: GOOGL showed +5.70% against Friday's close while
+        // its live pre-market price stood −0.6% against Monday's
+        // close). The base is the last daily bar dated before
+        // today in New York: before today's session that is the
+        // file's last bar, during the session it stays the prior
+        // close, and when a new daily file lands the base rolls
+        // forward on its own. No bar before today -> the last
+        // bar stands.
+        function ddDailyBase(k) {
+            var dsrc = dailyData || firstData;
+            var s = dsrc && dsrc.series ? dsrc.series[k] : null;
+            if (!s || !s.bars || !s.bars.length) return null;
+            var today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+            var base = null;
+            for (var i = 0; i < s.bars.length; i++) {
+                var b = s.bars[i];
+                if (b && typeof b[0] === "string" && b[0] < today && typeof b[4] === "number" && b[4] > 0) base = b[4];
+            }
+            if (base === null) {
+                var lb = s.bars[s.bars.length - 1];
+                if (lb && typeof lb[4] === "number" && lb[4] > 0) base = lb[4];
+            }
+            return base;
+        }
         function ddFmtNum(n, d) {
             return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
         }
@@ -8309,12 +8339,17 @@ if (typeof module !== "undefined") {
                 row.pct.className = "stock-dd-pct";
                 return;
             }
+            var pct = q.pct;
+            if (q.fromQuote) {
+                var base = ddDailyBase(row.key);
+                if (base !== null) pct = (q.price / base - 1) * 100;
+            }
             var d = typeof q.decimals === "number" ? q.decimals : 2;
             var priceText = ddFmtNum(q.price, d) + (q.unit === "pct" ? "%" : "");
             if (row.price.textContent !== priceText) row.price.textContent = priceText;
-            var pctText = (q.pct < 0 ? "-" : "+") + Math.abs(q.pct).toFixed(2) + "%";
+            var pctText = (pct < 0 ? "-" : "+") + Math.abs(pct).toFixed(2) + "%";
             if (row.pct.textContent !== pctText) row.pct.textContent = pctText;
-            row.pct.className = "stock-dd-pct " + (q.pct > 0 ? "up" : (q.pct < 0 ? "down" : ""));
+            row.pct.className = "stock-dd-pct " + (pct > 0 ? "up" : (pct < 0 ? "down" : ""));
         }
         function paintDdRows() { ddRows.forEach(paintDdRow); }
         function paintDdKey(k) {
@@ -8368,7 +8403,11 @@ if (typeof module !== "undefined") {
                 .then(function (r) { if (!r.ok) throw new Error("quote " + r.status); return r.json(); })
                 .then(function (j) {
                     if (!j || typeof j.price !== "number" || typeof j.change_pct !== "number") return false;
-                    ddLive[k] = { price: j.price, pct: j.change_pct, decimals: 2, unit: null };
+                    // fromQuote: paintDdRow recomputes the move from
+                    // this price against the daily series' latest
+                    // completed close (ddDailyBase); j.change_pct
+                    // stands only until that series is in hand.
+                    ddLive[k] = { price: j.price, pct: j.change_pct, decimals: 2, unit: null, fromQuote: true };
                     paintDdKey(k);
                     return true;
                 })
