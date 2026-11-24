@@ -241,6 +241,24 @@ def build_intraday_file(d_series, out_dir, log=_noop, session=None):
         log("  intraday: nothing built and no previous file — "
             "writing nothing; the chart's 1D / 1W stay on daily bars.")
         return False
+    # Honesty guard (2026-11-23): if every series' latest session
+    # is byte-for-byte the previous file's (same date, same bar
+    # count) — every fetch failed, or the market was closed and
+    # the pull returned the same sessions — do not rewrite the
+    # file with a fresh generated_at over old data. The previous
+    # file stands, timestamp and all, so staleness stays visible.
+    def _sig(srs):
+        out = {}
+        for k, v in srs.items():
+            sess = v.get("sessions") or []
+            if sess:
+                out[k] = (sess[-1]["date"], len(sess[-1]["bars"]))
+        return out
+    if previous is not None and _sig(series) == _sig(prev_series):
+        log("  intraday: no series advanced past the previous "
+            "file — leaving it untouched rather than restamp "
+            "old sessions as fresh.")
+        return False
     through = max(s["sessions"][-1]["date"] for s in series.values())
     doc = {
         "schema": SCHEMA,
