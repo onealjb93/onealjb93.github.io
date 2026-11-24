@@ -148,13 +148,27 @@ def main(session=None):
     }
     api = "https://api.github.com/repos/%s" % repo
     try:
-        resp = session.get(
-            api + "/issues",
-            params={"state": "open", "creator": owner,
-                    "per_page": "100"},
-            headers=headers, timeout=30)
-        resp.raise_for_status()
-        issues = resp.json()
+        # Every page, not just the first (2026-11-23): the filter
+        # is ALL open owner issues, so a backlog beyond 100 would
+        # push scoreboard requests off the only page ever read —
+        # unseen, uncommented, and never retried in any way that
+        # matters.
+        issues = []
+        page = 1
+        while True:
+            resp = session.get(
+                api + "/issues",
+                params={"state": "open", "creator": owner,
+                        "per_page": "100", "page": str(page)},
+                headers=headers, timeout=30)
+            resp.raise_for_status()
+            batch = resp.json()
+            if not isinstance(batch, list):
+                break
+            issues.extend(batch)
+            if len(batch) < 100:
+                break
+            page += 1
     except Exception as exc:
         log("scoreboard sync: issue list failed (%s); nothing done"
             % exc)
@@ -190,13 +204,20 @@ def main(session=None):
                 continue
             tickers = new_tickers
         try:
-            session.post(api + "/issues/%s/comments"
-                         % issue["number"],
-                         headers=headers,
-                         json={"body": comment}, timeout=30)
-            session.patch(api + "/issues/%s" % issue["number"],
-                          headers=headers,
-                          json={"state": "closed"}, timeout=30)
+            # Check the HTTP status, not just the transport
+            # (2026-11-23): requests returns 403/404/422 as
+            # ordinary responses, and the old code logged success
+            # either way — a permanently permissionless token
+            # would "close" issues forever without closing any.
+            resp = session.post(api + "/issues/%s/comments"
+                                % issue["number"],
+                                headers=headers,
+                                json={"body": comment}, timeout=30)
+            resp.raise_for_status()
+            resp = session.patch(api + "/issues/%s" % issue["number"],
+                                 headers=headers,
+                                 json={"state": "closed"}, timeout=30)
+            resp.raise_for_status()
         except Exception as exc:
             log("scoreboard sync: issue #%s decided (%s) but the "
                 "comment/close failed (%s)"
