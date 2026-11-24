@@ -7845,6 +7845,12 @@ if (typeof module !== "undefined") {
             }
             if (!isFinite(lo) || !isFinite(hi) || hi <= lo) { lo = 0; hi = 1; }
             var pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+            autoSpanY = hi - lo;
+            // A manual price range (a vertical pinch) suspends
+            // the auto-fit: the pinched range replaces the fitted
+            // one, and the nice-step snap below still rounds the
+            // axis labels to round values at that range.
+            if (manualY && manualY.hi > manualY.lo) { lo = manualY.lo; hi = manualY.hi; }
             // The scale then snaps outward to the nice-step ladder:
             // the domain becomes the ticks, so every price gridline
             // carries a round value and the pane holds five to
@@ -8588,7 +8594,7 @@ if (typeof module !== "undefined") {
         var pickerKey = "SPX";
         function setKey(key, source) {
             if (!chartData || !chartData.series[key]) return;
-            cur.key = key; hover = -1; zoom = null; modeNote = "";
+            cur.key = key; hover = -1; zoom = null; manualY = null; modeNote = "";
             if (source !== "band") pickerKey = key;
             document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: key, band: source === "band" } }));
             syncControls();
@@ -8603,7 +8609,7 @@ if (typeof module !== "undefined") {
         // yet." and no error.
         function setKeyBand(key) {
             if (chartData && chartData.series[key]) { setKey(key, "band"); return; }
-            cur.key = key; hover = -1; zoom = null; modeNote = "";
+            cur.key = key; hover = -1; zoom = null; manualY = null; modeNote = "";
             document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: key, band: true } }));
             syncControls();
             ensureDaily();
@@ -8810,7 +8816,7 @@ if (typeof module !== "undefined") {
                 storePane(IND_KEY, indOn);
                 syncInd();
             }
-            cur.key = key; modeNote = "";
+            cur.key = key; manualY = null; modeNote = "";
             pickerKey = key;
             document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: key, band: false } }));
             var s = (dailyData && dailyData.series ? dailyData.series[key] : null);
@@ -9021,7 +9027,7 @@ if (typeof module !== "undefined") {
                         zoom = { start: nb - 2, end: nb - 1 }; hover = -1; latchIntra(); render();
                     } else if (view.intra.kind === "1D" && ic >= irc && nb >= 2) {
                         zoom = { start: Math.max(0, nb - 6), end: nb - 1 }; hover = -1; latchIntra(); render();
-                    } else if (ic >= irc && zoom) { zoom = null; hover = -1; render(); }
+                    } else if (ic >= irc && zoom) { zoom = null; manualY = null; hover = -1; render(); }
                     return;
                 }
                 // Inside a fine view the window lives in ET dates
@@ -9038,7 +9044,7 @@ if (typeof module !== "undefined") {
                 var c = Math.round(eF - sF + 1);
                 if (c < minC) c = minC;
                 if (c > rc) c = rc;
-                if (c >= rc) { if (zoom) { zoom = null; hover = -1; render(); } return; }
+                if (c >= rc) { if (zoom || manualY) { zoom = null; manualY = null; hover = -1; render(); } return; }
                 var s = Math.round(sF);
                 if (s < rangeStart) s = rangeStart;
                 if (s > rangeEnd - c + 1) s = rangeEnd - c + 1;
@@ -9059,7 +9065,22 @@ if (typeof module !== "undefined") {
                     ids: ids,
                     d0: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
                     count: view.end - view.start + 1,
-                    anchor: view.start + f * (view.end - view.start)
+                    anchor: view.start + f * (view.end - view.start),
+                    // The gesture decomposed (2026-11-24): the
+                    // horizontal spread drives the X window (the
+                    // count above), the vertical spread drives a
+                    // manual price range around the price under
+                    // the pinch midpoint. yP is that price, read
+                    // off the drawn domain; yLo0/yHi0 are the
+                    // domain the gesture starts from — the manual
+                    // range's bounds are measured against them.
+                    d0x: Math.max(1, Math.abs(a.x - b.x)),
+                    d0y: Math.max(1, Math.abs(a.y - b.y)),
+                    yP: (layout.lo !== null && layout.hi !== null && layout.priceH)
+                        ? layout.hi - (((a.y + b.y) / 2 - rect.top) - layout.priceY) / layout.priceH * (layout.hi - layout.lo)
+                        : null,
+                    yLo0: layout.lo, yHi0: layout.hi, yOn: false,
+                    ySpan: autoSpanY
                 };
                 gestBlock = false;
                 hover = -1; // the crosshair is suspended for the whole gesture
@@ -9078,12 +9099,42 @@ if (typeof module !== "undefined") {
                 if (!a || !b) return;
                 var rect = canvas.getBoundingClientRect();
                 if (!rect.width || !layout.plotW) return;
-                var d = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-                var c = gest.count * gest.d0 / d;
+                // X from the horizontal spread alone, exactly the
+                // shipped zoom feel for a sideways pinch; a purely
+                // vertical pinch leaves the X window untouched.
+                var dxN = Math.max(1, Math.abs(a.x - b.x));
+                var dyN = Math.max(1, Math.abs(a.y - b.y));
+                var c = gest.count * gest.d0x / dxN;
                 var f = ((a.x + b.x) / 2 - rect.left - 6) / layout.plotW;
                 f = Math.max(0, Math.min(1, f));
                 var s = gest.anchor - f * (c - 1);
+                // Y from the vertical spread: spreading the
+                // fingers vertically squeezes the price range
+                // around the anchor price (the price under the
+                // pinch midpoint when the gesture began). The
+                // range's width is bounded to [10%, 10x] of the
+                // price span the gesture started from. A gesture
+                // that begins with the fingers nearly level
+                // (under 20px of vertical separation) has no
+                // meaningful vertical ratio and never engages Y;
+                // once engaged, Y tracks the gesture to its end.
+                var yChanged = false;
+                if (gest.yP !== null && gest.yLo0 !== null && gest.yHi0 !== null && gest.d0y >= 20) {
+                    var yScale = gest.d0y / dyN;
+                    if (gest.yOn || Math.abs(yScale - 1) > 0.06) {
+                        gest.yOn = true;
+                        var span0 = gest.yHi0 - gest.yLo0;
+                        var boundSpan = gest.ySpan > 0 ? gest.ySpan : span0;
+                        var half = span0 / 2 * yScale;
+                        if (half < boundSpan * 0.05) half = boundSpan * 0.05;
+                        if (half > boundSpan * 5) half = boundSpan * 5;
+                        var nlo = gest.yP - half, nhi = gest.yP + half;
+                        if (nlo < 0) { nhi -= nlo; nlo = 0; }
+                        if (!manualY || manualY.lo !== nlo || manualY.hi !== nhi) { manualY = { lo: nlo, hi: nhi }; yChanged = true; }
+                    }
+                }
                 setZoomWindow(s, s + c - 1);
+                if (yChanged) render();
             }
             function gestureEnd(id) {
                 delete ptrs[id];
@@ -9110,7 +9161,7 @@ if (typeof module !== "undefined") {
                 if (e.pointerType === "touch") {
                     var now = Date.now();
                     if ((zoom || fineWin) && now - lastTap.t < 400 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 48) {
-                        zoom = null; fineWin = null; hover = -1; lastTap = { t: 0, x: 0, y: 0 };
+                        zoom = null; fineWin = null; manualY = null; hover = -1; lastTap = { t: 0, x: 0, y: 0 };
                         render();
                     } else {
                         lastTap = { t: now, x: e.clientX, y: e.clientY };
@@ -9462,6 +9513,8 @@ if (typeof module !== "undefined") {
         var fineInflight = {};  // "KEY|30" -> true while fetching
         var fineFailedAt = {};  // "KEY|30" -> ms of the last failure
         var fineWin = null;     // {key, aDate, bDate, rung}: the fine window, in ET dates
+        var manualY = null;     // {lo, hi}: the manual price range a vertical pinch sets; null = the price axis auto-fits the visible data
+        var autoSpanY = 0;      // the auto-fit price span of the view last drawn — the manual range's bounds are measured against it, so repeated pinches cannot walk past them
         var fineLastRung = null; // {key, rung}: the hysteresis memory
         // The ladder, finest first; each rung holds visible
         // windows up to its seam, in days.
@@ -9757,6 +9810,7 @@ if (typeof module !== "undefined") {
                 // take the window back, at the gesture's own dates.
                 fineWin = null; fineLastRung = null;
                 zoom = (aIx === 0 && bIx === ds.bars.length - 1) ? null : { start: aIx, end: bIx };
+                if (!zoom) manualY = null; // the full view takes the price axis back too
                 hover = -1; render();
                 return;
             }
@@ -9869,7 +9923,7 @@ if (typeof module !== "undefined") {
                     populateStockSelect();
                     populateBandSelect();
                     populateNdxSelect();
-                    if (pendingKey && chartData.series[pendingKey]) { cur.key = pendingKey; pickerKey = pendingKey; document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: pendingKey, band: false } })); pendingKey = null; zoom = null; }
+                    if (pendingKey && chartData.series[pendingKey]) { cur.key = pendingKey; pickerKey = pendingKey; document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: pendingKey, band: false } })); pendingKey = null; zoom = null; manualY = null; }
                     syncControls();
                     ensureDaily();
                 })
@@ -9938,7 +9992,7 @@ if (typeof module !== "undefined") {
             var section = document.getElementById("chart");
             if (section && section.scrollIntoView) section.scrollIntoView({ behavior: "smooth", block: "start" });
             if (chartData) {
-                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; modeNote = ""; pickerKey = symbol; document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: symbol, band: false } })); syncControls(); ensureDaily(); }
+                if (chartData.series[symbol]) { cur.key = symbol; hover = -1; zoom = null; manualY = null; modeNote = ""; pickerKey = symbol; document.dispatchEvent(new CustomEvent("jbo:chart-key", { detail: { key: symbol, band: false } })); syncControls(); ensureDaily(); }
             } else {
                 pendingKey = symbol;
                 ensure();
