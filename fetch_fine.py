@@ -8,8 +8,7 @@ file per series per rung beside the chart files:
     fine30/<KEY>.json   30-minute bars, the source's last ~60 days
     fine60/<KEY>.json   60-minute bars, the source's last ~730 days
     fine15/<KEY>.json   15-minute bars, the source's last ~60 days
-    fine5/<KEY>.json    5-minute bars, the source's last ~60 days,
-                        headline markets only (see RUNGS below)
+    fine5/<KEY>.json    5-minute bars, the source's last ~60 days
 
 Why these rungs (verified empirically against the Yahoo v8 chart
 API on 2026-11-23, the pipeline's own source and user agent):
@@ -22,7 +21,12 @@ API on 2026-11-23, the pipeline's own source and user agent):
     ~3,477 for a cash index (regular session only — the indexes
     print no extended-hours bars at any interval), ~17,465 for
     BTC-USD, which trades around the clock.
-  - 1m and 5m need no rung here: finance-intraday.json already
+  - 15m and 5m: the same 60-day wall as 30m — 59-day pulls are
+    the safe full windows (~5,700 bars at 15m and ~17,000 at 5m
+    for a round-the-clock market; equities print their extended
+    session, the cash indexes their regular session only). The
+    5m rung is the ladder's floor above finance-intraday.json.
+  - 1m needs no rung here: finance-intraday.json already
     carries the last five sessions at 1 minute for the primary
     series, finer than the ladder's 1W rung.
 
@@ -69,14 +73,13 @@ FETCH_SLEEP = 0.5  # be polite to the endpoint
 # days, both strict); keep_days trims a file to its rung's horizon
 # so a file can never outgrow the range it serves. The sub-30m
 # rungs (15m, 5m) sit under the same 60-day wall as 30m
-# (2026-11-24). fine5 is restricted to the headline markets —
-# BTC, the two cash indexes, gold — because a 5-minute file for
-# each of the 128 series would add ~50 MB of wholesale-replaced
-# files to every nightly commit, while the equity series
-# already carry a finer layer at tight zooms in
-# finance-intraday.json (1-minute, last five sessions). The
-# "only" set names page keys; a key absent from the daily
-# series is simply not built.
+# (2026-11-24) and cover every series, like the rungs above
+# them. The cost is stated plainly: fine5 for all 128 series
+# is ~38 MB of wholesale-replaced files in every nightly
+# commit (fine15 ~12 MB) — accepted 2026-11-24 so a tight
+# zoom on any series reaches the finest rung that exists.
+# A rung may still carry an "only" set of page keys (the
+# build then covers just those keys); no rung uses one today.
 RUNGS = [
     {"interval": "30m", "subdir": "fine30", "span_days": 59,
      "keep_days": 62},
@@ -85,7 +88,7 @@ RUNGS = [
     {"interval": "15m", "subdir": "fine15", "span_days": 59,
      "keep_days": 62},
     {"interval": "5m", "subdir": "fine5", "span_days": 59,
-     "keep_days": 62, "only": {"BTC", "SPX", "IXIC", "GOLD"}},
+     "keep_days": 62},
 ]
 
 
@@ -166,7 +169,8 @@ def _write_series_file(path, doc):
 
 def build_fine_files(d_series, out_dir, log=_noop, session=None,
                      only_keys=None):
-    """Write fine30/ + fine60/ files for every daily series.
+    """Write fine30/ + fine60/ + fine15/ + fine5/ files for
+    every daily series.
 
     d_series is fetch_chart_data's daily series dict (page key ->
     {"name", "symbol", ...}). Failure-isolated per series and
