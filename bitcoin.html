@@ -103,6 +103,13 @@
            each view's code loads lazily on first selection (inert in
            text/plain script blocks until then). */
         .btc-ind-lead { margin: 0 0 0.3rem; }
+        /* Title block (2026-11-23, format unification): the page title
+           leaves its card — bare big serif on the background with its
+           one line under it in the standard muted style, the same
+           local override the credits / message board pages carry. */
+        .hero-header { background: none; border: none; border-radius: 0; box-shadow: none; padding: 0.25rem 0 0; margin-bottom: 16px; }
+        .hero-header h1 { font-size: 2.4rem; margin: 0 0 0.35rem; }
+        .hero-header p { color: var(--subtext-color); font-weight: 400; }
         .btc-ind-note { color: var(--subtext-color); font-size: 0.95rem; line-height: 1.45; margin: 0 0 16px; }
         /* The matrix (later, 2026-11-17): the same 27 properties
            as one picture on the surface — a real table, six money
@@ -324,7 +331,7 @@
            in the standard place, on a 44px tap target; the words
            live on as aria-labels, and the Full screen glyph itself
            shows the state (expand at rest, compress in fullscreen). */
-        .btc-action-pill { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; width: 44px; height: 44px; min-height: 44px; padding: 0; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-color); font: inherit; font-size: 0.88rem; font-weight: 600; line-height: 1.2; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .btc-action-pill { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; width: 44px; height: 44px; min-height: 44px; padding: 0; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-color); font: inherit; font-size: 0.88rem; font-weight: 600; line-height: 1.2; cursor: pointer; -webkit-tap-highlight-color: transparent; }
         .btc-action-pill span { display: none; }
         .btc-action-pill:hover { background: var(--hover-bg); }
         .btc-action-pill:active { background: var(--border-color); }
@@ -1093,8 +1100,16 @@
         .pl-fine { font-size: 0.85rem; color: var(--text-muted, #94a3b8); margin-top: 14px; }
         @media (max-width: 768px) {
             .pl-chart-wrap canvas { height: 360px; }
-            .pl-readout { gap: 10px 20px; }
-            .pl-stat { min-width: 96px; }
+            /* Future-readout fit (2026-11-23): the six stats wrap to a
+               3 x 2 grid on phone widths instead of running off the
+               panel's right edge in a hidden-scroll row — every value
+               (date, "No price yet", the full corridor figures) is on
+               screen at 393px. The block's height is the same in every
+               inspection state (notes reserve their line), so the
+               chart below never shifts. */
+            .pl-readout { flex-wrap: wrap; overflow: visible; height: auto; gap: 8px 12px; }
+            .pl-stat { flex: 1 1 30%; min-width: 0; }
+            .pl-note { min-height: 0.74rem; }
             .pl-value { font-size: 1.1rem; }
         }
         /* Top-of-page flow (2026-11-18): the jump pill in the
@@ -1636,7 +1651,7 @@
                     <a href="sustainability.html" role="menuitem">Sustainability</a>
                     <a href="media.html" role="menuitem">Books and Podcasts</a>
                     <a href="games.html" role="menuitem">Games</a>
-                    <a href="random.html" role="menuitem">Random Generator</a>
+                    <a href="random.html" role="menuitem">Look Around</a>
                     <a href="messageboard.html" role="menuitem">Message Board</a>
                 </div>
             </div>
@@ -4283,9 +4298,9 @@ function zoomViewAt(px, py, w, h, factor) {
     var iw = w - padL - padR, ih = h - padT - padB;
     var ax = VX0 + (px - padL) / iw * (VX1 - VX0);
     var ay = VY1 - (py - padT) / ih * (VY1 - VY0);
+    if (factor < 1) { var lim = Math.max(3 * 86400000 / (VX1 - VX0), 0.01 / (VY1 - VY0)); if (lim > 1) lim = 1; if (factor < lim) factor = lim; }
     var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
     var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
-    if (nx1 - nx0 < 3 * 86400000 || ny1 - ny0 < 0.01) return false;
     VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
     return true;
 }
@@ -5722,9 +5737,18 @@ draw();
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
             var ax = g.logDaysAt(px), ay = g.logPriceAt(py);
+            /* Zoom floor (2026-11-23): the factor is CLAMPED so the
+               span lands exactly on the floor (0.01 of log-range per
+               axis) instead of the old reject-the-move guard — a
+               rejected move left the pinch handler's restored
+               gesture-start snapshot on screen, so the view POPPED
+               back out to the span the gesture began at, mid-pinch,
+               and the floor read as a lock at ~3 months. Hitting the
+               floor is now a clean stop: the span never widens during
+               a pinch-in. */
+            if (factor < 1) { var lim = Math.max(0.01 / (VX1 - VX0), 0.01 / (VY1 - VY0)); if (lim > 1) lim = 1; if (factor < lim) factor = lim; }
             var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
             var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
-            if (nx1 - nx0 < 0.01 || ny1 - ny0 < 0.01) return false;
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
@@ -6582,9 +6606,9 @@ draw();
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
             var ax = g.daysAt(px), ay = g.logPriceAt(py);
+            if (factor < 1) { var lim = Math.max(20 / (VX1 - VX0), 0.01 / (VY1 - VY0)); if (lim > 1) lim = 1; if (factor < lim) factor = lim; }
             var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
             var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
-            if (nx1 - nx0 < 20 || ny1 - ny0 < 0.01) return false;
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
@@ -7383,9 +7407,9 @@ draw();
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
             var ax = g.daysAt(px), ay = g.valAt(py);
+            if (factor < 1) { var lim = Math.max(20 / (VX1 - VX0), 0.05 / (VY1 - VY0)); if (lim > 1) lim = 1; if (factor < lim) factor = lim; }
             var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
             var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
-            if (nx1 - nx0 < 20 || ny1 - ny0 < 0.05) return false;
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
@@ -8238,9 +8262,9 @@ draw();
         function zoomViewAt(px, py, w, h, factor) {
             var g = geom(w, h);
             var ax = g.daysAt(px), ay = g.valAt(py);
+            if (factor < 1) { var lim = Math.max(20 / (VX1 - VX0), 0.05 / (VY1 - VY0)); if (lim > 1) lim = 1; if (factor < lim) factor = lim; }
             var nx0 = ax - (ax - VX0) * factor, nx1 = ax + (VX1 - ax) * factor;
             var ny0 = ay - (ay - VY0) * factor, ny1 = ay + (VY1 - ay) * factor;
-            if (nx1 - nx0 < 20 || ny1 - ny0 < 0.05) return false;
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
             return true;
         }
