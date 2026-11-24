@@ -2118,13 +2118,11 @@ window.BTC_FINE = (function () {
             })
             .catch(function () { delete inflight[rung]; failedAt[rung] = Date.now(); });
     }
-    /* pts: the chart's own daily points [[day, price], …];
-       dMin/dMax: the visible window in days since genesis.
-       Returns {pts, rung, through} — the daily points with the
-       fine path merged in — or null when the daily points stand
-       exactly as they are (wide span, file on its way, file
-       missing, or a window the file doesn't touch). */
-    function display(pts, dMin, dMax) {
+    /* The file ladder on its own: the daily points with the
+       fine file's path merged in, or null when the daily points
+       stand (wide span, file on its way, file missing, or a
+       window the file doesn't touch). */
+    function fileDisplay(pts, dMin, dMax) {
         if (!pts || pts.length < 2) return null;
         var rung = rungFor(dMax - dMin);
         if (!rung) return null;
@@ -2152,6 +2150,226 @@ window.BTC_FINE = (function () {
         lastRung = rung;
         return { pts: out, rung: rung, through: doc.through_et || null };
     }
+    /* ---- The granular-as-possible layer (Johnny, 2026-11-24:
+       "get granular as possible the more you zoom in"). Under
+       the file ladder sits a browser-live ladder keyed to the
+       same visible span; the file rungs are a floor, never a
+       ceiling — whenever a finer source covers the window, the
+       path steps down to it:
+         span ≤ 2 days → 1-minute · ≤ 6 days → 5-minute ·
+         ≤ 16 days → 15-minute,
+       fetched from the Coinbase candles endpoint the page
+       already trusts, paged by start/end for exactly the
+       visible window — the live edge or a panned window in the
+       recent past alike, Coinbase retains the history. The
+       pipeline's fine5/fine15 files, when they exist, serve the
+       5/15 rungs from this origin instead (the same
+       ensure/display pattern); the Coinbase path covers the
+       same ground whenever a file is missing. Fetches are
+       debounced to gesture settle (250 ms), only the visible
+       window's rung is ever fetched, and everything fetched is
+       cached for the session. A failed fetch changes nothing:
+       the finest layer already drawn stands, and the daily
+       points stand behind everything. ---- */
+    var CB_URL = "https://api.exchange.coinbase.com/products/BTC-USD/candles";
+    var cbCache = {}, cbCover = {}, cbInflight = false, cbTimer = null, cbPending = null, cbFailedAt = 0, lastCbGran = 0;
+    function cbGranFor(spanDays) {
+        var g = spanDays <= 2 ? 60 : (spanDays <= 6 ? 300 : (spanDays <= 16 ? 900 : 0));
+        if (lastCbGran === 60 && g === 300 && spanDays <= 2.2) g = 60;
+        else if (lastCbGran === 300 && g === 60 && spanDays >= 1.8) g = 300;
+        else if (lastCbGran === 300 && g === 900 && spanDays <= 6.6) g = 300;
+        else if (lastCbGran === 900 && g === 300 && spanDays >= 5.4) g = 900;
+        else if (lastCbGran === 900 && g === 0 && spanDays <= 17.6) g = 900;
+        return g;
+    }
+    function cbMissing(gran, s0, s1) {
+        var cov = (cbCover[gran] || []).slice().sort(function (a, b) { return a[0] - b[0]; });
+        var out = [], cur = s0;
+        for (var i = 0; i < cov.length; i++) {
+            if (cov[i][1] <= cur) continue;
+            if (cov[i][0] > cur) out.push([cur, Math.min(cov[i][0], s1)]);
+            cur = Math.max(cur, cov[i][1]);
+            if (cur >= s1) break;
+        }
+        if (cur < s1) out.push([cur, s1]);
+        return out.filter(function (r) { return r[1] - r[0] >= gran; });
+    }
+    function cbAddCover(gran, a, b) {
+        var cov = cbCover[gran] || (cbCover[gran] = []);
+        cov.push([a, b]);
+        cov.sort(function (x, y) { return x[0] - y[0]; });
+        var merged = [cov[0]];
+        for (var i = 1; i < cov.length; i++) {
+            var last = merged[merged.length - 1];
+            if (cov[i][0] <= last[1] + gran) last[1] = Math.max(last[1], cov[i][1]);
+            else merged.push(cov[i]);
+        }
+        cbCover[gran] = merged;
+    }
+    function cbNeed(gran, s0, s1) {
+        cbPending = { gran: gran, s0: s0, s1: s1 };
+        if (cbTimer) clearTimeout(cbTimer);
+        cbTimer = setTimeout(cbFetchPending, 250);
+    }
+    function cbFetchPending() {
+        cbTimer = null;
+        var p = cbPending; cbPending = null;
+        if (!p) return;
+        if (cbInflight) { cbNeed(p.gran, p.s0, p.s1); return; }
+        if (Date.now() - cbFailedAt < 30000) return;
+        var missing = cbMissing(p.gran, p.s0, p.s1);
+        if (!missing.length) return;
+        var chunks = [];
+        for (var i = 0; i < missing.length && chunks.length < 12; i++) {
+            var a = missing[i][0];
+            while (a < missing[i][1] && chunks.length < 12) { var b = Math.min(a + 300 * p.gran, missing[i][1]); chunks.push([a, b]); a = b; }
+        }
+        if (!chunks.length) return;
+        cbInflight = true;
+        var gran = p.gran, cache = cbCache[gran] || (cbCache[gran] = {});
+        var jobs = chunks.map(function (c) {
+            var url = CB_URL + "?granularity=" + gran + "&start=" + new Date(c[0] * 1000).toISOString() + "&end=" + new Date(c[1] * 1000).toISOString();
+            return fetch(url).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+                .then(function (rows) {
+                    if (!Array.isArray(rows)) throw new Error("unexpected candles payload");
+                    rows.forEach(function (row) {
+                        var close = parseFloat(row[4]);
+                        if (close > 0) cache[row[0]] = close;
+                    });
+                    cbAddCover(gran, c[0], c[1]);
+                    return true;
+                }).catch(function () { return false; });
+        });
+        Promise.all(jobs).then(function (oks) {
+            cbInflight = false;
+            if (oks.indexOf(false) >= 0) cbFailedAt = Date.now();
+            var keys = Object.keys(cache);
+            if (keys.length > 20000) { keys.sort(); for (var i = 0; i < keys.length - 20000; i++) delete cache[keys[i]]; }
+            subs.slice().forEach(function (fn) { fn(); });
+        });
+    }
+    /* The refine merge: candle points (Coinbase, or the fine5/
+       fine15 file when it is the source) replace the base path
+       across the stretch they cover. When the candles reach the
+       current day, the base's live tail placeholder — the
+       [today, spot] point at the day tick — is retired: the
+       candle path runs to the last completed bucket and one
+       final point at the live instant carries the same spot
+       price, so the path's living end is the page's one live
+       price with no seam segment and no double-plotted overlap. */
+    function refine(base, gran, dMin, dMax) {
+        var nowMs = Date.now();
+        var w0s = (GENESIS + dMin * DAY) / 1000, w1s = Math.min((GENESIS + dMax * DAY) / 1000, nowMs / 1000);
+        var bs0 = Math.floor(w0s / gran) * gran, bs1 = Math.floor(w1s / gran) * gran;
+        if (bs1 - bs0 < gran) return null;
+        if (cbMissing(gran, bs0, bs1).length) cbNeed(gran, bs0, bs1);
+        var cache = cbCache[gran] || {}, cand = [], src = "Coinbase";
+        for (var t = bs0; t < bs1; t += gran) {
+            var c = cache[t];
+            if (c > 0 && (t + gran) * 1000 <= nowMs) cand.push([((t + gran) * 1000 - GENESIS) / DAY, c]);
+        }
+        if (cand.length < 2 && (gran === 300 || gran === 900)) {
+            var frung = gran === 300 ? "5" : "15", fdoc = docs[frung];
+            if (!fdoc) ensure(frung);
+            else {
+                var bars = fdoc.bars || [], fc = [], todayStart = GENESIS + todayDay() * DAY;
+                for (var i = 0; i < bars.length; i++) {
+                    if (bars[i][0] * 1000 >= todayStart) break; // the seam rule: never the current UTC day from a file
+                    if (bars[i][4] > 0) fc.push([(bars[i][0] * 1000 - GENESIS) / DAY, bars[i][4]]);
+                }
+                if (fc.length >= 2) { cand = fc; src = "Yahoo Finance"; }
+            }
+        }
+        if (cand.length < 2) return null;
+        lastCbGran = gran;
+        var c0 = cand[0][0], c1 = cand[cand.length - 1][0], today = todayDay();
+        var reachesToday = c1 >= today, tailPrice = null, kept = [];
+        for (var j = 0; j < base.length; j++) {
+            var d = base[j][0];
+            if (reachesToday && d === today) { tailPrice = base[j][1]; continue; }
+            if (d >= c0 - 1e-9 && d <= c1 + 1e-9) continue;
+            kept.push(base[j]);
+        }
+        var out = kept.concat(cand);
+        var endDay = null;
+        if (reachesToday) {
+            var nowFloat = (nowMs - GENESIS) / DAY;
+            if (tailPrice !== null) out.push([nowFloat, tailPrice]);
+            endDay = tailPrice !== null ? nowFloat : c1;
+        }
+        out.sort(function (a, b) { return a[0] - b[0]; });
+        return { pts: out, src: src, endDay: endDay };
+    }
+    /* Pixel decimation (the speed gate): the drawn path never
+       carries more than ~3 points per pixel of plot width. Each
+       pixel-wide bucket keeps its first, lowest and highest
+       point — and the segment's final point always survives —
+       so every spike stands at the resolution the screen can
+       actually show; points outside the visible window pass
+       through untouched. */
+    function decimate(pts, dMin, dMax, pxW) {
+        var px = pxW > 0 ? pxW : 600;
+        var pre = [], mid = [], post = [], i;
+        for (i = 0; i < pts.length; i++) {
+            if (pts[i][0] < dMin) pre.push(pts[i]);
+            else if (pts[i][0] > dMax) post.push(pts[i]);
+            else mid.push(pts[i]);
+        }
+        if (mid.length <= Math.max(24, Math.round(px * 3))) return pts;
+        var bw = (dMax - dMin) / px, out = [], bucket = [], bStart = dMin;
+        function flush(isLast) {
+            if (!bucket.length) return;
+            if (bucket.length <= 3) { for (var q = 0; q < bucket.length; q++) out.push(bucket[q]); }
+            else {
+                var mn = bucket[0], mx = bucket[0], q2;
+                for (q2 = 1; q2 < bucket.length; q2++) {
+                    if (bucket[q2][1] < mn[1]) mn = bucket[q2];
+                    if (bucket[q2][1] > mx[1]) mx = bucket[q2];
+                }
+                out.push(bucket[0]);
+                var lo = mn[0] < mx[0] ? mn : mx, hi = mn[0] < mx[0] ? mx : mn;
+                if (lo !== bucket[0]) out.push(lo);
+                if (hi !== bucket[0] && hi !== lo) out.push(hi);
+                var lastB = bucket[bucket.length - 1];
+                if (isLast && lastB !== bucket[0] && lastB !== mn && lastB !== mx) out.push(lastB);
+            }
+            bucket = [];
+        }
+        for (i = 0; i < mid.length; i++) {
+            while (mid[i][0] >= bStart + bw) { flush(false); bStart += bw; }
+            bucket.push(mid[i]);
+        }
+        flush(true);
+        return pre.concat(out, post);
+    }
+    /* pts: the chart's own daily points [[day, price], …];
+       dMin/dMax: the visible window in days since genesis;
+       pxW: the plot width in CSS pixels, for decimation.
+       Returns {pts, rung, through, src, endDay} — the daily
+       points with the finest available path merged in — or null
+       when the daily points stand exactly as they are (wide
+       span, data on its way, sources missing, or a window no
+       finer source touches). */
+    function display(pts, dMin, dMax, pxW) {
+        if (!pts || pts.length < 2) return null;
+        var fd = fileDisplay(pts, dMin, dMax);
+        var gran = cbGranFor(dMax - dMin);
+        if (gran) {
+            var r2 = refine(fd ? fd.pts : pts, gran, dMin, dMax);
+            if (r2) {
+                return {
+                    pts: decimate(r2.pts, dMin, dMax, pxW),
+                    rung: String(gran / 60),
+                    rungLabel: gran === 60 ? "1-minute" : (gran === 300 ? "5-minute" : "15-minute"),
+                    src: r2.src, through: null, endDay: r2.endDay
+                };
+            }
+        }
+        if (!fd) return null;
+        fd.pts = decimate(fd.pts, dMin, dMax, pxW);
+        fd.src = null; fd.endDay = null;
+        return fd;
+    }
     function fmtThrough(iso) {
         if (!iso) return "the latest session";
         var p = String(iso).split("-");
@@ -2173,10 +2391,14 @@ window.BTC_FINE = (function () {
         var st = cur ? state[cur] : null;
         if (!st) { el.hidden = true; return; }
         el.hidden = false;
-        el.textContent = "Prices in " + (st.rung === "30" ? "30-minute" : "hourly") + " bars (Yahoo Finance) through " + fmtThrough(st.through) + " — the models, score and dots still run on daily closes.";
+        if (st.src) {
+            el.textContent = "Prices in " + st.rungLabel + " bars (" + st.src + ") for this view — the models, score and dots still run on daily closes.";
+        } else {
+            el.textContent = "Prices in " + (st.rung === "30" ? "30-minute" : "hourly") + " bars (Yahoo Finance) through " + fmtThrough(st.through) + " — the models, score and dots still run on daily closes.";
+        }
     }
     function report(view, fd) {
-        state[view] = fd ? { rung: fd.rung, through: fd.through } : null;
+        state[view] = fd ? { rung: fd.rung, through: fd.through, src: fd.src || null, rungLabel: fd.rungLabel || null } : null;
         renderNote();
     }
     if (window.MutationObserver) {
@@ -5558,7 +5780,7 @@ draw();
                below draws from window.BTC_FINE's merged points —
                the corridor, the floor, the dots and the readout
                keep running on PTS, the daily record. */
-            var FD = window.BTC_FINE ? window.BTC_FINE.display(PTS, dMin, dMax) : null;
+            var FD = window.BTC_FINE ? window.BTC_FINE.display(PTS, dMin, dMax, g.iw) : null;
             var PATH = FD ? FD.pts : PTS;
             if (window.BTC_FINE) window.BTC_FINE.report('powerlaw', FD);
 
@@ -5717,9 +5939,10 @@ draw();
                value sits in (2026-11-19); with the overlay off the
                chart keeps its original form, the price line's own
                color */
-            var tx = g.x(SPOT.days), ty = g.y(SPOT.price);
+            var spotDay = (FD && FD.endDay) ? FD.endDay : SPOT.days;
+            var tx = g.x(spotDay), ty = g.y(SPOT.price);
             if (liveOn) { drawLiveHalo(tx, ty); }
-            ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(SPOT.price, SPOT.days) : cPrice;
+            ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(SPOT.price, spotDay) : cPrice;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = cRim; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
@@ -5886,13 +6109,16 @@ draw();
                    snapshot on screen, so the view POPPED back out
                    mid-pinch. Phase B (2026-11-24): the clamps are
                    per-axis, because the floor is now the DATA, not
-                   a fraction of the log range: the x axis stops at
-                   a 7-day window (the reach of the hourly fine
-                   data that now backs the zoom) and the y axis
-                   keeps its own 0.01 of log price. A pinch-in
-                   never widens either axis. */
+                   a fraction of the log range. The granular layer
+                   (2026-11-24) moves the floor with the data: the
+                   x axis now stops at a 1-hour window — the reach
+                   of the live Coinbase minute candles that back
+                   the tight zoom, the same bottom as Coinbase's
+                   own 1H view — and the y axis keeps its own 0.01
+                   of log price. A pinch-in never widens either
+                   axis. */
                 var dA = Math.pow(10, ax), dLo = Math.pow(10, nx0), dHi = Math.pow(10, nx1);
-                if (dHi - dLo < 7) { var fx = (dA - dLo) / ((dHi - dLo) || 1); dLo = dA - 7 * fx; if (dLo < 1) dLo = 1; dHi = dLo + 7; nx0 = Math.log10(dLo); nx1 = Math.log10(dHi); }
+                if (dHi - dLo < 1 / 24) { var fx = (dA - dLo) / ((dHi - dLo) || 1); dLo = dA - fx / 24; if (dLo < 1) dLo = 1; dHi = dLo + 1 / 24; nx0 = Math.log10(dLo); nx1 = Math.log10(dHi); }
                 if (ny1 - ny0 < 0.01) { var fy = (ay - ny0) / ((ny1 - ny0) || 1); ny0 = ay - 0.01 * fy; ny1 = ny0 + 0.01; }
             }
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
@@ -6549,7 +6775,7 @@ draw();
                below draws from window.BTC_FINE's merged points —
                the cost line, the zones, the dots and the readout
                keep running on PTS, the daily record. */
-            var FD = window.BTC_FINE ? window.BTC_FINE.display(PTS, VX0, VX1) : null;
+            var FD = window.BTC_FINE ? window.BTC_FINE.display(PTS, VX0, VX1, g.iw) : null;
             var PATH = FD ? FD.pts : PTS;
             if (window.BTC_FINE) window.BTC_FINE.report('cost', FD);
             function seriesLine(arr, scale, color, width, dash) {
@@ -6647,7 +6873,8 @@ draw();
                value sits in (2026-11-19); with the overlay off the
                chart keeps its original form, the price line's own
                color */
-            var tx = g.x(SPOT.days), ty = g.y(SPOT.price);
+            var spotDay = (FD && FD.endDay) ? FD.endDay : SPOT.days;
+            var tx = g.x(spotDay), ty = g.y(SPOT.price);
             if (liveOn) { drawLiveHalo(tx, ty); }
             ctx.fillStyle = window.BTC_OVERLAY !== false ? zoneColor(SPOT.price, todayCost()) : cPrice;
             ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
@@ -6780,11 +7007,12 @@ draw();
                 /* Zoom floor (Phase B, 2026-11-24): per-axis
                    clamps, landed on exactly — a pinch-in never
                    widens either axis and the move is never
-                   rejected. The x floor is a 7-day window, the
-                   reach of the hourly fine data that now backs
-                   the zoom; the y floor keeps the chart's own
-                   0.01 of log price. */
-                if (nx1 - nx0 < 7) { var fx = (ax - nx0) / ((nx1 - nx0) || 1); nx0 = ax - 7 * fx; nx1 = nx0 + 7; }
+                   rejected. The granular layer (2026-11-24) moves
+                   the x floor with the data: a 1-hour window, the
+                   reach of the live Coinbase minute candles that
+                   back the tight zoom; the y floor keeps the
+                   chart's own 0.01 of log price. */
+                if (nx1 - nx0 < 1 / 24) { var fx = (ax - nx0) / ((nx1 - nx0) || 1); nx0 = ax - fx / 24; nx1 = nx0 + 1 / 24; }
                 if (ny1 - ny0 < 0.01) { var fy = (ay - ny0) / ((ny1 - ny0) || 1); ny0 = ay - 0.01 * fy; ny1 = ny0 + 0.01; }
             }
             VX0 = nx0; VX1 = nx1; VY0 = ny0; VY1 = ny1;
