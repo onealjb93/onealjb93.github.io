@@ -387,7 +387,13 @@ def fetch_closes(today):
                     closes[d] = c
             t += timedelta(days=300)
         if len(closes) >= 200:
-            return sorted(closes.items())
+            out = sorted(closes.items())
+            if out[-1][0] >= today - 2:
+                return out
+            print("update_btc_state: WARNING: Coinbase closes "
+                  "end %s (%d days stale) — trying Kraken"
+                  % (str(GENESIS + timedelta(days=out[-1][0])),
+                     today - out[-1][0]), file=sys.stderr)
     except Exception:
         pass
     try:
@@ -402,11 +408,17 @@ def fetch_closes(today):
             if c > 0:
                 out.append((d, c))
         out.sort()
-        if len(out) >= 200:
+        if len(out) >= 200 and out[-1][0] >= today - 2:
             return out
+        if len(out) >= 200:
+            print("update_btc_state: WARNING: Kraken closes "
+                  "end %s (%d days stale)"
+                  % (str(GENESIS + timedelta(days=out[-1][0])),
+                     today - out[-1][0]), file=sys.stderr)
     except Exception:
         pass
-    fail("daily closes unavailable from Coinbase and Kraken")
+    fail("daily closes unavailable (or only stale) from Coinbase "
+         "and Kraken")
 
 
 def fetch_cycle_extremes():
@@ -541,6 +553,19 @@ def fetch_mvrv_rows():
     if len(prices) < 4000 or min(prices) > 600:
         fail("CoinMetrics price history incomplete (%d rows)"
              % len(prices))
+    # Freshness guard (2026-11-23): the completeness checks above
+    # pass on a stalled feed — the history is full length, it just
+    # ends days ago, and the score guard compares the series
+    # against this same feed, so a stall would publish a state
+    # whose as_of is tonight and whose data is not. Same two-day
+    # allowance fetch_cycle_extremes gives the Yahoo feed.
+    stale_day = min(rows[-1][0], max(prices))
+    today_day = (datetime.now(timezone.utc).date() - GENESIS).days
+    if today_day - stale_day > 2:
+        fail("CoinMetrics data ends %s, %d days before today — "
+             "refusing to publish a stale state"
+             % (str(GENESIS + timedelta(days=stale_day)),
+                today_day - stale_day))
     return rows, prices
 
 
@@ -1543,6 +1568,9 @@ def main():
     closes = fetch_closes(today)
     diff_t = fetch_difficulty_t()
     if diff_t is None:
+        print("update_btc_state: WARNING: mempool.space difficulty "
+              "unreadable — the cost reading stands on the last "
+              "baked difficulty, as the page does", file=sys.stderr)
         diff_t = inputs["diff"][-1]  # the page's fallback: last baked
     mvrv_rows, cm_prices = fetch_mvrv_rows()
 
