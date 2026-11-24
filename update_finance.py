@@ -168,6 +168,13 @@ def load_scoreboard_tickers():
                 out.append(t)
         if out:
             return out
+    # The fallback keeps the scoreboard from emptying, but it must
+    # never be silent (2026-11-23 rule): an unreadable set file
+    # means every owner-added ticker drops out of tonight's run.
+    print("update_finance: WARNING: %s unreadable or empty — "
+          "falling back to the %d core tickers; owner-added "
+          "tickers are NOT graded this run."
+          % (SCOREBOARD_FILE, len(CORE_TICKERS)), file=sys.stderr)
     return list(CORE_TICKERS)
 
 
@@ -2556,7 +2563,11 @@ def main():
         previous = {s["ticker"]: s for s in raw_previous.get("stocks", [])}
         previous_preferreds = raw_previous.get("preferreds") or {}
         previous_durability = raw_previous.get("durability") or {}
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        log("WARNING: previous %s unreadable (%s) — tonight's run "
+            "carries NOTHING forward: previous fundamentals, "
+            "preferreds and durability blocks all start empty."
+            % (DATA_FILE, exc))
         previous = {}
         previous_preferreds = {}
         previous_durability = {}
@@ -2564,7 +2575,9 @@ def main():
     try:
         with open(GRADES_FILE) as fh:
             previous_grades = json.load(fh)
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        log("WARNING: previous %s unreadable (%s) — grade history "
+            "rebuilds from empty tonight." % (GRADES_FILE, exc))
         previous_grades = {}
 
     # Ticker->CIK map: the committed cik_map.json is the primary source,
@@ -2915,7 +2928,7 @@ def main():
             # previous block is kept with its own as_of stamp, and no
             # degraded block is built or stamped with today's date.
             try:
-                splits = fetch_splits_yahoo(symbol, http_get_json)
+                splits = fetch_splits_yahoo(symbol, http_get_json_yahoo)
             except Exception as exc:
                 splits = None
                 log("  SCOREBOARD BLOCK NOT REFRESHED for %s: split "
@@ -2929,9 +2942,13 @@ def main():
                         facts, price, shares, record.get("mcap"), splits,
                         fact_entries, ttm_value, latest_value, today)
                 except Exception as exc:
-                    record["scoreboard"] = None
-                    log("  scoreboard block failed for %s: %s"
-                        % (symbol, exc))
+                    # Keep the previous block, exactly as the
+                    # splits-failure path above does — a transient
+                    # build error must not wipe a still-valid
+                    # block to null (2026-11-23 rule).
+                    record["scoreboard"] = prev.get("scoreboard")
+                    log("  scoreboard block failed for %s: %s — "
+                        "previous block kept" % (symbol, exc))
             # ---- who's buying (pass 2): insider Form 4 purchases
             # + the weaker Congress note, for the Drill Down. Each
             # fetch is fully guarded; a failure keeps the previous
@@ -3121,8 +3138,27 @@ def main():
     output = {"last_updated": today, "fundamentals_status": fstatus,
               "stocks": stocks, "preferreds": preferreds,
               "durability": durability}
-    with open(DATA_FILE, "w") as fh:
+    # Price completeness guard (2026-11-23 rule): the fundamentals
+    # side has its status apparatus; the price side had none — a
+    # night when every quote failed published a full set of null
+    # prices under today's date, exit 0. If NO ticker carries a
+    # price, the run has failed at its core job: write nothing.
+    priced = sum(1 for r in stocks if r.get("price") is not None)
+    if stocks and priced == 0:
+        log("ERROR: no ticker carries a price (%d attempted) — "
+            "leaving the previous %s untouched."
+            % (len(stocks), DATA_FILE))
+        return 1
+    if stocks and priced < len(stocks) / 2:
+        log("WARNING: only %d of %d tickers carry a price tonight."
+            % (priced, len(stocks)))
+    # Atomic write, like grades-history.json below: a crash
+    # mid-dump must never leave a truncated finance-data.json
+    # for the next run (or the commit) to pick up.
+    tmp_path = DATA_FILE + ".tmp"
+    with open(tmp_path, "w") as fh:
         json.dump(output, fh, indent=2)
+    os.replace(tmp_path, DATA_FILE)
     log("Wrote %s (%d tickers, %d OVERVIEW calls, %d Alpha Vantage calls "
         "total)." % (DATA_FILE, len(stocks), overview_calls,
                      _av_call_count[0]))
