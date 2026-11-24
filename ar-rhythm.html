@@ -195,6 +195,44 @@
         }
         .thr-music[hidden] { display: none; }
         .thr-music .thr-btn[hidden] { display: none; }
+        /* The performance looper (2026-11-24): a compact bar at the
+           bottom of the stage, Play mode only. The track shows the
+           loop's sections as blocks and the playhead sweeping them;
+           the meter answers the master bus. When the bar is up, the
+           music row and the tray ride one bar-height higher. */
+        .thr-looper {
+            position: absolute;
+            left: 8px; right: 8px;
+            bottom: calc(106px + env(safe-area-inset-bottom, 0px));
+            z-index: 5;
+            background: var(--glass-bg, rgba(13, 17, 23, 0.82));
+            border: 1px solid var(--border-color, rgba(255,255,255,0.14));
+            border-radius: 14px;
+            padding: 7px 9px 8px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .thr-looper[hidden] { display: none; }
+        .thr-stage.looper-on .thr-music { bottom: calc(212px + env(safe-area-inset-bottom, 0px)); }
+        .thr-stage.looper-on .thr-tray { bottom: calc(264px + env(safe-area-inset-bottom, 0px)); }
+        .thr-looper-row { display: flex; align-items: center; gap: 8px; }
+        .thr-loop-status { flex: 1 1 auto; min-width: 0; font-size: 0.78rem; color: var(--subtext-color, #9aa4ae); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .thr-loop-track {
+            position: relative; height: 24px; margin-top: 7px;
+            border-radius: 7px; overflow: hidden;
+            background: rgba(127, 140, 160, 0.14);
+            border: 1px solid var(--border-color, rgba(255,255,255,0.10));
+            touch-action: manipulation;
+        }
+        .thr-loop-sec { position: absolute; top: 3px; bottom: 3px; border-radius: 4px; opacity: 0.75; cursor: pointer; min-width: 3px; }
+        .thr-loop-sec.sel { opacity: 1; box-shadow: 0 0 0 2px #fff inset, 0 0 0 1px rgba(0,0,0,0.4); }
+        .thr-loop-head { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.8); left: 0; }
+        .thr-loop-meter { display: flex; align-items: flex-end; gap: 2px; height: 18px; flex: none; }
+        .thr-loop-meter i { display: block; width: 3px; min-height: 2px; border-radius: 1px; background: #7ee2a8; height: 15%; }
+        .thr-looper-sub { margin-top: 7px; justify-content: flex-end; }
+        .thr-looper-sub[hidden] { display: none; }
+        .thr-btn.thr-loop-on { border-color: #ef4444; box-shadow: inset 0 0 0 1px #ef4444; color: #ffb4b4; }
+        body.light-mode .thr-btn.thr-loop-on { color: #b91c1c; }
         /* Recording reads on the button's own face: red ring, and
            the word Stop with the elapsed seconds beside it. */
         .thr-btn.thr-rec-on {
@@ -1040,6 +1078,20 @@
                     <button class="thr-btn" id="thrClear" type="button" disabled>Clear</button>
                 </div>
             </div>
+            <div class="thr-looper" id="thrLooper" hidden>
+                <div class="thr-looper-row">
+                    <button class="thr-btn" id="thrLoopMain" type="button">● Start loop</button>
+                    <span class="thr-loop-status" id="thrLoopStatus" aria-live="polite">First pass sets the loop</span>
+                    <div class="thr-loop-meter" id="thrLoopMeter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                </div>
+                <div class="thr-loop-track" id="thrLoopTrack">
+                    <div class="thr-loop-head" id="thrLoopHead"></div>
+                </div>
+                <div class="thr-looper-row thr-looper-sub" id="thrLoopSub" hidden>
+                    <button class="thr-btn" id="thrLoopRm" type="button" hidden>Remove section</button>
+                    <button class="thr-btn" id="thrLoopClear" type="button">Clear loop</button>
+                </div>
+            </div>
             <div class="thr-tray" id="thrTray" hidden></div>
             <div class="thr-music" id="thrMusic" hidden>
                 <button class="thr-btn" id="thrDrumsBtn" type="button" aria-haspopup="true" aria-expanded="false">Drums</button>
@@ -1334,6 +1386,7 @@
             }
             scheduleAutosave();
             updateHint();
+            syncLoopUI();
         }
         buildBtn.addEventListener('click', function () { ensureAudio(); setActMode('build'); });
         playBtn.addEventListener('click', function () { ensureAudio(); setActMode('play'); });
@@ -1590,6 +1643,7 @@
         function logPluck(s, strength, now) {
             pluckLog.push({ freq: s.freq, name: s.name, type: s.type, strength: Math.round(strength * 100) / 100, t: now });
             if (pluckLog.length > 200) pluckLog.shift();
+            loopCaptureString(s, strength, now);
         }
         function pluck(s, strength, holder) {
             var now = performance.now();
@@ -1672,6 +1726,7 @@
             s.stopAt = now + RELEASE_GRACE_MS;
         }
         function finalizeStop(s) {
+            loopCaptureOff(s, performance.now());
             s.heldBy = null; s.pinchHeld = false; s.stopAt = 0;
             if (TYPES[s.type] && TYPES[s.type].voice === 'bow') {
                 if (s.bowOn) bowStop(s);
@@ -1788,6 +1843,7 @@
         }
         function hitDrum(d, strength) {
             var now = performance.now();
+            loopCaptureDrum(d, strength, now);
             d.hitT = now; d.hitAmp = strength; d.lastHit = now;
             if (!actx || !master) { logDrumHit(d, 0, 0, now); return; }
             try {
@@ -2428,6 +2484,7 @@
         function frame(now) {
             if (!running) return;
             rafId = requestAnimationFrame(frame);
+            loopTick(now);
             var drewVideo = mode === 'camera' && drawVideo();
             if (!drewVideo) drawBackdrop(now);
             var i;
@@ -3727,6 +3784,295 @@
             shellLoopWas = false;
         }
 
+        // ================= THE PERFORMANCE LOOPER (2026-11-24) =================
+        // Johnny's loop station: the bar at the bottom of the stage
+        // records PERFORMANCES — which instrument, where in the loop,
+        // how hard — and replays them through the voices. It is not
+        // the audio recorder above (that one keeps a sound file);
+        // this one keeps the playing itself, so the loop is editable:
+        // sections (one per pass or overdub burst) can be removed
+        // while the loop keeps cycling. FIRST PASS SETS THE LOOP
+        // (Johnny, 2026-11-23): press Start loop, play freely, press
+        // Close loop — that pass becomes the loop's length. There is
+        // no fixed-length mode. Lives in Play mode; autosaves.
+        var looperEl = document.getElementById('thrLooper');
+        var loopMainBtn = document.getElementById('thrLoopMain');
+        var loopStatusEl = document.getElementById('thrLoopStatus');
+        var loopTrackEl = document.getElementById('thrLoopTrack');
+        var loopHeadEl = document.getElementById('thrLoopHead');
+        var loopSubEl = document.getElementById('thrLoopSub');
+        var loopRmBtn = document.getElementById('thrLoopRm');
+        var loopClearBtn = document.getElementById('thrLoopClear');
+        var loopMeterBars = document.getElementById('thrLoopMeter').children;
+        var LOOP_KEY = 'arThreadsLoop.v1';
+        var LOOP_MAX_EVENTS = 600;
+        var loopSt = 'off';          // 'off' | 'armed' | 'first' | 'looping'
+        var loopPaused = false;
+        var loopT0 = 0;              // performance.now() at loop position 0
+        var loopDur = 0;             // ms, set when the first pass closes
+        var loopEvents = [];         // {t, k:'hit'|'on'|'off'|'drum', i, f, ty, v, sec}
+        var loopSec = -1;            // current section counter
+        var loopLastCapAt = 0;       // last capture time (section gaps)
+        var loopLastPos = 0;         // last fired playhead position
+        var loopLastTick = 0;        // last loopTick time (suspend/resume resync)
+        var loopLastDraw = 0;        // last first-pass bar redraw
+        var loopFiring = false;      // replay in progress: never re-record
+        var loopSel = -1;            // selected section id (for removal)
+        var loopOpenBow = {};        // string index -> true while a captured bow note is open
+        var loopBarDirty = true;
+        var loopSaveTimer = 0;
+        var loopFreqBuf = null;
+        var LOOP_SEC_COLORS = ['#f0a35e', '#6fc3ff', '#b18cff', '#2dd4bf', '#f472b6', '#a3d97e', '#ffd166', '#7ee2a8'];
+
+        function loopActive() { return loopSt === 'armed' || loopSt === 'first' || loopSt === 'looping'; }
+        function loopCaptureString(s, strength, now) {
+            if (loopFiring || actMode !== 'play' || shellOff) return;
+            if (!loopActive() || loopPaused) return;
+            if (loopEvents.length >= LOOP_MAX_EVENTS) return;
+            var bow = !!(TYPES[s.type] && TYPES[s.type].voice === 'bow');
+            var idx = strings.indexOf(s);
+            if (bow && loopOpenBow[idx]) return;   // a bow sounds continuously: one 'on' per note
+            if (loopSt === 'armed') { loopSt = 'first'; loopT0 = now; loopSec = 0; loopLastCapAt = 0; }
+            var t;
+            if (loopSt === 'first') t = now - loopT0;
+            else {
+                if (loopLastCapAt && now - loopLastCapAt > 1500) loopSec++;
+                t = ((now - loopT0) % loopDur + loopDur) % loopDur;
+            }
+            if (bow) loopOpenBow[idx] = true;
+            loopEvents.push({ t: Math.round(t), k: bow ? 'on' : 'hit', i: idx, f: s.freq, ty: s.type, v: Math.round(strength * 100) / 100, sec: loopSec });
+            loopLastCapAt = now;
+            loopBarDirty = true;
+            loopSaveSoon();
+            syncLoopUI();
+        }
+        function loopCaptureOff(s, now) {
+            if (loopFiring || actMode !== 'play' || shellOff) return;
+            if (!(TYPES[s.type] && TYPES[s.type].voice === 'bow')) return;
+            if (loopSt !== 'first' && loopSt !== 'looping') return;
+            var idx = strings.indexOf(s);
+            if (!loopOpenBow[idx]) return;
+            delete loopOpenBow[idx];
+            var t = loopSt === 'first' ? now - loopT0 : (((now - loopT0) % loopDur) + loopDur) % loopDur;
+            loopEvents.push({ t: Math.round(t), k: 'off', i: idx, f: s.freq, ty: s.type, v: 0, sec: loopSec });
+            loopLastCapAt = now;
+            loopBarDirty = true;
+            loopSaveSoon();
+        }
+        function loopCaptureDrum(d, strength, now) {
+            if (loopFiring || actMode !== 'play' || shellOff) return;
+            if (!loopActive() || loopPaused) return;
+            if (loopEvents.length >= LOOP_MAX_EVENTS) return;
+            if (loopSt === 'armed') { loopSt = 'first'; loopT0 = now; loopSec = 0; loopLastCapAt = 0; }
+            var t;
+            if (loopSt === 'first') t = now - loopT0;
+            else {
+                if (loopLastCapAt && now - loopLastCapAt > 1500) loopSec++;
+                t = ((now - loopT0) % loopDur + loopDur) % loopDur;
+            }
+            loopEvents.push({ t: Math.round(t), k: 'drum', i: drums.indexOf(d), f: 0, ty: d.kind, v: Math.round(strength * 100) / 100, sec: loopSec });
+            loopLastCapAt = now;
+            loopBarDirty = true;
+            loopSaveSoon();
+            syncLoopUI();
+        }
+        function loopResolveString(ev) {
+            var s = strings[ev.i];
+            if (s && Math.abs(s.freq - ev.f) <= 1 && s.type === ev.ty) return s;
+            for (var j = 0; j < strings.length; j++) if (strings[j].freq === ev.f && strings[j].type === ev.ty) return strings[j];
+            return null;
+        }
+        function loopFireEvent(ev) {
+            if (ev.k === 'drum') {
+                var d = drums[ev.i];
+                if (d && d.kind === ev.ty) hitDrum(d, ev.v || 0.85);
+                return;
+            }
+            var s = loopResolveString(ev);
+            if (!s) return;   // the layout changed under the loop: that note is gone, honestly skipped
+            if (ev.k === 'hit') strike(s, ev.v || 0.85, 'loop');
+            else if (ev.k === 'on') startHeldString(s, 'loop');
+            else if (ev.k === 'off') releaseHeldString(s, 'loop', performance.now());
+        }
+        function loopTick(now) {
+            if (looperEl.hidden) return;
+            // A long gap (the game was suspended, the tab hidden)
+            // resyncs the anchor instead of firing a burst of stale
+            // events on return.
+            if (loopLastTick && now - loopLastTick > 250 && loopSt === 'looping' && !loopPaused) {
+                loopT0 = now - loopLastPos;
+            }
+            loopLastTick = now;
+            if (loopSt === 'looping' && !loopPaused && actMode === 'play' && loopDur > 0) {
+                if (!loopT0) { loopT0 = now - loopLastPos; }
+                var pos = ((now - loopT0) % loopDur + loopDur) % loopDur;
+                loopFiring = true;
+                try {
+                    for (var n = 0; n < loopEvents.length; n++) {
+                        var ev = loopEvents[n];
+                        var hit = pos >= loopLastPos ? (ev.t > loopLastPos && ev.t <= pos) : (ev.t > loopLastPos || ev.t <= pos);
+                        if (hit) loopFireEvent(ev);
+                    }
+                } finally { loopFiring = false; }
+                loopLastPos = pos;
+                drawLoopBar(pos, loopDur);
+            } else if (loopSt === 'first') {
+                if (now - loopLastDraw > 250) { loopBarDirty = true; loopLastDraw = now; }
+                drawLoopBar(now - loopT0, Math.max(now - loopT0, 1000));
+            } else if (loopSt === 'looping') {
+                drawLoopBar(loopLastPos, loopDur);
+            }
+            loopMeterTick();
+        }
+        function loopMeterTick() {
+            if (!analyser) return;
+            if (!loopFreqBuf) loopFreqBuf = new Uint8Array(analyser.frequencyBinCount);
+            try { analyser.getByteFrequencyData(loopFreqBuf); } catch (e) { return; }
+            var bands = loopMeterBars.length;
+            for (var b = 0; b < bands; b++) {
+                var lo = Math.floor(Math.pow(b / bands, 1.6) * loopFreqBuf.length * 0.72);
+                var hi = Math.max(lo + 2, Math.floor(Math.pow((b + 1) / bands, 1.6) * loopFreqBuf.length * 0.72));
+                var sum = 0;
+                for (var i = lo; i < hi && i < loopFreqBuf.length; i++) sum += loopFreqBuf[i];
+                var avg = sum / Math.max(1, hi - lo);
+                loopMeterBars[b].style.height = Math.max(12, Math.min(100, avg / 2.2)) + '%';
+            }
+        }
+        function loopSections() {
+            var secs = {};
+            for (var n = 0; n < loopEvents.length; n++) {
+                var ev = loopEvents[n], g = secs[ev.sec];
+                if (!g) g = secs[ev.sec] = { sec: ev.sec, t0: ev.t, t1: ev.t };
+                if (ev.t < g.t0) g.t0 = ev.t;
+                if (ev.t > g.t1) g.t1 = ev.t;
+            }
+            return Object.keys(secs).map(function (k) { return secs[k]; }).sort(function (a, b) { return a.t0 - b.t0; });
+        }
+        function drawLoopBar(pos, scale) {
+            if (!scale || scale <= 0) scale = 1;
+            loopHeadEl.style.left = (Math.max(0, Math.min(1, pos / scale)) * 100) + '%';
+            if (!loopBarDirty) return;
+            loopBarDirty = false;
+            var old = loopTrackEl.querySelectorAll('.thr-loop-sec');
+            for (var i = old.length - 1; i >= 0; i--) old[i].remove();
+            var secs = loopSections();
+            secs.forEach(function (g) {
+                var el = document.createElement('div');
+                el.className = 'thr-loop-sec' + (g.sec === loopSel ? ' sel' : '');
+                el.style.left = (g.t0 / scale * 100) + '%';
+                el.style.width = Math.max(1.2, (g.t1 - g.t0) / scale * 100) + '%';
+                el.style.background = LOOP_SEC_COLORS[Math.abs(g.sec) % LOOP_SEC_COLORS.length];
+                el.setAttribute('data-sec', g.sec);
+                el.setAttribute('role', 'button');
+                el.setAttribute('aria-label', 'Loop section ' + (g.sec + 1));
+                el.addEventListener('click', function () {
+                    loopSel = (loopSel === g.sec) ? -1 : g.sec;
+                    loopBarDirty = true;
+                    syncLoopUI();
+                });
+                loopTrackEl.insertBefore(el, loopHeadEl);
+            });
+        }
+        function loopSaveNow() {
+            try {
+                if (loopSt === 'looping' || loopSt === 'first') {
+                    localStorage.setItem(LOOP_KEY, JSON.stringify({ v: 1, dur: loopSt === 'looping' ? loopDur : 0, events: loopEvents }));
+                }
+            } catch (e) {}
+        }
+        function loopSaveSoon() {
+            if (loopSaveTimer) return;
+            loopSaveTimer = setTimeout(function () { loopSaveTimer = 0; loopSaveNow(); }, 300);
+        }
+        function loopRestore() {
+            try {
+                var raw = localStorage.getItem(LOOP_KEY);
+                if (!raw) return;
+                var data = JSON.parse(raw);
+                if (!data || !data.dur || !Array.isArray(data.events) || !data.events.length) return;
+                loopEvents = data.events.filter(function (ev) { return ev && typeof ev.t === 'number' && ev.k; });
+                if (!loopEvents.length) return;
+                loopDur = data.dur;
+                loopSec = loopEvents.reduce(function (m, ev) { return Math.max(m, ev.sec || 0); }, 0);
+                loopSt = 'looping';
+                loopPaused = true;      // a restored loop waits for its player — never a surprise blast
+                loopLastPos = 0;
+                loopBarDirty = true;
+            } catch (e) {}
+        }
+        function loopClearAll() {
+            loopSt = 'off'; loopPaused = false; loopDur = 0; loopT0 = 0;
+            loopEvents = []; loopSec = -1; loopSel = -1; loopOpenBow = {}; loopLastPos = 0;
+            loopBarDirty = true;
+            try { localStorage.removeItem(LOOP_KEY); } catch (e) {}
+            syncLoopUI();
+        }
+        function syncLoopUI() {
+            var started = !controlsEl.hidden;
+            var vis = started && actMode === 'play' && !shellOff;
+            looperEl.hidden = !vis;
+            stage.classList.toggle('looper-on', vis);
+            loopMainBtn.classList.toggle('thr-loop-on', loopSt === 'armed' || loopSt === 'first');
+            if (loopSt === 'off') {
+                loopMainBtn.textContent = '● Start loop';
+                loopStatusEl.textContent = 'First pass sets the loop';
+            } else if (loopSt === 'armed') {
+                loopMainBtn.textContent = '● Listening…';
+                loopStatusEl.textContent = 'Play — your first note starts the loop';
+            } else if (loopSt === 'first') {
+                loopMainBtn.textContent = 'Close loop';
+                loopStatusEl.textContent = 'First pass — close the loop when the pass feels complete';
+            } else {
+                loopMainBtn.textContent = loopPaused ? '▶ Resume loop' : '❚❚ Pause loop';
+                var n = loopSections().length;
+                loopStatusEl.textContent = 'Looping · ' + (loopDur / 1000).toFixed(1) + 's · ' + n + (n === 1 ? ' section' : ' sections') + (loopPaused ? ' · paused' : ' — play to overdub');
+            }
+            var has = loopSt === 'looping' || loopSt === 'first';
+            loopSubEl.hidden = !has;
+            loopRmBtn.hidden = loopSel < 0;
+            loopClearBtn.textContent = 'Clear loop';
+            if (loopBarDirty) drawLoopBar(loopSt === 'looping' ? loopLastPos : 0, loopDur || 1000);
+        }
+        loopMainBtn.addEventListener('click', function () {
+            ensureAudio();
+            var now = performance.now();
+            if (loopSt === 'off') { loopSt = 'armed'; }
+            else if (loopSt === 'armed') { loopSt = 'off'; }
+            else if (loopSt === 'first') {
+                var dur = now - loopT0;
+                if (!loopEvents.length || dur < 800) { showNote('Play something first — the first pass sets the loop.'); return; }
+                loopDur = dur;
+                loopSt = 'looping';
+                loopPaused = false;
+                loopT0 = now; loopLastPos = 0;
+                loopOpenBow = {};
+                loopSaveNow();
+            } else if (loopSt === 'looping') {
+                if (loopPaused) { loopPaused = false; loopT0 = now - loopLastPos; }
+                else { loopPaused = true; }
+            }
+            loopBarDirty = true;
+            syncLoopUI();
+        });
+        loopRmBtn.addEventListener('click', function () {
+            if (loopSel < 0) return;
+            loopEvents = loopEvents.filter(function (ev) { return ev.sec !== loopSel; });
+            loopSel = -1;
+            loopBarDirty = true;
+            if (!loopEvents.length) { loopClearAll(); showNote('Loop cleared — that was its last section.'); }
+            else { loopSaveNow(); showNote('Section removed. The loop keeps playing.'); }
+            syncLoopUI();
+        });
+        var loopClearArm = 0;
+        loopClearBtn.addEventListener('click', function () {
+            var now = performance.now();
+            if (now - loopClearArm < 2600) { loopClearAll(); showNote('Loop cleared.'); return; }
+            loopClearArm = now;
+            loopClearBtn.textContent = 'Sure?';
+            setTimeout(function () { if (performance.now() - loopClearArm >= 2600) syncLoopUI(); }, 2700);
+        });
+        loopRestore();
+
         // ---- leave-and-return: hidden pauses the work; visible
         // restores the session itself — camera reacquired if iOS
         // ended it, pipeline unstuck, web untouched, no prompts.
@@ -3818,6 +4164,15 @@
                 return { has: !!loopBuffer, playing: loopPlaying, recording: !!recorder,
                          duration: loopBuffer ? Math.round(loopBuffer.duration * 1000) / 1000 : 0 };
             },
+            perfLoop: function () {
+                return { state: loopSt, paused: loopPaused, dur: loopDur, events: loopEvents.length,
+                         sections: loopSections().map(function (g) { return { sec: g.sec, t0: g.t0, t1: g.t1 }; }),
+                         pos: loopLastPos, visible: !looperEl.hidden, sel: loopSel };
+            },
+            perfLoopMain: function () { loopMainBtn.click(); },
+            perfLoopSelect: function (sec) { loopSel = sec; loopBarDirty = true; syncLoopUI(); },
+            perfLoopRemove: function () { loopRmBtn.click(); },
+            perfLoopClear: function () { loopClearAll(); },
             loopSamples: function () {
                 if (!loopBuffer) return null;
                 var d = loopBuffer.getChannelData(0);
