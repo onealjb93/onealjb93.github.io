@@ -157,6 +157,7 @@ import math
 import os
 import re
 import sys
+import time
 from datetime import datetime, timezone, date, timedelta
 
 import requests
@@ -551,19 +552,38 @@ def fetch_tail_diffs(first_day, last_day):
     adjustment period, so a day takes the difficulty set by the
     latest adjustment on or before that day. Any failure returns
     {} and the series ends at the grid's edge, exactly as it did
-    before the tail existed."""
-    try:
-        adj = get_json(
-            "https://mempool.space/api/v1/mining/difficulty-adjustments")
-        periods = []
-        for row in adj:
-            ts, raw = float(row[0]), float(row[2])
-            day = (datetime.fromtimestamp(ts, timezone.utc).date()
-                   - GENESIS).days
-            if raw > 0:
-                periods.append((day, raw / 1e12))
-        periods.sort()
-    except Exception:
+    before the tail existed — but the failure is retried, then
+    reported loudly on stderr, and the completeness guard in
+    score_series refuses to publish when the truncation matters
+    (2026-11-23: this fetch failed once in the runner, the old
+    silent {} ended the series at the grid's edge ten days early,
+    and the truncated record shipped without a trace)."""
+    periods = None
+    last_exc = None
+    for attempt in range(3):
+        try:
+            adj = get_json(
+                "https://mempool.space/api/v1/mining/"
+                "difficulty-adjustments")
+            periods = []
+            for row in adj:
+                ts, raw = float(row[0]), float(row[2])
+                day = (datetime.fromtimestamp(ts, timezone.utc).date()
+                       - GENESIS).days
+                if raw > 0:
+                    periods.append((day, raw / 1e12))
+            periods.sort()
+            break
+        except Exception as exc:
+            last_exc = exc
+            periods = None
+            if attempt < 2:
+                time.sleep(2 + 4 * attempt)
+    if not periods:
+        print("update_btc_state: WARNING: difficulty-adjustment "
+              "history unreadable after 3 attempts (%s); the score "
+              "series will end at the baked grid's edge"
+              % last_exc, file=sys.stderr)
         return {}
     out = {}
     cur = None
@@ -882,6 +902,18 @@ def score_series(inputs, peak, prices, mvrv_rows, tail_diffs):
                     round(s, 2)])
     if len(out) < 5000:
         fail("score series implausibly short (%d days)" % len(out))
+    # Completeness guard: the series must reach the feeds' latest
+    # day, or stop within two days of it. A longer gap means an
+    # input silently gave up — the tail difficulty history is the
+    # known case (2026-11-23, above) — and a truncated record must
+    # never ship: fail loudly and let the previously published
+    # state stand until a complete run lands.
+    last_day = (date.fromisoformat(out[-1][0]) - GENESIS).days
+    if price_days[-1] - last_day > 2:
+        fail("score series ends %s, %d days before the latest feed "
+             "day %s — refusing to publish a truncated record"
+             % (out[-1][0], price_days[-1] - last_day,
+                str(GENESIS + timedelta(days=price_days[-1]))))
     return out
 
 
