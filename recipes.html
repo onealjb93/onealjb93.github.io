@@ -412,6 +412,36 @@
         .sc-flags p { margin: 0; }
         .sc-flags p + p { margin-top: 3px; }
         .sc-flags strong { color: var(--sc-bad); }
+        /* Scorecard By dish head (2026-11-23, M1 as approved): the
+           view toggle directly above the card and the legend naming
+           the selection in its colours. Identity colours only --
+           violet, teal, pink, and grey for folded dishes -- kept
+           clear of the health palette (green/amber/red) and the
+           site blue, so colour never means two things on one card.
+           The legend shows in both views, so flipping the toggle
+           changes only the bars' fills; nothing appears, disappears
+           or moves, and the panel's height is identical. */
+        .bd-head, .sc-card { --dish-a: #b18cff; --dish-b: #2dd4bf; --dish-c: #f472b6; --dish-other: #8b93a1; }
+        body.light-mode .bd-head, body.light-mode .sc-card { --dish-a: #7c3aed; --dish-b: #0f766e; --dish-c: #db2777; --dish-other: #6e7681; }
+        .bd-head { padding: 0 0 4px; }
+        .bd-toggle { display: flex; gap: 3px; background: var(--badge-bg); border: 1px solid var(--border-color); border-radius: 99px; padding: 3px; }
+        .bd-seg { flex: 1; appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: var(--subtext-color); font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1; padding: 7px 0; border-radius: 99px; cursor: pointer; }
+        .bd-seg.active { background: var(--accent-color); color: #ffffff; }
+        .bd-legend { margin-top: 5px; display: flex; flex-direction: column; gap: 3px; }
+        .bd-leg { display: flex; align-items: center; gap: 7px; font-size: 12.5px; line-height: 1.2; color: var(--text-color); }
+        .bd-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+        .bd-dot.a { background: var(--dish-a); }
+        .bd-dot.b { background: var(--dish-b); }
+        .bd-dot.c { background: var(--dish-c); }
+        .bd-dot.o { background: var(--dish-other); }
+        .bd-leg-srv { color: var(--subtext-color); font-size: 11.5px; margin-left: auto; white-space: nowrap; padding-left: 8px; }
+        .sc-fill.split { display: flex; gap: 2px; background: none; }
+        .sc-scale i.split { display: flex; gap: 2px; background: none; }
+        .seg { display: block; height: 100%; flex-basis: 0; border-radius: 99px; }
+        .seg.a { background: var(--dish-a); }
+        .seg.b { background: var(--dish-b); }
+        .seg.c { background: var(--dish-c); }
+        .seg.o { background: var(--dish-other); }
         .sc-sec { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--subtext-color); margin: 4px 0 3px; line-height: 1.2; }
         .sc-gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
         .sc-gauge { min-width: 0; }
@@ -423,6 +453,7 @@
         .sc-fill.good { background: var(--sc-good); }
         .sc-fill.mid { background: var(--sc-mid); }
         .sc-fill.bad { background: var(--sc-bad); }
+        .sc-fill.flat { background: var(--subtext-color); opacity: 0.5; }
         .sc-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
         .sc-tile { background: var(--badge-bg); border-radius: 10px; padding: 5px 6px 4px; min-width: 0; }
         .sc-lab { font-size: 10px; font-weight: 700; letter-spacing: 0.2px; text-transform: uppercase; color: var(--subtext-color); white-space: nowrap; overflow: hidden; line-height: 1.2; }
@@ -606,11 +637,13 @@
        row's bottom edge), so the two bars never overlap and both stay
        fully visible and tappable. */
     #targetsBar { position: fixed; left: 0; right: 0; top: 55px; z-index: 950; background: var(--bg-color); border-bottom: 1px solid var(--border-color); }
-    /* The fixed Targets bar hangs below the header; the page's first line gets
-       exactly the clearance the stack needs beyond the body's top margin —
-       --back-clear is published from the bars' measured heights by
-       placeTargetsBar, so the first line is never under the bar at any width. */
-    .page-header { margin-top: var(--back-clear, 26px); }
+    /* Title first (2026-11-23 format unification): the bar docks
+       under the title block at rest, so the title needs no clearance
+       from it; the door cards below carry the clearance instead —
+       --bar-clear is published from the bar's measured height by
+       placeTargetsBar, so the doors are never under the docked bar
+       at any width. */
+    .door-cards { padding-top: var(--bar-clear, 0px); }
     #targetsBar.covered { visibility: hidden; }
     #targetsBar .targets-inner { max-width: 1140px; margin: 0 auto; padding: 0.25rem 40px; display: flex; align-items: center; gap: 0.45rem 0.6rem; flex-wrap: wrap; box-sizing: border-box; }
     @media (max-width: 768px) { #targetsBar .targets-inner { padding: 0.25rem 18px; } }
@@ -699,6 +732,7 @@
     /* Selection briefing (added 2026-11-21): the cards' briefing cluster,
        rendered in the combiner results -- same classes, same type. */
     .combiner-briefing { margin-top: 0.85rem; }
+    .combiner-briefing-sel { font-weight: 700; margin: 0 0 0.45rem; line-height: 1.45; }
     .combiner-briefing-dish { color: var(--subtext-color); }
     /* The briefing leads the box (Johnny, 2026-11-22): in the scorecard
        bubble it is the first thing under the panel head, and in the
@@ -1044,18 +1078,6 @@
        reading column's right edge. A square, centred box rotates
        onto its own footprint, so it can never stick out. */
     .cook-recipe .topcluster-chevron { width: 1.15rem; height: 1.15rem; display: inline-flex; align-items: center; justify-content: center; }
-    /* Nutrition rows in a narrow cook pane: the shared grid's fixed
-       tracks plus the dots' minimum width run wider than a narrow
-       pane and clip the percentages at its edge. In this band the
-       row compacts -- smaller dots, a flexible dots track, and
-       percentages that wrap instead of running off the edge -- so
-       every value stays whole at any pane width. Wider panes keep
-       the card grid untouched. */
-    @media (max-width: 800px) {
-        .cook-recipe .nutri-row { grid-template-columns: 6rem 4.25rem minmax(0, 1fr) 4.2rem; gap: 0.4rem; font-size: 0.8rem; }
-        .cook-recipe .nutri-dot { width: 8px; height: 8px; }
-        .cook-recipe .nutri-pct { white-space: normal; }
-    }
     /* Glass fallback for the pane head (the panes and scorecard take the
        shared .glass-bubble fallback in style.css). */
     @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .cook-pane-head { background: var(--glass-bg-solid); } }
@@ -1218,16 +1240,10 @@
         .pantry-badge { display: inline-block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; color: var(--link-color); background: var(--hover-bg); border: 1px solid var(--link-color); border-radius: 20px; padding: 2px 9px; margin-bottom: 0.55rem; }
         .pantry-name { margin: 0 0 0.3rem; font-size: 1.05rem; line-height: 1.35; }
         .pantry-meta { margin: 0 0 0.5rem; color: var(--subtext-color); font-size: 0.83rem; }
-        .pantry-grade { display: flex; align-items: center; gap: 0.45rem; font-size: 0.83rem; font-weight: 600; margin: 0 0 0.55rem; }
         .pantry-claims { margin: 0 0 0.45rem; font-size: 0.9rem; line-height: 1.5; }
         .pantry-ingredients { margin: 0 0 0.6rem; color: var(--subtext-color); font-size: 0.86rem; line-height: 1.5; }
-        .pantry-serving { margin: 0 0 0.3rem; color: var(--subtext-color); font-size: 0.8rem; font-weight: 600; }
-        .pantry-card .nutri-row { grid-template-columns: 1fr auto auto auto; font-size: 0.82rem; margin: 0.3rem 0; }
-        .pantry-also-head { margin: 0.7rem 0 0.3rem; color: var(--subtext-color); font-size: 0.8rem; font-weight: 600; }
         .pantry-approved { margin: 0.65rem 0 0; color: var(--subtext-color); font-size: 0.78rem; line-height: 1.5; }
         .pantry-source { margin: 0.65rem 0 0; color: var(--subtext-color); font-size: 0.78rem; line-height: 1.5; }
-        .pantry-complete { margin: -0.25rem 0 0.55rem; color: var(--subtext-color); font-size: 0.78rem; line-height: 1.5; }
-        .pantry-basis { margin: -0.25rem 0 0.55rem; color: var(--subtext-color); font-size: 0.8rem; line-height: 1.5; }
         /* ---- Pantry camera submit card (Phase 4, 2026-11-14) ---- */
         .pantry-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
         .pantry-snap-btn { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0.55rem 1.1rem; border-radius: 20px; border: 1px solid var(--link-color); background: var(--hover-bg); color: var(--link-color); font-size: 0.92rem; font-weight: 600; cursor: pointer; }
@@ -1293,6 +1309,31 @@
         .recipe-share { position: absolute; top: 10px; left: 10px; z-index: 5; width: 36px; height: 36px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--card-bg); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); color: var(--subtext-color); cursor: pointer; }
         .recipe-share:hover { color: var(--link-color); border-color: var(--link-color); }
         .recipe-share:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
+
+    /* Live header price (2026-11-23, site-wide format unification):
+       the Bitcoin page's own header-price rules, copied unchanged.
+       The price sits beside the header's indicator dot in Bitcoin
+       orange (#f7931a on dark); in light mode the same slot takes
+       the deeper tint #a35c06 (contrast, colour only). Below 480px
+       the figures step down a touch; below 380px the header cluster
+       tightens and below 360px the page padding narrows, so logo,
+       dot, price, Explore and the switch fit one row. */
+    .btc-header-price { display: inline-block; flex-shrink: 0; width: 9.4ch; padding: 6px 0; font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; font-size: 0.85rem; font-weight: 600; font-variant-numeric: tabular-nums; color: #f7931a; text-decoration: none; white-space: nowrap; line-height: 1; }
+    body.light-mode .btc-header-price { color: #a35c06; }
+    .btc-header-price:hover { text-decoration: none; opacity: 1; }
+    @media (max-width: 480px) {
+        .btc-header-price { font-size: 0.82rem; }
+    }
+    @media (max-width: 380px) {
+        .site-nav { gap: 6px; }
+        .site-nav-right { gap: 4px; }
+        .site-nav-toggle { padding: 0 8px; font-size: 0.79rem; }
+        .site-brand-logo { width: 25px; height: 25px; }
+        .btc-header-price { font-size: 0.78rem; width: 9.2ch; }
+    }
+    @media (max-width: 360px) {
+        body { padding: 0 11px; }
+    }
     </style>
 </head>
 <body>
@@ -1313,6 +1354,7 @@
         </a>
         <div class="site-nav-right">
             <a class="golden-star" href="bitcoin.html#btc-value" title="Rare buy — Johnny's ₿ Indicator is in its buy band" aria-label="Rare buy — Johnny's ₿ Indicator is in its buy band" hidden><span class="golden-star-stars" aria-hidden="true">●</span></a> <a class="golden-star top-star" href="bitcoin.html#btc-value" title="Rare sell — Johnny's ₿ Indicator is in its sell band" aria-label="Rare sell — Johnny's ₿ Indicator is in its sell band" hidden><span class="golden-star-stars" aria-hidden="true">●</span></a> <a class="golden-star hold-star" href="bitcoin.html#btc-value" title="Hold — Johnny's ₿ Indicator is between its buy band and its sell band" aria-label="Hold — Johnny's ₿ Indicator is between its buy band and its sell band" hidden><span class="golden-star-stars" aria-hidden="true">●</span></a>
+            <a class="btc-header-price" id="btcHeaderPrice" href="bitcoin.html#btc-value" aria-label="Live Bitcoin price — go to the valuation section"></a>
             <div class="site-nav-menu">
                 <button class="site-nav-toggle" id="nav-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="nav-menu">Explore pages ▾</button>
                 <div class="site-nav-dropdown" id="nav-menu" role="menu">
@@ -1324,7 +1366,7 @@
                     <a href="sustainability.html" role="menuitem">Sustainability</a>
                     <a href="media.html" role="menuitem">Books and Podcasts</a>
                     <a href="games.html" role="menuitem">Games</a>
-                    <a href="random.html" role="menuitem">Random Generator</a>
+                    <a href="random.html" role="menuitem">Look Around</a>
                     <a href="messageboard.html" role="menuitem">Message Board</a>
                 </div>
             </div>
@@ -1337,10 +1379,20 @@
         </div>
     </nav>
 
+    <header class="page-header">
+        <h1>Johnny's Recipes</h1>
+        <p class="subtitle">My favorite recipes, and info about their nutrition.</p>
+    </header>
+
     <!-- Pinned targets bar: the primary control for whose targets the
          nutrition numbers use. Standard = FDA Daily Values; Custom =
          the visitor's saved profile. The mode is its own stored state;
-         Standard never deletes the saved profile. -->
+         Standard never deletes the saved profile. The page title
+         comes first (2026-11-23 format unification): the bar is
+         fixed, and placeTargetsBar docks it directly under the title
+         block at rest, so title, line, Targets and the FDA line read
+         as one header group; scrolling docks it under the site
+         header (or under a stuck section row) as before. -->
     <div id="targetsBar" role="group" aria-label="Nutrition targets">
         <div class="targets-inner">
             <span class="targets-label">Targets:</span>
@@ -1353,11 +1405,6 @@
         </div>
     </div>
 
-    <header class="page-header">
-        <h1>Johnny's Recipes</h1>
-        <p class="subtitle">My favorite recipes, and info about their nutrition.</p>
-    </header>
-
     <!-- Front door (2026-11-20): two blog-style cards — photo, title,
          one lead line — replace the stacked-expander opening. Each
          card toggles its section through the section's own toggle
@@ -1368,12 +1415,11 @@
             <span class="door-card-photo"><img src="s/img/recipe-peruvianRecipe.jpg" alt="Peruvian Chicken with Cilantro-Lime Green Sauce" width="602" height="800" loading="lazy" decoding="async"></span>
             <span class="door-card-body">
                 <span class="door-card-name">🍳 Johnny's Recipes</span>
-                <span class="door-card-lead">Explore my favorite home-tested recipes, and info about their nutrition.</span>
                 <span class="door-card-state"><span class="door-card-arrow" aria-hidden="true">▶</span> <span class="door-card-word">Open</span></span>
             </span>
         </button>
         <button type="button" class="door-card" id="doorTool" aria-expanded="false" aria-controls="nutritionToolCard">
-            <span class="door-card-photo"><img src="s/img/door-nutrition-tool-comparison.jpg" alt="The Nutrition Comparison Tool comparing Peruvian Chicken with Cilantro-Lime Green Sauce and Yamitsuki Cabbage Salad: together 494.4 calories, 56.2 grams of protein (112% of the daily value) and 24.6 grams of total fat (32%), with coverage dots scoring each nutrient." width="1450" height="580" loading="lazy" decoding="async"></span>
+            <span class="door-card-photo"><img src="s/img/door-nutrition-tool-scorecard.jpg" alt="The Nutrition Comparison Tool's Scorecard for Miso Sheetpan Chicken and Brussels sprouts with Potatoes au Gratin — grade 0.68, genuinely healthy" width="630" height="252" loading="lazy" decoding="async"></span>
             <span class="door-card-body">
                 <span class="door-card-name">🥗 Nutrition Comparison Tool</span>
                 <span class="door-card-lead">What each recipe covers — and what it doesn't.</span>
@@ -7626,32 +7672,15 @@
                 </div>
             </div>
             <div id="pantry-section" hidden>
-                <p class="pantry-intro">Store-bought foods I keep around — not recipes, just good products, added with their labels. Health grade: the same density score as the recipe verdict — protein, fiber and micronutrients weighed against sugar, sodium and saturated fat, per 1,000 calories. Where a label doesn't report one of the six scored micronutrients (calcium, iron, potassium, vitamins D, C and A), it counts as zero, and a line under the grade says how many of the six the label reports. The score grades nutrients only — the ingredient list is printed so you can judge quality yourself, never scored: a longer list of real ingredients costs nothing, and a genuinely flagged ultra-processing marker is named in words under the ingredients, not deducted from the grade. Nutrient dots use the same % of FDA Daily Value scale as the combiner.</p>
+                <p class="pantry-intro">Store-bought foods I keep around — not recipes, just good products, added with their labels.</p>
                 <div class="pantry-grid">
                     <article class="pantry-card">
                         <img style="--cap:800px;" class="pantry-photo" src="images/pantry-smoked-fresh-turkey-kielbasa.jpg" alt="Wellshire Smoked Fresh Turkey Kielbasa package" loading="lazy" decoding="async" width="800" height="608">
                         <span class="pantry-badge">Store-bought</span>
                         <h3 class="pantry-name">Smoked Fresh Turkey Kielbasa</h3>
                         <p class="pantry-meta">Wellshire · NET WT 12 OZ (340g) · Fully cooked</p>
-                        <p class="pantry-grade">Health grade <span class="nutri-dots" role="img" aria-label="Health grade: 1 out of 5" title="The recipe verdict's density score, per 1,000 calories: protein, fiber and micronutrients against sugar, sodium and saturated fat"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span> 1/5</p>
-                        <p class="pantry-basis">Graded per 1,000 calories — the protein, fiber and vitamins in the food's calories against its sugar, sodium and saturated fat. The serving size never changes the grade.</p>
-                        <p class="pantry-complete">Label reports 4 of 6 micronutrients the score uses.</p>
                         <p class="pantry-claims">All Natural · Gluten Free · Turkey raised without antibiotics · Humanely raised · Vegetarian fed · No added hormones</p>
                         <p class="pantry-ingredients">Ingredients: Turkey, water, sea salt, spices, paprika, dried garlic — in a collagen casing. Nothing flagged in the ingredients.</p>
-                        <p class="pantry-serving">Per 2 oz (56 g) serving</p>
-                        <div class="nutri-row"><span class="nutri-label">Calories</span><span class="nutri-value">110 kcal</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 6% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">6% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Protein</span><span class="nutri-value">11 g</span><span class="nutri-dots" role="img" aria-label="2 out of 5, 22% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">22% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Total Fat</span><span class="nutri-value">6 g</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 8% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">8% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Saturated Fat<span class="nutri-limit">daily limit</span></span><span class="nutri-value">2 g</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 10% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">10% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Cholesterol<span class="nutri-limit">daily limit</span></span><span class="nutri-value">40 mg</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 13% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">13% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Carbohydrate</span><span class="nutri-value">1 g</span><span class="nutri-dots" role="img" aria-label="0 out of 5, 0% of the FDA Daily Value"><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">0% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Fiber</span><span class="nutri-value">0 g</span><span class="nutri-dots" role="img" aria-label="0 out of 5, 0% of the FDA Daily Value"><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">0% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Total Sugars</span><span class="nutri-value">0 g</span><span class="nutri-dots nutri-dots--none" title="No daily target">—</span><span class="nutri-pct">no daily target</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Sodium<span class="nutri-limit">daily limit</span></span><span class="nutri-value">410 mg</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 18% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">18% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Calcium</span><span class="nutri-value">13 mg</span><span class="nutri-dots" role="img" aria-label="0 out of 5, 1% of the FDA Daily Value"><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">1% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Iron</span><span class="nutri-value">1 mg</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 6% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">6% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Vitamin D</span><span class="nutri-value">0 mcg</span><span class="nutri-dots" role="img" aria-label="0 out of 5, 0% of the FDA Daily Value"><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">0% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Potassium</span><span class="nutri-value">168 mg</span><span class="nutri-dots" role="img" aria-label="0 out of 5, 4% of the FDA Daily Value"><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">4% DV</span></div>
                         <p class="pantry-source">Nutrition: manufacturer's current label for this 12 oz package · UPC 616973083003</p>
                     </article>
                     <article class="pantry-card">
@@ -7659,31 +7688,8 @@
                         <span class="pantry-badge">Store-bought</span>
                         <h3 class="pantry-name">Organic Sprouted Pumpkin Seeds — Sea Salt</h3>
                         <p class="pantry-meta">Go Raw · NET WT 22 OZ (1 LB 6 OZ) 624 g</p>
-                        <p class="pantry-grade">Health grade <span class="nutri-dots" role="img" aria-label="Health grade: 4 out of 5" title="The recipe verdict's density score, per 1,000 calories: protein, fiber and micronutrients against sugar, sodium and saturated fat"><span class="nutri-dot filled"></span><span class="nutri-dot filled"></span><span class="nutri-dot filled"></span><span class="nutri-dot filled"></span><span class="nutri-dot"></span></span> 4/5</p>
-                        <p class="pantry-basis">Graded per 1,000 calories — the protein, fiber and vitamins in the food's calories against its sugar, sodium and saturated fat. The serving size never changes the grade.</p>
-                        <p class="pantry-complete">Label reports 4 of 6 micronutrients the score uses.</p>
                         <p class="pantry-claims">USDA Organic · Non-GMO Project Verified · Just 2 ingredients · 8 g protein per serving</p>
                         <p class="pantry-ingredients">Ingredients: Organic sprouted pumpkin seeds, sea salt. Nothing flagged in the ingredients.</p>
-                        <p class="pantry-serving">Per 1/4 cup (30 g) serving</p>
-                        <div class="nutri-row"><span class="nutri-label">Calories</span><span class="nutri-value">180 kcal</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 9% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">9% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Protein</span><span class="nutri-value">8 g</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 16% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">16% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Total Fat</span><span class="nutri-value">15 g</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 19% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">19% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Saturated Fat<span class="nutri-limit">daily limit</span></span><span class="nutri-value">2.5 g</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 13% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">13% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Carbohydrate</span><span class="nutri-value">3 g</span><span class="nutri-dots" role="img" aria-label="0 out of 5, 1% of the FDA Daily Value"><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">1% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Fiber</span><span class="nutri-value">2 g</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 7% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">7% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Total Sugars</span><span class="nutri-value">0 g</span><span class="nutri-dots nutri-dots--none" title="No daily target">—</span><span class="nutri-pct">no daily target</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Sodium<span class="nutri-limit">daily limit</span></span><span class="nutri-value">180 mg</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 8% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">8% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Cholesterol<span class="nutri-limit">daily limit</span></span><span class="nutri-value">0 mg</span><span class="nutri-dots" role="img" aria-label="0 out of 5, 0% of the FDA Daily Value"><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">0% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Iron</span><span class="nutri-value">2.3 mg</span><span class="nutri-dots" role="img" aria-label="1 out of 5, 13% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">13% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Calcium</span><span class="nutri-value">10 mg</span><span class="nutri-dots" role="img" aria-label="0 out of 5, 1% of the FDA Daily Value"><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">1% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Vitamin D</span><span class="nutri-value">0 mcg</span><span class="nutri-dots" role="img" aria-label="0 out of 5, 0% of the FDA Daily Value"><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">0% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Potassium</span><span class="nutri-value">200 mg</span><span class="nutri-dots" role="img" aria-label="0 out of 5, 4% of the FDA Daily Value"><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">4% DV</span></div>
-                        <p class="pantry-also-head">Also provides (per serving)</p>
-                        <div class="nutri-row"><span class="nutri-label">Magnesium</span><span class="nutri-value">160 mg</span><span class="nutri-dots" role="img" aria-label="2 out of 5, 38% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">38% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Manganese</span><span class="nutri-value">1.36 mg</span><span class="nutri-dots" role="img" aria-label="3 out of 5, 59% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot filled"></span><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">59% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Phosphorus</span><span class="nutri-value">360 mg</span><span class="nutri-dots" role="img" aria-label="2 out of 5, 29% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">29% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Zinc</span><span class="nutri-value">2.3 mg</span><span class="nutri-dots" role="img" aria-label="2 out of 5, 21% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">21% DV</span></div>
-                        <div class="nutri-row"><span class="nutri-label">Copper</span><span class="nutri-value">0.33 mg</span><span class="nutri-dots" role="img" aria-label="2 out of 5, 37% of the FDA Daily Value"><span class="nutri-dot filled"></span><span class="nutri-dot filled"></span><span class="nutri-dot"></span><span class="nutri-dot"></span><span class="nutri-dot"></span></span><span class="nutri-pct">37% DV</span></div>
                         <p class="pantry-approved">✓ Bobby Approved — featured in Bobby Parrish's Costco picks</p>
                         <p class="pantry-source">Nutrition: label data for this 22 oz bag (UPC 810032300463); saturated fat, calcium, potassium and vitamin D from the published label for this UPC</p>
                     </article>
@@ -7725,7 +7731,6 @@
         </button>
         <div id="nutritionCalcAnchor" hidden></div>
         <div class="explainer-card" id="nutritionToolCard">
-            <h4>What each recipe covers — and what it doesn't</h4>
             <p class="nutrition-subline">Estimates per serving, scored against your whole day.</p>
             <div class="nutrition-profile" id="nutrition-profile">
                 <h5>Your daily targets</h5>
@@ -7766,7 +7771,7 @@
                 <p class="nutrition-profile-status" id="profile-status" role="status">Using FDA Daily Values (2,000 kcal reference).</p>
                 <details class="nutrition-profile-formulas">
                     <summary>How your targets are calculated</summary>
-                    <p>Calories: basal metabolic rate (BMR) by Mifflin-St Jeor — men: 10 × weight (kg) + 6.25 × height (cm) − 5 × age + 5; women: the same, minus 161 (Mifflin et al., American Journal of Clinical Nutrition, 1990) — multiplied by an activity factor: sedentary 1.2, lightly active 1.375, moderately active 1.55, very active 1.725, extra active 1.9. Without height, BMR is estimated from weight alone (24 kcal/kg/day (10.9 kcal/lb/day) for men, 22 (10.0 kcal/lb/day) for women) and labelled as a rough estimate. Protein: 1.2–1.6 g per kg of body weight per day (0.55–0.73 g/lb) (Dietary Guidelines for Americans 2025–2030), scaled by activity from 1.2 (sedentary) to 1.6 (very/extra active). Fat: 20–35% of calories and carbohydrate: 45–65% (acceptable ranges, Dietary Guidelines); the dots use the middle of each range. Fiber: about 14 g per 1,000 kcal. Iron, calcium, vitamin D, vitamin C, vitamin A and potassium use age- and sex-specific recommended intakes (NIH Office of Dietary Supplements); sodium (2,300 mg), saturated fat (under 10% of calories) and cholesterol (300 mg) are daily limits. Total sugars has no daily value. Targets are estimates for a generally healthy adult, not medical advice.</p>
+                    <p>Calories: basal metabolic rate (BMR) by Mifflin-St Jeor — men: 10 × weight (kg) + 6.25 × height (cm) − 5 × age + 5; women: the same, minus 161 (Mifflin et al., American Journal of Clinical Nutrition, 1990) — multiplied by an activity factor: sedentary 1.2, lightly active 1.375, moderately active 1.55, very active 1.725, extra active 1.9. Without height, BMR is estimated from weight alone (24 kcal/kg/day (10.9 kcal/lb/day) for men, 22 (10.0 kcal/lb/day) for women) and labelled as a rough estimate. Protein: 1.2–1.6 g per kg of body weight per day (0.55–0.73 g/lb) (Dietary Guidelines for Americans 2025–2030), scaled by activity from 1.2 (sedentary) to 1.6 (very/extra active). Fat: 20–35% of calories and carbohydrate: 45–65% (acceptable ranges, Dietary Guidelines); the targets use the middle of each range. Fiber: about 14 g per 1,000 kcal. Iron, calcium, vitamin D, vitamin C, vitamin A and potassium use age- and sex-specific recommended intakes (NIH Office of Dietary Supplements); sodium (2,300 mg), saturated fat (under 10% of calories) and cholesterol (300 mg) are daily limits. Total sugars has no daily value. Targets are estimates for a generally healthy adult, not medical advice.</p>
                 </details>
             </div>
             <div class="combiner-profile-row"><span class="profile-day" data-profile-day></span><button type="button" class="profile-chip" data-profile-edit>Edit</button></div>
@@ -8298,8 +8303,9 @@
 /* Recipes nutrition tool — renders per-recipe panels + the combiner.
    Data comes from the embedded #nutrition-data JSON (USDA FoodData Central estimates).
    Values are estimates; see the method note in the JSON.
-   Scoring: 0-5 dots per nutrient vs the active daily target (0 under 5%, 1 is 5-19%,
-   2 is 20-49%, 3 is 50-79%, 4 is 80-119%, 5 is 120%+). Exact % shown next to dots.
+   Scoring: each nutrient is also banded 0-5 against the active daily target
+   (0 under 5%, 1 is 5-19%, 2 is 20-49%, 3 is 50-79%, 4 is 80-119%, 5 is
+   120%+) for the daily plan's internal tallies; nothing renders the bands.
    Targets default to FDA Daily Values (2,000 kcal); the profile form personalizes
    them (Mifflin-St Jeor + activity, protein 1.2-1.6 g/kg/day (0.55-0.73 g/lb/day) per DGA 2025-2030).
    Profile is stored in localStorage only — nothing leaves the visitor's browser. */
@@ -8457,8 +8463,8 @@
         var a = ACTIVITY[p.activity];
         var kcal = Math.round(bmr * a.factor);
         var protein = Math.round(kg * a.protein); /* 1.2-1.6 g/kg/day, DGA 2025-2030 */
-        var fatMid = Math.round(kcal * 0.275 / 9); /* AMDR fat 20-35%; dots use midpoint */
-        var carbMid = Math.round(kcal * 0.55 / 4); /* AMDR carbs 45-65%; dots use midpoint */
+        var fatMid = Math.round(kcal * 0.275 / 9); /* AMDR fat 20-35%; target uses midpoint */
+        var carbMid = Math.round(kcal * 0.55 / 4); /* AMDR carbs 45-65%; target uses midpoint */
         var fiber = Math.round(kcal * 14 / 1000); /* ~14 g per 1,000 kcal */
         var female = p.sex === 'female';
         var iron = (female && p.age < 51) ? 18 : 8; /* NIH ODS RDA */
@@ -8507,7 +8513,7 @@
     function activeTargets() { return current ? current.targets : FDA_TARGETS; }
     function targetNoun() { return current ? 'your daily target' : 'the FDA Daily Value'; }
 
-    /* --- 0-5 dot scoring --- */
+    /* --- 0-5 band scoring (internal: the daily plan's tallies) --- */
     function scoreFromPct(pct) {
         if (pct === null) return null;
         if (pct < 5) return 0;
@@ -8516,27 +8522,6 @@
         if (pct < 80) return 3;
         if (pct < 120) return 4;
         return 5;
-    }
-    function dotsHTML(score, pct) {
-        if (score === null) return '<span class="nutri-dots nutri-dots--none" title="No daily target">—</span>';
-        var h = '<span class="nutri-dots" role="img" aria-label="' + score + ' out of 5, ' + pct + '% of ' + esc(targetNoun()) + '">';
-        for (var i = 0; i < 5; i++) h += '<span class="nutri-dot' + (i < score ? ' filled' : '') + '"></span>';
-        return h + '</span>';
-    }
-    function dotRow(num, entry) {
-        var dv = NUTRI.dailyValues[num];
-        var target = activeTargets()[num];
-        var pct = null, pctText = '';
-        if (target) {
-            pct = Math.round(entry.value / target * 100);
-            pctText = current ? pct + '% of your target' : pct + '% DV';
-        } else {
-            pctText = 'no daily target';
-        }
-        var limitTag = LIMIT[num] ? '<span class="nutri-limit">daily limit</span>' : '';
-        return '<div class="nutri-row"><span class="nutri-label">' + esc(dv.label) + limitTag + '</span>' +
-            '<span class="nutri-value">' + entry.value + ' ' + esc(dv.unit) + '</span>' + dotsHTML(scoreFromPct(pct), pct) +
-            '<span class="nutri-pct">' + pctText + '</span></div>';
     }
     function summaryHTML(data) {
         var targets = activeTargets();
@@ -8595,21 +8580,18 @@
                 '<button type="button" data-variant="strawberry"' + (iceVariant === 'strawberry' ? ' class="active"' : '') + '>Strawberry</button></div>';
         }
         h += '<p class="nutrition-serving">' + esc(data.servingNote) + '</p>';
-        h += '<p class="nutrition-legend">Dots score this serving against ' + esc(targetNoun()) + ' — 0 is under 5%, 1 is 5–19%, 2 is 20–49%, 3 is 50–79%, 4 is 80–119%, 5 is 120% or more. Exact % is shown.</p>';
         h += '<div class="nutrition-summary">' + summaryHTML(data) + '</div>';
         h += pairsHTML(recipeId, true);
-        h += '<div class="nutri-bars">';
-        DV_ORDER.forEach(function (num) { h += dotRow(num, data.perServing[num]); });
-        h += '</div>' + notesHTML(data) + '</div>';
+        h += notesHTML(data) + '</div>';
         return h;
     }
     /* Cook-pane panel: the same panel, scaled to the pane's servings.
-       The pane's servings stepper owns this panel alone -- amounts,
-       percents and dots are the per-serving values times the servings,
-       recomputed through the same dotRow the card panel uses, so the
-       two can never disagree about a number. The title names the count
-       the panel shows. No pairs block: panes are for cooking, and the
-       pairing content stays on the cards. */
+       The pane's servings stepper owns this panel alone -- amounts
+       and percents are the per-serving values times the servings,
+       recomputed through the same builders the card panel uses, so
+       the two can never disagree about a number. The title names the
+       count the panel shows. No pairs block: panes are for cooking,
+       and the pairing content stays on the cards. */
     function panelHTMLScaled(recipeId, m) {
         var data = NUTRI.recipes[dataKey(recipeId)];
         if (!data) return '';
@@ -8625,11 +8607,8 @@
                 '<button type="button" data-variant="strawberry"' + (iceVariant === 'strawberry' ? ' class="active"' : '') + '>Strawberry</button></div>';
         }
         h += '<p class="nutrition-serving">' + esc(data.servingNote) + '</p>';
-        h += '<p class="nutrition-legend">Dots score ' + (m === 1 ? 'this serving' : 'these ' + m + ' servings') + ' against ' + esc(targetNoun()) + ' — 0 is under 5%, 1 is 5–19%, 2 is 20–49%, 3 is 50–79%, 4 is 80–119%, 5 is 120% or more. Exact % is shown.</p>';
         h += '<div class="nutrition-summary">' + summaryHTML(scaled) + '</div>';
-        h += '<div class="nutri-bars">';
-        DV_ORDER.forEach(function (num) { h += dotRow(num, scaled.perServing[num]); });
-        h += '</div>' + notesHTML(scaled) + '</div>';
+        h += notesHTML(scaled) + '</div>';
         return h;
     }
     window.__jboPanePanel = function (recipeId, m) { return panelHTMLScaled(recipeId, m); };
@@ -8731,6 +8710,9 @@
                 /* Unchecking resets that recipe to one serving. */
                 servMult[cb.getAttribute('data-recipe')] = 1;
             }
+            /* A fresh pick from the comparison list arrives in
+               Together view. */
+            window.__jboDishView = 'totals';
             updateCombiner();
         });
         /* Serving stepper: \u2212 / + (1-4 servings); tapping \u00d7N resets to 1.
@@ -9460,25 +9442,40 @@
         var bottom = nav.getBoundingClientRect().bottom;
         var stuck = stuckRowBottom(bottom);
         if (stuck > bottom) bottom = stuck;
+        /* Title first (2026-11-23 format unification): while the
+           page's title block is still at or below the header's bottom
+           edge, the bar docks at the title block's bottom edge
+           instead — title, line, Targets and the FDA line read as
+           one header group. The title's rendered bottom falls as the
+           page scrolls, so the hand-off to the header's edge (or to a
+           stuck row's edge) is continuous, never a jump. While the
+           profile editor is open at the top of the page it sits
+           directly under the title block, and the bar docks below
+           the editor instead of covering it. */
+        var head = document.querySelector('.page-header');
+        if (head) {
+            var hb = head.getBoundingClientRect().bottom;
+            if (hb > bottom) bottom = hb;
+            if (typeof profBlock !== 'undefined' && profBlock && !profBlock.hidden && head.nextSibling === profBlock) {
+                var eb = profBlock.getBoundingClientRect().bottom;
+                if (eb > bottom) bottom = eb;
+            }
+        }
         targetsBar.style.top = Math.max(0, Math.round(bottom)) + 'px';
         /* Publish the measured stack so flow content and scroll
            landings clear it exactly: --stack-h is the header plus
            this bar; --tip-row-h is a section toggle's height (the
            row that takes the pinned slot while tips are open);
-           --back-clear is what the page's first line needs beyond
-           the body's own top margin, with a 12px gap. */
+           --bar-clear is published below for the door cards. */
         var rootEl = document.documentElement;
         rootEl.style.setProperty('--stack-h', (nav.offsetHeight + targetsBar.offsetHeight) + 'px');
         var anyToggle = document.querySelector('.info-toggle');
         if (anyToggle && anyToggle.offsetHeight) rootEl.style.setProperty('--tip-row-h', anyToggle.offsetHeight + 'px');
-        var bodyMt = parseFloat(getComputedStyle(document.body).marginTop) || 0;
-        /* The header's margin-top collapses with the nav's own bottom
-           margin (adjacent margins take the larger, they do not add), so
-           the published clearance must never fall below the bar's own
-           height + 12 -- floored here, the title clears the bar at every
-           width, desktop's large body margin included. */
-        var need = Math.max(nav.offsetHeight + targetsBar.offsetHeight + 12 - bodyMt, targetsBar.offsetHeight + 12);
-        rootEl.style.setProperty('--back-clear', Math.max(0, Math.round(need)) + 'px');
+        /* The clearance the door cards need below the docked bar:
+           their collapsed top margin already gives 16px below the
+           title block's bottom edge, so the padding only has to
+           cover the bar's height less that margin, plus the gap. */
+        rootEl.style.setProperty('--bar-clear', Math.max(0, Math.round(targetsBar.offsetHeight - 6)) + 'px');
     }
     /* Slot-covered: the recipe-name bar owns the slot while it is
        shown (it is the open recipe's own toggle), so this bar is
@@ -9952,11 +9949,6 @@
             });
             h += '</ul></div>';
         });
-        var totObj = {};
-        DV_ORDER.forEach(function (num, i) { totObj[num] = totArr[i]; });
-        h += '<div class="recipe-section-title">Combined — this day</div><div class="nutri-bars">';
-        DV_ORDER.forEach(function (num) { h += dotRow(num, { value: Math.round(totArr[DV_ORDER.indexOf(num)] * 10) / 10 }); });
-        h += '</div>';
         var dv = window.__jboVerdictFor(Object.keys(plan), plan, 'day');
         if (dv) h += '<p class="daily-short verdict-line"><strong>Verdict:</strong> ' + verdictLineHTML(dv) + '</p>';
         var targets = activeTargets();
@@ -9972,15 +9964,15 @@
             } else {
                 var sc = scoreFromPct(pct);
                 if (sc === 5) five++;
-                if (sc < 4) short.push(NUTRI.dailyValues[num].label + ' reaches ' + sc + ' of 5 dots (' + pct + '% of ' + esc(targetNoun()) + ')');
+                if (sc < 4) short.push(NUTRI.dailyValues[num].label + ' reaches only ' + pct + '% of ' + esc(targetNoun()));
             }
         });
         if (short.length) {
-            h += '<p class="daily-short"><strong>Honest shortfalls:</strong> ' + esc(short.join('; ')) + '. That is the best the archive can do today — the numbers above are the real totals, not rounded up.</p>';
+            h += '<p class="daily-short"><strong>Honest shortfalls:</strong> ' + esc(short.join('; ')) + '. That is the best the archive can do today — the verdict is computed from the real totals, not rounded up.</p>';
         } else {
-            h += '<p class="daily-short">Every nutrient reaches at least 4 of 5 dots and the daily limits are kept.</p>';
+            h += '<p class="daily-short">Every nutrient reaches at least 80% of its target and the daily limits are kept.</p>';
         }
-        h += '<p class="daily-note">' + five + ' of ' + scored + ' scored nutrients are at their best (5 dots, or a limit kept). Generate again for a different day with a similar score.</p>';
+        h += '<p class="daily-note">' + five + ' of ' + scored + ' scored nutrients are at their fullest (120% or more of target, or a limit kept). Generate again for a different day with a similar score.</p>';
         h += '<button type="button" id="dailyApply">Use this combination</button>';
         h += '<p class="daily-applied" id="dailyApplied" hidden>Loaded into the combiner above — adjust servings there to make it yours.</p>';
         box.innerHTML = h;
@@ -10001,6 +9993,8 @@
                 cb.checked = false;
             }
         });
+        /* A suggested combination arrives in By dish view. */
+        window.__jboDishView = 'dish';
         updateCombiner();
         var msg = document.getElementById('dailyApplied');
         if (msg) msg.hidden = false;
@@ -10035,7 +10029,7 @@
 
     /* --- The verdict: a pure consumer of the scorecard's own numbers.
        qualityFromTotals (above) does the grading; this layer presents
-       it: blue dots and ONE quality word -- the label never switches
+       it: the numeric grade and ONE quality word -- the label never switches
        meaning -- a clause that is either a literal cause line (below)
        or the weakest part of the score, and the completeness line.
        The Meal / Full day frame changes only the completeness
@@ -10173,7 +10167,16 @@
                 while (next && next.tagName !== 'UL') next = next.nextElementSibling;
                 if (next) Array.prototype.slice.call(next.querySelectorAll('li')).forEach(function (li) {
                     var b = li.querySelector('strong');
-                    if (b) leads.push(briefText(b));
+                    if (b) {
+                        /* The lever (2026-11-23): the bold lead plus
+                           the first explaining sentence, so the line
+                           says what to do and why it helps. */
+                        var lead = briefText(b);
+                        var full = briefText(li);
+                        var rest = full.indexOf(lead) === 0 ? full.slice(lead.length).trim() : '';
+                        var s1 = rest.match(/^[^.!?]+[.!?]+/);
+                        leads.push(s1 ? lead + ' ' + s1[0].trim() : lead);
+                    }
                 });
             }
         });
@@ -10212,35 +10215,21 @@
         rows.sort(function (a, b) { return b.kcal - a.kcal; });
         var single = rows.length === 1;
         var lead = rows[0];
-        /* The characterizing lead (Johnny, 2026-11-22): the briefing
-           opens by saying what the food IS, in the cards' own words,
-           before any numbers. The lead dish (most kcal) speaks first,
-           with its card's opening sentence whole. Each next dish is
-           woven in through its own card's opening sentence, shortened
-           only by cutting whole clauses at a comma, colon, semicolon
-           or dash -- never paraphrased; a dish whose sentence will not
-           cut honestly is named instead. Two dishes weave; any beyond
-           that are named in one plain line. Where the lead dish's own
-           cost paragraph carries a "built on" sentence, that sentence
+        /* The characterizing lead (Johnny, 2026-11-22; combination
+           form settled 2026-11-23): the briefing opens by saying
+           what the food IS, in the cards' own words, before any
+           numbers. Every dish in the selection speaks through its
+           own card's opening sentence, whole — never cut, never
+           paraphrased; a dish with no opening sentence is named
+           instead. Up to three dishes weave; any beyond that are
+           named in one plain line. Where the lead dish's own cost
+           paragraph carries a "built on" sentence, that sentence
            closes the lead too. Words and facts come only from the
            selected cards, and servings never touch this paragraph --
            the description is the same at any portion. */
         function charFirstSentence(row) {
             var s = briefSentences(row.facts.why);
             return s.length ? s[0] : null;
-        }
-        function charClause(sentence) {
-            if (sentence.split(' ').length <= 16) return sentence;
-            var clauses = sentence.split(/(?<=[,:;—])\s+/);
-            var acc = '';
-            for (var i = 0; i < clauses.length; i++) {
-                var cand = acc ? acc + ' ' + clauses[i] : clauses[i];
-                if (cand.split(' ').length > 16) break;
-                acc = cand;
-                if (acc.split(' ').length >= 4) break;
-            }
-            if (!acc || acc.split(' ').length < 4) return null;
-            return acc.replace(/[,:;—\s]+$/, '') + '.';
         }
         var charLead = null;
         (function () {
@@ -10254,7 +10243,7 @@
             rows.forEach(function (r, i) {
                 if (i === srcIdx) return;
                 var frag = null;
-                if (woven < 2) { var s = charFirstSentence(r); if (s) frag = charClause(s); }
+                if (woven < 3) { frag = charFirstSentence(r); }
                 if (frag) { parts.push(frag); woven++; }
                 else named.push(r.name);
             });
@@ -10304,6 +10293,82 @@
         } else {
             why = 'By the numbers: ' + Math.round(kcal) + ' kcal, ' + prot + ' g of protein and ' + amtStr(fib, 'g') + ' of fiber \u2014 the cards carry each dish\u2019s own story.';
         }
+        /* Combination description (Johnny, 2026-11-23): a selection
+           of 2+ dishes is described as a combination, never by
+           borrowing the first dish's own text. The panel names the
+           selection first -- every dish with its servings, in
+           selection order. Why it's healthy gives each dish its own
+           specific reason in a paragraph of its own (the dish's own
+           card Why, whole; a dish whose card carries no Why
+           paragraph is described from its own numbers instead),
+           then a Together line drawn from the combined numbers:
+           what the pairing covers jointly that neither dish covers
+           alone, and how the protein and fiber split between the
+           dishes. Every claim names its dish. Nothing is compressed
+           to fit the panel -- this layer is the reading layer, and
+           its length is the layout's problem, not the text's. */
+        var selHead = '', comboWhyHTML = '';
+        if (!single) {
+            var oRows = ids.map(function (rid) {
+                for (var i = 0; i < rows.length; i++) if (rows[i].id === rid) return rows[i];
+                return null;
+            }).filter(function (r) { return !!r; });
+            selHead = oRows.map(function (r) {
+                return esc(r.name) + ' \u00b7 ' + (r.mult === 1 ? '1 serving' : esc(fmtServQty(r.mult)) + ' servings');
+            }).join(' + ');
+            var ps = [];
+            oRows.forEach(function (r) {
+                /* The dish's cooking/serving lever rides its line
+                   where the card genuinely carries one (2026-11-23):
+                   one line, common language, never invented. */
+                var lever = (r.facts.leads && r.facts.leads.length) ? ' Even healthier: ' + r.facts.leads[0] : '';
+                if (r.facts.why) {
+                    ps.push('<p><strong>' + esc(r.name) + ':</strong> ' + esc(r.facts.why + lever) + '</p>');
+                } else {
+                    var bits = [];
+                    var psrv = r.data.perServing;
+                    var pr = Math.round((psrv['203'] ? psrv['203'].value : 0) * r.mult);
+                    if (pr >= 5) bits.push(pr + ' g of protein');
+                    var fb = (psrv['291'] ? psrv['291'].value : 0) * r.mult;
+                    if (fb >= 3) bits.push(amtStr(fb, 'g') + ' of fiber');
+                    ['401', '324', '320', '301', '303', '306'].forEach(function (num) {
+                        var t = targets[num];
+                        if (!t) return;
+                        var pc = Math.round((psrv[num] ? psrv[num].value : 0) * r.mult / t * 100);
+                        if (pc >= 50) bits.push(NUTRI.dailyValues[num].label.toLowerCase() + ' at ' + pc + '% of the day');
+                    });
+                    ps.push('<p><strong>' + esc(r.name) + ':</strong> ' + esc((bits.length
+                        ? 'Per serving, it brings ' + andJoin(bits.slice(0, 3)) + '.'
+                        : 'Its own Health benefits on its card carry its story.') + lever) + '</p>');
+                }
+            });
+            var cross = [];
+            ['203', '291', '401', '324', '320', '301', '303', '306'].forEach(function (num) {
+                var t = targets[num];
+                if (!t) return;
+                var comb = Math.round((totals[num] || 0) / t * 100);
+                if (comb < 50) return;
+                var parts = [], mx = 0;
+                oRows.forEach(function (r) {
+                    var pc = Math.round((r.data.perServing[num] ? r.data.perServing[num].value : 0) * r.mult / t * 100);
+                    if (pc > mx) mx = pc;
+                    parts.push(r.name + ' ' + pc + '%');
+                });
+                if (mx < 50) cross.push(NUTRI.dailyValues[num].label + ' reaches ' + comb + '% of the day together \u2014 neither dish gets there alone (' + parts.join(', ') + ')');
+            });
+            var tbits = cross.slice(0, 2);
+            if (prot >= 15) tbits.push('protein totals ' + prot + ' g \u2014 ' + oRows.map(function (r) {
+                return Math.round((r.data.perServing['203'] ? r.data.perServing['203'].value : 0) * r.mult) + ' g from ' + r.name;
+            }).join(', '));
+            if (fib >= 5) tbits.push('fiber totals ' + amtStr(fib, 'g') + ' \u2014 ' + oRows.map(function (r) {
+                return amtStr((r.data.perServing['291'] ? r.data.perServing['291'].value : 0) * r.mult, 'g') + ' from ' + r.name;
+            }).join(', '));
+            var togetherBody = tbits.length
+                ? tbits.join('; ')
+                : Math.round(kcal) + ' kcal, ' + prot + ' g of protein and ' + amtStr(fib, 'g') + ' of fiber across the selection';
+            togetherBody = togetherBody.charAt(0).toUpperCase() + togetherBody.slice(1);
+            comboWhyHTML = ps.join('') + '<p><strong>Together:</strong> ' + esc(togetherBody) + '.</p>';
+        }
         /* The honest cost: the moderation line that bites hardest (the
            grade's own credits pick it), stated the briefing way -- share
            of the day's limit, and the dish that brings most of it. */
@@ -10352,27 +10417,18 @@
                 }
             }
         }
-        /* Keep it healthy: the cards' own bullet leads -- the single dish
-           shows its first two; a combined selection shows one per dish,
-           deduplicated and capped at three, each attributed. */
+        /* Keep it healthy: for a COMBINED selection the lever now
+           rides each dish's own Why line above (2026-11-23), so the
+           separate list would state it twice; a single dish keeps
+           the list form, its first two levers. */
         var keepItems = [];
         if (single) {
             lead.facts.leads.slice(0, 2).forEach(function (l) { keepItems.push({ lead: l, name: lead.name }); });
-        } else {
-            var seenK = {};
-            rows.forEach(function (r) {
-                if (keepItems.length >= 3) return;
-                var l = r.facts.leads[0];
-                if (!l) return;
-                var key = l.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).slice(0, 3).join(' ');
-                if (seenK[key]) return;
-                seenK[key] = 1;
-                keepItems.push({ lead: l, name: r.name });
-            });
         }
         var h = '<div class="combiner-briefing">';
+        if (!single && selHead) h += '<p class="combiner-briefing-sel">' + selHead + '</p>';
         if (charLead) h += '<p class="combiner-briefing-lead">' + esc(charLead) + '</p>';
-        h += '<p class="honest-cost-head"><strong>Why it\u2019s healthy</strong></p><p>' + esc(why) + '</p>';
+        h += '<p class="honest-cost-head"><strong>Why it\u2019s healthy</strong></p>' + (single ? '<p>' + esc(why) + '</p>' : comboWhyHTML);
         h += '<div class="honest-cost"><p class="honest-cost-head"><strong>The honest cost</strong></p><p>' + esc(costLine) + (lever ? ' ' + esc(lever) : '') + '</p></div>';
         if (keepItems.length) {
             h += '<p class="honest-cost-head"><strong>Keep it healthy \u2014 and make it healthier</strong></p><ul class="recipe-list">';
@@ -10432,8 +10488,10 @@
         }
         var allIds = dishes.map(function (d) { return d.id; });
         var vIds = (ids && ids.length) ? ids : allIds;
+        var mm = {};
+        dishes.forEach(function (d) { mm[d.id] = d.mult; });
         var h = selectionDescriptionHTML(allIds, dishes, totals);
-        if (window.__jboCookScorecard) h += window.__jboCookScorecard(vIds, 'combiner', totals);
+        if (window.__jboCookScorecard) h += window.__jboCookScorecard(vIds, 'combiner', totals, mm);
         if (box) box.innerHTML = h;
         if (prev) {
             var v = verdictFromTotals(totals, vIds, null, 'combiner');
@@ -10455,7 +10513,7 @@
        built from one groups array so the layout can re-slot without
        touching the numbers. No value is stated twice: the tiles own
        the totals, and sodium lives in its flag and its gauge only. */
-    window.__jboCookScorecard = function (ids, surface, totalsOverride) {
+    window.__jboCookScorecard = function (ids, surface, totalsOverride, multMap) {
         if (!ids || !ids.length) return '';
         var totals = totalsOverride || null;
         if (!totals) {
@@ -10465,7 +10523,85 @@
         }
         var vv = verdictFromTotals(totals, ids, null, surface || 'cook');
         if (!vv) return '';
-        var h = '<div class="sc-card">';
+        /* By dish preparation (2026-11-23, M1 as approved): per-dish
+           amounts from the same data and servings the totals came
+           from. The colours cap at three -- the three dishes
+           contributing most across the whole card (share of the
+           day's targets summed over every nutrient), ties broken by
+           selection order, letters assigned in selection order among
+           the coloured three; every other dish folds into one grey
+           Other segment per bar. Combinations themselves are never
+           capped. */
+        var dishView = window.__jboDishView === 'dish' && ids.length >= 2;
+        var bdRows = null, bdColored = null, bdOther = false, bdTargets = null;
+        if (ids.length >= 2) {
+            bdTargets = activeTargets();
+            bdRows = ids.map(function (rid, i) {
+                var d = NUTRI.recipes[dataKey(rid)] || (NUTRI.vitamins ? NUTRI.vitamins[rid] : null);
+                var m = (multMap && multMap[rid] != null) ? multMap[rid] : (servMult[rid] || 1);
+                var amt = {};
+                if (d && d.perServing) DV_ORDER.forEach(function (num) { amt[num] = (d.perServing[num] ? d.perServing[num].value : 0) * m; });
+                var score = 0;
+                DV_ORDER.forEach(function (num) { var t = bdTargets[num]; if (t) score += (amt[num] || 0) / t * 100; });
+                return { id: rid, name: nameOf(rid), mult: m, amt: amt, score: score, idx: i, letter: '' };
+            });
+            var bdRanked = bdRows.slice().sort(function (a, b) { return (b.score - a.score) || (a.idx - b.idx); });
+            bdColored = {};
+            var bdLetters = ['a', 'b', 'c'];
+            bdRanked.slice(0, 3).sort(function (a, b) { return a.idx - b.idx; }).forEach(function (r, i) { r.letter = bdLetters[i]; bdColored[r.id] = true; });
+            bdOther = bdRanked.length > 3;
+        }
+        function bdSegs(nums, dvPoints) {
+            if (!bdRows) return null;
+            var ws = bdRows.map(function (r) {
+                var s = 0;
+                nums.forEach(function (n) {
+                    if (dvPoints) { var t = bdTargets[n]; if (t) s += (r.amt[n] || 0) / t * 100; }
+                    else s += r.amt[n] || 0;
+                });
+                return s;
+            });
+            var tot = ws.reduce(function (a, b) { return a + b; }, 0);
+            if (!(tot > 0)) return null;
+            var out = [], other = 0;
+            bdRows.forEach(function (r, i) {
+                if (bdColored[r.id]) out.push({ g: ws[i] / tot * 100, cls: r.letter });
+                else other += ws[i];
+            });
+            if (other > 0) out.push({ g: other / tot * 100, cls: 'o' });
+            return out;
+        }
+        function bdSegHTML(segs) {
+            return segs.map(function (s) { return '<span class="seg ' + s.cls + '" style="flex-grow:' + (Math.round(s.g * 10) / 10) + '"></span>'; }).join('');
+        }
+        var h = '';
+        /* The panel's head (M1): the Together | By dish toggle
+           (2+ dishes only) and the legend naming the selection --
+           every coloured dish with its servings; folded dishes are
+           the one grey Other dishes line. The legend shows in both
+           views: the flip restacks only the bars' fills, so the
+           panel's height is identical in the two views. A single
+           dish gets the name line alone -- no toggle, no chip,
+           nothing to split -- and its bars keep their health
+           colours, the only colour language a single dish speaks. */
+        h += '<div class="bd-head">';
+        if (ids.length >= 2) {
+            h += '<div class="bd-toggle" role="tablist" aria-label="Scorecard view"><button type="button" role="tab" class="bd-seg' + (!dishView ? ' active' : '') + '" data-sc-view="totals" aria-selected="' + (!dishView) + '">Together</button><button type="button" role="tab" class="bd-seg' + (dishView ? ' active' : '') + '" data-sc-view="dish" aria-selected="' + dishView + '">By dish</button></div>';
+        }
+        h += '<div class="bd-legend">';
+        if (bdRows) {
+            bdRows.forEach(function (r) {
+                if (!bdColored[r.id]) return;
+                h += '<div class="bd-leg"><span class="bd-dot ' + r.letter + '"></span><span class="bd-leg-name">' + esc(r.name) + '</span><span class="bd-leg-srv">' + (r.mult === 1 ? '1 serving' : esc(fmtServQty(r.mult)) + ' servings') + '</span></div>';
+            });
+            if (bdOther) h += '<div class="bd-leg"><span class="bd-dot o"></span><span class="bd-leg-name">Other dishes</span></div>';
+        } else {
+            var oneId = ids[0];
+            var oneM = (multMap && multMap[oneId] != null) ? multMap[oneId] : (servMult[oneId] || 1);
+            h += '<div class="bd-leg"><span class="bd-leg-name">' + esc(nameOf(oneId)) + '</span><span class="bd-leg-srv">' + (oneM === 1 ? '1 serving' : esc(fmtServQty(oneM)) + ' servings') + '</span></div>';
+        }
+        h += '</div></div>';
+        h += '<div class="sc-card">';
         var tier = vv.score >= 4 ? 'good' : vv.score === 3 ? 'mid' : 'bad';
         h += '<div class="sc-verdict ' + tier + '"><div class="sc-score">' + (vv.points / 100).toFixed(2) + '</div><div class="sc-vlabel">' + esc(vv.label) + '</div></div>';
         if (vv.causes && vv.causes.length) {
@@ -10482,9 +10618,33 @@
         h += '<div class="sc-sec">Densities</div><div class="sc-gauges">';
         vv.checks.forEach(function (c) {
             var frac = Math.max(0, Math.min(1, c.credit));
-            var tone = c.credit >= 0.75 ? 'good' : c.credit >= 0.4 ? 'mid' : 'bad';
+            /* Colour rule (2026-11-23): red means harm, never
+               absence. The adequacy gauges (protein, fiber,
+               micronutrients) are green at full credit and a neutral
+               grey below it -- a dish that is merely LOW in protein
+               is not harmful, and its bar's length already says how
+               low. The penalty gauges (sugar, sodium, saturated fat)
+               keep green/amber/red: low credit there means the
+               harmful thing is actually high, so red keeps its one
+               honest meaning. */
+            var tone;
+            if (c.key === 'protein' || c.key === 'fiber' || c.key === 'micros') tone = c.credit >= 0.75 ? 'good' : 'flat';
+            else tone = c.credit >= 0.75 ? 'good' : c.credit >= 0.4 ? 'mid' : 'bad';
             var pts = c.earned < 0 ? '\u2212' + Math.abs(c.earned) : String(c.earned);
-            h += '<div class="sc-gauge"><div class="sc-gt"><span class="sc-gn">' + esc(GAUGE_NAMES[c.key] || c.name) + '</span><span class="sc-gp">' + pts + ' of ' + c.weight + '</span></div><div class="sc-track"><div class="sc-fill ' + tone + '" style="width:' + Math.round(frac * 100) + '%"></div></div></div>';
+            /* By dish: the fill restacks into per-dish segments --
+               each dish's share of the gauge's underlying nutrient
+               amount (for Micronutrients, of the summed %DV points
+               across the six). The gauge's own number and width are
+               the combination's, unchanged: the fill shows where
+               the nutrient came from, never a different score. */
+            var fillHTML = null;
+            if (dishView) {
+                var gnums = c.key === 'micros' ? ['401', '324', '320', '301', '303', '306'] : c.key === 'protein' ? ['203'] : c.key === 'fiber' ? ['291'] : c.key === 'sugar' ? ['269'] : c.key === 'sodium' ? ['307'] : ['606'];
+                var gsegs = bdSegs(gnums, c.key === 'micros');
+                if (gsegs) fillHTML = '<div class="sc-fill split" style="width:' + Math.round(frac * 100) + '%">' + bdSegHTML(gsegs) + '</div>';
+            }
+            if (!fillHTML) fillHTML = '<div class="sc-fill ' + tone + '" style="width:' + Math.round(frac * 100) + '%"></div>';
+            h += '<div class="sc-gauge"><div class="sc-gt"><span class="sc-gn">' + esc(GAUGE_NAMES[c.key] || c.name) + '</span><span class="sc-gp">' + pts + ' of ' + c.weight + '</span></div><div class="sc-track">' + fillHTML + '</div></div>';
         });
         h += '</div>';
         var targets = activeTargets();
@@ -10505,7 +10665,11 @@
                 h2 += '<span class="sc-pct' + (over ? ' ' + tone : '') + '">' + (pct === null ? 'no DV' : pct + '%') + '</span>';
             }
             h2 += '</div>';
-            if (pct !== null) h2 += '<div class="sc-scale"><i' + (over ? ' class="' + tone + '"' : '') + ' style="width:' + Math.min(100, Math.max(0, pct)) + '%"></i></div>';
+            if (pct !== null) {
+                var tsegs = dishView ? bdSegs([num], false) : null;
+                if (tsegs) h2 += '<div class="sc-scale"><i class="split" style="width:' + Math.min(100, Math.max(0, pct)) + '%">' + bdSegHTML(tsegs) + '</i></div>';
+                else h2 += '<div class="sc-scale"><i' + (over ? ' class="' + tone + '"' : '') + ' style="width:' + Math.min(100, Math.max(0, pct)) + '%"></i></div>';
+            }
             return h2 + '</div>';
         }
         function leadTile(num) {
@@ -10518,7 +10682,11 @@
             var h2 = '<div class="sc-lead"><div class="sc-lead-row"><span class="sc-lab">' + esc(dv.label) + '</span><span><span class="sc-lead-val">' + Math.round(v).toLocaleString('en-US') + ' kcal</span>';
             if (pct !== null) h2 += ' <span class="sc-pct">' + pct + '% of ' + noun + '</span>';
             h2 += '</span></div>';
-            if (pct !== null) h2 += '<div class="sc-scale"><i' + (over ? ' class="' + tone + '"' : '') + ' style="width:' + Math.min(100, Math.max(0, pct)) + '%"></i></div>';
+            if (pct !== null) {
+                var lsegs = dishView ? bdSegs([num], false) : null;
+                if (lsegs) h2 += '<div class="sc-scale"><i class="split" style="width:' + Math.min(100, Math.max(0, pct)) + '%">' + bdSegHTML(lsegs) + '</i></div>';
+                else h2 += '<div class="sc-scale"><i' + (over ? ' class="' + tone + '"' : '') + ' style="width:' + Math.min(100, Math.max(0, pct)) + '%"></i></div>';
+            }
             return h2 + '</div>';
         }
         var GROUPS = [
@@ -10556,6 +10724,21 @@
         t.setAttribute('aria-expanded', open ? 'true' : 'false');
         var why = t.nextElementSibling;
         if (why) why.hidden = !open;
+    });
+    /* The By dish toggle: flips the view state and re-renders every
+       surface showing a Scorecard, in place. The toggle is part of
+       the re-rendered head, in the same slot with the same size, so
+       flipping it never moves it or the card (toggle-anchor); the
+       two views' heights are identical because the legend shows in
+       both. Entry points set the default view (pairings arrive in
+       By dish; a single dish or the comparison list in Together);
+       the toggle itself keeps no state beyond the current view. */
+    document.addEventListener('click', function (e) {
+        var t = e.target && e.target.closest ? e.target.closest('[data-sc-view]') : null;
+        if (!t) return;
+        window.__jboDishView = t.getAttribute('data-sc-view') === 'dish' ? 'dish' : 'totals';
+        if (typeof updateCombiner === 'function') { try { updateCombiner(); } catch (err) {} }
+        if (window.__jboRenderCookScore && window.__jboCookIds) { try { window.__jboRenderCookScore(window.__jboCookIds()); } catch (err) {} }
     });
     /* Serving hooks for the cook-mode pane steppers: they read and drive
        the exact servMult state and follow-up calls the combiner's own
@@ -12613,6 +12796,9 @@
         }
         function openCook() {
             if (selected.length === 0 || !cookView) return;
+            /* One dish on its own arrives in Together view; pair
+               entries set their own default before calling here. */
+            if (selected.length === 1) window.__jboDishView = 'totals';
             cookReturnY = window.scrollY;
             cookView.classList.toggle('cook-mobile', !isDesktop.matches);
             cookView.classList.toggle('cook-two', selected.length === 2);
@@ -12705,6 +12891,7 @@
         }
         function addCookDish(id) {
             if (!cookView || selected.indexOf(id) !== -1 || selected.length >= MAX_COOK) return;
+            window.__jboDishView = 'dish';
             selected.push(id);
             cookToggles.forEach(refreshToggle);
             updateBar();
@@ -12729,6 +12916,9 @@
         });
         function startPairCook(ids, ctx) {
             if (!cookView || !ids.length) return;
+            /* A pairing arrival opens the Scorecard in By dish view;
+               a lone dish from a pairing block opens in Together. */
+            window.__jboDishView = ids.length >= 2 ? 'dish' : 'totals';
             pairSession = { snapshot: selected.slice(), grew: false, ctx: ctx || null };
             selected = ids.slice();
             cookToggles.forEach(refreshToggle);
@@ -14265,5 +14455,54 @@
         syncStripFades();
     })();
 </script>
+    <script>
+    /* Live header price (2026-11-23, site-wide format unification):
+       Bitcoin's spot price beside the header's indicator dot, from
+       the same Coinbase spot endpoint and on the same five-second
+       poll as the Bitcoin page's header. The slot is fixed-width, so
+       an update is a text swap only: nothing moves, and scroll and
+       focus are never touched. A failed fetch keeps the last real
+       price on screen; the slot is only ever filled with a fetched
+       price. The poller also publishes window.BTC_LIVE, the registry
+       the Bitcoin page's charts read; nothing on this page consumes
+       it, so there it is inert. */
+    window.BTC_LIVE = window.BTC_LIVE || (function () {
+        var subs = [], value = null;
+        return {
+            get: function () { return value; },
+            onChange: function (fn) {
+                subs.push(fn);
+                if (value !== null) { try { fn(value); } catch (e) {} }
+            },
+            _set: function (v) {
+                if (!(v > 0) || v === value) { return; }
+                value = v;
+                for (var i = 0; i < subs.length; i++) { try { subs[i](v); } catch (e) {} }
+            }
+        };
+    })();
+    (function () {
+        var el = document.getElementById('btcHeaderPrice');
+        if (!el || !window.fetch) { return; }
+        var last = null;
+        function tick() {
+            fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(function (r) {
+                if (!r.ok) { throw new Error('HTTP ' + r.status); }
+                return r.json();
+            }).then(function (j) {
+                var v = parseFloat(j && j.data && j.data.amount);
+                if (!(v > 0)) { return; }
+                if (window.BTC_LIVE) { window.BTC_LIVE._set(v); }
+                var s = '$' + Math.round(v).toLocaleString('en-US');
+                if (s !== last) { last = s; el.textContent = s; }
+            }).catch(function () { /* keep the last real price */ });
+        }
+        tick();
+        setInterval(function () { if (!document.hidden) { tick(); } }, 5000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) { tick(); }
+        });
+    })();
+    </script>
 </body>
 </html>
