@@ -465,31 +465,57 @@ class Refresher:
 
     # ---- sustainability examples --------------------------------------
     def derive_examples(self, doc):
+        """Gallery markup (the 2026-11-25 gallery-first conversion):
+        each case is an <article class="story-case" id="<cid>"> that
+        carries its own example-name and example-hook, and its photos
+        live on the shelf card that opens the story — a
+        <button class="gcard" data-story="<cid minus 'Card'>">.
+        (The pre-gallery markup kept the name and hook on the chapter
+        wrapper and the photos outside the card element; the wrapper
+        lookup that derivation used finds no per-case toggle text in
+        the gallery markup and failed every case.) A case can appear
+        in two chapters (NEWater and Sundrop are told in Water
+        Security as well as at home), and each telling carries its
+        own share button — so each cid is derived once, from the
+        canonical article the button names."""
+        gcards = {}
+        for g in by_class(doc, 'gcard'):
+            stem = g.get('data-story')
+            if stem and stem not in gcards:
+                gcards[stem] = g
+        done = set()
         for b in by_class(doc, 'example-share'):
             try:
                 cid = b.get('data-share-card')
+                if cid in done:
+                    continue
+                done.add(cid)
                 card = by_id(doc, cid)
-                wrap = card
-                while wrap is not None and not has_class(
-                        wrap, 'explainer-wrapper'):
-                    wrap = wrap.parent
-                t = by_class(wrap, 'example-toggle-text')[0]
-                name = ' '.join((leading_text(t) or '').split())
-                if not name:
-                    name = text_of(by_class(card, 'example-name')[0])
-                hook = text_of(by_class(wrap, 'example-hook')[0])
-                imgs = [e for e in iter_desc(card) if e.tag == 'img']
-                if imgs:
-                    img = imgs[0].get('src')
-                elif cid == 'exLoessCard':
-                    after = [i for i in iter_desc(doc)
-                             if i.tag == 'img'
-                             and (i.get('alt') or '').startswith('After:')
-                             and 'loess' in (i.get('alt') or '').lower()]
-                    assert len(after) == 1
-                    img = after[0].get('src')
-                else:
-                    img = LOGO
+                name = text_of(by_class(card, 'example-name')[0])
+                hook = text_of(by_class(card, 'example-hook')[0])
+                stem = cid[:-4] if cid.endswith('Card') else cid
+                img = LOGO
+                g = gcards.get(stem)
+                if g is not None:
+                    imgs = [e for e in iter_desc(g) if e.tag == 'img']
+                    if imgs:
+                        # A before/after pair shares its "After:"
+                        # frame — the result is the case's picture
+                        # (the pre-gallery Loess special case, now
+                        # the general rule); anything else takes
+                        # the shelf card's first photo.
+                        pick = imgs[0]
+                        for i in imgs:
+                            if (i.get('alt') or '').startswith('After:'):
+                                pick = i
+                                break
+                        img = pick.get('src')
+                        if img and not img.startswith(
+                                ('http://', 'https://', 'data:')):
+                            # Shelf photos are local derivatives
+                            # beside the page; a doorway's og:image
+                            # must be the absolute URL.
+                            img = '%s/%s' % (SITE, img.lstrip('/'))
                 self.emit('example', 'example/%s.html' % cid, name, hook,
                           img, '%s/sustainability.html#%s' % (SITE, cid))
             except Exception as e:
@@ -722,7 +748,15 @@ class Refresher:
                      and (i.get('alt') or '').startswith('After:')
                      and 'loess' in (i.get('alt') or '').lower()]
             if len(after) == 1:
-                loess_raw = fetch_url(after[0].get('src'))
+                src = after[0].get('src')
+                if src and src.startswith(('http://', 'https://')):
+                    loess_raw = fetch_url(src)
+                elif src:
+                    # Gallery markup: the After photo is a local
+                    # derivative beside the page, not a remote URL —
+                    # read it from the checkout.
+                    rel = src.split('?', 1)[0].split('#', 1)[0].lstrip('/')
+                    loess_raw = read_bytes(self.path(rel))
         except Exception as e:
             self.log('loess source fetch failed: %s' % e)
         card('og-sustainability.jpg', loess_raw)
