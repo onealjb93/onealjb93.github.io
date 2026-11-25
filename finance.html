@@ -1046,6 +1046,55 @@
     #backtest:fullscreen #sigChartWrap:not([hidden]), #backtest:-webkit-full-screen #sigChartWrap:not([hidden]), #backtest.sig-fs #sigChartWrap:not([hidden]) { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
     #backtest:fullscreen #sigChart, #backtest:-webkit-full-screen #sigChart, #backtest.sig-fs #sigChart { flex: 1 1 auto; height: auto; min-height: 0; }
     #backtest:fullscreen, #backtest:-webkit-full-screen, #backtest.sig-fs { border: none; border-radius: 0; }
+    /* Johnny's Indicator Backtest, rearranged (2026-11-25): the
+       stage (totals band + chart) sits on top, one control layer
+       rides under the chart, the words fold into one How it works
+       layer, and the name list opens in a glass sheet. Same engine,
+       same defaults, same numbers — only the arrangement changed. */
+    #sigTotals { display: flex; flex-wrap: wrap; gap: 1px; background: var(--border-color); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; margin: 10px 0 6px; }
+    #sigTotals[hidden] { display: none; }
+    #sigTotals .sig-stat { border: none; border-radius: 0; background: var(--card-bg); flex: 1 1 7.4rem; padding: 8px 10px; text-align: left; justify-content: center; }
+    #sigTotals .sig-stat:nth-child(n+6) { flex: 2 1 15rem; }
+    /* The band's numbers wrap at every width: a nowrap desktop
+       band clips the gain/loss value, where the phone band
+       already wrapped cleanly. */
+    #sigTotals .sig-stat-num { white-space: normal; }
+    .sig-viewrow .filter-pill { min-height: 44px; padding: 10px 18px; display: inline-flex; align-items: center; }
+    .sig-controls-layer { margin-top: 0.9rem; border-top: 1px solid var(--border-color); padding-top: 0.9rem; }
+    .sig-controls-layer .filter-pill { min-height: 44px; padding: 10px 16px; display: inline-flex; align-items: center; }
+    .sig-controls-layer .sig-amt input { height: 44px; width: 6rem; }
+    .sig-controls-layer .sig-tf-row { margin: 0; }
+    .sig-names-btn { font-weight: 600; }
+    /* The thermostat as a switch; its state line rides beside it
+       (the engine still renders the state as a totals card — the
+       arrangement script below mirrors its text here and retires
+       the card from the band). */
+    .sig-thermo-label { font-size: 0.9rem; }
+    .sig-thermo-state { font-size: 0.85rem; color: var(--subtext-color); }
+    .sig-switch { position: relative; width: 58px; height: 44px; flex: none; background: none; border: none; padding: 0; cursor: pointer; }
+    .sig-switch::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 58px; height: 32px; border-radius: 999px; background: var(--badge-bg); border: 1px solid var(--border-color); transition: background var(--dur-2) var(--ease-inout), border-color var(--dur-2) var(--ease-inout); }
+    .sig-switch::after { content: ""; position: absolute; left: 4px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; background: var(--subtext-color); transition: left var(--dur-2) var(--ease-inout), background var(--dur-2) var(--ease-inout); }
+    .sig-switch.active::before { background: var(--link-color); border-color: var(--link-color); }
+    .sig-switch.active::after { left: 30px; background: #ffffff; }
+    /* How it works: the one folded layer under the tool. */
+    .sig-hiw { margin-top: 1.1rem; }
+    .sig-hiw .disclaimer-body > * { margin-bottom: 0.55rem; }
+    .sig-hiw .sig-assumptions { margin-top: 0.2rem; }
+    /* The names sheet: the site's glass standard (.glass-scrim +
+       .glass-bubble from style.css) with safe-area insets; the
+       bubble sits slightly narrower than the screen. */
+    .sig-names-scrim { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: flex-end; justify-content: center; padding: calc(env(safe-area-inset-top, 0px) + 10px) 10px calc(env(safe-area-inset-bottom, 0px) + 10px); }
+    .sig-names-scrim[hidden] { display: none; }
+    @media (min-width: 700px) { .sig-names-scrim { align-items: center; } }
+    .sig-sheet { width: 100%; max-width: 560px; max-height: 100%; display: flex; flex-direction: column; padding: 16px; }
+    .sig-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .sig-sheet-head h3 { font-size: 1.02rem; font-weight: 700; }
+    .sig-sheet-close { min-height: 44px; padding: 10px 18px; }
+    .sig-sheet-body { overflow-y: auto; min-height: 0; -webkit-overflow-scrolling: touch; }
+    .sig-sheet .sig-names { border: none; border-radius: 0; overflow: visible; }
+    .sig-sheet .sig-name-row { min-height: 48px; }
+    .sig-sheet .sig-name-check { min-height: 44px; }
+    .sig-sheet .filter-pill { min-height: 40px; }
     /* Johnny's card: the allocation bar (2026-11-17) — the strategy
        line drawn, 70 / 10 / 10 / 10. The $70 segment takes the page
        accent; the three $10 segments are steps of the subtext grey.
@@ -3914,39 +3963,17 @@
 <!-- Johnny's Indicator Backtest — the backtest simulator
      (2026-11-25): replaces the Portfolio Backtest. Same section id
      and body id, so the page's section machinery (nav, open-state,
-     pulse line) is untouched. -->
+     pulse line) is untouched. Rearranged the same day, on Johnny's
+     approval of the working mock: the stage (totals band + chart)
+     on top, one control layer under the chart, the words folded
+     into one How it works layer, and the name list in a glass
+     sheet. Same engine, same defaults, same numbers. -->
     <div class="sig-section collapsible-section" id="backtest">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="backtest" aria-expanded="false" aria-controls="backtest-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Johnny&rsquo;s Indicator Backtest</span></button><button type="button" class="filter-pill chart-fs-btn" id="sigFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
         <p class="pulse-line" id="backtestPulse" hidden></p>
         <div class="section-body" id="backtest-body" hidden>
         <p id="sigLoading" class="empty-state">Loading price history&hellip;</p>
         <div id="sigApp" hidden>
-            <p class="sig-window" id="sigWindow"></p>
-            <div class="sig-controls">
-                <div class="sig-ctl-row">
-                    <button type="button" class="filter-pill active" id="sigToggle" aria-pressed="true">Johnny&rsquo;s indicator</button>
-                    <span class="sig-amt"><label for="sigBuyAmt">Buy&nbsp;$</label><input type="number" id="sigBuyAmt" value="1000" min="0" step="50" inputmode="decimal"></span>
-                    <span class="sig-amt"><label for="sigSellAmt">Sell&nbsp;$</label><input type="number" id="sigSellAmt" value="1000" min="0" step="50" inputmode="decimal"></span>
-                </div>
-                <div class="sig-ctl-row">
-                    <button type="button" class="filter-pill" id="sigVix" aria-pressed="false">VIX cash thermostat</button>
-                    <span class="sig-bench"><span class="sig-bench-label">Compare against</span><button type="button" class="filter-pill active" data-bench="SPX" aria-pressed="true">S&amp;P 500</button><button type="button" class="filter-pill" data-bench="IXIC" aria-pressed="false">Nasdaq-100</button><button type="button" class="filter-pill" data-bench="CASH" aria-pressed="false">Cash</button></span>
-                </div>
-                <p class="sig-rule" id="sigVixRule" hidden>With the VIX thermostat on, each buy day steers the portfolio&rsquo;s cash share to the thermostat&rsquo;s target &mdash; 30% cash at a VIX of 10, 5% cash at a VIX of 35.</p>
-                <p class="sig-rule" id="sigBenchNote" hidden></p>
-                <div class="sig-ctl-row">
-                    <div class="chip-row sig-tf-row" id="sigRanges" role="group" aria-label="Simulation time frame">
-                        <button type="button" class="filter-pill" data-range="1D">1D</button>
-                        <button type="button" class="filter-pill" data-range="1W">1W</button>
-                        <button type="button" class="filter-pill" data-range="1M">1M</button>
-                        <button type="button" class="filter-pill" data-range="6M">6M</button>
-                        <button type="button" class="filter-pill" data-range="1Y">1Y</button>
-                        <button type="button" class="filter-pill" data-range="5Y">5Y</button>
-                        <button type="button" class="filter-pill" data-range="10Y">10Y</button>
-                        <button type="button" class="filter-pill active" data-range="ALL">All</button>
-                    </div>
-                </div>
-            </div>
             <div class="sig-totals" id="sigTotals"></div>
             <p class="empty-state sig-empty" id="sigEmpty" hidden></p>
             <div class="chip-row sig-viewrow" id="sigViewRow" role="group" aria-label="Portfolio view">
@@ -3971,22 +3998,165 @@
                 <div class="sig-readout" id="sigReadout">Drag on the chart to read values.</div>
                 <p class="empty-state" id="sigOffNote" hidden>The indicator is off &mdash; turn on Johnny&rsquo;s indicator to run the portfolio.</p>
             </div>
-            <h3 class="sig-names-title">Names in the portfolio</h3>
-            <p class="sig-rule">STRC and SATS sit with the rest of the names, but their dots print on price alone: a buy dot when the close is in a buy zone &mdash; $99&ndash;$95, $95&ndash;$85 or $85&ndash;$70 &mdash; and they never sell. What they pay out lands in Cash, like every dividend here.</p>
-            <div class="sig-names" id="sigNames"></div>
-            <p class="sig-assumptions">Trades execute at the close on the day the dot prints &middot; no commissions or slippage &middot; figures are before taxes &middot; cash earns no interest.</p>
-            <details class="disclaimer-note">
-              <summary><span class="disclaimer-gist">How this portfolio works</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
+            <div class="sig-controls sig-controls-layer">
+                <div class="sig-ctl-row">
+                    <div class="chip-row sig-tf-row" id="sigRanges" role="group" aria-label="Simulation time frame">
+                        <button type="button" class="filter-pill" data-range="1D">1D</button>
+                        <button type="button" class="filter-pill" data-range="1W">1W</button>
+                        <button type="button" class="filter-pill" data-range="1M">1M</button>
+                        <button type="button" class="filter-pill" data-range="6M">6M</button>
+                        <button type="button" class="filter-pill" data-range="1Y">1Y</button>
+                        <button type="button" class="filter-pill" data-range="5Y">5Y</button>
+                        <button type="button" class="filter-pill" data-range="10Y">10Y</button>
+                        <button type="button" class="filter-pill active" data-range="ALL">All</button>
+                    </div>
+                </div>
+                <div class="sig-ctl-row">
+                    <button type="button" class="filter-pill active" id="sigToggle" aria-pressed="true">Johnny&rsquo;s indicator</button>
+                    <button type="button" class="filter-pill sig-names-btn" id="sigNamesBtn" aria-haspopup="dialog">Names &middot; 23 in</button>
+                    <span class="sig-amt"><label for="sigBuyAmt">Buy&nbsp;$</label><input type="number" id="sigBuyAmt" value="1000" min="0" step="50" inputmode="decimal"></span>
+                    <span class="sig-amt"><label for="sigSellAmt">Sell&nbsp;$</label><input type="number" id="sigSellAmt" value="1000" min="0" step="50" inputmode="decimal"></span>
+                </div>
+                <div class="sig-ctl-row">
+                    <span class="sig-bench"><span class="sig-bench-label">Compare against</span><button type="button" class="filter-pill active" data-bench="SPX" aria-pressed="true">S&amp;P 500</button><button type="button" class="filter-pill" data-bench="IXIC" aria-pressed="false">Nasdaq-100</button><button type="button" class="filter-pill" data-bench="CASH" aria-pressed="false">Cash</button></span>
+                </div>
+                <div class="sig-ctl-row">
+                    <span class="sig-thermo-label" id="sigThermoLabel">VIX cash thermostat</span>
+                    <button type="button" class="sig-switch" id="sigVix" aria-pressed="false" aria-labelledby="sigThermoLabel"></button>
+                    <span class="sig-thermo-state" id="sigThermoState" hidden></span>
+                </div>
+            </div>
+            <details class="disclaimer-note sig-hiw">
+              <summary><span class="disclaimer-gist">How it works</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
               <div class="disclaimer-body">
+            <p class="sig-window" id="sigWindow"></p>
+            <p class="sig-rule">STRC and SATS sit with the rest of the names, but their dots print on price alone: a buy dot when the close is in a buy zone &mdash; $99&ndash;$95, $95&ndash;$85 or $85&ndash;$70 &mdash; and they never sell. What they pay out lands in Cash, like every dividend here.</p>
+            <p class="sig-rule" id="sigVixRule" hidden>With the VIX thermostat on, each buy day steers the portfolio&rsquo;s cash share to the thermostat&rsquo;s target &mdash; 30% cash at a VIX of 10, 5% cash at a VIX of 35.</p>
+            <p class="sig-rule" id="sigBenchNote" hidden></p>
             <p style="font-size: 0.85rem; color: var(--subtext-color);">Every green dot buys the Buy amount of that name at that day&rsquo;s close; every red dot sells the Sell amount, never more than the position holds. Fractional shares, the way the big platforms allow them. The dots and the prices are the same ones the chart above draws, from the same daily file, so this portfolio can never disagree with the chart.</p>
             <p style="font-size: 0.85rem; color: var(--subtext-color);">Prices are split-adjusted, so stock splits are already in the numbers. Dividends are not in the prices: when a name pays, the cash lands in the Cash row on the ex-dividend date &mdash; the day the price drops by the payout &mdash; so the value line never shows a phantom dip. Dividends are counted in the gain, and nothing is reinvested unless a later dot buys it.</p>
             <p style="font-size: 0.85rem; color: var(--subtext-color);">The comparison line puts the same dollars in on the same days and just holds &mdash; no dots, no sells. A stock comparison counts its dividends the same way the portfolio does; an index comparison is the index&rsquo;s price only, as its label says.</p>
+            <p class="sig-assumptions">Trades execute at the close on the day the dot prints &middot; no commissions or slippage &middot; figures are before taxes &middot; cash earns no interest.</p>
               </div>
             </details>
         </div>
 
         </div>
     </div>
+    <!-- The backtest's names sheet (2026-11-25): the name list in
+         the site's glass standard, opened by the Names button in
+         the control layer above. -->
+    <div class="glass-scrim sig-names-scrim" id="sigNamesScrim" hidden>
+        <div class="glass-bubble sig-sheet" role="dialog" aria-modal="true" aria-labelledby="sigNamesHeading">
+            <div class="sig-sheet-head">
+                <h3 id="sigNamesHeading">Names in the portfolio</h3>
+                <button type="button" class="filter-pill sig-sheet-close" id="sigNamesClose">Close</button>
+            </div>
+            <div class="sig-sheet-body">
+                <div class="sig-names" id="sigNames"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+    // Johnny's Indicator Backtest, rearranged (2026-11-25): the
+    // arrangement's own wiring — the stage opens on the chart, the
+    // Names button carries the live count, the thermostat's state
+    // line rides at its switch, and the names sheet opens and
+    // closes without moving the page. The engine is untouched.
+    (function () {
+        "use strict";
+        function $(id) { return document.getElementById(id); }
+        var app = $("sigApp"), totals = $("sigTotals"), namesEl = $("sigNames");
+        var namesBtn = $("sigNamesBtn"), scrim = $("sigNamesScrim"), closeBtn = $("sigNamesClose");
+        if (!app || !totals || !namesEl || !namesBtn || !scrim || !closeBtn) return;
+
+        // The stage is the chart: one click on the real Chart pill
+        // the first time the app shows. The toggle stays.
+        var chartClicked = false;
+        function maybeChart() {
+            if (chartClicked || app.hidden) return;
+            chartClicked = true;
+            var vc = $("sigViewChart");
+            if (vc) vc.click();
+        }
+        if (window.MutationObserver) new MutationObserver(maybeChart)
+            .observe(app, { attributes: true, attributeFilter: ["hidden"] });
+        maybeChart();
+
+        // The Names button's live count, read from the list's own
+        // head ("N of 23 names in") each time the engine re-renders it.
+        function syncNamesLabel() {
+            var head = namesEl.querySelector(".sig-names-head span");
+            var m = head && head.textContent.match(/(\d+) of \d+/);
+            if (m) namesBtn.textContent = "Names \u00b7 " + m[1] + " in";
+        }
+        if (window.MutationObserver) new MutationObserver(syncNamesLabel)
+            .observe(namesEl, { childList: true });
+        syncNamesLabel();
+
+        // The thermostat's state line: the engine renders it as a
+        // totals card; the arrangement carries it at the switch, so
+        // the text moves there and the card retires from the band.
+        var thermoState = $("sigThermoState");
+        function syncThermo() {
+            var found = null;
+            totals.querySelectorAll(".sig-stat").forEach(function (card) {
+                var lab = card.querySelector(".sig-stat-label");
+                if (lab && lab.textContent.indexOf("Cash held") === 0) found = card;
+            });
+            if (found) {
+                thermoState.textContent = found.querySelector(".sig-stat-label").textContent
+                    + " \u2014 " + found.querySelector(".sig-stat-num").textContent;
+                thermoState.hidden = false;
+                found.style.display = "none";
+            } else {
+                thermoState.hidden = true;
+                thermoState.textContent = "";
+            }
+        }
+        if (window.MutationObserver) new MutationObserver(syncThermo)
+            .observe(totals, { childList: true });
+        syncThermo();
+
+        // The names sheet: opens over the dimmed page, closes back
+        // to exactly where the reader was (scroll Δ = 0). Inside
+        // the section's own full screen it rides inside the section,
+        // the one place a fixed layer can be seen there.
+        var savedY = 0, home = scrim.parentNode, homeNext = scrim.nextSibling;
+        function openSheet() {
+            savedY = window.scrollY || 0;
+            var sec = $("backtest");
+            if (sec && document.fullscreenElement === sec) sec.appendChild(scrim);
+            scrim.hidden = false;
+            document.body.style.position = "fixed";
+            document.body.style.top = (-savedY) + "px";
+            document.body.style.left = "0";
+            document.body.style.right = "0";
+            closeBtn.focus({ preventScroll: true });
+        }
+        function closeSheet() {
+            scrim.hidden = true;
+            document.body.style.position = "";
+            document.body.style.top = "";
+            document.body.style.left = "";
+            document.body.style.right = "";
+            if (scrim.parentNode !== home) home.insertBefore(scrim, homeNext);
+            window.scrollTo(0, savedY);
+            namesBtn.focus({ preventScroll: true });
+        }
+        namesBtn.addEventListener("click", openSheet);
+        closeBtn.addEventListener("click", closeSheet);
+        scrim.addEventListener("click", function (e) { if (e.target === scrim) closeSheet(); });
+        // Capture phase, and stop the event when it acts: the
+        // engine's own Escape handler (full-screen exit) would
+        // otherwise fire on the same keypress. When the sheet is
+        // closed the event passes through untouched.
+        document.addEventListener("keydown", function (e) {
+            if (e.key !== "Escape" && e.key !== "Esc") return;
+            if (!scrim.hidden) { e.stopPropagation(); closeSheet(); }
+        }, true);
+    })();
+    </script>
 <!-- Curated Financial Resources Section Positioned Below the Stock Table -->
     <div class="resources-section collapsible-section" id="resources">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="resources" aria-expanded="false" aria-controls="resources-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Curated Financial Resources & Tools</span></button></h2>
