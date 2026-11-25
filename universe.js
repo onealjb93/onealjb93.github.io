@@ -828,7 +828,7 @@ export function initUniverse(stage) {
     var dprCap = Math.min(window.devicePixelRatio || 1, 4);
     var dprLevel = 0;          /* index into DPR_STEPS */
     var frameAcc = 0, frameN = 0;
-    var DPR_STEPS = [1, 0.85, 0.7, 0.55, 0.4];
+    var DPR_STEPS = [1, 0.92, 0.84, 0.76, 0.7];   /* fidelity pass, 2026-11-25: floor raised from 0.4 — see the ladder comment in frame() */
     var labelPool = [];
     var tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpM = new THREE.Matrix4();
 
@@ -959,7 +959,7 @@ export function initUniverse(stage) {
             undefined,
             function () { /* atlas failed — galaxies stay procedural */ });
         heroTex.colorSpace = THREE.SRGBColorSpace;
-        heroTex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+        heroTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     }
     function buildNebulae() {
         if (!nebulae.length) return;
@@ -2301,12 +2301,18 @@ export function initUniverse(stage) {
            slow stretch — a dense field at full ratio — permanently
            softened the rest of the session, part of why the graphics
            "got worse" the longer Johnny flew. The wide hysteresis
-           band (24 ms down, 12 ms up, one step per 90-frame window)
-           keeps it from oscillating. */
+           band (33 ms down, 12 ms up, one step per 90-frame window)
+           keeps it from oscillating.
+           FIDELITY PASS (2026-11-25): resolution is the LAST thing
+           surrendered. The ladder now tolerates ~30 fps (a 33 ms
+           average) before it touches the pixel ratio at all, the
+           steps are shallow, and the floor is 0.7 of native density
+           — what gives instead is frame-rate headroom in the densest
+           fields: the game would rather run slower than go soft. */
         frameAcc += dt; frameN++;
         if (frameN >= 90) {
             var avg = frameAcc / frameN;
-            if (avg > 0.024 && dprLevel < DPR_STEPS.length - 1) { dprLevel++; applyDpr(); }
+            if (avg > 0.033 && dprLevel < DPR_STEPS.length - 1) { dprLevel++; applyDpr(); }
             else if (avg < 0.012 && dprLevel > 0) { dprLevel--; applyDpr(); }
             frameAcc = 0; frameN = 0;
         }
@@ -2408,9 +2414,12 @@ export function initUniverse(stage) {
         updateLabels(rect.width, rect.height);
     }
     function applyDpr() {
-        /* No floor at 1: on a DPR-1 screen a floor would disable the
-           ladder exactly where it is needed most. Trading sharpness for
-           smoothness is the ladder's whole job; the DOM HUD stays crisp. */
+        /* The floor is the last DPR_STEPS entry — 0.7 of the device's
+           native density (fidelity pass, 2026-11-25). The ladder still
+           works on a DPR-1 screen (0.7 of 1), it just never trades
+           away more than 30% of the density; below that, slower
+           frames are accepted instead of a softer picture. The DOM
+           HUD stays crisp regardless. */
         var dpr = dprCap * DPR_STEPS[dprLevel];
         renderer.setPixelRatio(dpr);
         resize();
@@ -3075,9 +3084,15 @@ export function initUniverse(stage) {
         return { m: m, e2: e2, n: n };
     }
     function lodPhotoGrid(tex) {
-        /* sample a loaded photograph into a 128x128 luminance+colour grid
-           the volume is seeded from — the place matches the picture */
-        var S = 128;
+        /* sample a loaded photograph into a luminance+colour grid
+           the volume is seeded from — the place matches the picture.
+           The grid scales with the photograph actually streamed
+           (fidelity pass, 2026-11-25): a sixteenth of its long edge,
+           floored at the old 128 and capped at 384, so a
+           native-resolution arrival photo seeds a proportionally
+           finer volume instead of the same 128 grid for everything */
+        var S = Math.max(128, Math.min(384,
+            Math.round(Math.max(tex.image.width, tex.image.height) / 16)));
         var cv = document.createElement('canvas'); cv.width = cv.height = S;
         var cx = cv.getContext('2d', { willReadFrequently: true });
         cx.drawImage(tex.image, 0, 0, S, S);
