@@ -1681,8 +1681,16 @@ function boot() {
         if (gate < 1) blocks.forEach(function (B) { B._yield = 1 - gate * (1 - B._yield); });
         blocks.forEach(function (B, bi) {
             var o = THREE.MathUtils.clamp((B._facing + 0.10) / 0.45, 0, 1) * B._yield;
-            if (selOpen >= 0) o *= (bi === selOpen ? 0 : 0.22);
-            B.el.style.opacity = o.toFixed(2);
+            // Label cleanup (2026-11-25): while a sphere is open or
+            // previewed, the other spheres' names are fully hidden,
+            // not dimmed to ghosts — the open bubble is a clean
+            // reading surface with no text behind the face. (The
+            // heart word is already at 0 in an open frame; the
+            // choreography owns it.) labelFade is the turn fade:
+            // 1 at rest, eased to 0 by the loop while the figure
+            // is turning under the visitor's hand.
+            if (selOpen >= 0) o *= (bi === selOpen ? 0 : 0);
+            B.el.style.opacity = (o * labelFade).toFixed(2);
         });
     }
 
@@ -1727,7 +1735,7 @@ function boot() {
             units[i].uColor.value.copy(A.col);
         }
         centerCur += (centerTarget - centerCur) * 0.13;
-        centerEl.style.opacity = centerCur.toFixed(2);
+        centerEl.style.opacity = (centerCur * labelFade).toFixed(2);
     }
     window.__eesAPI = {
         setPose: function (i, pose) {
@@ -1771,7 +1779,7 @@ function boot() {
             if (pose.dim !== undefined) { A.d = pose.dim; A.t.d = pose.dim; }
             A.col.copy(A.t.e > 0.01 ? DEFS[i].col : accentCache);
         },
-        setCenterExact: function (v) { centerTarget = v; centerCur = v; centerEl.style.opacity = v.toFixed(2); },
+        setCenterExact: function (v) { centerTarget = v; centerCur = v; centerEl.style.opacity = (v * labelFade).toFixed(2); },
         setFlightSquash: function (f) { flightSquash = f; },
         refitSharp: function (hPx) {
             var w = wrap.clientWidth;
@@ -1883,6 +1891,12 @@ function boot() {
     var fixed = params.has('spin') || params.has('spinx');
     var dragging = false, lastX = 0, lastY = 0, lastTouch = 0;
     var velRX = 0, velRY = 0;
+    // Label cleanup (2026-11-25): labelFade multiplies every label
+    // opacity the figure writes — the name blocks in placeLabels and
+    // the centre word in stepAnim / setCenterExact. It is 1 at rest
+    // (so the resting figure is exactly the approved one) and is
+    // eased to 0 by the loop while a hand-driven turn is live.
+    var labelFade = 1, turnHoldUntil = 0, labelFadeT = 0;
     // V1A: the stage's drag is driven through this handle — the
     // gesture controller classifies each press (drag / hold / tap)
     // and calls grab/move/end only for true drags, so a hold or a
@@ -1937,6 +1951,19 @@ function boot() {
                 targetRX = 0.11 * Math.sin(now * 0.00026 + 1.3);
             }
         }
+        // Label cleanup (2026-11-25): while the figure is turning
+        // under the visitor's hand — a drag in progress, or the
+        // inertia glide it leaves behind, plus a short tail while
+        // the last degrees settle — the labels fade out, so no
+        // mid-turn frame can show a doubled or smeared name; they
+        // fade back in as the figure comes to rest. The idle drift
+        // is not a turn: it sets neither the drag flag nor the
+        // velocities, so the resting figure keeps its names.
+        if (dragging || (!fixed && !reduced && (Math.abs(velRY) > 0.00004 || Math.abs(velRX) > 0.00004))) turnHoldUntil = now + 350;
+        var fadeTarget = now < turnHoldUntil ? 0 : 1;
+        var fadeDt = Math.min(100, now - labelFadeT); labelFadeT = now;
+        labelFade += (fadeTarget - labelFade) * (1 - Math.exp(-fadeDt / 40));
+        if (Math.abs(labelFade - fadeTarget) < 0.02) labelFade = fadeTarget;
         var k = reduced ? 1 : 0.085;
         rotY += (targetRY - rotY) * k;
         rotX += (targetRX - rotX) * k;
