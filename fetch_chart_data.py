@@ -106,6 +106,21 @@ vanishes, if any expected trading day inside the last 45 days is
 missing from a series, or if a weekly series skips a week. A day
 that cannot be filled fails loudly — the previous file stands.
 
+Finalization discipline (added 2026-11-25): a bar is provisional
+until its market's day has closed and settled — US equities at
+the standing 21:00 UTC rule, futures at 23:00 UTC (after the
+17:00 ET Globex close and the feed's finalization lag), Bitcoin
+one hour after its UTC day ends. The 2026-11-24 build froze two
+pre-final bars as final (BTC $59,815.43 vs the finalized
+$59,747.77; GC=F $3,552.90 vs $3,561.90 — on final data GOLD's
+Nov 24 buy dot never prints), because nothing ever revised them.
+Now every run's revision check compares the fresh bars against
+the previous file's and logs every changed bar; the dots are
+recomputed from the latest bars each run, so a revised bar
+revises its dot; provisional bars are named in the log; and a
+previous file that cannot be read fails the run, because the
+guards and the revision check both stand on it.
+
 Indicator signals (added 2026-11-22): each daily series also gains
 "buy" / "sell" arrays of ISO dates — Johnny's indicator, computed
 from the daily bars, the P/E array and the VIX series in this same
@@ -2317,6 +2332,96 @@ def guard_no_shrink(kind, new_series, prev_series, through, anchor,
     return problems
 
 
+# --- Finalization discipline (2026-11-25) ---------------------------
+# A bar is PROVISIONAL until its market's day has closed and
+# settled; the feed's first serving of a bar is not its final word.
+# The 2026-11-24 build (completed 22:30 UTC) froze two pre-final
+# bars as final: BTC's Nov 24 bar, captured two hours before its
+# UTC day ended (close $59,815.43 vs the finalized $59,747.77),
+# and GC=F's, captured before Yahoo finalized it (close $3,552.90
+# vs $3,561.90, volume ~46k contracts short) — on final data
+# GOLD's Nov 24 buy dot never prints (RSI 30.03 > 30). US
+# equities and the VIX, whose markets had closed and settled
+# before the fetch, matched the official record to the digit.
+# The discipline: every run re-fetches the full history (the
+# builder's standing architecture), the revision check below
+# compares the fresh bars against the previous file's and logs
+# every change, and the indicator dots are recomputed from the
+# latest bars on every run — so a revised bar revises its dot.
+# Provisional bars are published (the file's contract is the
+# last completed US session) but are NAMED in the log as
+# provisional, and the next run's revision lines show exactly
+# how they settled. A run whose previous file cannot be read
+# cannot run the check and fails loudly (see main()).
+def final_through_for(symbol, today, now_utc):
+    """The last day whose bar is FINAL for this market right now.
+    US equities/indexes/FX keep the standing rule (a day counts
+    once it is past, or from 21:00 UTC — after the 16:00 ET close
+    and its settlement window). Futures (=F) finalize after the
+    17:00 ET Globex close plus Yahoo's own finalization lag:
+    final from 23:00 UTC. BTC trades UTC days: a day is final
+    one hour after it ends (01:00 UTC the next day)."""
+    if symbol == "BTC-USD":
+        return (now_utc - timedelta(hours=1)).date() \
+            - timedelta(days=1)
+    if symbol.endswith("=F"):
+        return today if now_utc.hour >= 23 \
+            else today - timedelta(days=1)
+    return last_completed_day(today, now_utc)
+
+
+def revision_report(kind, new_series, prev_series, through_iso,
+                    window_days=14):
+    """Log every bar the feed has revised since the previous file.
+
+    Compares the freshly built bars against the previous file's
+    date by date. A changed bar inside the recent window is
+    logged individually (old close -> new close, old volume ->
+    new volume); older changes (a split restatement rewrites
+    history wholesale, legitimately) are counted, not itemized.
+    Revisions are normal — a provisional bar settling — but they
+    are never silent. Returns the lines to log."""
+    lines = []
+    if not prev_series:
+        lines.append("REVISIONS %s: no previous file — nothing "
+                     "to compare" % kind)
+        return lines
+    window_start = (date.fromisoformat(through_iso)
+                    - timedelta(days=window_days)).isoformat()
+    n_recent = 0
+    n_older = 0
+    touched = set()
+    for key in sorted(new_series):
+        prev_bars = {b[0]: b for b in
+                     (prev_series.get(key) or {}).get("bars") or []}
+        if not prev_bars:
+            continue
+        for b in (new_series.get(key) or {}).get("bars") or []:
+            old = prev_bars.get(b[0])
+            if old is None:
+                continue
+            if [float(x) for x in old[1:5]] != [float(x) for x in b[1:5]] \
+                    or int(old[5]) != int(b[5]):
+                touched.add(key)
+                if b[0] >= window_start:
+                    n_recent += 1
+                    lines.append(
+                        "REVISED %s %s %s: close %s -> %s, "
+                        "volume %s -> %s"
+                        % (kind, key, b[0], old[4], b[4],
+                           old[5], b[5]))
+                else:
+                    n_older += 1
+    if n_recent or n_older:
+        lines.append("REVISIONS %s: %d recent bar(s) revised, "
+                     "%d older bar(s) changed, across %d series"
+                     % (kind, n_recent, n_older, len(touched)))
+    else:
+        lines.append("REVISIONS %s: none — every overlapping bar "
+                     "matches the previous file" % kind)
+    return lines
+
+
 # How far back the daily date-completeness guard looks. The count
 # guard alone cannot see a hole: tonight's SNDK fetch ties the
 # published count once the newest day's bar lands, holes and all.
@@ -2517,9 +2622,15 @@ def main():
             with open(out_path) as fh:
                 previous = (json.load(fh) or {}).get("series") or {}
         except Exception as exc:
-            log("WARNING: could not read previous %s (%s); treating as empty"
+            # The guards and the revision check both read the
+            # previous file; without it neither can run, and an
+            # unverifiable night must fail loudly, never proceed
+            # unguarded (finalization discipline, 2026-11-25).
+            log("ERROR: could not read previous %s (%s) — the "
+                "guards and revision check cannot run, so this "
+                "run fails and the previous file stands."
                 % (out_path, exc))
-            previous = {}
+            return 1
 
     # P/E preparation: one CIK map for the whole run, companyfacts
     # cached per CIK (GOOG and GOOGL share one). Any EDGAR failure is
@@ -2653,6 +2764,9 @@ def main():
         "series": series,
         "nasdaq100": [ticker for ticker, _name in NASDAQ100],
     }
+    for line in revision_report("weekly", series, previous,
+                                output["through"] or through.isoformat()):
+        log(line)
     problems = guard_no_shrink("weekly", series, previous,
                                output["through"], through, 9)
     problems += guard_dates_weekly(series, previous)
@@ -2703,9 +2817,14 @@ def main():
             with open(daily_path) as fh:
                 d_previous = (json.load(fh) or {}).get("series") or {}
         except Exception as exc:
-            log("WARNING: could not read previous %s (%s); treating as empty"
-                % (daily_path, exc))
-            d_previous = {}
+            # Same rule as the weekly read above: no previous
+            # file, no guards, no revision check — fail loudly.
+            log("ERROR: could not read previous %s (%s) — the "
+                "guards and revision check cannot run, so this "
+                "run fails and the previous daily file stands "
+                "(the weekly %s above is unaffected)."
+                % (daily_path, exc, out_path))
+            return 1
     d_series = {}
     d_missing = []
     d_kept_old = []
@@ -2728,6 +2847,21 @@ def main():
                 bars, _filled, _unfilled = fill_daily_holes(
                     key, symbol, bars, holes,
                     bars[0][0], through_day.isoformat())
+            # Finalization discipline: name any bar this market
+            # has not finished settling yet. It publishes (the
+            # file's contract is the last completed US session)
+            # as a provisional bar; the next run re-fetches it,
+            # and the revision check logs how it settled.
+            final_day = final_through_for(symbol, today, now_utc)
+            provisional = [b[0] for b in bars
+                           if b[0] > final_day.isoformat()]
+            if provisional:
+                log("  PROVISIONAL bar(s) for %s: %s — this "
+                    "market's day has not closed and settled "
+                    "yet (final through %s); the next run "
+                    "revises them and the revision is logged"
+                    % (key, ", ".join(provisional),
+                       final_day.isoformat()))
         except Exception as exc:
             log("  FAILED: %s" % exc)
             if key in d_previous and d_previous[key].get("bars"):
@@ -2881,7 +3015,11 @@ def main():
                   "for a trading day is filled from the exchange's "
                   "official history (Nasdaq; Coinbase for BTC) before "
                   "publication, and a day that cannot be filled fails "
-                  "the run rather than shipping with a hole. "
+                  "the run rather than shipping with a hole. The "
+                  "newest bar of a market whose day has not yet "
+                  "closed and settled is provisional: the next run "
+                  "re-fetches and revises it, and every revision is "
+                  "logged. "
                   "P/E arrays: daily close / "
                   "trailing-twelve-month diluted EPS from SEC EDGAR "
                   "companyfacts, point-in-time by first filing date, "
@@ -2893,6 +3031,10 @@ def main():
         "series": d_series,
         "nasdaq100": [ticker for ticker, _name in NASDAQ100],
     }
+    for line in revision_report("daily", d_series, d_previous,
+                                d_output["through"]
+                                or through_day.isoformat()):
+        log(line)
     problems = guard_no_shrink("daily", d_series, d_previous,
                                d_output["through"], through_day, 4)
     problems += guard_dates_daily(d_series, d_previous, through_day)
