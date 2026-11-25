@@ -2396,6 +2396,7 @@ export function initUniverse(stage) {
             camera.updateMatrixWorld();
             earthSys.sunVP.value.set(0, 0, 0).applyMatrix4(camera.matrixWorldInverse);
         }
+        try { lodFrame(dt, tSec); } catch (e) { /* LOD is an enhancement layer */ }
         camera.updateProjectionMatrix();
         if (fxOK && fxTarget) renderWithBloom();
         else renderer.render(scene, camera);
@@ -2432,6 +2433,7 @@ export function initUniverse(stage) {
                 p.material.uniforms.uDpr.value = dpr;
             }
         });
+        lodResize(scaleH, dpr);
         /* peak compensation for the resolution ladder (see
            STAR_FRAG): as the effective pixel ratio falls below the
            cap, the HDR core drive rises to hold bloomed brightness
@@ -2688,6 +2690,851 @@ export function initUniverse(stage) {
         lastInputT = performance.now();
     }
 
+/* ================= LOD + PERSISTENCE SYSTEM (full build) =========
+       Johnny's law for this game (2026-11-24): every object resolves to
+       the highest definition available as you approach it, and arriving
+       never makes it fade away — you can fly into it, through it, and
+       look back at it. This section adds that system to the engine as
+       one enhancement layer (a failure here never stops the game):
+
+       - PHOTO LAYER (named galaxies + nebulae with a real telescope
+         photograph in universe-hd.json): a dedicated full-resolution
+         photograph per object — not the 1000 px atlas tile — fitted by
+         its long edge to the catalogued diameter in the same squeezed
+         frame the game's own hero photographs live in, streamed in two
+         stages (512 px on approach, full size when close) and swapped
+         only when the sharper copy has landed, so detail grows
+         continuously and nothing pops. For the twelve atlas heroes the
+         atlas tile hands over to the dedicated photograph.
+       - VOLUME LAYER (every galaxy and nebula, named or not, plus the
+         Milky Way's centre): a real three-dimensional star/dust cloud
+         built in the object's own frame — disc plane from the
+         catalogued major axis and axis ratio, thickness and colours
+         from its class (spiral / elliptical / irregular; emission /
+         planetary / remnant / reflection for nebulae). Where a
+         photograph exists, the cloud's points are seeded BY the
+         photograph (positions rejection-sampled from its light, colours
+         taken from its pixels), so the place you enter is the
+         photograph you approached. The cloud is a place: it never
+         fades on arrival, you can fly through it and turn around.
+       - STAR SURFACES (every star in the catalog): the nearest star
+         grows a real sphere as you close in — a procedural surface
+         (granulation, limb darkening) coloured by the star's own
+         colour index, with a corona shell — infinite resolution, no
+         assets, and it stays there when you arrive.
+       - Planets and the Moon already persist as textured spheres;
+         this layer leaves them to the solar-system build.
+
+       Assets stream only on approach: the manifest is one small JSON;
+       a photograph's bytes move only when its object is the one being
+       approached, the volume for an unnamed galaxy is built (seeded
+       from its catalog row) only when it is the nearest one, and the
+       far view pays nothing. */
+
+    var LOD_PHOTO_VERT = [
+        'attribute vec3 aCenter;',
+        'uniform float uDiam;',
+        'varying vec2 vQ;',
+        'void main() {',
+        '    vec4 mv = modelViewMatrix * vec4(aCenter, 1.0);',
+        '    mv.xy += position.xy * (uDiam * 1.5);',
+        '    vQ = position.xy * 1.5;',
+        '    gl_Position = projectionMatrix * mv;',
+        '}'
+    ].join('\n');
+    var LOD_PHOTO_FRAG = [
+        'precision mediump float;',
+        'uniform sampler2D tPhoto;',
+        'uniform float uAng;',      /* projected major-axis angle, as GAL_FRAG computes it */
+        'uniform float uAxis;',
+        'uniform float uRot;',       /* photograph's own alignment onto the major axis */
+        'uniform vec2 uFill;',       /* the fraction of the photo frame the object spans (x, y) */
+        'uniform float uOpacity;',
+        'varying vec2 vQ;',
+        'void main() {',
+        '    vec2 q = vQ;',
+        '    float ca = cos(uAng), sa = sin(uAng);',
+        '    vec2 p = mat2(ca, -sa, sa, ca) * q;',
+        '    vec2 r = p;',
+        '    r.y /= max(0.10, uAxis);',
+        '    float d = length(r) * 2.0;',
+        '    if (d > 1.52) discard;',
+        '    float chr = cos(uRot), shr = sin(uRot);',
+        '    vec2 hp = mat2(chr, -shr, shr, chr) * p;',
+        '    vec2 uv = vec2(0.5 + hp.x * uFill.x, 0.5 - hp.y * uFill.y);',
+        '    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) discard;',
+        '    vec3 ph = texture2D(tPhoto, uv).rgb;',
+        '    float phLum = dot(ph, vec3(0.299, 0.587, 0.114));',
+        /* normal blending + a presence floor over the disc: the photo
+           must be able to DARKEN the sprite behind it, or a dust lane
+           can never appear (additive light cannot subtract). Bright
+           structure is fully present; the black surround stays mostly
+           see-through so the starfield behind is not blanked. */
+        '    float a = mix(0.30, 1.0, clamp(phLum * 1.7, 0.0, 1.0)) * uOpacity * (1.0 - smoothstep(1.02, 1.5, d));',
+        '    if (a < 0.004) discard;',
+        '#if HDR_LINEAR',
+        '    ph = pow(max(ph, vec3(0.0)), vec3(2.2));',
+        '#endif',
+        '    gl_FragColor = vec4(ph, a);',
+        '}'
+    ].join('\n');
+    var LOD_VOL_VERT = [
+        'attribute float aSize;',    /* world diameter of the mote, pc */
+        'attribute vec3 aCol;',
+        'uniform float uScaleH;',
+        'uniform float uDpr;',
+        'uniform float uOpacity;',
+        'varying vec3 vCol;',
+        'varying float vA;',
+        'void main() {',
+        '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+        '    float dist = max(1e-9, -mv.z);',
+        '    float px = clamp(aSize * uScaleH / dist, 1.2, 18.0);',
+        '    gl_PointSize = px * uDpr;',
+        '    vCol = aCol;',
+        /* a mote's light is conserved as it grows: alpha falls as the
+           point spreads, so flying in does not white the place out */
+        '    vA = uOpacity * clamp(90.0 / (px * px), 0.05, 1.0);',
+        '    gl_Position = projectionMatrix * mv;',
+        '}'
+    ].join('\n');
+    var LOD_VOL_FRAG = [
+        'precision mediump float;',
+        'uniform sampler2D tSprite;',
+        'uniform float uDark;',      /* 1 for the dust cloud: dark motes, normal blending */
+        'varying vec3 vCol;',
+        'varying float vA;',
+        'void main() {',
+        '    float s = texture2D(tSprite, gl_PointCoord).r;',
+        '    float a = s * vA;',
+        '    if (a < 0.004) discard;',
+        '    vec3 col = vCol;',
+        '#if HDR_LINEAR',
+        '    if (uDark < 0.5) col = pow(max(col, vec3(0.0)), vec3(2.2));',
+        '#endif',
+        '    gl_FragColor = vec4(col, a);',
+        '}'
+    ].join('\n');
+    var LOD_STAR_VERT = [
+        'varying vec3 vN;',
+        'varying vec3 vWP;',
+        'void main() {',
+        '    vN = normalize(mat3(modelMatrix) * normal);',
+        '    vec4 wp = modelMatrix * vec4(position, 1.0);',
+        '    vWP = wp.xyz;',
+        '    gl_Position = projectionMatrix * viewMatrix * wp;',
+        '}'
+    ].join('\n');
+    var LOD_STAR_FRAG = [
+        'precision mediump float;',
+        'uniform vec3 uColHot;',     /* photosphere colour from the star colour index */
+        'uniform vec3 uColLimb;',
+        'uniform float uTime;',
+        'uniform float uOpacity;',
+        'uniform vec3 uCenterW;',
+        'varying vec3 vN;',
+        'varying vec3 vWP;',
+        'float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }',
+        'float noise(vec3 p) {',
+        '    vec3 i = floor(p), f = fract(p);',
+        '    f = f * f * (3.0 - 2.0 * f);',
+        '    return mix(mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x),',
+        '                   mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),',
+        '               mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),',
+        '                   mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);',
+        '}',
+        'float fbm(vec3 p) {',
+        '    float v = 0.0, a = 0.5;',
+        '    for (int k = 0; k < 4; k++) { v += a * noise(p); p *= 2.17; a *= 0.5; }',
+        '    return v;',
+        '}',
+        'void main() {',
+        '    vec3 V = normalize(cameraPosition - vWP);',
+        '    vec3 N = normalize(vN);',
+        '    float mu = clamp(dot(N, V), 0.0, 1.0);',
+        /* granulation: two scales of boiling cells, slowly evolving */
+        '    vec3 sp = normalize(vWP - uCenterW);',
+        '    float g1 = fbm(sp * 9.0 + vec3(0.0, uTime * 0.021, uTime * 0.013));',
+        '    float g2 = fbm(sp * 26.0 - vec3(uTime * 0.017, 0.0, uTime * 0.011));',
+        '    float gran = 0.72 + 0.55 * g1 + 0.28 * g2;',
+        /* limb darkening: the edge of a star is genuinely dimmer */
+        '    float limb = 0.38 + 0.62 * pow(mu, 0.55);',
+        '    vec3 col = mix(uColLimb, uColHot, gran * limb);',
+        '    col *= (0.55 + 0.75 * limb);',
+        '#if HDR_LINEAR',
+        '    col = pow(max(col, vec3(0.0)), vec3(2.2)) * 1.9;',  /* driven over the bloom threshold, like a star core */
+        '#endif',
+        '    gl_FragColor = vec4(col, uOpacity);',
+        '}'
+    ].join('\n');
+    var LOD_CORONA_FRAG = [
+        'precision mediump float;',
+        'uniform vec3 uColHot;',
+        'uniform float uOpacity;',
+        'varying vec3 vN;',
+        'varying vec3 vWP;',
+        'void main() {',
+        '    vec3 V = normalize(cameraPosition - vWP);',
+        '    float f = pow(1.0 - abs(dot(normalize(vN), V)), 2.6);',
+        '    vec3 col = uColHot;',
+        '#if HDR_LINEAR',
+        '    col = pow(max(col, vec3(0.0)), vec3(2.2));',
+        '#endif',
+        '    gl_FragColor = vec4(col, 1.0) * f * uOpacity * 0.55;',
+        '}'
+    ].join('\n');
+
+    var lod = null;
+    function lodSlug(name) {
+        return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+    function lodSeeded(seed) {   /* mulberry32 — same seed, same place, every visit */
+        var a = (seed * 2654435761) >>> 0;
+        return function () {
+            a |= 0; a = (a + 0x6D2B79F5) | 0;
+            var t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+    function lodInit() {
+        lod = {
+            manifest: null, tick: 0,
+            photo: null, photoFor: '', photoTex: null, photoFull: false, photoSpare: null,
+            photoLoading: '', photoOpacity: 0, atlasHeld: -1,
+            vol: null, volFor: '', volKind: '', volOpacity: 0, volCenter: new THREE.Vector3(),
+            star: null, starFor: -1, starOpacity: 0,
+            target: null, frameMs: [], lastFrameT: 0,
+            stats: { photoLoads: [], volBuilds: [], starBuilds: 0 }
+        };
+        /* soft round sprite for the volume motes */
+        var cv = document.createElement('canvas'); cv.width = cv.height = 64;
+        var cx = cv.getContext('2d');
+        var grad = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        grad.addColorStop(0, 'rgba(255,255,255,1)');
+        grad.addColorStop(0.4, 'rgba(255,255,255,0.55)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        cx.fillStyle = grad; cx.fillRect(0, 0, 64, 64);
+        lod.spriteTex = new THREE.CanvasTexture(cv);
+        /* photo plane — one quad, re-aimed at whatever is approached */
+        var pg = new THREE.BufferGeometry();
+        pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
+        /* aCenter must carry one copy PER VERTEX: a 1-vertex attribute on
+           a 4-vertex geometry reads out of bounds for verts 1-3, which
+           collapsed the quad to a speck in the first rendered drives */
+        pg.setAttribute('aCenter', new THREE.BufferAttribute(new Float32Array(12), 3));
+        pg.setIndex([0, 1, 2, 0, 2, 3]);
+        lod.photoMat = new THREE.ShaderMaterial({
+            vertexShader: LOD_PHOTO_VERT, fragmentShader: LOD_PHOTO_FRAG,
+            uniforms: {
+                tPhoto: { value: null }, uDiam: { value: 1 }, uAng: { value: 0 },
+                uAxis: { value: 1 }, uRot: { value: 0 }, uFill: { value: new THREE.Vector2(1, 1) },
+                uOpacity: { value: 0 }
+            },
+            defines: { HDR_LINEAR: fxOK ? 1 : 0 },
+            transparent: true, depthWrite: false, blending: THREE.NormalBlending
+        });
+        lod.photoMesh = new THREE.Mesh(pg, lod.photoMat);
+        lod.photoMesh.frustumCulled = false;
+        lod.photoMesh.renderOrder = 4;
+        lod.photoMesh.visible = false;
+        scene.add(lod.photoMesh);
+        /* volume clouds — one star cloud + one dust cloud, rebuilt per target */
+        function makeCloud(dark) {
+            var g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(LOD_VOL_MAX * 3), 3));
+            g.setAttribute('aCol', new THREE.BufferAttribute(new Float32Array(LOD_VOL_MAX * 3), 3));
+            g.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(LOD_VOL_MAX), 1));
+            var m = new THREE.ShaderMaterial({
+                vertexShader: LOD_VOL_VERT, fragmentShader: LOD_VOL_FRAG,
+                uniforms: {
+                    uScaleH: { value: 1 }, uDpr: { value: 1 }, uOpacity: { value: 0 },
+                    tSprite: { value: lod.spriteTex }, uDark: { value: dark ? 1 : 0 }
+                },
+                defines: { HDR_LINEAR: fxOK ? 1 : 0 },
+                transparent: true, depthWrite: false,
+                blending: dark ? THREE.NormalBlending : THREE.AdditiveBlending
+            });
+            var p = new THREE.Points(g, m);
+            p.frustumCulled = false;
+            p.renderOrder = dark ? 6 : 5;
+            p.visible = false;
+            scene.add(p);
+            return p;
+        }
+        lod.volStars = makeCloud(false);
+        lod.volDust = makeCloud(true);
+        /* star surface + corona */
+        lod.starMat = new THREE.ShaderMaterial({
+            vertexShader: LOD_STAR_VERT, fragmentShader: LOD_STAR_FRAG,
+            uniforms: {
+                uColHot: { value: new THREE.Color(1, 0.95, 0.84) },
+                uColLimb: { value: new THREE.Color(1, 0.64, 0.30) },
+                uTime: { value: 0 }, uOpacity: { value: 0 },
+                uCenterW: { value: new THREE.Vector3() }
+            },
+            defines: { HDR_LINEAR: fxOK ? 1 : 0 },
+            transparent: true, depthWrite: false
+        });
+        lod.starMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), lod.starMat);
+        lod.starMesh.frustumCulled = false;
+        lod.starMesh.renderOrder = 3;
+        lod.starMesh.visible = false;
+        scene.add(lod.starMesh);
+        lod.coronaMat = new THREE.ShaderMaterial({
+            vertexShader: LOD_STAR_VERT, fragmentShader: LOD_CORONA_FRAG,
+            uniforms: {
+                uColHot: { value: new THREE.Color(1, 0.95, 0.84) },
+                uOpacity: { value: 0 }, uCenterW: { value: new THREE.Vector3() },
+                uTime: { value: 0 }
+            },
+            defines: { HDR_LINEAR: fxOK ? 1 : 0 },
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+            side: THREE.BackSide
+        });
+        lod.coronaMesh = new THREE.Mesh(new THREE.SphereGeometry(1.6, 48, 32), lod.coronaMat);
+        lod.coronaMesh.frustumCulled = false;
+        lod.coronaMesh.renderOrder = 2;
+        lod.coronaMesh.visible = false;
+        scene.add(lod.coronaMesh);
+        /* the manifest: one small JSON — names to photographs + credits */
+        fetch(new URL('./universe-hd.json', import.meta.url))
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) { if (j && j.objects) lod.manifest = j.objects; })
+            .catch(function () { /* no manifest: volumes + star surfaces still apply */ });
+        window.__uvLod = {
+            state: function () {
+                return {
+                    camPos: [camPos.x, camPos.y, camPos.z],
+                    target: lod.target ? lod.target.key : null,
+                    photoFor: lod.photoFor, photoFull: lod.photoFull,
+                    photoOpacity: +lod.photoOpacity.toFixed(3),
+                    volFor: lod.volFor, volKind: lod.volKind,
+                    volOpacity: +lod.volOpacity.toFixed(3),
+                    starFor: lod.starFor, starOpacity: +lod.starOpacity.toFixed(3),
+                    frameMsAvg: lod.frameMs.length ?
+                        +(lod.frameMs.reduce(function (a, b) { return a + b; }, 0) / lod.frameMs.length).toFixed(2) : 0,
+                    stats: lod.stats
+                };
+            },
+            posOf: function (name) {
+                var e = namedEntry(name);
+                return e ? [e._pos[0], e._pos[1], e._pos[2]] : null;
+            },
+            nebOf: function (name) {
+                for (var i = 0; i < nebulae.length; i++)
+                    if (nebulae[i].n === name) return { p: nebulae[i].p, d: nebulae[i].d, i: i };
+                return null;
+            },
+            flyToName: function (name) {
+                var e = namedEntry(name);
+                if (e) { interruptTour(); flyTo(e); return true; }
+                return false;
+            },
+            teleport: function (p, t) {
+                interruptTour(); flyAnim = null; ctrl.mode = 'free';
+                camPos.set(p[0], p[1], p[2]);
+                setViewFromTarget(tmpV.set(t[0], t[1], t[2]));
+                applyView();
+            },
+            setSpeedT: function (v) { setSpeedT(v); },
+            setThrust: function (on) { thrust = !!on; if (on) interruptTour(); }
+        };
+    }
+    var LOD_VOL_MAX = 14000;
+    function lodResize(scaleH, dpr) {
+        if (!lod) return;
+        [lod.volStars, lod.volDust].forEach(function (p) {
+            if (p) { p.material.uniforms.uScaleH.value = scaleH; p.material.uniforms.uDpr.value = dpr; }
+        });
+    }
+    /* the disc frame of a galaxy: m = catalogued major axis; the normal
+       n is solved so the disc, seen from home, projects with exactly the
+       catalogued axis ratio — the same tilt the sprite fakes, made real */
+    function lodDiscFrame(pos, major, axisQ) {
+        var m = major.clone().normalize();
+        var v = pos.clone().multiplyScalar(-1).normalize();   /* toward the Sun */
+        var vm = v.dot(m);
+        var u = v.clone().addScaledVector(m, -vm);
+        var s = u.length();
+        var n;
+        if (s < 1e-4) {
+            n = new THREE.Vector3(0, 0, 1).cross(m).normalize();
+            if (n.lengthSq() < 0.5) n = new THREE.Vector3(0, 1, 0).cross(m).normalize();
+        } else {
+            u.multiplyScalar(1 / s);
+            var a = Math.max(-1, Math.min(1, axisQ / s));
+            var b = Math.sqrt(Math.max(0, 1 - a * a));
+            var mxu = new THREE.Vector3().crossVectors(m, u);
+            var n1 = u.clone().multiplyScalar(a).addScaledVector(mxu, b);
+            var n2 = u.clone().multiplyScalar(a).addScaledVector(mxu, -b);
+            n = n1.dot(GAL_NORTH) >= 0 ? n1 : n2;   /* the mirror ambiguity: keep the galactic-north side */
+            n.normalize();
+        }
+        var e2 = new THREE.Vector3().crossVectors(n, m).normalize();
+        return { m: m, e2: e2, n: n };
+    }
+    function lodPhotoGrid(tex) {
+        /* sample a loaded photograph into a 128x128 luminance+colour grid
+           the volume is seeded from — the place matches the picture */
+        var S = 128;
+        var cv = document.createElement('canvas'); cv.width = cv.height = S;
+        var cx = cv.getContext('2d', { willReadFrequently: true });
+        cx.drawImage(tex.image, 0, 0, S, S);
+        var px;
+        try { px = cx.getImageData(0, 0, S, S).data; } catch (e) { return null; }
+        var lum = new Float32Array(S * S), col = new Float32Array(S * S * 3), sum = 0;
+        for (var i = 0; i < S * S; i++) {
+            var r = px[i * 4] / 255, g = px[i * 4 + 1] / 255, b = px[i * 4 + 2] / 255;
+            var l = 0.299 * r + 0.587 * g + 0.114 * b;
+            lum[i] = l; col[i * 3] = r; col[i * 3 + 1] = g; col[i * 3 + 2] = b;
+            sum += Math.pow(l, 1.6);
+        }
+        return { S: S, lum: lum, col: col, sum: sum };
+    }
+    function lodBuildVolume(spec) {
+        /* spec: {key, kind, center, diam, frame|null, tint, fam, seed, photoTex} */
+        var t0 = performance.now();
+        var rnd = lodSeeded(spec.seed);
+        var N = spec.kind === 'nebula' ? 9000 : 12000;
+        var grid = spec.photoTex ? lodPhotoGrid(spec.photoTex) : null;
+        var posA = lod.volStars.geometry.getAttribute('position');
+        var colA = lod.volStars.geometry.getAttribute('aCol');
+        var sizA = lod.volStars.geometry.getAttribute('aSize');
+        var dPos = lod.volDust.geometry.getAttribute('position');
+        var dCol = lod.volDust.geometry.getAttribute('aCol');
+        var dSiz = lod.volDust.geometry.getAttribute('aSize');
+        var R = spec.diam / 2;
+        var thick = spec.kind === 'nebula' ?
+            (spec.fam === 1 || spec.fam === 2 ? 0.16 : 0.34) :
+            (spec.tint === 0 ? 0.42 : spec.tint === 2 ? 0.30 : 0.055);
+        var shell = spec.kind === 'nebula' && (spec.fam === 1 || spec.fam === 2);
+        var placed = 0, guard = 0;
+        var tmp = new THREE.Vector3();
+        function gauss(r) {
+            return (r() + r() + r() + r() - 2) * 0.5;   /* ~N(0, 0.5) */
+        }
+        while (placed < N && guard++ < N * 30) {
+            var lx, ly, lz, cr, cg, cb, bright;
+            if (grid) {
+                /* rejection-sample the photograph's own light */
+                var cell = Math.floor(rnd() * grid.S * grid.S);
+                var wgt = Math.pow(grid.lum[cell], 1.6) / Math.max(1e-6, grid.sum / (grid.S * grid.S));
+                if (rnd() > Math.min(1, wgt * 0.14)) continue;
+                var gx = (cell % grid.S) / grid.S - 0.5, gy = Math.floor(cell / grid.S) / grid.S - 0.5;
+                lx = gx / Math.max(0.05, spec.fillX) * spec.diam;
+                ly = -gy / Math.max(0.05, spec.fillY) * spec.diam;
+                cr = grid.col[cell * 3]; cg = grid.col[cell * 3 + 1]; cb = grid.col[cell * 3 + 2];
+                bright = 0.35 + rnd() * 0.9;
+                if (shell) {
+                    var rr = Math.sqrt(lx * lx + ly * ly) + 1e-6;
+                    var push = (R * 0.86) / rr;
+                    lx *= push; ly *= push;
+                }
+                lz = gauss(rnd) * thick * spec.diam * (1 - Math.min(1, Math.sqrt(lx * lx + ly * ly) / R) * 0.6);
+            } else if (spec.kind === 'nebula') {
+                var th = rnd() * Math.PI * 2, ph = Math.acos(2 * rnd() - 1);
+                var rad = shell ? R * (0.78 + 0.30 * rnd()) : R * Math.pow(rnd(), 0.55);
+                lx = rad * Math.sin(ph) * Math.cos(th); ly = rad * Math.sin(ph) * Math.sin(th); lz = rad * Math.cos(ph) * 0.8;
+                if (spec.fam === 0) { cr = 1.0; cg = 0.45 + rnd() * 0.2; cb = 0.55 + rnd() * 0.25; }
+                else if (spec.fam === 1) { cr = 0.45; cg = 0.95; cb = 0.85; }
+                else if (spec.fam === 2) { cr = 0.72; cg = 0.55; cb = 1.0; }
+                else { cr = 0.55; cg = 0.70; cb = 1.0; }
+                bright = 0.3 + rnd() * 0.8;
+            } else if (spec.tint === 0) {
+                /* elliptical: concentrated spheroid */
+                var radE = R * Math.pow(rnd(), 1.6);
+                var thE = rnd() * Math.PI * 2;
+                lx = Math.cos(thE) * radE; ly = Math.sin(thE) * radE;
+                lz = gauss(rnd) * thick * spec.diam * (1 - radE / R * 0.5);
+                cr = 1.0; cg = 0.86 - radE / R * 0.1; cb = 0.66 - radE / R * 0.08;
+                bright = 0.35 + rnd() * 0.75;
+            } else if (spec.tint === 2) {
+                /* irregular: a few bright clumps — the sprite shader's
+                   own clump offsets, so cloud and sprite agree */
+                var cl = Math.floor(rnd() * 4);
+                var cox = ((spec.seed * (7.13 + cl * 3.71)) % 1 - 0.5) * 0.45 * spec.diam;
+                var coy = ((spec.seed * (3.97 + cl * 5.29)) % 1 - 0.5) * 0.45 * spec.diam;
+                lx = cox + gauss(rnd) * R * 0.30; ly = coy + gauss(rnd) * R * 0.30;
+                lz = gauss(rnd) * thick * spec.diam;
+                cr = 0.72; cg = 0.82; cb = 1.0;
+                bright = 0.4 + rnd() * 0.9;
+            } else {
+                /* spiral: warm core + two-arm disc (the sprite's own maths, in 3D) */
+                var u = rnd();
+                var radS = -Math.log(1 - u * 0.96) / 3.0 * R * 1.9;
+                if (radS > R) radS = R * (0.55 + rnd() * 0.45);
+                /* the sprite shader's arm ridge, solved for the angle:
+                   arms crest where ang = 2.6*log(d+0.06) - seed*2PI + k*PI,
+                   so the cloud's arms land on the sprite's arms */
+                var armPh = 2.6 * Math.log(radS / R + 0.06) - spec.seed * 6.2831;
+                var thS = armPh + (rnd() < 0.72 ? (Math.floor(rnd() * 2) * Math.PI) : rnd() * Math.PI * 2) + gauss(rnd) * 0.35;
+                lx = Math.cos(thS) * radS; ly = Math.sin(thS) * radS;
+                lz = gauss(rnd) * thick * spec.diam * (1 - radS / R * 0.55);
+                var coreMix = Math.exp(-Math.pow(radS / R, 2) * 6.0);
+                cr = 0.78 + 0.27 * coreMix; cg = 0.84 + 0.10 * coreMix; cb = 1.0 - 0.28 * coreMix;
+                if (rnd() < 0.03) { cr = 1.0; cg = 0.45; cb = 0.55; }   /* HII knots */
+                bright = 0.35 + rnd() * 0.85;
+            }
+            if (spec.frame) {
+                tmp.copy(spec.center)
+                    .addScaledVector(spec.frame.m, lx)
+                    .addScaledVector(spec.frame.e2, ly)
+                    .addScaledVector(spec.frame.n, lz);
+            } else {
+                tmp.set(spec.center.x + lx, spec.center.y + ly, spec.center.z + lz);
+            }
+            posA.setXYZ(placed, tmp.x, tmp.y, tmp.z);
+            colA.setXYZ(placed, cr * bright, cg * bright, cb * bright);
+            sizA.setX(placed, spec.diam * (0.0022 + rnd() * 0.0038));
+            placed++;
+        }
+        lod.volStars.geometry.setDrawRange(0, placed);
+        posA.needsUpdate = true; colA.needsUpdate = true; sizA.needsUpdate = true;
+        /* dust: REMOVED in the second pass. The photo-sampled point
+           distribution already carries the dark lanes (few points are
+           placed where the photograph is dark), and separate dust motes
+           stacked into polka dots at close range in the first drive. */
+        var dustN = 0;
+        if (false) {
+            var dMax = 2600;
+            while (dustN < dMax) {
+                var rd = R * (0.12 + Math.pow(rnd(), 0.7) * 0.85);
+                var thD = rnd() * Math.PI * 2;
+                var dx = Math.cos(thD) * rd, dy = Math.sin(thD) * rd;
+                var dz = gauss(rnd) * spec.diam * 0.012;
+                if (spec.dustTilt) {   /* Centaurus A: the band is its own tilted disc */
+                    var c = Math.cos(spec.dustTilt), s = Math.sin(spec.dustTilt);
+                    var y2 = dy * c - dz * s, z2 = dy * s + dz * c;
+                    dy = y2; dz = z2;
+                }
+                if (spec.frame) {
+                    tmp.copy(spec.center).addScaledVector(spec.frame.m, dx)
+                        .addScaledVector(spec.frame.e2, dy).addScaledVector(spec.frame.n, dz);
+                } else tmp.set(spec.center.x + dx, spec.center.y + dy, spec.center.z + dz);
+                dPos.setXYZ(dustN, tmp.x, tmp.y, tmp.z);
+                dCol.setXYZ(dustN, 0.05, 0.035, 0.02);
+                dSiz.setX(dustN, spec.diam * (0.008 + rnd() * 0.016));
+                dustN++;
+            }
+        }
+        lod.volDust.geometry.setDrawRange(0, dustN);
+        dPos.needsUpdate = true; dCol.needsUpdate = true; dSiz.needsUpdate = true;
+        lod.volFor = spec.key; lod.volKind = spec.kind;
+        lod.volCenter.copy(spec.center);
+        lod.volDiam = spec.diam;
+        lod.stats.volBuilds.push({ key: spec.key, ms: +(performance.now() - t0).toFixed(1), points: placed });
+    }
+    function lodCiColor(ci) {
+        var stops = [
+            [-0.33, [0.50, 0.62, 1.00]], [0.00, [0.72, 0.82, 1.00]],
+            [0.32, [1.00, 0.95, 0.84]], [0.65, [1.00, 0.84, 0.55]],
+            [1.15, [1.00, 0.64, 0.30]], [1.65, [1.00, 0.46, 0.19]],
+            [2.40, [1.00, 0.33, 0.12]]
+        ];
+        for (var i = 1; i < stops.length; i++) {
+            if (ci <= stops[i][0]) {
+                var t = (ci - stops[i - 1][0]) / (stops[i][0] - stops[i - 1][0]);
+                var a = stops[i - 1][1], b = stops[i][1];
+                return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+            }
+        }
+        return stops[stops.length - 1][1];
+    }
+    function lodSstep(a, b, x) {
+        var t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+        return t * t * (3 - 2 * t);
+    }
+    function lodFrame(dt, tSec) {
+        if (!lod || !data) return;
+        var nowMs = performance.now();
+        if (lod.lastFrameT) {
+            lod.frameMs.push(nowMs - lod.lastFrameT);
+            if (lod.frameMs.length > 180) lod.frameMs.shift();
+        }
+        lod.lastFrameT = nowMs;
+        lod.tick++;
+        /* ---- choose the volume target: nearest object by range ratio ---- */
+        if (lod.tick % 4 === 1 || !lod.target) {
+            var best = null;
+            function consider(key, kind, x, y, z, diam, extra) {
+                var dx = x - camPos.x, dy = y - camPos.y, dz = z - camPos.z;
+                var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                var ratio = d / Math.max(diam, 1e-9);
+                if (!best || ratio < best.ratio) {
+                    best = {
+                        key: key, kind: kind, center: new THREE.Vector3(x, y, z),
+                        diam: diam, ratio: ratio, dist: d, extra: extra || {}
+                    };
+                }
+            }
+            var i, e;
+            for (i = 0; i < data.named.length; i++) {
+                e = data.named[i];
+                if (e.k === 1) {
+                    consider(e.n, 'galaxy', e._pos[0], e._pos[1], e._pos[2],
+                        data.galDiam[e.i], { galIndex: e.i });
+                }
+            }
+            for (i = 0; i < nebulae.length; i++) {
+                e = nebulae[i];
+                consider(e.n, 'nebula', e.p[0], e.p[1], e.p[2], e.d, { fam: e.f });
+            }
+            /* the Milky Way's centre is a 5,200 pc pseudo-object: on ratio
+               alone it would out-compete every local nebula (from Orion it
+               scores ~1.5 while contributing no points anywhere near the
+               camera). It joins the contest only when nothing real is
+               closer than 3 diameters, or when the camera is genuinely in
+               the centre's own neighbourhood (ratio < 1.2). */
+            if (!best || best.ratio >= 3) {
+                for (i = 0; i < data.named.length; i++) {
+                    e = data.named[i];
+                    if (e.k === 2 && e.n !== 'The Sun') {
+                        var sdx = e._pos[0] - camPos.x, sdy = e._pos[1] - camPos.y, sdz = e._pos[2] - camPos.z;
+                        var sr = Math.sqrt(sdx * sdx + sdy * sdy + sdz * sdz) / 5200;
+                        if (sr < 1.2 || !best || sr < best.ratio) {
+                            best = {
+                                key: e.n, kind: 'galaxy',
+                                center: new THREE.Vector3(e._pos[0], e._pos[1], e._pos[2]),
+                                diam: 5200, ratio: sr, dist: sr * 5200,
+                                extra: { tint: 0, seed: 7.7, mw: true }
+                            };
+                        }
+                    }
+                }
+            }
+            if (galCloudPoints && galCloudPoints.visible) {
+                for (i = 0; i < data.galCount; i++) {
+                    consider('gal#' + i, 'galaxy',
+                        data.galPos[i * 3], data.galPos[i * 3 + 1], data.galPos[i * 3 + 2],
+                        data.galDiam[i], { galIndex: i });
+                }
+            }
+            lod.target = best;
+        }
+        var tgt = lod.target;
+        /* ---- volume lifecycle: build inside 6 diameters, keep to 9 ---- */
+        var wantVol = tgt && tgt.ratio < 6;
+        if (wantVol && lod.volFor !== tgt.key) {
+            var spec = {
+                key: tgt.key, kind: tgt.kind, center: tgt.center, diam: tgt.diam,
+                seed: 3.1, tint: 1, fam: 0, dust: false, fillX: 1, fillY: 1, photoTex: null
+            };
+            if (tgt.kind === 'galaxy' && tgt.extra.galIndex !== undefined) {
+                var gi = tgt.extra.galIndex;
+                spec.tint = data.galTint[gi];
+                /* the sprite's own per-galaxy seed (golden-ratio hash of
+                   the catalog index), so the cloud's arms and clumps are
+                   the same ones the far view draws */
+                var sh = (gi + 1) * 0.61803398875;
+                spec.seed = sh - Math.floor(sh);
+                spec.frame = lodDiscFrame(tgt.center,
+                    tmpV.set(data.galMajor[gi * 3], data.galMajor[gi * 3 + 1], data.galMajor[gi * 3 + 2]),
+                    data.galAxis[gi] / 255);
+                spec.dust = spec.tint === 1;
+            }
+            if (tgt.extra.mw) { spec.tint = 0; spec.seed = 42.5; }
+            if (tgt.kind === 'nebula') spec.fam = tgt.extra.fam || 0;
+            if (tgt.key === 'Centaurus A') {
+                spec.tint = 0; spec.dust = true; spec.dustTilt = 0.42; spec.seed = 94.25;
+            }
+            /* seed from the photograph when this object has one on hand */
+            var man = lod.manifest && lod.manifest[lodSlug(tgt.key)];
+            if (man) {
+                spec.fillX = man.fill ? man.fill[0] : 1;
+                spec.fillY = man.fill ? man.fill[1] : 1;
+                if (lod.photoFor === tgt.key && lod.photoTex) spec.photoTex = lod.photoTex;
+            }
+            lodBuildVolume(spec);
+            lod.volStars.visible = lod.volDust.visible = true;
+        }
+        if (lod.volFor) {
+            var vd = camPos.distanceTo(lod.volCenter);
+            var vr = vd / Math.max(lod.volDiam, 1e-9);
+            lod.volOpacity += ((vr < 3.2 ? lodSstep(3.2, 1.5, vr) : 0) - lod.volOpacity) * Math.min(1, dt * 5);
+            lod.volOpacity = Math.max(0, Math.min(1, lod.volOpacity));
+            if (vr > 9) {
+                lod.volFor = ''; lod.volKind = ''; lod.volOpacity = 0;
+                lod.volStars.visible = lod.volDust.visible = false;
+            }
+            lod.volStars.material.uniforms.uOpacity.value =
+                lod.volOpacity * (lod.volKind === 'nebula' ? 0.5 : 0.85);
+            lod.volDust.material.uniforms.uOpacity.value = lod.volOpacity * 0.5;
+        }
+        /* ---- photo layer: nearest photographed object in its band ---- */
+        if (lod.manifest && (lod.tick % 4 === 2 || !lod.photoTarget)) {
+            var bp = null;
+            for (var nm in lod.manifest) {
+                var ent = lod.manifest[nm];
+                var ctr = null, dm = 0;
+                if (ent.galIndex !== undefined) {
+                    ctr = tmpV.set(data.galPos[ent.galIndex * 3], data.galPos[ent.galIndex * 3 + 1], data.galPos[ent.galIndex * 3 + 2]);
+                    dm = data.galDiam[ent.galIndex];
+                } else if (ent.nebIndex !== undefined && nebulae[ent.nebIndex]) {
+                    var nb = nebulae[ent.nebIndex];
+                    ctr = tmpV.set(nb.p[0], nb.p[1], nb.p[2]); dm = nb.d;
+                }
+                if (!ctr) continue;
+                var dd = camPos.distanceTo(ctr), rr = dd / dm;
+                if (!bp || rr < bp.ratio) bp = { name: ent.name, ratio: rr, dist: dd, diam: dm, center: ctr.clone(), ent: ent };
+            }
+            lod.photoTarget = bp;
+        }
+        var pt = lod.photoTarget;
+        if (pt && pt.ratio < 90) {
+            if (lod.photoFor !== pt.name) {
+                /* the outgoing texture becomes a one-deep spare: flying
+                   back to the object you just left is instant */
+                if (lod.photoTex) {
+                    if (lod.photoSpare) lod.photoSpare.tex.dispose();
+                    lod.photoSpare = { name: lod.photoFor, full: lod.photoFull, tex: lod.photoTex };
+                    lod.photoTex = null;
+                }
+                lod.photoFor = pt.name; lod.photoFull = false; lod.photoLoading = '';
+                lodSetAtlas(pt, false);
+            }
+            if (!lod.photoTex && lod.photoSpare && lod.photoSpare.name === pt.name &&
+                (pt.ratio >= 26 || lod.photoSpare.full)) {
+                lod.photoTex = lod.photoSpare.tex; lod.photoFull = lod.photoSpare.full;
+                lod.photoMat.uniforms.tPhoto.value = lod.photoTex;
+                lod.photoSpare = null;
+                if (lod.photoFull) lodSetAtlas(pt, true);
+                if (lod.volFor === pt.name) lod.volFor = '';
+            }
+            var wantFull = pt.ratio < 26;
+            var stage = wantFull ? 'full' : 'small';
+            if (lod.photoLoading !== stage && (wantFull ? !lod.photoFull : !lod.photoTex)) {
+                lod.photoLoading = stage;
+                var file = wantFull ? pt.ent.f : pt.ent.s;
+                var tStart = performance.now();
+                new THREE.TextureLoader().load(new URL('./' + file, import.meta.url).href,
+                    function (tex) {
+                        tex.colorSpace = THREE.SRGBColorSpace;
+                        tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+                        if (lod.photoFor !== pt.name) { tex.dispose(); return; }
+                        if (lod.photoTex) {
+                            if (lod.photoSpare) lod.photoSpare.tex.dispose();
+                            lod.photoSpare = { name: pt.name, full: false, tex: lod.photoTex };
+                        }
+                        lod.photoTex = tex;
+                        lod.photoMat.uniforms.tPhoto.value = tex;
+                        if (wantFull) { lod.photoFull = true; lodSetAtlas(pt, true); }
+                        lod.stats.photoLoads.push({
+                            name: pt.name, stage: stage,
+                            ms: +(performance.now() - tStart).toFixed(0)
+                        });
+                        /* a volume already built for this object was
+                           seeded blind — rebuild it from the photograph */
+                        if (lod.volFor === pt.name) lod.volFor = '';
+                    },
+                    undefined,
+                    function () { lod.photoLoading = ''; });
+            }
+            if (lod.photoTex) {
+                var ctrAttr = lod.photoMesh.geometry.getAttribute('aCenter');
+                for (var cvI = 0; cvI < 4; cvI++) ctrAttr.setXYZ(cvI, pt.center.x, pt.center.y, pt.center.z);
+                ctrAttr.needsUpdate = true;
+                lod.photoMat.uniforms.uDiam.value = pt.diam;
+                /* projected major-axis angle, the galaxy shader's own maths */
+                if (pt.ent.galIndex !== undefined) {
+                    var gi2 = pt.ent.galIndex;
+                    tmpV.set(data.galMajor[gi2 * 3], data.galMajor[gi2 * 3 + 1], data.galMajor[gi2 * 3 + 2]);
+                    tmpV.transformDirection(camera.matrixWorldInverse);
+                    lod.photoMat.uniforms.uAng.value = Math.atan2(tmpV.y, tmpV.x);
+                    lod.photoMat.uniforms.uAxis.value = Math.max(0.10, data.galAxis[gi2] / 255);
+                } else {
+                    lod.photoMat.uniforms.uAng.value = 0;
+                    lod.photoMat.uniforms.uAxis.value = 1;
+                }
+                lod.photoMat.uniforms.uRot.value = pt.ent.rot || 0;
+                lod.photoMat.uniforms.uFill.value.set(
+                    pt.ent.fill ? pt.ent.fill[0] : 1, pt.ent.fill ? pt.ent.fill[1] : 1);
+                var po = (1 - lodSstep(9, 24, pt.ratio)) * lodSstep(0.30, 1.05, pt.ratio);
+                lod.photoOpacity += (po - lod.photoOpacity) * Math.min(1, dt * 5);
+                lod.photoMat.uniforms.uOpacity.value = lod.photoOpacity;
+                lod.photoMesh.visible = lod.photoOpacity > 0.004;
+            }
+        } else if (lod.photoFor) {
+            lod.photoOpacity = Math.max(0, lod.photoOpacity - dt * 2);
+            lod.photoMat.uniforms.uOpacity.value = lod.photoOpacity;
+            if (lod.photoOpacity <= 0.004) {
+                lod.photoMesh.visible = false;
+                lodSetAtlas(null, false);
+                if (lod.photoTex) {
+                    if (lod.photoSpare) lod.photoSpare.tex.dispose();
+                    lod.photoSpare = { name: lod.photoFor, full: lod.photoFull, tex: lod.photoTex };
+                    lod.photoTex = null;
+                }
+                lod.photoFor = ''; lod.photoTarget = null;
+            }
+        }
+        /* ---- star surface: the nearest star, when truly close ---- */
+        if (lod.tick % 15 === 7 && camPos.length() < 20000) {
+            var bs = Infinity, bi = -1;
+            for (var si = 0; si < data.starCount; si++) {
+                var sdx = data.starPos[si * 3] - camPos.x;
+                var sdy = data.starPos[si * 3 + 1] - camPos.y;
+                var sdz = data.starPos[si * 3 + 2] - camPos.z;
+                var sq = sdx * sdx + sdy * sdy + sdz * sdz;
+                if (sq < bs) { bs = sq; bi = si; }
+            }
+            lod.starNear = { i: bi, dist: Math.sqrt(bs) };
+        }
+        var sn = lod.starNear;
+        if (sn && sn.i >= 0) {
+            var ci = data.starCi[sn.i], absM = data.starAbsMag[sn.i];
+            var lum = Math.pow(10, -0.4 * (absM - 4.83));
+            var temp = 4600 * (1 / (0.92 * ci + 1.7) + 1 / (0.92 * ci + 0.62));
+            var rSun = Math.sqrt(Math.max(lum, 1e-4)) / Math.pow(Math.max(temp, 800) / 5778, 2);
+            /* a display radius in the game's own enlarged-symbol spirit:
+               rooted in the star's real radius, scaled so an arrival
+               meets a disc, not a point */
+            var rDisp = Math.max(0.00035, Math.min(0.004, 0.0011 * Math.pow(Math.max(rSun, 0.05), 0.5)));
+            var sPos = tmpV.set(data.starPos[sn.i * 3], data.starPos[sn.i * 3 + 1], data.starPos[sn.i * 3 + 2]);
+            if (lod.starFor !== sn.i) {
+                lod.starFor = sn.i;
+                var cc = lodCiColor(ci);
+                lod.starMat.uniforms.uColHot.value.setRGB(cc[0], cc[1], cc[2]);
+                lod.starMat.uniforms.uColLimb.value.setRGB(cc[0] * 0.92, cc[1] * 0.62, cc[2] * 0.34);
+                lod.coronaMat.uniforms.uColHot.value.setRGB(cc[0], cc[1], cc[2]);
+                lod.starMesh.position.copy(sPos);
+                lod.coronaMesh.position.copy(sPos);
+                lod.starMesh.scale.setScalar(rDisp);
+                lod.coronaMesh.scale.setScalar(rDisp);
+                lod.starMat.uniforms.uCenterW.value.copy(sPos);
+                lod.stats.starBuilds++;
+            }
+            var sTarget = sn.dist < rDisp * 110 ? lodSstep(rDisp * 110, rDisp * 45, sn.dist) : 0;
+            lod.starOpacity += (sTarget - lod.starOpacity) * Math.min(1, dt * 4);
+            lod.starMat.uniforms.uOpacity.value = lod.starOpacity;
+            lod.coronaMat.uniforms.uOpacity.value = lod.starOpacity;
+            lod.starMat.uniforms.uTime.value = tSec;
+            lod.starMesh.visible = lod.coronaMesh.visible = lod.starOpacity > 0.004;
+        } else if (lod.starOpacity > 0) {
+            lod.starOpacity = Math.max(0, lod.starOpacity - dt * 2);
+            lod.starMat.uniforms.uOpacity.value = lod.starOpacity;
+            lod.coronaMat.uniforms.uOpacity.value = lod.starOpacity;
+            lod.starMesh.visible = lod.coronaMesh.visible = lod.starOpacity > 0.004;
+            if (lod.starOpacity <= 0.004) lod.starFor = -1;
+        }
+    }
+    function lodSetAtlas(pt, hold) {
+        /* for the twelve atlas heroes, the dedicated photograph takes
+           over from the 1000 px tile once it has landed in full */
+        if (!heroAttrs) return;
+        if (lod.atlasHeld >= 0 && (!pt || pt.ent.galIndex !== lod.atlasHeld)) {
+            heroAttrs.hero.array[lod.atlasHeld] = lod.atlasTile + 1;
+            heroAttrs.hero.needsUpdate = true;
+            lod.atlasHeld = -1;
+        }
+        if (hold && pt && pt.ent.heroTile !== undefined && pt.ent.galIndex !== undefined) {
+            lod.atlasTile = pt.ent.heroTile;
+            lod.atlasHeld = pt.ent.galIndex;
+            heroAttrs.hero.array[lod.atlasHeld] = 0;
+            heroAttrs.hero.needsUpdate = true;
+        }
+    }
+
     /* ---------------- boot ---------------- */
     loadMsg.textContent = 'Loading the real universe\u2026';
     loadData().then(function (d) {
@@ -2701,6 +3548,7 @@ export function initUniverse(stage) {
             fallbackEl.hidden = false;
             return;
         }
+        try { lodInit(); } catch (e) { /* LOD is an enhancement layer */ }
         bindEvents();
         applyDpr();
         loadingEl.hidden = true;
