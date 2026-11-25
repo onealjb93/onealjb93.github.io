@@ -350,6 +350,10 @@
         #cookScoreToggle { border-color: var(--link-color); color: var(--link-color); }
         #cookScoreToggle[aria-expanded="true"] { background: var(--link-color); color: #fff; }
         @media (max-width: 600px) { .cook-score .cook-score-basis, .cook-score .cook-score-basis + span { display: none; } }
+        /* The header carries three actions since Add a recipe joined
+           (2026-11-25): on phone widths the actions wrap under the
+           title instead of squeezing it — same buttons, same size. */
+        @media (max-width: 600px) { .cook-head-main { flex-wrap: wrap; } .cook-view-head .cook-head-actions { flex-wrap: wrap; justify-content: flex-end; } }
         /* Pane navigator: one chip per open recipe + a position readout.
            JS shows it only when 2+ recipes are open and the pane row
            actually overflows; single-recipe and all-fit views never see it. */
@@ -1113,6 +1117,30 @@
     .cook-pick-num { flex: none; color: var(--subtext-color); }
     .cook-pick-item.active { background: var(--link-color); border-color: var(--link-color); color: #fff; }
     .cook-pick-item.active .cook-pick-num { color: rgba(255, 255, 255, 0.78); }
+    /* Add-a-recipe bubble (2026-11-25): the same glass-bubble pattern
+       as the two bubbles above — the cook set managed from inside the
+       view, in both directions. Rows carry the page's own Cook
+       vocabulary: a recipe in the set reads "✓ Cooking" on the filled
+       link blue, exactly as its grid toggle and the pick rows above. */
+    #cookAddPop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
+    #cookAddPop[hidden] { display: none; }
+    .cook-add-bubble { width: min(560px, 100%); max-height: min(78dvh, 720px); display: flex; flex-direction: column; overflow: hidden; }
+    .cook-add-bubble-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem 0.35rem; font-weight: 700; font-size: 0.95rem; }
+    .cook-add-bubble-head button { cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 999px; width: 30px; height: 30px; font-size: 1rem; line-height: 1; padding: 0; }
+    .cook-add-tools { flex: none; padding: 0.35rem 1rem 0.5rem; }
+    .cook-add-tools input { width: 100%; box-sizing: border-box; min-height: 44px; padding: 0.5rem 0.8rem; border-radius: 999px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font: inherit; font-size: 0.95rem; }
+    .cook-add-note { flex: none; margin: 0; padding: 0 1rem 0.5rem; font-size: 0.85rem; color: var(--subtext-color); }
+    .cook-add-list { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 0.4rem 0.6rem 0.9rem; display: flex; flex-direction: column; gap: 0.3rem; }
+    .cook-add-row { flex: none; display: flex; align-items: baseline; gap: 0.55rem; width: 100%; min-height: 44px; padding: 0.55rem 0.7rem; text-align: left; background: var(--badge-bg); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-color); font: inherit; font-size: 0.95rem; cursor: pointer; white-space: normal; }
+    .cook-add-row[hidden] { display: none; }
+    .cook-add-name { font-weight: 600; }
+    .cook-add-cat { flex: none; color: var(--subtext-color); font-size: 0.82rem; font-weight: 500; }
+    .cook-add-state { flex: none; margin-left: auto; font-size: 0.82rem; font-weight: 700; visibility: hidden; }
+    .cook-add-row.in { background: var(--link-color); border-color: var(--link-color); color: #fff; }
+    .cook-add-row.in .cook-add-cat { color: rgba(255, 255, 255, 0.78); }
+    .cook-add-row.in .cook-add-state { visibility: visible; }
+    .cook-add-row[disabled] { opacity: 0.45; cursor: default; }
+    .cook-add-empty { flex: none; margin: 0; padding: 0 1rem 0.9rem; font-size: 0.9rem; color: var(--subtext-color); }
     /* Nutrition pill + overlay calculator (added 2026-11-18; tray
        integration 2026-11-21): the selection's nutrition summary,
        shown only while at least one recipe is selected for cook
@@ -1403,6 +1431,11 @@
         .cook-recipe .cook-pane-head .serv-stepper { display: inline-flex; }
         .cook-pane-servrow { display: flex; align-items: center; gap: 0.55rem; margin-top: 0.5rem; }
         .cook-pane-servlabel { font-size: 0.78rem; font-weight: 600; color: var(--subtext-color); }
+        /* Per-pane Remove (2026-11-25): the same pill family as the
+           cook header's own buttons, riding the servings row inside
+           the pane's sticky head, so it is always in reach and never
+           moves the head's other chrome. */
+        .cook-pane-remove { flex: none; min-height: 44px; padding: 0.38rem 0.85rem; border-radius: 999px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font: inherit; font-size: 0.85rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
         /* Pane head layout: the name takes the full row on its own line;
            the servings stepper moves to the meta (Yield) row beneath it,
            right-aligned -- no name wraps because chrome stole its width. */
@@ -12762,6 +12795,7 @@
             <div class="cook-head-main">
                 <h2 id="cookViewTitle">Cook mode</h2>
                 <div class="cook-head-actions">
+                    <button type="button" id="cookViewAdd">＋ Add a recipe</button>
                     <button type="button" id="cookViewClear">Clear</button>
                     <button type="button" id="cookViewClose">&times; Close</button>
                 </div>
@@ -12792,6 +12826,15 @@
             <div class="cook-pick-bubble glass-bubble" role="dialog" aria-label="Go to recipe">
                 <div class="cook-pick-bubble-head"><span>Go to recipe</span><button type="button" id="cookPickClose" aria-label="Close recipe list">&times;</button></div>
                 <div class="cook-pick-list" id="cookPickList"></div>
+            </div>
+        </div>
+        <div id="cookAddPop" class="glass-scrim" hidden>
+            <div class="cook-add-bubble glass-bubble" role="dialog" aria-modal="true" aria-label="Add a recipe">
+                <div class="cook-add-bubble-head"><span>Add a recipe</span><button type="button" id="cookAddClose" aria-label="Close recipe list">&times;</button></div>
+                <div class="cook-add-tools"><input type="search" id="cookAddSearch" placeholder="Search recipes" aria-label="Search recipes" autocomplete="off"></div>
+                <p class="cook-add-note" id="cookAddNote" hidden>Cook mode holds up to 10 recipes — clear one to add another.</p>
+                <div class="cook-add-list" id="cookAddList"></div>
+                <p class="cook-add-empty" id="cookAddEmpty" hidden>No recipes match your search.</p>
             </div>
         </div>
     </div>
@@ -14182,6 +14225,40 @@
                 servNote.className = 'cook-pane-servnote';
                 servNote.textContent = servSentence(m0);
                 (paneBody || cookHead).appendChild(servNote);
+                /* The pane's own way out of the cook set (2026-11-25):
+                   a × Remove pill on the servings row, in the sticky
+                   head, named for its recipe. The delegated listener
+                   by removeCookDish does the rest. */
+                var rmName = titleEl ? titleEl.textContent : '';
+                var rmBadge = titleEl ? titleEl.querySelector('.standout-badge') : null;
+                if (rmBadge) rmName = rmName.replace(rmBadge.textContent, '');
+                rmName = rmName.replace(/\s+/g, ' ').trim();
+                var rmBtn = document.createElement('button');
+                rmBtn.type = 'button';
+                rmBtn.className = 'cook-pane-remove';
+                rmBtn.setAttribute('data-remove-for', id);
+                rmBtn.setAttribute('aria-label', 'Remove ' + rmName + ' from cook');
+                rmBtn.textContent = '× Remove';
+                servRow.appendChild(rmBtn);
+            }
+            if (cookHead && !cookHead.querySelector('.cook-pane-remove')) {
+                /* Defensive twin of the button above, for a pane built
+                   without the servings row: same pill, its own row. */
+                var fbTitle = cookHead.querySelector('.recipe-card-title');
+                var fbName = fbTitle ? fbTitle.textContent : '';
+                var fbBadge = fbTitle ? fbTitle.querySelector('.standout-badge') : null;
+                if (fbBadge) fbName = fbName.replace(fbBadge.textContent, '');
+                fbName = fbName.replace(/\s+/g, ' ').trim();
+                var fbBtn = document.createElement('button');
+                fbBtn.type = 'button';
+                fbBtn.className = 'cook-pane-remove';
+                fbBtn.setAttribute('data-remove-for', id);
+                fbBtn.setAttribute('aria-label', 'Remove ' + fbName + ' from cook');
+                fbBtn.textContent = '× Remove';
+                var fbRow = document.createElement('div');
+                fbRow.className = 'cook-pane-servrow';
+                fbRow.appendChild(fbBtn);
+                (cookHead.querySelector('.recipe-card-body') || cookHead).appendChild(fbRow);
             }
             clone.querySelectorAll('[id]').forEach(function (el) { el.removeAttribute('id'); });
             clone.querySelectorAll('a').forEach(function (a) {
@@ -14321,6 +14398,7 @@
             selected.push(id);
             cookToggles.forEach(refreshToggle);
             updateBar();
+            if (window.__jboPinSync) window.__jboPinSync();
             if (pairSession) pairSession.grew = true;
             if (cookView.classList.contains('open')) {
                 cookView.classList.toggle('cook-two', selected.length === 2);
@@ -14332,11 +14410,206 @@
                 if (window.__jboTsSetup) window.__jboTsSetup();
                 cookViewTitle.textContent = 'Cooking ' + selected.length + ' recipe' + (selected.length === 1 ? '' : 's');
                 if (window.__jboRenderCookScore) window.__jboRenderCookScore(selected);
+                if (scoreOpen) renderCookScore();
                 buildCookNav();
                 window.requestAnimationFrame(updateCookNav);
             }
             syncCookPairRow();
         }
+        /* ---- The cook set, managed from inside the view (2026-11-25) ----
+           Each pane carries its own × Remove pill (built in
+           buildCookPane) and the header's ＋ Add a recipe opens a
+           picker sheet over the view. Both directions run through the
+           one selection state — addCookDish above for adding, the
+           mirror below for removing — so the bubbles, the header
+           summary, the Nutrition pill and the grid cards' Cook
+           toggles stay in sync by construction. Removing the last
+           recipe is Clear: the view empties and closes back to the
+           grid exactly where the cook was. While the picker sheet is
+           open that close waits for the sheet (the cook may be
+           swapping the whole set); a sheet closed over an empty set
+           closes the view then, so no empty cook view is ever
+           stranded. */
+        var cookViewAdd = document.getElementById('cookViewAdd');
+        var cookAddPop = document.getElementById('cookAddPop');
+        var cookAddList = document.getElementById('cookAddList');
+        var cookAddSearch = document.getElementById('cookAddSearch');
+        var cookAddClose = document.getElementById('cookAddClose');
+        var cookAddNote = document.getElementById('cookAddNote');
+        var cookAddEmpty = document.getElementById('cookAddEmpty');
+        var addSheetOpen = false;
+        var addRowsBuilt = false;
+        function removeCookDish(id) {
+            var at = selected.indexOf(id);
+            if (at === -1) return;
+            var focusEl = document.activeElement;
+            selected.splice(at, 1);
+            cookToggles.forEach(refreshToggle);
+            updateBar();
+            if (window.__jboPinSync) window.__jboPinSync();
+            if (pairSession) pairSession.grew = true;
+            if (!cookView || !cookView.classList.contains('open')) return;
+            if (selected.length === 0) {
+                if (addSheetOpen) {
+                    cookRecipes.innerHTML = '';
+                    teardownCookSingle();
+                    teardownCookPaneSplits();
+                    cookView.classList.remove('cook-two');
+                    cookViewTitle.textContent = 'Cooking 0 recipes';
+                    if (window.__jboRenderCookScore) window.__jboRenderCookScore(selected);
+                    if (scoreOpen) renderCookScore();
+                    buildCookNav();
+                    syncCookPairRow();
+                } else {
+                    closeCook();
+                }
+                return;
+            }
+            cookView.classList.toggle('cook-two', selected.length === 2);
+            unsplitAllCards();
+            var pane = null;
+            Array.prototype.forEach.call(cookRecipes.children, function (p) {
+                var b = p.querySelector('.cook-pane-remove');
+                if (b && b.getAttribute('data-remove-for') === id) pane = p;
+            });
+            if (selected.length === 1) {
+                /* A lone survivor is rebuilt fresh, exactly as a solo
+                   open builds it, so no two-pane split state can
+                   linger in it. Its servings live in the nutrition
+                   script's own state, not the pane, and carry over. */
+                var fresh = buildCookPane(selected[0]);
+                if (pane) pane.remove();
+                var survivor = cookRecipes.children[0] || null;
+                if (fresh) {
+                    if (survivor) survivor.replaceWith(fresh);
+                    else cookRecipes.appendChild(fresh);
+                }
+                cookRecipes.scrollLeft = 0;
+            } else if (pane) {
+                pane.remove();
+            }
+            setupCookSingle();
+            setupCookPaneSplits();
+            if (window.__jboTsSetup) window.__jboTsSetup();
+            cookViewTitle.textContent = 'Cooking ' + selected.length + ' recipe' + (selected.length === 1 ? '' : 's');
+            if (window.__jboRenderCookScore) window.__jboRenderCookScore(selected);
+            if (scoreOpen) renderCookScore();
+            buildCookNav();
+            window.requestAnimationFrame(updateCookNav);
+            syncCookPairRow();
+            if (focusEl && focusEl !== document.body && !document.contains(focusEl) && cookViewAdd) cookViewAdd.focus();
+        }
+        if (cookRecipes) cookRecipes.addEventListener('click', function (e) {
+            var b = e.target && e.target.closest ? e.target.closest('.cook-pane-remove') : null;
+            if (!b) return;
+            e.preventDefault();
+            e.stopPropagation();
+            removeCookDish(b.getAttribute('data-remove-for'));
+        });
+        /* The picker sheet's rows come from the grid itself: each
+           card's Cook toggle names the recipe, its title names the
+           dish, and its data-tags meet the filter pills' own labels
+           for the category (a course or type outranks the vegetarian
+           property, which is the fallback). */
+        function cookCategoryFor(wrapper) {
+            var tags = (wrapper.getAttribute('data-tags') || '').split(/\s+/);
+            var pills = document.querySelectorAll('.recipe-filters .filter-pill');
+            var fallback = '';
+            for (var i = 0; i < pills.length; i++) {
+                var key = pills[i].getAttribute('data-filter');
+                if (!key || key === 'all' || key === 'standout') continue;
+                if (tags.indexOf(key) === -1) continue;
+                var label = pills[i].textContent.replace(/\s*\(\d+\)\s*$/, '').trim();
+                if (key === 'vegetarian') { fallback = label; continue; }
+                return label;
+            }
+            return fallback;
+        }
+        function buildAddRows() {
+            if (!cookAddList) return;
+            cookAddList.innerHTML = '';
+            cookToggles.forEach(function (btn) {
+                var id = btn.dataset.cookFor;
+                var wrapper = btn.closest('.recipe-wrapper');
+                var name = '';
+                var cat = '';
+                if (wrapper) {
+                    var t = wrapper.querySelector('.recipe-card-title');
+                    if (t) {
+                        var badge = t.querySelector('.standout-badge');
+                        name = t.textContent;
+                        if (badge) name = name.replace(badge.textContent, '');
+                        name = name.replace(/\s+/g, ' ').trim();
+                    }
+                    cat = cookCategoryFor(wrapper);
+                }
+                var row = document.createElement('button');
+                row.type = 'button';
+                row.className = 'cook-add-row';
+                row.setAttribute('data-add-for', id);
+                row.innerHTML = '<span class="cook-add-name"></span><span class="cook-add-cat"></span><span class="cook-add-state">✓ Cooking</span>';
+                row.querySelector('.cook-add-name').textContent = name;
+                row.querySelector('.cook-add-cat').textContent = cat;
+                cookAddList.appendChild(row);
+            });
+            addRowsBuilt = true;
+        }
+        function syncAddRows() {
+            if (!cookAddList) return;
+            var full = selected.length >= MAX_COOK;
+            Array.prototype.forEach.call(cookAddList.children, function (row) {
+                var on = selected.indexOf(row.getAttribute('data-add-for')) !== -1;
+                row.classList.toggle('in', on);
+                row.setAttribute('aria-pressed', on ? 'true' : 'false');
+                if (!on && full) row.setAttribute('disabled', '');
+                else row.removeAttribute('disabled');
+            });
+            if (cookAddNote) cookAddNote.hidden = !full;
+        }
+        function applyAddFilter() {
+            if (!cookAddList || !cookAddSearch) return;
+            var q = cookAddSearch.value.replace(/\s+/g, ' ').trim().toLowerCase();
+            var any = false;
+            Array.prototype.forEach.call(cookAddList.children, function (row) {
+                var show = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
+                row.hidden = !show;
+                if (show) any = true;
+            });
+            if (cookAddEmpty) cookAddEmpty.hidden = any;
+        }
+        function openCookAdd() {
+            if (!cookAddPop) return;
+            if (!addRowsBuilt) buildAddRows();
+            syncAddRows();
+            if (cookAddSearch) cookAddSearch.value = '';
+            applyAddFilter();
+            addSheetOpen = true;
+            cookAddPop.hidden = false;
+            if (window.__jboTsBubbleOpened) window.__jboTsBubbleOpened();
+            if (cookAddSearch) cookAddSearch.focus();
+        }
+        function closeCookAdd(refocus) {
+            if (!cookAddPop || cookAddPop.hidden) return;
+            cookAddPop.hidden = true;
+            addSheetOpen = false;
+            if (selected.length === 0) { closeCook(); return; }
+            if (refocus && cookViewAdd) cookViewAdd.focus();
+        }
+        if (cookViewAdd) cookViewAdd.addEventListener('click', openCookAdd);
+        if (cookAddClose) cookAddClose.addEventListener('click', function () { closeCookAdd(true); });
+        if (cookAddPop) cookAddPop.addEventListener('click', function (e) { if (e.target === cookAddPop) closeCookAdd(true); });
+        if (cookAddSearch) cookAddSearch.addEventListener('input', applyAddFilter);
+        if (cookAddList) cookAddList.addEventListener('click', function (e) {
+            var row = e.target && e.target.closest ? e.target.closest('.cook-add-row') : null;
+            if (!row || row.hasAttribute('disabled')) return;
+            var id = row.getAttribute('data-add-for');
+            if (selected.indexOf(id) !== -1) removeCookDish(id);
+            else addCookDish(id);
+            syncAddRows();
+        });
+        document.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Escape' && cookAddPop && !cookAddPop.hidden) { ev.stopPropagation(); closeCookAdd(true); }
+        }, true);
         if (cookPairBtn) cookPairBtn.addEventListener('click', function () {
             if (cookPairTarget) addCookDish(cookPairTarget);
         });
@@ -14913,6 +15186,11 @@
                 });
             }
         }
+        /* The cook view's own set changes (a pane's × Remove, the
+           Add-a-recipe sheet, 2026-11-25) never pass through a toggle
+           click, so the cook script calls this hook after them: the
+           bar and the saved pins re-read the one selection. */
+        window.__jboPinSync = function () { save(); render(); };
         render();
     })();
 </script> 
