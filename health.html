@@ -497,14 +497,19 @@
         .feel-one { font-size: 0.87rem; line-height: 1.28; }
     }
     /* --- the tier bar: one glass pill, scroll-spy --- */
-    .feel-barzone { position: sticky; top: 113px; z-index: 900; margin: 1.6rem 0 0.4rem; transition: opacity var(--dur-2) var(--ease-out), visibility var(--dur-2) var(--ease-out); }
+    .feel-barzone { position: sticky; top: calc(var(--health-nav-h, 55px) + var(--health-pair-h, 50px) + 8px); z-index: 900; margin: 1.6rem 0 0.4rem; transition: opacity var(--dur-2) var(--ease-out), visibility var(--dur-2) var(--ease-out); }
+    /* While the tier bar is actually stuck it wears the solid pin
+       backing (the page's own glass fallback colour), so a heading
+       passing beneath it is covered cleanly, never sliced through
+       glass; in flow it keeps its glass. */
+    .feel-barzone.is-stuck .feel-bar { background: var(--glass-bg-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
     .feel-barzone.feel-off { opacity: 0; visibility: hidden; pointer-events: none; }
     .feel-bar { display: flex; gap: 4px; padding: 6px; border-radius: 999px; background: var(--feel-panel); border: 1px solid var(--feel-panel-brd); -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5); box-shadow: var(--feel-shadow); }
     .feel-bar a { flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 9px 2px; border-radius: 999px; text-align: center; white-space: nowrap; text-decoration: none; font-size: 0.88rem; font-weight: 600; color: var(--subtext-color); transition: color 0.25s ease, background 0.25s ease; }
     .feel-bar a.active { background: var(--feel-green); color: var(--feel-green-text); font-weight: 700; }
     @media (max-width: 640px) { .feel-bar a { font-size: 0.8rem; } }
     /* --- pair bar: the same glass, in pill form --- */
-    .pair-bar { top: 61px; width: min(1104px, calc(100% - 24px)); padding: 6px; gap: 4px; border-radius: 999px; background: var(--feel-panel); border: 1px solid var(--feel-panel-brd); -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5); box-shadow: var(--feel-shadow); }
+    .pair-bar { top: calc(var(--health-nav-h, 55px) + 6px); width: min(1104px, calc(100% - 24px)); padding: 6px; gap: 4px; border-radius: 999px; background: var(--feel-panel); border: 1px solid var(--feel-panel-brd); -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5); box-shadow: var(--feel-shadow); }
     .pair-btn { border-radius: 999px; }
     .pair-btn + .pair-btn { border-left: none; }
     /* --- tier doors: taller photo, glass body, green state pill --- */
@@ -576,20 +581,50 @@
         // smooth-scrolls to #committee — instant under
         // prefers-reduced-motion; the heading's scroll-margin keeps
         // it clear of the header at rest.
+        // Retirement (2026-11-25): the bar belongs to the committee
+        // section. Once Products & Services takes the page — the
+        // same -40% line where the tier bar steps aside — the pair
+        // bar hides too, in both scroll directions, so it never
+        // floats over Products or the footer.
         (function () {
             var bar = document.getElementById('pair-bar');
             var hub = document.querySelector('nav.hub-nav');
             if (!bar || !hub) return;
+            // #products stands further down the document than this
+            // script, so it is looked up lazily, once parsing is done.
+            var products = null;
+            var hubGone = false;
+            var productsActive = false;
             function setShow(show) {
                 bar.classList.toggle('show', show);
                 bar.setAttribute('aria-hidden', show ? 'false' : 'true');
             }
+            function update() { setShow(hubGone && !productsActive); }
             if ('IntersectionObserver' in window) {
                 new IntersectionObserver(function (entries) {
-                    setShow(!entries[0].isIntersecting);
+                    hubGone = !entries[0].isIntersecting;
+                    update();
                 }, { rootMargin: '-55px 0px 0px 0px' }).observe(hub);
+                var watchProducts = function () {
+                    products = document.getElementById('products');
+                    if (!products) return;
+                    new IntersectionObserver(function (entries) {
+                        productsActive = entries[0].isIntersecting;
+                        update();
+                    }, { rootMargin: '-40% 0px 0px 0px' }).observe(products);
+                };
+                if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchProducts);
+                else watchProducts();
             } else {
-                var onScroll = function () { setShow(hub.getBoundingClientRect().bottom <= 55); };
+                var onScroll = function () {
+                    hubGone = hub.getBoundingClientRect().bottom <= 55;
+                    if (!products) products = document.getElementById('products');
+                    if (products) {
+                        var pr = products.getBoundingClientRect();
+                        productsActive = pr.top < window.innerHeight && pr.bottom > window.innerHeight * 0.4;
+                    }
+                    update();
+                };
                 window.addEventListener('scroll', onScroll, { passive: true });
                 onScroll();
             }
@@ -603,6 +638,38 @@
                     if (window.history && window.history.replaceState) window.history.replaceState(null, '', '#committee');
                 });
             });
+        })();
+    </script>
+    <script>
+        // The pinned stack, measured (2026-11-25): every offset that
+        // stacks this page's bars — the pair bar's top, the tier
+        // barzone's sticky top, the jump landings — derives from the
+        // bars' own rendered heights, published here as CSS vars and
+        // re-measured whenever a bar's size changes, so no hand-set
+        // constant can drift away from the bars again (the finance
+        // page's proven pattern). Consumers read
+        // window.__healthStack() for the same numbers.
+        (function () {
+            var nav = document.querySelector('.site-nav');
+            var pair = document.getElementById('pair-bar');
+            if (!nav && !pair) return;
+            var root = document.documentElement;
+            function measure() {
+                var s = { nav: nav ? nav.offsetHeight : 0, pair: pair ? pair.offsetHeight : 0 };
+                root.style.setProperty('--health-nav-h', s.nav + 'px');
+                root.style.setProperty('--health-pair-h', s.pair + 'px');
+                return s;
+            }
+            window.__healthStack = measure;
+            measure();
+            if ('ResizeObserver' in window) {
+                var ro = new ResizeObserver(measure);
+                if (nav) ro.observe(nav);
+                if (pair) ro.observe(pair);
+            }
+            window.addEventListener('resize', measure);
+            window.addEventListener('load', measure);
+            if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
         })();
     </script>
     <!-- Tier tiles removed (2026-11-21): the tiers are their own photo
@@ -1756,17 +1823,28 @@
         // flat 64px margin covered the header only, and the pair bar
         // sliced 27px off the committee heading.) Re-measured on load,
         // on resize, and when fonts settle.
+        // Barzone included (2026-11-25): the committee heading's stack
+        // is taller than the pair bar alone — the sticky tier barzone
+        // sits in flow directly above the heading and is stuck at the
+        // landing line when the jump lands, so #committee's margin
+        // carries the barzone's measured height too. (Without it the
+        // heading landed entirely underneath the stuck barzone.)
+        // #products keeps the pair-bar stack: the barzone has stepped
+        // aside long before Products.
         (function () {
-            var targets = ['committee', 'products'].map(function (id) { return document.getElementById(id); }).filter(Boolean);
-            if (!targets.length) return;
+            var committee = document.getElementById('committee');
+            var products = document.getElementById('products');
+            if (!committee && !products) return;
             var nav = document.querySelector('.site-nav');
             var bar = document.getElementById('pair-bar');
+            var zone = document.getElementById('feelBarZone');
             function apply() {
                 var stack = 0;
                 if (nav) stack += nav.offsetHeight;
                 if (bar) stack += bar.offsetHeight;
                 if (!stack) return;
-                targets.forEach(function (t) { t.style.scrollMarginTop = (stack + 8) + 'px'; });
+                if (products) products.style.scrollMarginTop = (stack + 8) + 'px';
+                if (committee) committee.style.scrollMarginTop = (stack + (zone ? zone.offsetHeight : 0) + 8) + 'px';
             }
             apply();
             window.addEventListener('resize', apply);
@@ -1807,13 +1885,20 @@
         var links = Array.prototype.slice.call(document.querySelectorAll('[data-tier-link]'));
         if (!zone || !links.length) return;
         var NAMES = ['physical', 'mental', 'spiritual', 'financial'];
-        var PAIR_BOTTOM = 109; // the fixed pair pill: top 61px + its height
+        // The fixed pair pill's bottom edge, read live at each use —
+        // its top and height are measured values, never a hand-set
+        // constant (the old flat 109 sat 2px above the pill's real
+        // bottom edge).
+        function pairBottom() {
+            var b = document.getElementById('pair-bar');
+            return b ? b.getBoundingClientRect().bottom : 109;
+        }
         function doorBtn(name) { return document.querySelector('[data-tier-btn="' + name + '"]'); }
         function anchorEl(name) {
             var btn = doorBtn(name);
             return (btn && btn.closest('.tier-door-head')) || btn;
         }
-        function clearance() { return PAIR_BOTTOM + zone.offsetHeight + 12; }
+        function clearance() { return pairBottom() + zone.offsetHeight + 12; }
         // A tier's effective start: its door, unless the open body
         // sits far below the door (the desktop 2x2 door grid parks
         // later bodies under earlier tiers) — then the body's top.
@@ -1901,14 +1986,24 @@
             }
             setActive(found);
         }
+        // The barzone's pinned state: while it sits at its measured
+        // sticky line it carries .is-stuck, whose CSS gives the bar
+        // the solid pin backing; in flow it keeps its glass.
+        function updateStuck() {
+            var s = window.__healthStack ? window.__healthStack() : { nav: 55, pair: 50 };
+            var line = s.nav + s.pair + 8;
+            var r = zone.getBoundingClientRect();
+            zone.classList.toggle('is-stuck', r.top <= line + 0.5 && r.bottom > line);
+        }
         var ticking = false;
         window.addEventListener('scroll', function () {
             if (ticking) return;
             ticking = true;
-            requestAnimationFrame(function () { ticking = false; spy(); });
+            requestAnimationFrame(function () { ticking = false; spy(); updateStuck(); });
         }, { passive: true });
         window.addEventListener('resize', spy);
         spy();
+        updateStuck();
         var products = document.getElementById('products');
         if (products && 'IntersectionObserver' in window) {
             new IntersectionObserver(function (entries) {
