@@ -988,7 +988,8 @@
     .sig-amt { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; }
     .sig-amt input { width: 6.4rem; padding: 0.45rem 0.6rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); font-size: 0.95rem; outline: none; }
     .sig-amt input:focus { border-color: var(--accent-color); }
-    .sig-bench { display: inline-flex; align-items: center; gap: 0.5rem; }
+    .sig-bench { display: inline-flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .sig-bench-label { font-size: 0.9rem; }
     .sig-rule { font-size: 0.85rem; color: var(--subtext-color); margin: 0; max-width: 46rem; }
     .sig-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; margin: 10px 0 4px; }
     .sig-totals:empty { display: none; }
@@ -3914,11 +3915,10 @@
                     <span class="sig-amt"><label for="sigSellAmt">Sell&nbsp;$</label><input type="number" id="sigSellAmt" value="1000" min="0" step="50" inputmode="decimal"></span>
                 </div>
                 <div class="sig-ctl-row">
-                    <button type="button" class="filter-pill" id="sigSleeve" aria-pressed="false">Cash &middot; STRC &middot; SATS sleeve</button>
                     <button type="button" class="filter-pill" id="sigVix" aria-pressed="false">VIX cash thermostat</button>
-                    <span class="sig-bench selector-group"><label for="sigBenchmark">Compare against</label><select id="sigBenchmark"></select></span>
+                    <span class="sig-bench"><span class="sig-bench-label">Compare against</span><button type="button" class="filter-pill active" data-bench="SPX" aria-pressed="true">S&amp;P 500</button><button type="button" class="filter-pill" data-bench="IXIC" aria-pressed="false">Nasdaq-100</button><button type="button" class="filter-pill" data-bench="CASH" aria-pressed="false">Cash</button></span>
                 </div>
-                <p class="sig-rule" id="sigSleeveRule" hidden>With the sleeve on, STRC and SATS buy on their price-zone dots and never sell, everything they pay out lands in Cash, and with the VIX thermostat on, each buy day steers the portfolio&rsquo;s cash share to the thermostat&rsquo;s target &mdash; 30% cash at a VIX of 10, 5% cash at a VIX of 35.</p>
+                <p class="sig-rule" id="sigVixRule" hidden>With the VIX thermostat on, each buy day steers the portfolio&rsquo;s cash share to the thermostat&rsquo;s target &mdash; 30% cash at a VIX of 10, 5% cash at a VIX of 35.</p>
                 <p class="sig-rule" id="sigBenchNote" hidden></p>
                 <div class="sig-ctl-row">
                     <div class="chip-row sig-tf-row" id="sigRanges" role="group" aria-label="Simulation time frame">
@@ -3958,6 +3958,7 @@
                 <p class="empty-state" id="sigOffNote" hidden>The indicator is off &mdash; turn on Johnny&rsquo;s indicator to run the portfolio.</p>
             </div>
             <h3 class="sig-names-title">Names in the portfolio</h3>
+            <p class="sig-rule">STRC and SATS sit with the rest of the names, but their dots print on price alone: a buy dot when the close is in a buy zone &mdash; $99&ndash;$95, $95&ndash;$85 or $85&ndash;$70 &mdash; and they never sell. What they pay out lands in Cash, like every dividend here.</p>
             <div class="sig-names" id="sigNames"></div>
             <p class="sig-assumptions">Trades execute at the close on the day the dot prints &middot; no commissions or slippage &middot; figures are before taxes &middot; cash earns no interest.</p>
             <details class="disclaimer-note">
@@ -6100,11 +6101,33 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
        CUUR0000SA0 via FRED CPIAUCSL, Jan 2005 – Oct 2026, the
        latest published month; dates past the table hold the
        last published value, and a month shares one value).
+
+       STRC/SATS join the names (2026-11-25): STRC and SATS are ordinary
+       names in the list — toggleable like the rest — whose dots
+       print on price zones alone (Shallow $99-$95, Deep $95-$85,
+       Distress $85-$70), buy-only, their payouts landing in Cash
+       like every dividend. The VIX thermostat is now purely the
+       cash control: on, it scales every name's buys — STRC and
+       SATS included, no special case — to its target cash share;
+       only the cash changes with the VIX. The comparison picker
+       is three independent toggles (S&P 500, Nasdaq-100, Cash),
+       any combination including none, each plotted as its own
+       line and carrying its own totals card, computed exactly
+       as the single comparison was.
        ============================================================ */
     (function () {
         "use strict";
-        var SIG_NAMES = ["GOOGL", "JPM", "WMT", "WM", "COST", "LLY", "TSLA", "NVDA", "AMD", "MU", "TSM", "MSTR", "PLTR", "AAOI", "IREN", "CIFR", "ASST", "SPCX", "NBIS", "BTC", "GOLD"];
-        var SIG_SLEEVE_NAMES = ["STRC", "SATS"];
+        var SIG_NAMES = ["GOOGL", "JPM", "WMT", "WM", "COST", "LLY", "TSLA", "NVDA", "AMD", "MU", "TSM", "MSTR", "PLTR", "AAOI", "IREN", "CIFR", "ASST", "SPCX", "NBIS", "STRC", "SATS", "BTC", "GOLD"];
+        // STRC and SATS trade on price-zone dots alone and never
+        // sell — the one trading rule that sets them apart.
+        var SIG_BUY_ONLY = { STRC: 1, SATS: 1 };
+        // The comparisons are independent toggles, in the order
+        // their cards and lines appear.
+        var SIG_BENCHES = [
+            { sym: "SPX", name: "S&P 500", color: "#94a3b8" },
+            { sym: "IXIC", name: "Nasdaq-100", color: "#d97706" },
+            { sym: "CASH", name: "Cash", color: "#0284c7" }
+        ];
         var SIG_BENCH_INDEX = ["SPX", "IXIC", "DOW", "RUT", "GOLD", "BTC", "SILVER", "COPPER", "OIL", "BRENT", "NATGAS"];
         var SIG_INDEX_SET = { SPX: 1, IXIC: 1, DOW: 1, RUT: 1 };
         var SIG_DIVS = {"GOOGL":[["2024-06-10",0.2],["2024-09-09",0.2],["2024-12-09",0.2],["2025-03-10",0.2],["2025-06-09",0.21],["2025-09-08",0.21],["2025-12-08",0.21],["2026-03-09",0.21],["2026-06-08",0.22],["2026-09-04",0.22]],"JPM":[["2007-10-03",0.38],["2008-01-02",0.38],["2008-04-02",0.38],["2008-07-01",0.38],["2008-10-02",0.38],["2009-01-02",0.38],["2009-04-02",0.05],["2009-07-01",0.05],["2009-10-02",0.05],["2010-01-04",0.05],["2010-04-01",0.05],["2010-07-01",0.05],["2010-10-04",0.05],["2011-01-04",0.05],["2011-04-04",0.25],["2011-07-01",0.25],["2011-10-04",0.25],["2012-01-04",0.25],["2012-04-03",0.3],["2012-07-03",0.3],["2012-10-03",0.3],["2013-01-02",0.3],["2013-04-03",0.3],["2013-07-02",0.38],["2013-10-02",0.38],["2014-01-02",0.38],["2014-04-02",0.38],["2014-07-01",0.4],["2014-10-02",0.4],["2015-01-02",0.4],["2015-04-01",0.4],["2015-07-01",0.44],["2015-10-02",0.44],["2016-01-04",0.44],["2016-04-04",0.44],["2016-07-01",0.48],["2016-10-04",0.48],["2017-01-04",0.48],["2017-04-04",0.5],["2017-07-03",0.5],["2017-10-05",0.56],["2018-01-04",0.56],["2018-04-05",0.56],["2018-07-05",0.56],["2018-10-04",0.8],["2019-01-03",0.8],["2019-04-04",0.8],["2019-07-03",0.8],["2019-10-03",0.9],["2020-01-03",0.9],["2020-04-03",0.9],["2020-07-02",0.9],["2020-10-05",0.9],["2021-01-05",0.9],["2021-04-05",0.9],["2021-07-02",0.9],["2021-10-05",1.0],["2022-01-05",1.0],["2022-04-05",1.0],["2022-07-05",1.0],["2022-10-05",1.0],["2023-01-05",1.0],["2023-04-05",1.0],["2023-07-05",1.0],["2023-10-05",1.05],["2024-01-04",1.05],["2024-04-04",1.15],["2024-07-05",1.15],["2024-10-04",1.25],["2025-01-06",1.25],["2025-04-04",1.4],["2025-07-03",1.4],["2025-10-06",1.5],["2026-01-06",1.5],["2026-04-06",1.5],["2026-07-06",1.5],["2026-10-06",1.65]],"WMT":[["2007-08-15",0.073333],["2007-12-12",0.073333],["2008-03-12",0.079333],["2008-05-14",0.079333],["2008-08-13",0.079333],["2008-12-11",0.079333],["2009-03-11",0.091],["2009-05-13",0.091],["2009-08-12",0.091],["2009-12-09",0.091],["2010-03-10",0.101],["2010-05-12",0.101],["2010-08-11",0.101],["2010-12-08",0.101],["2011-03-09",0.121667],["2011-05-11",0.121667],["2011-08-10",0.121667],["2011-12-07",0.121667],["2012-03-08",0.132667],["2012-05-09",0.132667],["2012-08-08",0.132667],["2012-12-05",0.132667],["2013-03-08",0.156667],["2013-05-08",0.156667],["2013-08-07",0.156667],["2013-12-04",0.156667],["2014-03-07",0.16],["2014-05-07",0.16],["2014-08-06",0.16],["2014-12-03",0.16],["2015-03-11",0.163333],["2015-05-06",0.163333],["2015-08-05",0.163333],["2015-12-02",0.163333],["2016-03-09",0.166667],["2016-05-11",0.166667],["2016-08-10",0.166667],["2016-12-07",0.166667],["2017-03-08",0.17],["2017-05-10",0.17],["2017-08-09",0.17],["2017-12-07",0.17],["2018-03-08",0.173333],["2018-05-10",0.173333],["2018-08-09",0.173333],["2018-12-06",0.173333],["2019-03-14",0.176667],["2019-05-09",0.176667],["2019-08-08",0.176667],["2019-12-05",0.176667],["2020-03-19",0.18],["2020-05-07",0.18],["2020-08-13",0.18],["2020-12-10",0.18],["2021-03-18",0.183333],["2021-05-06",0.183333],["2021-08-12",0.183333],["2021-12-09",0.183333],["2022-03-17",0.186667],["2022-05-05",0.186667],["2022-08-11",0.186667],["2022-12-08",0.186667],["2023-03-16",0.19],["2023-05-04",0.19],["2023-08-10",0.19],["2023-12-07",0.19],["2024-03-14",0.208],["2024-05-09",0.208],["2024-08-16",0.208],["2024-12-13",0.208],["2025-03-21",0.235],["2025-05-09",0.235],["2025-08-15",0.235],["2025-12-12",0.235],["2026-03-20",0.248],["2026-05-08",0.248],["2026-08-21",0.248]],"WM":[["2007-08-30",0.24],["2007-11-29",0.24],["2008-03-06",0.27],["2008-05-29",0.27],["2008-08-28",0.27],["2008-11-26",0.27],["2009-03-05",0.29],["2009-05-28",0.29],["2009-09-03",0.29],["2009-11-30",0.29],["2010-03-01",0.315],["2010-05-27",0.315],["2010-09-02",0.315],["2010-11-29",0.315],["2011-03-09",0.34],["2011-05-31",0.34],["2011-09-01",0.34],["2011-11-28",0.34],["2012-03-07",0.355],["2012-06-06",0.355],["2012-09-05",0.355],["2012-11-26",0.355],["2013-03-07",0.365],["2013-06-05",0.365],["2013-09-04",0.365],["2013-12-02",0.365],["2014-03-06",0.375],["2014-06-04",0.375],["2014-09-03",0.375],["2014-12-03",0.375],["2015-03-05",0.385],["2015-06-03",0.385],["2015-09-10",0.385],["2015-12-02",0.385],["2016-03-03",0.41],["2016-06-01",0.41],["2016-09-07",0.41],["2016-11-30",0.41],["2017-03-08",0.425],["2017-06-07",0.425],["2017-09-07",0.425],["2017-11-30",0.425],["2018-03-08",0.465],["2018-06-07",0.465],["2018-09-06",0.465],["2018-11-29",0.465],["2019-03-07",0.513],["2019-06-06",0.513],["2019-09-05",0.513],["2019-12-05",0.513],["2020-03-05",0.545],["2020-06-04",0.545],["2020-09-03",0.545],["2020-12-03",0.545],["2021-03-11",0.575],["2021-06-03",0.575],["2021-09-02",0.575],["2021-12-02",0.575],["2022-03-16",0.65],["2022-06-02",0.65],["2022-09-08",0.65],["2022-12-01",0.65],["2023-03-09",0.7],["2023-06-01",0.7],["2023-09-07",0.7],["2023-11-30",0.7],["2024-03-14",0.75],["2024-06-07",0.75],["2024-09-13",0.75],["2024-12-06",0.75],["2025-03-14",0.825],["2025-06-06",0.825],["2025-09-12",0.825],["2025-12-05",0.825],["2026-03-13",0.945],["2026-06-05",0.945],["2026-09-11",0.945]],"COST":[["2007-11-28",0.145],["2008-02-13",0.145],["2008-05-14",0.16],["2008-08-06",0.16],["2008-11-12",0.16],["2009-02-11",0.16],["2009-05-13",0.18],["2009-08-12",0.18],["2009-10-21",0.18],["2010-02-10",0.18],["2010-05-05",0.205],["2010-08-04",0.205],["2010-10-27",0.205],["2011-02-09",0.205],["2011-05-11",0.24],["2011-08-03",0.24],["2011-11-08",0.24],["2012-02-08",0.24],["2012-05-23",0.275],["2012-08-08",0.275],["2012-11-14",0.275],["2012-12-06",7.0],["2013-02-06",0.275],["2013-05-15",0.31],["2013-08-07",0.31],["2013-11-13",0.31],["2014-02-12",0.31],["2014-05-14",0.355],["2014-07-09",0.355],["2014-11-12",0.355],["2015-02-05",5.0],["2015-02-11",0.355],["2015-04-29",0.4],["2015-08-12",0.4],["2015-11-10",0.4],["2016-02-10",0.4],["2016-04-27",0.45],["2016-08-10",0.45],["2016-11-02",0.45],["2017-02-08",0.45],["2017-05-08",7.0],["2017-05-10",0.5],["2017-08-16",0.5],["2017-11-16",0.5],["2018-02-15",0.5],["2018-05-10",0.57],["2018-08-30",0.57],["2018-11-08",0.57],["2019-02-07",0.57],["2019-05-09",0.65],["2019-08-29",0.65],["2019-10-31",0.65],["2020-02-06",0.65],["2020-04-30",0.7],["2020-07-30",0.7],["2020-10-29",0.7],["2020-12-01",10.0],["2021-02-04",0.7],["2021-04-29",0.79],["2021-07-29",0.79],["2021-10-28",0.79],["2022-02-03",0.79],["2022-04-28",0.9],["2022-07-28",0.9],["2022-10-27",0.9],["2023-02-02",0.9],["2023-05-04",1.02],["2023-08-24",1.02],["2023-11-02",1.02],["2023-12-27",15.0],["2024-02-01",1.02],["2024-04-25",1.16],["2024-07-26",1.16],["2024-11-01",1.16],["2025-02-07",1.16],["2025-05-02",1.3],["2025-08-01",1.3],["2025-10-31",1.3],["2026-01-30",1.3],["2026-05-01",1.47],["2026-07-24",1.47],["2026-10-30",1.47],["2026-11-24",30.0]],"LLY":[["2007-08-13",0.425],["2007-11-13",0.425],["2008-02-13",0.47],["2008-05-13",0.47],["2008-08-13",0.47],["2008-11-12",0.47],["2009-02-11",0.49],["2009-05-13",0.49],["2009-08-12",0.49],["2009-11-10",0.49],["2010-02-10",0.49],["2010-05-12",0.49],["2010-08-11",0.49],["2010-11-10",0.49],["2011-02-11",0.49],["2011-05-11",0.49],["2011-08-11",0.49],["2011-11-10",0.49],["2012-02-13",0.49],["2012-05-11",0.49],["2012-08-13",0.49],["2012-11-13",0.49],["2013-02-13",0.49],["2013-05-14",0.49],["2013-08-13",0.49],["2013-11-13",0.49],["2014-02-12",0.49],["2014-05-13",0.49],["2014-08-13",0.49],["2014-11-12",0.49],["2015-02-11",0.5],["2015-05-14",0.5],["2015-08-12",0.5],["2015-11-10",0.5],["2016-02-10",0.51],["2016-05-11",0.51],["2016-08-11",0.51],["2016-11-10",0.51],["2017-02-13",0.52],["2017-05-11",0.52],["2017-08-11",0.52],["2017-11-14",0.52],["2018-02-14",0.5625],["2018-05-16",0.5625],["2018-08-14",0.5625],["2018-11-14",0.5625],["2019-02-14",0.645],["2019-05-16",0.645],["2019-08-14",0.645],["2019-11-14",0.645],["2020-02-13",0.74],["2020-05-14",0.74],["2020-08-13",0.74],["2020-11-12",0.74],["2021-02-11",0.85],["2021-05-13",0.85],["2021-08-12",0.85],["2021-11-12",0.85],["2022-02-14",0.98],["2022-02-14",0.98],["2022-05-13",0.98],["2022-05-13",0.98],["2022-08-12",0.98],["2022-11-14",0.98],["2023-02-14",1.13],["2023-05-12",1.13],["2023-08-14",1.13],["2023-11-14",1.13],["2024-02-14",1.3],["2024-05-15",1.3],["2024-08-15",1.3],["2024-11-15",1.3],["2025-02-14",1.5],["2025-05-16",1.5],["2025-08-15",1.5],["2025-11-14",1.5],["2026-02-13",1.73],["2026-05-15",1.73],["2026-08-14",1.73],["2026-11-13",1.73]],"NVDA":[["2012-11-20",0.001875],["2013-02-26",0.001875],["2013-05-21",0.001875],["2013-08-20",0.001875],["2013-11-19",0.002125],["2014-02-25",0.002125],["2014-05-20",0.002125],["2014-08-19",0.002125],["2014-11-19",0.002125],["2015-02-24",0.002125],["2015-05-19",0.00245],["2015-08-18",0.00245],["2015-11-18",0.002875],["2016-02-29",0.002875],["2016-05-24",0.002875],["2016-08-23",0.002875],["2016-11-23",0.0035],["2017-02-22",0.0035],["2017-05-19",0.0035],["2017-08-22",0.0035],["2017-11-22",0.00375],["2018-02-22",0.00375],["2018-05-23",0.00375],["2018-08-29",0.00375],["2018-11-29",0.004],["2019-02-28",0.004],["2019-05-30",0.004],["2019-08-28",0.004],["2019-11-27",0.004],["2020-02-27",0.004],["2020-06-04",0.004],["2020-09-01",0.004],["2020-12-03",0.004],["2021-03-09",0.004],["2021-06-09",0.004],["2021-08-31",0.004],["2021-12-01",0.004],["2022-03-02",0.004],["2022-06-08",0.004],["2022-09-07",0.004],["2022-11-30",0.004],["2023-03-07",0.004],["2023-06-07",0.004],["2023-09-06",0.004],["2023-12-05",0.004],["2024-03-05",0.004],["2024-06-11",0.01],["2024-09-12",0.01],["2024-12-05",0.01],["2025-03-12",0.01],["2025-06-11",0.01],["2025-09-11",0.01],["2025-12-04",0.01],["2026-03-11",0.01],["2026-06-04",0.25],["2026-09-10",0.25]],"MU":[["2021-09-30",0.1],["2021-12-31",0.1],["2022-04-08",0.1],["2022-07-08",0.115],["2022-10-07",0.115],["2022-12-30",0.115],["2023-04-06",0.115],["2023-07-07",0.115],["2023-10-06",0.115],["2023-12-29",0.115],["2024-03-28",0.115],["2024-07-08",0.115],["2024-10-07",0.115],["2024-12-30",0.115],["2025-03-31",0.115],["2025-07-07",0.115],["2025-10-03",0.115],["2025-12-29",0.115],["2026-03-30",0.15],["2026-07-06",0.15],["2026-10-14",0.15]],"TSM":[["2008-07-16",0.495522],["2009-07-15",0.453],["2010-07-06",0.469],["2011-06-29",0.519],["2012-07-05",0.502],["2013-07-03",0.502],["2014-07-14",0.502],["2015-06-29",0.728],["2016-06-27",0.929],["2017-06-26",1.159],["2018-06-25",1.345],["2019-06-24",1.276],["2019-09-19",0.322],["2019-12-19",0.41],["2020-03-19",0.417],["2020-06-18",0.42],["2020-09-17",0.427],["2020-12-17",0.442],["2021-03-17",0.448],["2021-06-17",0.451],["2021-09-16",0.497],["2021-12-16",0.496],["2022-03-16",0.49],["2022-06-16",0.467],["2022-09-15",0.448],["2022-12-15",0.451],["2023-03-16",0.449],["2023-06-15",0.448],["2023-09-14",0.471],["2023-12-14",0.479],["2024-03-18",0.554],["2024-06-13",0.544],["2024-09-12",0.626],["2024-12-12",0.616],["2025-03-18",0.684],["2025-06-12",0.78],["2025-09-16",0.822],["2025-12-11",0.835],["2026-03-17",0.956],["2026-06-11",0.955],["2026-09-16",1.107]],"STRC":[["2025-08-15",0.8],["2025-09-15",0.833],["2025-10-15",0.854],["2025-11-14",0.875],["2025-12-15",0.896],["2026-01-15",0.917],["2026-02-13",0.938],["2026-03-13",0.958],["2026-04-15",0.958],["2026-05-15",0.958],["2026-06-15",0.958],["2026-06-30",0.479],["2026-07-15",0.5],["2026-07-31",0.5],["2026-08-14",0.5],["2026-08-31",0.5],["2026-09-15",0.5],["2026-09-30",0.5],["2026-10-15",0.5],["2026-10-30",0.03],["2026-11-02",0.03],["2026-11-03",0.04],["2026-11-04",0.03],["2026-11-05",0.03],["2026-11-06",0.1],["2026-11-09",0.04],["2026-11-10",0.06],["2026-11-12",0.04],["2026-11-13",0.1],["2026-11-16",0.03],["2026-11-17",0.03],["2026-11-18",0.04],["2026-11-19",0.03],["2026-11-20",0.1],["2026-11-23",0.03],["2026-11-24",0.04]],"SATS":[["2026-11-06",0.871],["2026-11-09",0.066],["2026-11-10",0.066],["2026-11-12",0.066],["2026-11-13",0.066],["2026-11-16",0.066],["2026-11-17",0.066],["2026-11-18",0.066],["2026-11-19",0.066],["2026-11-20",0.066],["2026-11-23",0.066],["2026-11-24",0.066]]};
@@ -6133,8 +6156,8 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         var state = {
             ready: false, failed: false, on: true,
             buyAmt: 1000, sellAmt: 1000,
-            inc: {}, sleeve: false, vix: false,
-            view: "table", bench: "SPX", range: "ALL"
+            inc: {}, vix: false,
+            view: "table", benches: { SPX: true, IXIC: false, CASH: false }, range: "ALL"
         };
         SIG_NAMES.forEach(function (n) { state.inc[n] = true; });
         var DATA = null;          // the daily file, parsed
@@ -6208,15 +6231,16 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         }
 
         function activeNames() {
-            var out = SIG_NAMES.filter(function (n) { return state.inc[n]; });
-            if (state.sleeve) out = out.concat(SIG_SLEEVE_NAMES);
-            return out;
+            return SIG_NAMES.filter(function (n) { return state.inc[n]; });
+        }
+        function activeBenches() {
+            return SIG_BENCHES.filter(function (b) { return state.benches[b.sym]; });
         }
 
         function simulate() {
             var names = activeNames();
-            var benchSym = state.bench;
-            var isCash = benchSym === "CASH";
+            var benchDefs = activeBenches();
+            var hasCash = benchDefs.some(function (b) { return b.sym === "CASH"; });
             var endDate = DATA.through;
             // The time-frame window: ALL is the full dot history;
             // any other button starts its named span of days
@@ -6232,12 +6256,12 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     if (!lastDot || d > lastDot) lastDot = d;
                 });
             });
-            var empty = { names: names, firstDot: firstDot, endDate: endDate, startBound: startBound, range: state.range, rows: [], cash: 0, moneyIn: 0, totalValue: 0, gain: 0, gainPct: 0, divTotal: 0, maxDD: 0, bench: null, series: null, sleeveDetail: null, thermo: null, cashBench: isCash };
+            var empty = { names: names, firstDot: firstDot, endDate: endDate, startBound: startBound, range: state.range, rows: [], cash: 0, moneyIn: 0, totalValue: 0, gain: 0, gainPct: 0, divTotal: 0, maxDD: 0, benches: [], series: null, thermo: null };
             if (!firstDot) return empty;
             // Master calendar: every date any relevant series trades,
             // from the first dot to the file's through date.
             var calSet = {};
-            names.concat([benchSym, "VIX"]).forEach(function (n) {
+            names.concat(benchDefs.map(function (b) { return b.sym; }), ["VIX"]).forEach(function (n) {
                 var p = PREP[n]; if (!p) return;
                 p.dates.forEach(function (d) { if (d >= firstDot && d <= endDate) calSet[d] = 1; });
             });
@@ -6249,26 +6273,35 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 buySet[n] = {}; PREP[n].buy.forEach(function (d) { buySet[n][d] = 1; });
                 sellSet[n] = {}; PREP[n].sell.forEach(function (d) { sellSet[n][d] = 1; });
             });
-            var benchFill = isCash ? null : makeFiller(PREP[benchSym]);
-            var benchDivs = (!isCash && PREP[benchSym]) ? PREP[benchSym].divs : {};
-            // Cash comparison: the measuring stick is the CPI of
-            // the window's first month (the window's first day for
-            // a framed run; the first dot's day for ALL).
-            var cpiBase = isCash ? cpiAt(startBound || firstDot) : 0;
+            // Each active comparison runs its own buy-and-hold on
+            // the same dollars arriving the same days. An index
+            // comparison is its price only (indexes carry no
+            // dividend record here); Cash is the purchasing-power
+            // line, whose measuring stick is the CPI of the
+            // window's first month (the window's first day for a
+            // framed run; the first dot's day for ALL).
+            var cpiBase = hasCash ? cpiAt(startBound || firstDot) : 0;
             var cumIn = 0;
+            var bState = {};
+            benchDefs.forEach(function (b) {
+                bState[b.sym] = {
+                    fill: b.sym === "CASH" ? null : makeFiller(PREP[b.sym]),
+                    divs: (b.sym !== "CASH" && PREP[b.sym] && !SIG_INDEX_SET[b.sym]) ? PREP[b.sym].divs : {},
+                    shares: 0, cash: 0, peak: 0, maxDD: 0, last: 0
+                };
+            });
             var vixFill = PREP.VIX ? makeFiller(PREP.VIX) : null;
             var pos = {};
             names.forEach(function (n) { pos[n] = { shares: 0, basis: 0, buys: 0, proceeds: 0, divs: 0 }; });
             var cash = 0, moneyIn = 0, divTotal = 0;
-            var bShares = 0, bCash = 0;
             var series = [], started = false;
-            var peak = 0, maxDD = 0, bPeak = 0, bMaxDD = 0;
-            var sleeveSet = {}; SIG_SLEEVE_NAMES.forEach(function (n) { sleeveSet[n] = 1; });
+            var peak = 0, maxDD = 0;
             for (var ci = 0; ci < cal.length; ci++) {
                 var d = cal[ci];
                 var px = {};
                 names.forEach(function (n) { px[n] = fill[n].at(d); });
-                var bPx = isCash ? null : benchFill.at(d);
+                var bPx = {};
+                benchDefs.forEach(function (b) { bPx[b.sym] = bState[b.sym].fill ? bState[b.sym].fill.at(d) : null; });
                 // 1) Dividends on shares held at the start of the day.
                 names.forEach(function (n) {
                     var amt = PREP[n].divs[d];
@@ -6277,10 +6310,13 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                         cash += pay; pos[n].divs += pay; divTotal += pay;
                     }
                 });
-                if (benchDivs[d] && bShares > 0) bCash += bShares * benchDivs[d];
-                // 2) Sells (never the sleeve names — they have no sell dots).
+                benchDefs.forEach(function (b) {
+                    var bs = bState[b.sym], bAmt = bs.divs[d];
+                    if (bAmt && bs.shares > 0) bs.cash += bs.shares * bAmt;
+                });
+                // 2) Sells (never STRC or SATS — they have no sell dots).
                 names.forEach(function (n) {
-                    if (!sellSet[n][d] || sleeveSet[n]) return;
+                    if (!sellSet[n][d] || SIG_BUY_ONLY[n]) return;
                     var P = pos[n], c = px[n];
                     if (!c || P.shares <= 0) return;
                     var val = P.shares * c;
@@ -6295,7 +6331,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 if (todays.length) {
                     started = true;
                     var delta = 0;
-                    if (state.vix && state.sleeve) {
+                    if (state.vix) {
                         var B = state.buyAmt * todays.length;
                         moneyIn += B; delta = B;
                         var vix = vixFill ? vixFill.at(d) : null;
@@ -6319,20 +6355,25 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     }
                     if (delta > 0) {
                         cumIn += delta;
-                        if (bPx) bShares += delta / bPx;
+                        benchDefs.forEach(function (b) { if (bPx[b.sym]) bState[b.sym].shares += delta / bPx[b.sym]; });
                     }
                 }
                 if (!started) continue;
                 // 4) Value the day.
-                var tot = cash, bTot = bCash;
+                var tot = cash;
                 names.forEach(function (n) { if (px[n]) tot += pos[n].shares * px[n]; });
-                if (isCash) bTot = cumIn * cpiBase / cpiAt(d);
-                else if (bPx) bTot += bShares * bPx;
-                series.push({ d: d, v: tot, b: bTot });
+                var bVals = {};
+                benchDefs.forEach(function (b) {
+                    var bs = bState[b.sym], bv;
+                    if (b.sym === "CASH") bv = cumIn * cpiBase / cpiAt(d);
+                    else bv = bs.cash + (bPx[b.sym] ? bs.shares * bPx[b.sym] : 0);
+                    bs.last = bv; bVals[b.sym] = bv;
+                    if (bv > bs.peak) bs.peak = bv;
+                    if (bs.peak > 0 && (bs.peak - bv) / bs.peak > bs.maxDD) bs.maxDD = (bs.peak - bv) / bs.peak;
+                });
+                series.push({ d: d, v: tot, b: bVals });
                 if (tot > peak) peak = tot;
                 if (peak > 0 && (peak - tot) / peak > maxDD) maxDD = (peak - tot) / peak;
-                if (bTot > bPeak) bPeak = bTot;
-                if (bPeak > 0 && (bPeak - bTot) / bPeak > bMaxDD) bMaxDD = (bPeak - bTot) / bPeak;
             }
             var rows = [];
             var totalValue = cash;
@@ -6349,20 +6390,19 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 });
             });
             rows.sort(function (a, b) { return b.value - a.value; });
-            var bVal = series.length ? series[series.length - 1].b : 0;
-            // The sleeve's own line for the totals: what STRC and
-            // SATS are worth now, so toggling the sleeve moves a
-            // number on screen, not just two rows in the table.
-            var sleeveDetail = null;
-            if (state.sleeve) {
-                sleeveDetail = SIG_SLEEVE_NAMES.map(function (n) {
-                    return { sym: n, value: pos[n] ? pos[n].shares * PREP[n].lastClose : 0 };
-                });
-            }
+            var benches = benchDefs.map(function (b) {
+                var bs = bState[b.sym];
+                return {
+                    sym: b.sym, name: b.name, color: b.color, cashBench: b.sym === "CASH",
+                    value: bs.last, gain: bs.last - moneyIn,
+                    gainPct: moneyIn > 0 ? (bs.last - moneyIn) / moneyIn * 100 : 0,
+                    maxDD: bs.maxDD * 100
+                };
+            });
             // The thermostat's current state: the latest data
             // day's VIX and the cash share it targets.
             var thermo = null;
-            if (state.vix && state.sleeve && PREP.VIX) {
+            if (state.vix && PREP.VIX) {
                 var vEnd = makeFiller(PREP.VIX).at(endDate);
                 if (vEnd != null) thermo = { vix: vEnd, tau: vcCashFor(vcClamp(vEnd)) };
             }
@@ -6372,13 +6412,8 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 gain: totalValue - moneyIn,
                 gainPct: moneyIn > 0 ? (totalValue - moneyIn) / moneyIn * 100 : 0,
                 divTotal: divTotal, maxDD: maxDD * 100,
-                bench: {
-                    sym: benchSym, name: isCash ? "Cash" : (PREP[benchSym] ? PREP[benchSym].name : benchSym),
-                    value: bVal, gain: bVal - moneyIn,
-                    gainPct: moneyIn > 0 ? (bVal - moneyIn) / moneyIn * 100 : 0,
-                    maxDD: bMaxDD * 100
-                },
-                series: series, sleeveDetail: sleeveDetail, thermo: thermo, cashBench: isCash
+                benches: benches,
+                series: series, thermo: thermo
             };
         }
 
@@ -6401,25 +6436,21 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             h += statCard(fmtMoney(r.moneyIn), "Money in");
             h += statCard(fmtMoney(r.divTotal), "Dividends received");
             h += statCard("-" + r.maxDD.toFixed(1) + "%", "Max drawdown");
-            if (r.bench) {
-                if (r.cashBench) {
-                    h += statCard(fmtMoney(r.bench.value) + " · " + fmtPct(r.bench.gainPct), "Cash · same " + fmtMoney(r.moneyIn) + " in · in " + fmtDateShort(r.startBound || r.firstDot) + " purchasing power · max DD -" + r.bench.maxDD.toFixed(1) + "%", gainCls(r.bench.gain));
+            (r.benches || []).forEach(function (bn) {
+                if (bn.cashBench) {
+                    h += statCard(fmtMoney(bn.value) + " · " + fmtPct(bn.gainPct), "Cash · same " + fmtMoney(r.moneyIn) + " in · in " + fmtDateShort(r.startBound || r.firstDot) + " purchasing power · max DD -" + bn.maxDD.toFixed(1) + "%", gainCls(bn.gain));
                 } else {
-                    h += statCard(fmtMoney(r.bench.value) + " · " + fmtPct(r.bench.gainPct), esc(r.bench.name) + " · same money in · max DD -" + r.bench.maxDD.toFixed(1) + "%", gainCls(r.bench.gain));
+                    h += statCard(fmtMoney(bn.value) + " · " + fmtPct(bn.gainPct), esc(bn.name) + " · same money in · max DD -" + bn.maxDD.toFixed(1) + "%", gainCls(bn.gain));
                 }
-            }
-            if (r.sleeveDetail) {
-                var sv = 0;
-                r.sleeveDetail.forEach(function (s) { sv += s.value; });
-                h += statCard(fmtMoney(sv), "Sleeve — STRC " + fmtMoney(r.sleeveDetail[0].value) + " · SATS " + fmtMoney(r.sleeveDetail[1].value));
-            }
+            });
             if (r.thermo) {
                 h += statCard(fmtMoney(r.cash), "Cash held · thermostat target " + r.thermo.tau.toFixed(1) + "% at VIX " + r.thermo.vix.toFixed(1));
             }
             t.innerHTML = h;
             if (r.firstDot) {
-                t.setAttribute("data-pulse",
-                    "Your indicator portfolio " + fmtPct(r.gainPct) + " · " + (r.bench ? r.bench.name : "") + " " + (r.bench ? fmtPct(r.bench.gainPct) : "") + " · total return since " + fmtDateShort(r.firstDot));
+                var pulse = "Your indicator portfolio " + fmtPct(r.gainPct);
+                (r.benches || []).forEach(function (bn) { pulse += " · " + bn.name + " " + fmtPct(bn.gainPct); });
+                t.setAttribute("data-pulse", pulse + " · total return since " + fmtDateShort(r.firstDot));
             }
         }
 
@@ -6444,10 +6475,10 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     + "<td class=\"num\">" + fmtMoney(row.divs) + "</td>"
                     + "<td class=\"num " + gainCls(row.gain) + "\">" + fmtSigned(row.gain) + " (" + fmtPct(row.gainPct) + ")</td></tr>";
             });
-            if (state.sleeve || r.cash > 0) {
+            if (r.cash > 0) {
                 h += "<tr><th class=\"sig-name-cell\" scope=\"row\">Cash</th><td class=\"num\">—</td><td class=\"num\">—</td><td class=\"num\">—</td><td class=\"num\">" + fmtMoney(r.cash) + "</td><td class=\"num\">—</td><td class=\"num\">—</td></tr>";
             }
-            if (!r.rows.length && !(state.sleeve || r.cash > 0)) {
+            if (!r.rows.length && !(r.cash > 0)) {
                 h = "<tr><td colspan=\"7\" class=\"empty-state\">No trades yet — no dots for the names in the portfolio.</td></tr>";
             }
             body.innerHTML = h;
@@ -6502,15 +6533,15 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
 
         function renderBenchNote() {
             var note = el("sigBenchNote");
-            var b = state.bench;
-            if (b === "CASH") {
-                note.textContent = "The comparison is the same money held as cash, shown in the purchasing power of the first day shown (US CPI) — cash earns no interest and inflation shrinks what it buys; the portfolio line is in the dollars of each day.";
-                note.hidden = false;
-            } else if (SIG_INDEX_SET[b]) {
-                note.textContent = "The comparison is the index's price only — an index's own dividends are not counted; the portfolio's dividends are.";
-                note.hidden = false;
-            } else if (SIG_DIVS[b] && SIG_DIVS[b].length) {
-                note.textContent = "The comparison counts its dividends the same way the portfolio does — into its cash on each ex-dividend date.";
+            var parts = [];
+            if (state.benches.SPX || state.benches.IXIC) {
+                parts.push("The index comparisons are the index's price only — an index's own dividends are not counted; the portfolio's dividends are.");
+            }
+            if (state.benches.CASH) {
+                parts.push("The Cash comparison is the same money held as cash, shown in the purchasing power of the first day shown (US CPI) — cash earns no interest and inflation shrinks what it buys; the portfolio line is in the dollars of each day.");
+            }
+            if (parts.length) {
+                note.textContent = parts.join(" ");
                 note.hidden = false;
             } else {
                 note.hidden = true;
@@ -6540,7 +6571,10 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (!state.on || !chartPts || !chartPts.dates.length) return;
             var pts = chartPts, n = pts.dates.length;
             var maxV = 0;
-            for (var i = 0; i < n; i++) { if (pts.port[i] > maxV) maxV = pts.port[i]; if (pts.bench[i] > maxV) maxV = pts.bench[i]; }
+            for (var i = 0; i < n; i++) {
+                if (pts.port[i] > maxV) maxV = pts.port[i];
+                pts.benches.forEach(function (bn) { if (bn.vals[i] > maxV) maxV = bn.vals[i]; });
+            }
             if (maxV <= 0) maxV = 1;
             maxV *= 1.05;
             var padL = 58, padR = 10, padT = 10, padB = 22;
@@ -6571,12 +6605,14 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 }
                 ctx.stroke(); ctx.setLineDash([]);
             }
-            line(pts.bench, benchCol, [5, 4]);
+            pts.benches.forEach(function (bn) { line(bn.vals, bn.color, [5, 4]); });
             line(pts.port, acc, null);
             if (inspectIdx >= 0 && inspectIdx < n) {
                 ctx.strokeStyle = sub; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(X(inspectIdx), padT); ctx.lineTo(X(inspectIdx), padT + ih); ctx.stroke();
-                [[pts.port[inspectIdx], acc], [pts.bench[inspectIdx], benchCol]].forEach(function (pr) {
+                var pairs = [[pts.port[inspectIdx], acc]];
+                pts.benches.forEach(function (bn) { pairs.push([bn.vals[inspectIdx], bn.color]); });
+                pairs.forEach(function (pr) {
                     ctx.fillStyle = pr[1];
                     ctx.beginPath(); ctx.arc(X(inspectIdx), Y(pr[0]), 3.5, 0, Math.PI * 2); ctx.fill();
                 });
@@ -6592,7 +6628,9 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             var i = Math.round(frac * (n - 1));
             if (i < 0) i = 0; if (i > n - 1) i = n - 1;
             inspectIdx = i;
-            el("sigReadout").textContent = fmtDate(chartPts.dates[i]) + " · Portfolio " + fmtMoney(chartPts.port[i]) + " · " + (lastResult && lastResult.bench ? lastResult.bench.name : "Comparison") + " " + fmtMoney(chartPts.bench[i]);
+            var ro = fmtDate(chartPts.dates[i]) + " · Portfolio " + fmtMoney(chartPts.port[i]);
+            chartPts.benches.forEach(function (bn) { ro += " · " + bn.name + " " + fmtMoney(bn.vals[i]); });
+            el("sigReadout").textContent = ro;
             drawChart();
         }
         function renderChart(r) {
@@ -6601,11 +6639,16 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             el("sigChart").style.display = state.on ? "" : "none";
             el("sigReadout").style.display = state.on ? "" : "none";
             if (!state.on) { legend.innerHTML = ""; chartPts = null; return; }
-            chartPts = { dates: [], port: [], bench: [] };
-            (r.series || []).forEach(function (p) { chartPts.dates.push(p.d); chartPts.port.push(p.v); chartPts.bench.push(p.b); });
+            chartPts = { dates: [], port: [], benches: (r.benches || []).map(function (bn) { return { sym: bn.sym, name: bn.name, color: bn.color, cashBench: bn.cashBench, vals: [] }; }) };
+            (r.series || []).forEach(function (p) {
+                chartPts.dates.push(p.d); chartPts.port.push(p.v);
+                chartPts.benches.forEach(function (bn) { bn.vals.push(p.b[bn.sym]); });
+            });
             var acc = cssVar("--accent-color", "#22c55e");
             legend.innerHTML = "<span class=\"sig-leg\"><span class=\"sig-swatch\" style=\"background:" + acc + "\"></span>Your indicator portfolio</span>"
-                + "<span class=\"sig-leg\"><span class=\"sig-swatch\" style=\"background:#94a3b8\"></span>" + esc(r.bench ? r.bench.name : "") + (r.cashBench ? " — same money in, held as cash" : " — same money in, held") + "</span>";
+                + chartPts.benches.map(function (bn) {
+                    return "<span class=\"sig-leg\"><span class=\"sig-swatch\" style=\"background:" + bn.color + "\"></span>" + esc(bn.name) + (bn.cashBench ? " — same money in, held as cash" : " — same money in, held") + "</span>";
+                }).join("");
             el("sigReadout").textContent = "Drag on the chart to read values.";
             inspectIdx = -1;
             requestAnimationFrame(drawChart);
@@ -6614,7 +6657,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         function run() {
             if (!state.ready) return;
             var incCount = SIG_NAMES.filter(function (n) { return state.inc[n]; }).length;
-            var noNames = incCount === 0 && !state.sleeve;
+            var noNames = incCount === 0;
             var r = (state.on && !noNames) ? simulate() : null;
             lastResult = r;
             var noTrades = !noNames && state.on && r && (!r.series || !r.series.length);
@@ -6682,25 +6725,24 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 inp.addEventListener("input", function () { clearTimeout(inp._sigT); inp._sigT = setTimeout(apply, 350); });
             }
             amt("sigBuyAmt", "buyAmt"); amt("sigSellAmt", "sellAmt");
-            var sleeveBtn = el("sigSleeve"), vixBtn = el("sigVix");
-            sleeveBtn.addEventListener("click", function () {
-                state.sleeve = !state.sleeve;
-                setPill(sleeveBtn, state.sleeve);
-                el("sigSleeveRule").hidden = !state.sleeve;
-                if (!state.sleeve && state.vix) { state.vix = false; setPill(vixBtn, false); }
+            var vixBtn = el("sigVix");
+            vixBtn.addEventListener("click", function () {
+                // The thermostat is purely the cash control: on,
+                // every buy day steers the portfolio's cash share
+                // to its target, for every name alike — only the
+                // cash changes with the VIX.
+                state.vix = !state.vix;
+                setPill(vixBtn, state.vix);
+                el("sigVixRule").hidden = !state.vix;
                 run();
             });
-            vixBtn.addEventListener("click", function () {
-                // The thermostat lives inside the sleeve: tapping
-                // it with the sleeve off turns the sleeve on too —
-                // one tap, both on, and the rule sentence under
-                // the pills says why.
-                if (!state.sleeve) {
-                    state.sleeve = true;
-                    setPill(sleeveBtn, true);
-                    el("sigSleeveRule").hidden = false;
-                }
-                state.vix = !state.vix; setPill(vixBtn, state.vix); run();
+            document.querySelectorAll("button[data-bench]").forEach(function (btn) {
+                btn.addEventListener("click", function () {
+                    var sym = btn.getAttribute("data-bench");
+                    state.benches[sym] = !state.benches[sym];
+                    setPill(btn, state.benches[sym]);
+                    run();
+                });
             });
             var rangesEl = el("sigRanges");
             if (rangesEl) rangesEl.querySelectorAll("button[data-range]").forEach(function (btn) {
@@ -6710,8 +6752,6 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     run();
                 });
             });
-            var benchSel = el("sigBenchmark");
-            benchSel.addEventListener("change", function () { state.bench = benchSel.value; run(); });
             var vt = el("sigViewTable"), vc = el("sigViewChart");
             function setView(v) {
                 state.view = v;
@@ -6779,25 +6819,6 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             sync(false);
         }
 
-        function buildBenchOptions() {
-            var sel = el("sigBenchmark");
-            var h = "<optgroup label=\"Cash\">";
-            h += "<option value=\"CASH\"" + (state.bench === "CASH" ? " selected" : "") + ">Cash — hold the dollars</option>";
-            h += "</optgroup><optgroup label=\"Indexes &amp; futures\">";
-            SIG_BENCH_INDEX.forEach(function (s) {
-                var p = PREP[s];
-                h += "<option value=\"" + s + "\"" + (s === state.bench ? " selected" : "") + ">" + esc(p ? p.name : s) + " (" + s + ")</option>";
-            });
-            h += "</optgroup><optgroup label=\"Single stocks\">";
-            SIG_NAMES.concat(SIG_SLEEVE_NAMES).forEach(function (s) {
-                var p = PREP[s];
-                h += "<option value=\"" + s + "\">" + esc(p ? p.name : s) + " (" + s + ")</option>";
-            });
-            h += "</optgroup>";
-            sel.innerHTML = h;
-            sel.value = state.bench;
-        }
-
         var initStarted = false;
         function sigInit() {
             if (initStarted) return;
@@ -6805,13 +6826,12 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (!window.jboLoadDailyData) { el("sigLoading").textContent = "Price history unavailable — the daily data loader is missing."; return; }
             window.jboLoadDailyData().then(function (data) {
                 DATA = data;
-                SIG_NAMES.concat(SIG_SLEEVE_NAMES, SIG_BENCH_INDEX, ["VIX"]).forEach(function (s) {
+                SIG_NAMES.concat(SIG_BENCH_INDEX, ["VIX"]).forEach(function (s) {
                     if (!PREP[s]) PREP[s] = prepSymbol(s);
                 });
                 state.ready = true;
                 el("sigLoading").hidden = true;
                 el("sigApp").hidden = false;
-                buildBenchOptions();
                 bindControls();
                 run();
             }).catch(function () {
