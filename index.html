@@ -1570,7 +1570,7 @@
         body.light-mode .btc-sub-dot.hold { background: #d97706; }
         .btc-sub-head { margin: 0; font-size: 1.05rem; font-weight: 700; line-height: 1.3; color: var(--text-color); }
         .btc-sub-def { margin: 0; font-size: 0.85rem; line-height: 1.4; color: var(--text-color); }
-        .btc-sub-foot { margin: 0; font-size: 0.78rem; line-height: 1.4; color: var(--text-muted, #94a3b8); }
+        .btc-sub-foot { margin: 0; font-size: min(0.78rem, calc((100vw - 100px) * 0.038)); line-height: 1.4; color: var(--text-muted, #94a3b8); white-space: nowrap; }
         @media (min-width: 700px) {
             .btc-golden-sub { flex-wrap: wrap; }
             .btc-sub-foot { flex: 1 1 100%; }
@@ -1647,6 +1647,10 @@
         @media (max-width: 480px) {
             .btc-sec2 { padding: 10px 8px 8px; }
             .btc-golden-sub { padding: 10px 8px 8px; }
+            /* the subscribe footer is one line on every page, never
+               wraps (Johnny, 2026-11-24): the fluid size in the
+               .btc-sub-foot rule itself carries that at phone widths,
+               sized for a 3-digit subscriber count */
         }
         /* The overlay cluster's internal fit steps down only at the
            narrowest widths, where the panel's content column cannot
@@ -1781,6 +1785,15 @@
         .ta-svg .medlab { paint-order: stroke; stroke: var(--glass-bg-solid); stroke-width: 3px; stroke-linejoin: round; }
         .ta-svg .band-edge-top { stroke: rgba(245, 166, 35, 0.55); stroke-width: 1; }
         .ta-svg .band-edge-bot { stroke: rgba(229, 72, 77, 0.5); stroke-width: 1; }
+        /* The overlay's band dots take their color from these
+           classes (2026-11-24 dot fix): the band block used to read
+           --buy/--sell off the document root, but those tokens are
+           scoped to the exhibit card and never defined page-wide,
+           so every dot's fill came back empty and rendered black. */
+        .ta-svg .banddot-buy { fill: #22c55e; }
+        .ta-svg .banddot-sell { fill: #ef4444; }
+        body.light-mode .ta-svg .banddot-buy { fill: #16a34a; }
+        body.light-mode .ta-svg .banddot-sell { fill: #dc2626; }
         /* The phone build's larger geometry: fonts come from its own
            build; strokes and dots scale with these overrides. */
         .ta-svg-phone .grid { stroke-width: 1.5; }
@@ -4096,8 +4109,11 @@ function buildOverlay(container, W, H, prof, svgClass, withTitle) {
     // be today, at the live anchor's price.
     if (window.BTC_OVERLAY !== false && window.BTC_BANDS) {
         const aN = anchorNow();
-        const csBand = getComputedStyle(document.documentElement);
-        const buyCol = csBand.getPropertyValue('--buy').trim(), sellCol = csBand.getPropertyValue('--sell').trim();
+        /* Band colors ride the .banddot-buy/.banddot-sell classes
+           in the stylesheet (theme-following), not a fill read:
+           --buy/--sell are exhibit-scoped tokens, undefined on the
+           document root, and the old read handed taDot an empty
+           fill — every band dot rendered black (fixed 2026-11-24). */
         BTC_BANDS.daysIn(0, dayNum('2100-01-01') - dayNum('2009-01-03')).forEach(({ day, band }) => {
             const date = isoOf(dayNum('2009-01-03') + day);
             const s = taSeries.find(s2 => date >= s2.fl.halving.date && (s2.current || date <= s2.fl.end));
@@ -4116,7 +4132,7 @@ function buildOverlay(container, W, H, prof, svgClass, withTitle) {
                 logp = Math.log10(pts[lo].price) + (Math.log10(pts[hi].price) - Math.log10(pts[lo].price)) * t;
             }
             const y = taUnit === 'usd' ? logp : logp - s.fl.halving.logp;
-            taDot(vp, X, Y, { day: dayDiff(date, s.fl.halving.date), y }, band === 'buy' ? buyCol : sellCol, 3.4 * S);
+            taEl('circle', { cx: X(dayDiff(date, s.fl.halving.date)), cy: Y(y), r: 3.4 * S, class: band === 'buy' ? 'banddot-buy' : 'banddot-sell', stroke: 'var(--glass-bg-solid)', 'stroke-width': 1.2 }, vp);
         });
     }
     const lp = drawSeries[drawSeries.length - 1].pts;
