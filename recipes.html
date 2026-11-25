@@ -1425,9 +1425,11 @@
        strip (title, category, arrow); expanded cards keep the settled
        face and gain the system's radius and shadow. The Cook and Share
        chips ride the photo in the same glass. */
-    .recipe-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
-    @media (max-width: 900px) { .recipe-grid { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 640px) { .recipe-grid { grid-template-columns: 1fr; } }
+    /* Grid columns + gap are style.css's own (restored 2026-11-24 on
+       Johnny's ruling — the pre-feel behaviour): auto-fit
+       minmax(200px, 1fr) with two across at phone widths. The feel
+       pass's 3/2/1 override is removed; the card anatomy below is
+       unchanged. */
     .recipe-grid .recipe-wrapper { border-radius: 22px; }
     .recipe-grid .recipe-wrapper.expanded { box-shadow: var(--feel-shadow); }
     .recipe-grid .recipe-wrapper:not(.expanded) .recipe-toggle { position: relative; display: block; aspect-ratio: 4 / 3; padding: 0; border-radius: 22px; overflow: hidden; box-shadow: var(--feel-shadow); }
@@ -1473,6 +1475,37 @@
     @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
         #targetsBar .targets-inner, .recipe-search-row, .recipe-controls, .recipe-empty, .recipe-search-empty, .leave-out-empty, .standout-legend { background: var(--glass-bg-solid); }
     }
+
+    /* ---- Header system + photo fit (2026-11-24) ---- */
+    #cookHeadUnit { position: sticky; top: 55px; z-index: 940; margin-top: 0.9rem; background: var(--bg-color); }
+    #cookHeadUnit.covered { visibility: hidden; }
+    .cook-square-bar { background: var(--bg-color); box-shadow: 0 1px 0 var(--border-color); padding: 0.7rem 1rem 0.75rem; }
+    .cook-square-title { display: block; font-family: Georgia, "Times New Roman", serif; font-size: 1.12rem; font-weight: 700; line-height: 1.25; }
+    .cook-square-bar .countline { margin: 0.15rem 0 0; font-size: 0.85rem; color: var(--subtext-color); }
+    .cook-pillbar { display: flex; gap: 4px; align-items: center; height: 58px; box-sizing: border-box; margin-top: 0.55rem; padding: 6px; background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5); backdrop-filter: blur(var(--glass-blur)) saturate(1.5); border: 1px solid var(--border-color); border-radius: 999px; box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35); }
+    body.light-mode .cook-pillbar { box-shadow: 0 14px 30px rgba(74, 60, 25, 0.18); }
+    .cook-pill { flex: 1 1 0; min-height: 44px; text-align: center; white-space: nowrap; font: inherit; font-size: 0.86rem; font-weight: 600; color: var(--subtext-color); background: none; border: none; border-radius: 999px; padding: 0.42rem 0.1rem; cursor: pointer; }
+    .cook-pill.active { background: #4ae88a; color: #0b1512; font-weight: 700; }
+    body.light-mode .cook-pill.active { background: #2e7d4f; color: #ffffff; }
+    @media (max-width: 380px) { .cook-pill { font-size: 0.78rem; } }
+    /* The Targets control in flow, in its own glass element of the
+       pill family, under the header unit. */
+    #targetsBar { position: static; max-width: none; margin: 0.55rem 0 0; padding: 0; box-sizing: border-box; background: none; border-bottom: none; }
+    #targetsBar .targets-inner { width: auto; max-width: none; min-height: 58px; margin: 0; padding: 6px 14px 6px 20px; gap: 10px; box-sizing: border-box; }
+    /* Section rows pin below the header unit, not the bare header. */
+    .explainer-wrapper:has(> .explainer-card.active) > .recipes-head-row { top: calc(55px + var(--head-unit-h, 0px)); }
+    .explainer-wrapper:has(> .explainer-card.active) > .info-toggle { top: calc(55px + var(--head-unit-h, 0px)); }
+    /* Opened-card landings clear the full pinned stack. */
+    .recipe-wrapper { scroll-margin-top: calc(55px + var(--head-unit-h, 120px) + 16px); }
+    .recipe-content { scroll-margin-top: calc(55px + var(--head-unit-h, 120px) + 16px); }
+    .feel-hero { margin-top: 0.75rem; }
+    /* Photo fit: a photo whose own ratio fights the 4/3 frame shows
+       WHOLE, contained over a blurred copy of itself (the Health
+       doors' pattern) — the frame never amputates the dish. */
+    .recipe-grid .recipe-wrapper:not(.expanded) .recipe-toggle.photo-fit::before { content: ''; position: absolute; inset: 0; background-image: var(--photo); background-size: cover; background-position: center; filter: blur(16px) saturate(1.3) brightness(0.9); transform: scale(1.25); }
+    .recipe-grid .recipe-wrapper:not(.expanded) .recipe-toggle.photo-fit .recipe-card-photo { object-fit: contain; position: relative; z-index: 1; }
+    .door-card-photo.photo-fit::before { content: ''; position: absolute; inset: 0; background-image: var(--photo); background-size: cover; background-position: center; filter: blur(16px) saturate(1.3) brightness(0.9); transform: scale(1.25); }
+    .door-card-photo.photo-fit img { object-fit: contain; position: relative; z-index: 1; }
     </style>
 </head>
 <body>
@@ -1521,10 +1554,9 @@
     <header class="page-header">
         <h1>Johnny's Recipes</h1>
         <p class="subtitle">My favorite recipes, and info about their nutrition.</p>
-        <p class="countline"><span id="feelRecipeCount"></span>home-tested custom recipes, each with estimated nutrition per serving.</p>
     </header>
     <div class="feel-hero">
-        <img src="images/miso.jpg" alt="Miso Sheetpan Chicken &amp; Brussels — roasted chicken and Brussels sprouts, charred at the edges" fetchpriority="high" decoding="async">
+        <img src="images/peruvian.jpg" alt="Peruvian Chicken with Cilantro-Lime Green Sauce — charred chicken thighs spooned with green sauce, lime wedges and a bowl of the sauce beside them" style="object-position: 55% 40%;" fetchpriority="high" decoding="async">
         <div class="feel-hero-scrim"></div>
         <div class="feel-hero-glass">
             <p class="feel-kicker">Johnny's Recipes</p>
@@ -1534,15 +1566,33 @@
         </div>
     </div>
 
-    <!-- Pinned targets bar: the primary control for whose targets the
+    <!-- Targets bar: the primary control for whose targets the
          nutrition numbers use. Standard = FDA Daily Values; Custom =
          the visitor's saved profile. The mode is its own stored state;
-         Standard never deletes the saved profile. The page title
-         comes first (2026-11-23 format unification): the bar is
-         fixed, and placeTargetsBar docks it directly under the title
-         block at rest, so title, line, Targets and the FDA line read
-         as one header group; scrolling docks it under the site
-         header (or under a stuck section row) as before. -->
+         Standard never deletes the saved profile. Since 2026-11-24
+         the bar is in flow in its own glass element under the header
+         unit; placeTargetsBar only publishes the pinned stack's
+         measurements. -->
+    <!-- Header system (2026-11-24, Johnny's site-wide pattern, the
+         Sustainability page as the standard): a square header bar
+         carrying the page title + its line, and below it a glass pill
+         bar holding the page's navigation, the pills flexing to fill
+         the bar. The two pin together as one sticky unit in their own
+         height, inside the column; nothing floats over cards. The
+         Targets control keeps its own glass element under the unit,
+         in flow. -->
+    <div id="cookHeadUnit">
+        <div class="cook-square-bar">
+            <span class="cook-square-title">Johnny's Recipes</span>
+            <p class="countline"><span id="feelRecipeCount"></span>home-tested custom recipes, each with estimated nutrition per serving.</p>
+        </div>
+        <nav class="cook-pillbar" id="cookPillbar" aria-label="Cooking sections">
+            <button type="button" class="cook-pill active" data-nav="recipes">Recipes</button>
+            <button type="button" class="cook-pill" data-nav="pantry">Pantry</button>
+            <button type="button" class="cook-pill" data-nav="nutrition">Nutrition</button>
+        </nav>
+    </div>
+
     <div id="targetsBar" role="group" aria-label="Nutrition targets">
         <div class="targets-inner">
             <span class="targets-label">Targets:</span>
@@ -1562,14 +1612,14 @@
          width; the section's head row is its labeled close control. -->
     <div class="door-cards">
         <button type="button" class="door-card" id="doorRecipes" aria-expanded="false" aria-controls="recipeCard">
-            <span class="door-card-photo"><img src="s/img/recipe-peruvianRecipe.jpg" alt="Peruvian Chicken with Cilantro-Lime Green Sauce" width="602" height="800" loading="lazy" decoding="async"></span>
+            <span class="door-card-photo photo-fit" style="--photo:url('s/img/recipe-peruvianRecipe.jpg')"><img src="s/img/recipe-peruvianRecipe.jpg" alt="Peruvian Chicken with Cilantro-Lime Green Sauce" width="602" height="800" loading="lazy" decoding="async"></span>
             <span class="door-card-body">
                 <span class="door-card-name">🍳 Johnny's Recipes</span>
                 <span class="door-card-state"><span class="door-card-arrow" aria-hidden="true">▶</span> <span class="door-card-word">Open</span></span>
             </span>
         </button>
         <button type="button" class="door-card" id="doorTool" aria-expanded="false" aria-controls="nutritionToolCard">
-            <span class="door-card-photo"><img src="s/img/door-nutrition-tool-scorecard.jpg" alt="The Nutrition Comparison Tool's Scorecard for Miso Sheetpan Chicken and Brussels sprouts with Potatoes au Gratin — grade 0.68, genuinely healthy" width="630" height="252" loading="lazy" decoding="async"></span>
+            <span class="door-card-photo"><img src="images/door-nutrition-tool.jpg" alt="The Nutrition Comparison Tool's Scorecard for Miso Sheetpan Chicken and Brussels sprouts with Potatoes au Gratin — grade 0.68, genuinely healthy" width="1200" height="900" loading="lazy" decoding="async"></span>
             <span class="door-card-body">
                 <span class="door-card-name">🥗 Nutrition Comparison Tool</span>
                 <span class="door-card-lead">What each recipe covers — and what it doesn't.</span>
@@ -1689,7 +1739,7 @@
             <div class="recipe-wrapper" data-tags="chicken main standout">
                 <button type="button" class="cook-toggle" data-cook-for="misoRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="misoRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('misoRecipe', 'misoArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/miso.jpg')" onclick="toggleNestedRecipe('misoRecipe', 'misoArrow')" aria-expanded="false">
                     <img style="--cap:866px;" class="recipe-card-photo" src="images/miso.jpg" alt="Miso Sheetpan Chicken &amp; Brussels" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Miso Sheetpan Chicken &amp; Brussels <span class="standout-badge">★ Standout</span></span>
@@ -1747,7 +1797,7 @@
             <div class="recipe-wrapper" data-tags="vegetarian salad">
                 <button type="button" class="cook-toggle" data-cook-for="yamitsukiRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="yamitsukiRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('yamitsukiRecipe', 'yamitsukiArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/yamitsuki.jpg')" onclick="toggleNestedRecipe('yamitsukiRecipe', 'yamitsukiArrow')" aria-expanded="false">
                     <img style="--cap:600px;" class="recipe-card-photo" src="images/yamitsuki.jpg" alt="Yamitsuki Cabbage Salad" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Yamitsuki Cabbage Salad</span>
@@ -1804,7 +1854,7 @@
             <div class="recipe-wrapper" data-tags="chicken main">
                 <button type="button" class="cook-toggle" data-cook-for="poivreRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="poivreRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('poivreRecipe', 'poivreArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/poivre.jpg')" onclick="toggleNestedRecipe('poivreRecipe', 'poivreArrow')" aria-expanded="false">
                     <img style="--cap:571px;" class="recipe-card-photo" src="images/poivre.jpg" alt="Chicken au Poivre" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Chicken au Poivre</span>
@@ -1862,7 +1912,7 @@
             <div class="recipe-wrapper" data-tags="chicken main standout">
                 <button type="button" class="cook-toggle" data-cook-for="peruvianRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="peruvianRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('peruvianRecipe', 'peruvianArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/peruvian.jpg')" onclick="toggleNestedRecipe('peruvianRecipe', 'peruvianArrow')" aria-expanded="false">
                     <img style="--cap:602px;" class="recipe-card-photo" src="images/peruvian.jpg" alt="Peruvian Chicken with Cilantro-Lime Green Sauce" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Peruvian Chicken with Cilantro-Lime Green Sauce <span class="standout-badge">★ Standout</span></span>
@@ -1934,7 +1984,7 @@
             <div class="recipe-wrapper" data-tags="vegetarian side">
                 <button type="button" class="cook-toggle" data-cook-for="leeksRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="leeksRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('leeksRecipe', 'leeksArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/leeks.jpg')" onclick="toggleNestedRecipe('leeksRecipe', 'leeksArrow')" aria-expanded="false">
                     <img style="--cap:1004px;" class="recipe-card-photo" src="images/leeks.jpg" alt="French Roasted Leeks" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">French Roasted Leeks</span>
@@ -1997,7 +2047,7 @@
             <div class="recipe-wrapper" data-tags="vegetarian salad">
                 <button type="button" class="cook-toggle" data-cook-for="arugulaRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="arugulaRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('arugulaRecipe', 'arugulaArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/arugula.jpg')" onclick="toggleNestedRecipe('arugulaRecipe', 'arugulaArrow')" aria-expanded="false">
                     <img style="--cap:533px;" class="recipe-card-photo" src="images/arugula.jpg" alt="Arugula, Fennel & Parmesan Salad" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Arugula, Fennel & Parmesan Salad</span>
@@ -2368,7 +2418,7 @@
             <div class="recipe-wrapper" data-tags="soup pork standout">
                 <button type="button" class="cook-toggle" data-cook-for="beanSoupRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="beanSoupRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('beanSoupRecipe', 'beanSoupArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/bean-soup.jpg')" onclick="toggleNestedRecipe('beanSoupRecipe', 'beanSoupArrow')" aria-expanded="false">
                     <img style="--cap:1280px;" class="recipe-card-photo" src="images/bean-soup.jpg" alt="Senate Bean Soup" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Senate Bean Soup <span class="standout-badge">★ Standout</span></span>
@@ -2722,7 +2772,7 @@
             <div class="recipe-wrapper" data-tags="main seafood standout">
                 <button type="button" class="cook-toggle" data-cook-for="salmonRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="salmonRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('salmonRecipe', 'salmonArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/salmon.jpg')" onclick="toggleNestedRecipe('salmonRecipe', 'salmonArrow')" aria-expanded="false">
                     <img style="--cap:533px;" class="recipe-card-photo" src="images/salmon.jpg" alt="Low &amp; Slow Baked Salmon with Homemade Tzatziki" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Low &amp; Slow Baked Salmon with Homemade Tzatziki <span class="standout-badge">★ Standout</span></span>
@@ -2819,7 +2869,7 @@
             <div class="recipe-wrapper" data-tags="vegetarian side">
                 <button type="button" class="cook-toggle" data-cook-for="gratinRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="gratinRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('gratinRecipe', 'gratinArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/gratin.jpg')" onclick="toggleNestedRecipe('gratinRecipe', 'gratinArrow')" aria-expanded="false">
                     <img style="--cap:533px;" class="recipe-card-photo" src="images/gratin.jpg" alt="Potatoes au Gratin" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Potatoes au Gratin</span>
@@ -2873,7 +2923,7 @@
                 <button type="button" class="cook-toggle" data-cook-for="pineappleRibsRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="pineappleRibsRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="recipe-toggle" onclick="toggleNestedRecipe('pineappleRibsRecipe', 'pineappleRibsArrow')" aria-expanded="false">
-                    <img style="--cap:710px;" class="recipe-card-photo" src="images/pineapple-ribs.jpg" alt="Sticky Pineapple Ribs" loading="lazy" decoding="async">
+                    <img style="object-position: 40% 50%; --cap:710px;" class="recipe-card-photo" src="images/pineapple-ribs.jpg" alt="Sticky Pineapple Ribs" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Sticky Pineapple Ribs</span>
                         <span class="recipe-card-foot"><span class="recipe-card-tag">Pork</span><span class="recipe-card-arrow" id="pineappleRibsArrow">▶</span></span>
@@ -2947,7 +2997,7 @@
             <div class="recipe-wrapper" data-tags="dessert vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="cookiesRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="cookiesRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('cookiesRecipe', 'cookiesArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/cookies.jpg')" onclick="toggleNestedRecipe('cookiesRecipe', 'cookiesArrow')" aria-expanded="false">
                     <img style="--cap:472px;" class="recipe-card-photo" src="images/cookies.jpg" alt="Browned Butter Coconut Chocolate Chip Cookies" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Browned Butter Coconut Chocolate Chip Cookies</span>
@@ -3008,7 +3058,7 @@
             <div class="recipe-wrapper" data-tags="side vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="pimentoCheeseRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="pimentoCheeseRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('pimentoCheeseRecipe', 'pimentoCheeseArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/pimento-cheese.jpg')" onclick="toggleNestedRecipe('pimentoCheeseRecipe', 'pimentoCheeseArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/pimento-cheese.jpg" alt="Spring House Pimento Cheese" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Spring House Pimento Cheese</span>
@@ -3061,7 +3111,7 @@
                 <button type="button" class="cook-toggle" data-cook-for="deviledEggsRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="deviledEggsRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="recipe-toggle" onclick="toggleNestedRecipe('deviledEggsRecipe', 'deviledEggsArrow')" aria-expanded="false">
-                    <img style="--cap:928px;" class="recipe-card-photo" src="images/deviled-eggs.jpg" alt="Classic Deviled Eggs" loading="lazy" decoding="async">
+                    <img style="object-position: 30% 50%; --cap:928px;" class="recipe-card-photo" src="images/deviled-eggs.jpg" alt="Classic Deviled Eggs" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Classic Deviled Eggs</span>
                         <span class="recipe-card-foot"><span class="recipe-card-tag">Side</span><span class="recipe-card-arrow" id="deviledEggsArrow">▶</span></span>
@@ -3113,7 +3163,7 @@
             <div class="recipe-wrapper" data-tags="main">
                 <button type="button" class="cook-toggle" data-cook-for="shortRibsBraisedRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="shortRibsBraisedRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('shortRibsBraisedRecipe', 'shortRibsBraisedArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/short-ribs-braised.jpg')" onclick="toggleNestedRecipe('shortRibsBraisedRecipe', 'shortRibsBraisedArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/short-ribs-braised.jpg" alt="Slow-Braised Short Ribs" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Slow-Braised Short Ribs</span>
@@ -3180,7 +3230,7 @@
             <div class="recipe-wrapper" data-tags="seafood main">
                 <button type="button" class="cook-toggle" data-cook-for="crabCakeRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="crabCakeRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('crabCakeRecipe', 'crabCakeArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/crab-cake.jpg')" onclick="toggleNestedRecipe('crabCakeRecipe', 'crabCakeArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/crab-cake.jpg" alt="The District's Crab Cake" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">The District's Crab Cake</span>
@@ -3231,7 +3281,7 @@
             <div class="recipe-wrapper" data-tags="side vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="roastedRootVegRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="roastedRootVegRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('roastedRootVegRecipe', 'roastedRootVegArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/roasted-root-veg.jpg')" onclick="toggleNestedRecipe('roastedRootVegRecipe', 'roastedRootVegArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/roasted-root-veg.jpg" alt="Roasted Root Vegetables with Garden Herbs" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Roasted Root Vegetables with Garden Herbs</span>
@@ -3290,7 +3340,7 @@
                 <button type="button" class="cook-toggle" data-cook-for="beetMousseRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="beetMousseRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="recipe-toggle" onclick="toggleNestedRecipe('beetMousseRecipe', 'beetMousseArrow')" aria-expanded="false">
-                    <img style="--cap:400px;" class="recipe-card-photo" src="images/beet-mousse.jpg" alt="Beet Mousse" loading="lazy" decoding="async">
+                    <img style="object-position: 50% 15%; --cap:400px;" class="recipe-card-photo" src="images/beet-mousse.jpg" alt="Beet Mousse" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Beet Mousse</span>
                         <span class="recipe-card-foot"><span class="recipe-card-tag">Side</span><span class="recipe-card-arrow" id="beetMousseArrow">▶</span></span>
@@ -3340,7 +3390,7 @@
             <div class="recipe-wrapper" data-tags="side vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="pickledBeetsRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="pickledBeetsRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('pickledBeetsRecipe', 'pickledBeetsArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/pickled-beets.jpg')" onclick="toggleNestedRecipe('pickledBeetsRecipe', 'pickledBeetsArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/pickled-beets.jpg" alt="Pickled Beets" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Pickled Beets</span>
@@ -3450,7 +3500,7 @@
             <div class="recipe-wrapper" data-tags="sauce vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="pineappleJamRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="pineappleJamRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('pineappleJamRecipe', 'pineappleJamArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/pineapple-jam.jpg')" onclick="toggleNestedRecipe('pineappleJamRecipe', 'pineappleJamArrow')" aria-expanded="false">
                     <img style="--cap:300px;" class="recipe-card-photo" src="images/pineapple-jam.jpg" alt="Brown Sugar Pineapple Jam" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Brown Sugar Pineapple Jam</span>
@@ -3568,7 +3618,7 @@
             <div class="recipe-wrapper" data-tags="sauce">
                 <button type="button" class="cook-toggle" data-cook-for="panReductionSauceRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="panReductionSauceRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('panReductionSauceRecipe', 'panReductionSauceArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/pan-reduction-sauce.jpg')" onclick="toggleNestedRecipe('panReductionSauceRecipe', 'panReductionSauceArrow')" aria-expanded="false">
                     <img style="--cap:300px;" class="recipe-card-photo" src="images/pan-reduction-sauce.jpg" alt="Pan Reduction Sauce" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Pan Reduction Sauce</span>
@@ -3738,7 +3788,7 @@
             <div class="recipe-wrapper" data-tags="sauce vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="mushroomCabernetSauceRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="mushroomCabernetSauceRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('mushroomCabernetSauceRecipe', 'mushroomCabernetSauceArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/mushroom-cabernet-sauce.jpg')" onclick="toggleNestedRecipe('mushroomCabernetSauceRecipe', 'mushroomCabernetSauceArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/mushroom-cabernet-sauce.jpg" alt="Mushroom Rosemary Cabernet Sauce" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Mushroom Rosemary Cabernet Sauce</span>
@@ -3899,7 +3949,7 @@
             <div class="recipe-wrapper" data-tags="sauce">
                 <button type="button" class="cook-toggle" data-cook-for="tboneSteakDustRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="tboneSteakDustRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('tboneSteakDustRecipe', 'tboneSteakDustArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/tbone-steak-dust.jpg')" onclick="toggleNestedRecipe('tboneSteakDustRecipe', 'tboneSteakDustArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/tbone-steak-dust.jpg" alt="T-Bone Steak Dust" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">T-Bone Steak Dust</span>
@@ -3949,7 +3999,7 @@
             <div class="recipe-wrapper" data-tags="sauce">
                 <button type="button" class="cook-toggle" data-cook-for="killaPanSauceRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="killaPanSauceRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('killaPanSauceRecipe', 'killaPanSauceArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/killa-pan-sauce.jpg')" onclick="toggleNestedRecipe('killaPanSauceRecipe', 'killaPanSauceArrow')" aria-expanded="false">
                     <img style="--cap:300px;" class="recipe-card-photo" src="images/killa-pan-sauce.jpg" alt="Killa' Pan Sauce" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Killa' Pan Sauce</span>
@@ -4000,7 +4050,7 @@
             <div class="recipe-wrapper" data-tags="sauce vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="blueCheeseWalnutButterRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="blueCheeseWalnutButterRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('blueCheeseWalnutButterRecipe', 'blueCheeseWalnutButterArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/blue-cheese-walnut-butter.jpg')" onclick="toggleNestedRecipe('blueCheeseWalnutButterRecipe', 'blueCheeseWalnutButterArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/blue-cheese-walnut-butter.jpg" alt="Blue Cheese Walnut Butter" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Blue Cheese Walnut Butter</span>
@@ -4049,7 +4099,7 @@
             <div class="recipe-wrapper" data-tags="main">
                 <button type="button" class="cook-toggle" data-cook-for="skirtSteakRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="skirtSteakRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('skirtSteakRecipe', 'skirtSteakArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/skirt-steak.jpg')" onclick="toggleNestedRecipe('skirtSteakRecipe', 'skirtSteakArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/skirt-steak.jpg" alt="Grilled Skirt Steak" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Grilled Skirt Steak</span>
@@ -4416,7 +4466,7 @@
             <div class="recipe-wrapper" data-tags="side vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="pieCrustRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="pieCrustRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('pieCrustRecipe', 'pieCrustArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/pie-crust.jpg')" onclick="toggleNestedRecipe('pieCrustRecipe', 'pieCrustArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/pie-crust.jpg" alt="Pie Crust" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Pie Crust</span>
@@ -4580,7 +4630,7 @@
             <div class="recipe-wrapper" data-tags="sauce">
                 <button type="button" class="cook-toggle" data-cook-for="jalapenoPeachGlazeRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="jalapenoPeachGlazeRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('jalapenoPeachGlazeRecipe', 'jalapenoPeachGlazeArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/jalapeno-peach-glaze.jpg')" onclick="toggleNestedRecipe('jalapenoPeachGlazeRecipe', 'jalapenoPeachGlazeArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/jalapeno-peach-glaze.jpg" alt="Jalapeño Peach Glaze" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Jalapeño Peach Glaze</span>
@@ -4695,7 +4745,7 @@
             <div class="recipe-wrapper" data-tags="sauce vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="chimichurriRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="chimichurriRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('chimichurriRecipe', 'chimichurriArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/chimichurri.jpg')" onclick="toggleNestedRecipe('chimichurriRecipe', 'chimichurriArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/chimichurri.jpg" alt="Chimichurri Sauce" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Chimichurri Sauce</span>
@@ -4968,7 +5018,7 @@
             <div class="recipe-wrapper" data-tags="sauce vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="gingerSoySauceRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="gingerSoySauceRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('gingerSoySauceRecipe', 'gingerSoySauceArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/ginger-soy-sauce.jpg')" onclick="toggleNestedRecipe('gingerSoySauceRecipe', 'gingerSoySauceArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/ginger-soy-sauce.jpg" alt="Fresh Ginger Soy Sauce" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Fresh Ginger Soy Sauce</span>
@@ -5015,7 +5065,7 @@
             <div class="recipe-wrapper" data-tags="side vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="grilledCornHuskRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="grilledCornHuskRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('grilledCornHuskRecipe', 'grilledCornHuskArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/grilled-corn-husk.jpg')" onclick="toggleNestedRecipe('grilledCornHuskRecipe', 'grilledCornHuskArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/grilled-corn-husk.jpg" alt="Grilled Corn-in-the-Husk with Ancho-Lime Butter" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Grilled Corn-in-the-Husk with Ancho-Lime Butter</span>
@@ -5071,7 +5121,7 @@
             <div class="recipe-wrapper" data-tags="sauce vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="anchoLimeButterRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="anchoLimeButterRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('anchoLimeButterRecipe', 'anchoLimeButterArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/ancho-lime-butter.jpg')" onclick="toggleNestedRecipe('anchoLimeButterRecipe', 'anchoLimeButterArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/ancho-lime-butter.jpg" alt="Ancho-Lime Butter" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Ancho-Lime Butter</span>
@@ -5828,7 +5878,7 @@
                 <button type="button" class="cook-toggle" data-cook-for="shortRibsSimpleRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="shortRibsSimpleRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="recipe-toggle" onclick="toggleNestedRecipe('shortRibsSimpleRecipe', 'shortRibsSimpleArrow')" aria-expanded="false">
-                    <img style="--cap:353px;" class="recipe-card-photo" src="images/short-ribs-simple.jpg" alt="Short Ribs, the Simplest Way" loading="lazy" decoding="async">
+                    <img style="object-position: 15% 50%; --cap:353px;" class="recipe-card-photo" src="images/short-ribs-simple.jpg" alt="Short Ribs, the Simplest Way" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Short Ribs, the Simplest Way</span>
                         <span class="recipe-card-foot"><span class="recipe-card-tag">Main</span><span class="recipe-card-arrow" id="shortRibsSimpleArrow">▶</span></span>
@@ -5882,7 +5932,7 @@
             <div class="recipe-wrapper" data-tags="dessert vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="chocChipCookiesMilkRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="chocChipCookiesMilkRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('chocChipCookiesMilkRecipe', 'chocChipCookiesMilkArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/choc-chip-cookies-milk.jpg')" onclick="toggleNestedRecipe('chocChipCookiesMilkRecipe', 'chocChipCookiesMilkArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/choc-chip-cookies-milk.jpg" alt="Chocolate Chip Cookies and Milk" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Chocolate Chip Cookies and Milk</span>
@@ -5990,7 +6040,7 @@
             <div class="recipe-wrapper" data-tags="cocktail">
                 <button type="button" class="cook-toggle" data-cook-for="lemonGingerMojitoRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="lemonGingerMojitoRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('lemonGingerMojitoRecipe', 'lemonGingerMojitoArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/lemon-ginger-mojito.jpg')" onclick="toggleNestedRecipe('lemonGingerMojitoRecipe', 'lemonGingerMojitoArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/lemon-ginger-mojito.jpg" alt="Lemon Ginger Mojito" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Lemon Ginger Mojito</span>
@@ -6043,7 +6093,7 @@
             <div class="recipe-wrapper" data-tags="sauce vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="m80SauceRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="m80SauceRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('m80SauceRecipe', 'm80SauceArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/m80-sauce.jpg')" onclick="toggleNestedRecipe('m80SauceRecipe', 'm80SauceArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/m80-sauce.jpg" alt="Spring House M-80 Boom! Sauce" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Spring House M-80 Boom! Sauce</span>
@@ -6094,7 +6144,7 @@
             <div class="recipe-wrapper" data-tags="sauce vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="lemonAioliRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="lemonAioliRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('lemonAioliRecipe', 'lemonAioliArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/lemon-aioli.jpg')" onclick="toggleNestedRecipe('lemonAioliRecipe', 'lemonAioliArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/lemon-aioli.jpg" alt="Cracked Black Pepper and Lemon Aioli" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Cracked Black Pepper and Lemon Aioli</span>
@@ -6205,7 +6255,7 @@
             <div class="recipe-wrapper" data-tags="pork main">
                 <button type="button" class="cook-toggle" data-cook-for="porkTenderloinBrothRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="porkTenderloinBrothRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('porkTenderloinBrothRecipe', 'porkTenderloinBrothArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/pork-tenderloin-broth.jpg')" onclick="toggleNestedRecipe('porkTenderloinBrothRecipe', 'porkTenderloinBrothArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/pork-tenderloin-broth.jpg" alt="Pork Tenderloin with Shiitake Jalapeño Broth" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Pork Tenderloin with Shiitake Jalapeño Broth</span>
@@ -6711,7 +6761,7 @@
             <div class="recipe-wrapper" data-tags="side vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="tortillasRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="tortillasRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('tortillasRecipe', 'tortillasArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/tortillas.jpg')" onclick="toggleNestedRecipe('tortillasRecipe', 'tortillasArrow')" aria-expanded="false">
                     <img style="--cap:280px;" class="recipe-card-photo" src="images/tortillas.jpg" alt="Tortillas Caseras (Handmade Tortillas)" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Tortillas Caseras (Handmade Tortillas)</span>
@@ -6819,7 +6869,7 @@
                 <button type="button" class="cook-toggle" data-cook-for="chiliHotSauceRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="chiliHotSauceRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
                 <button class="recipe-toggle" onclick="toggleNestedRecipe('chiliHotSauceRecipe', 'chiliHotSauceArrow')" aria-expanded="false">
-                    <img style="--cap:354px;" class="recipe-card-photo" src="images/chili-hot-sauce.jpg" alt="Chili Hot Sauce (Salsa Picante)" loading="lazy" decoding="async">
+                    <img style="object-position: 85% 50%; --cap:354px;" class="recipe-card-photo" src="images/chili-hot-sauce.jpg" alt="Chili Hot Sauce (Salsa Picante)" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Chili Hot Sauce (Salsa Picante)</span>
                         <span class="recipe-card-foot"><span class="recipe-card-tag">Sauce</span><span class="recipe-card-arrow" id="chiliHotSauceArrow">▶</span></span>
@@ -6923,7 +6973,7 @@
             <div class="recipe-wrapper" data-tags="sauce vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="lemonThymeOilRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="lemonThymeOilRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('lemonThymeOilRecipe', 'lemonThymeOilArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/lemon-thyme-oil.jpg')" onclick="toggleNestedRecipe('lemonThymeOilRecipe', 'lemonThymeOilArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/lemon-thyme-oil.jpg" alt="Lemon Thyme Oil" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Lemon Thyme Oil</span>
@@ -7029,7 +7079,7 @@
             <div class="recipe-wrapper" data-tags="sauce">
                 <button type="button" class="cook-toggle" data-cook-for="blueQSauceRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="blueQSauceRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('blueQSauceRecipe', 'blueQSauceArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/blue-q-sauce.jpg')" onclick="toggleNestedRecipe('blueQSauceRecipe', 'blueQSauceArrow')" aria-expanded="false">
                     <img style="--cap:300px;" class="recipe-card-photo" src="images/blue-q-sauce.jpg" alt="Blue Q Sauce" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Blue Q Sauce</span>
@@ -7374,7 +7424,7 @@
             <div class="recipe-wrapper" data-tags="side vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="cacioGritsRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="cacioGritsRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('cacioGritsRecipe', 'cacioGritsArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/cacio-grits.jpg')" onclick="toggleNestedRecipe('cacioGritsRecipe', 'cacioGritsArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/cacio-grits.jpg" alt="Cacio e Pepe Grits" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Cacio e Pepe Grits</span>
@@ -7428,7 +7478,7 @@
             <div class="recipe-wrapper" data-tags="soup vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="potatoCreamRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="potatoCreamRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('potatoCreamRecipe', 'potatoCreamArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/potato-cream.jpg')" onclick="toggleNestedRecipe('potatoCreamRecipe', 'potatoCreamArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/potato-cream.jpg" alt="Potato Cream with Leeks, Capers, and Avocado" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Potato Cream with Leeks, Capers, and Avocado</span>
@@ -7559,7 +7609,7 @@
             <div class="recipe-wrapper" data-tags="soup side vegetarian">
                 <button type="button" class="cook-toggle" data-cook-for="cornChowderRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="cornChowderRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('cornChowderRecipe', 'cornChowderArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/corn-chowder.jpg')" onclick="toggleNestedRecipe('cornChowderRecipe', 'cornChowderArrow')" aria-expanded="false">
                     <img style="--cap:400px;" class="recipe-card-photo" src="images/corn-chowder.jpg" alt="Fresh Corn Chowder" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Fresh Corn Chowder</span>
@@ -7622,7 +7672,7 @@
             <div class="recipe-wrapper" data-tags="chicken main">
                 <button type="button" class="cook-toggle" data-cook-for="jalapenoCaramelChickenRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="jalapenoCaramelChickenRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('jalapenoCaramelChickenRecipe', 'jalapenoCaramelChickenArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/jalapeno-caramel-chicken.jpg')" onclick="toggleNestedRecipe('jalapenoCaramelChickenRecipe', 'jalapenoCaramelChickenArrow')" aria-expanded="false">
                     <img style="--cap:298px;" class="recipe-card-photo" src="images/jalapeno-caramel-chicken.jpg" alt="Asian-Inspired Jalapeño Caramel Chicken" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Asian-Inspired Jalapeño Caramel Chicken</span>
@@ -7683,7 +7733,7 @@
             <div class="recipe-wrapper" data-tags="vegetarian main">
                 <button type="button" class="cook-toggle" data-cook-for="oatmealRecipe" aria-pressed="false" title="Add to cook mode">&#x1F373; Cook</button>
                 <button type="button" class="recipe-share" data-share-recipe="oatmealRecipe" aria-label="Share this recipe" title="Share this recipe"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#jboShareIcon"></use></svg></button>
-                <button class="recipe-toggle" onclick="toggleNestedRecipe('oatmealRecipe', 'oatmealArrow')" aria-expanded="false">
+                <button class="recipe-toggle photo-fit" style="--photo:url('images/oatmeal.jpg')" onclick="toggleNestedRecipe('oatmealRecipe', 'oatmealArrow')" aria-expanded="false">
                     <img style="--cap:1280px;" class="recipe-card-photo" src="images/oatmeal.jpg" alt="Maple Cinnamon Oatmeal" loading="lazy" decoding="async">
                     <span class="recipe-card-body">
                         <span class="recipe-card-title">Maple Cinnamon Oatmeal</span>
@@ -8207,6 +8257,13 @@
 
     <script src="script.js"></script>
     <script>
+        /* The pinned stack's bottom line: the 55px site header plus
+           the header unit (2026-11-24). Close-restores land their
+           anchor on this line, never under the unit. */
+        function stackLine() {
+            var u = document.getElementById('cookHeadUnit');
+            return 55 + (u ? u.offsetHeight : 0);
+        }
         function toggleExplainer(cardId, arrowId) {
             const card = document.getElementById(cardId);
             const arrow = document.getElementById(arrowId);
@@ -8225,13 +8282,13 @@
             if (card.classList.contains('active')) {
                 if (cardId === 'recipeCard' || cardId === 'nutritionToolCard') {
                     anchorEl = document.getElementById(cardId === 'recipeCard' ? 'doorRecipes' : 'doorTool');
-                    anchorTarget = 55;
+                    anchorTarget = stackLine();
                 } else {
                     const tog = arrow ? arrow.closest('button') : null;
                     if (tog) {
                         const tt = tog.getBoundingClientRect().top;
                         anchorEl = tog;
-                        anchorTarget = tt > 99 ? tt : 97;
+                        anchorTarget = tt > stackLine() + 2 ? tt : stackLine();
                     }
                 }
             }
@@ -8272,7 +8329,7 @@
             let anchorTarget = null;
             if (recipe.classList.contains('active') && button) {
                 const t = button.getBoundingClientRect().top;
-                if (t > -50 && t < window.innerHeight) anchorTarget = t > 101 ? t : 99;
+                if (t > -50 && t < window.innerHeight) anchorTarget = t > stackLine() + 2 ? t : stackLine();
             }
             if (recipe.classList.contains('active')) {
                 recipe.classList.remove('active');
@@ -9713,53 +9770,33 @@
         return bottom;
     }
     function placeTargetsBar() {
-        if (!targetsBar) return;
+        /* Header system (2026-11-24): the targets bar is in flow; the
+           pinned stack is the site header plus the header unit
+           (square bar + pill bar). Publish the measured stack so the
+           section rows pin below the unit and scroll landings clear
+           it exactly. --bar-clear is 0: no fixed bar needs clearance
+           any more. */
         var nav = document.querySelector('.site-nav');
-        if (!nav) { targetsBar.style.top = '55px'; return; }
-        var bottom = nav.getBoundingClientRect().bottom;
-        var stuck = stuckRowBottom(bottom);
-        if (stuck > bottom) bottom = stuck;
-        /* Title first (2026-11-23 format unification): while the
-           page's title block is still at or below the header's bottom
-           edge, the bar docks at the title block's bottom edge
-           instead — title, line, Targets and the FDA line read as
-           one header group. The title's rendered bottom falls as the
-           page scrolls, so the hand-off to the header's edge (or to a
-           stuck row's edge) is continuous, never a jump. While the
-           profile editor is open at the top of the page it sits
-           directly under the title block, and the bar docks below
-           the editor instead of covering it. */
-        var head = document.querySelector('.page-header');
-        if (head) {
-            var hb = head.getBoundingClientRect().bottom;
-            if (hb > bottom) bottom = hb;
-            if (typeof profBlock !== 'undefined' && profBlock && !profBlock.hidden && head.nextSibling === profBlock) {
-                var eb = profBlock.getBoundingClientRect().bottom;
-                if (eb > bottom) bottom = eb;
-            }
-        }
-        targetsBar.style.top = Math.max(0, Math.round(bottom)) + 'px';
-        /* Publish the measured stack so flow content and scroll
-           landings clear it exactly: --stack-h is the header plus
-           this bar; --tip-row-h is a section toggle's height (the
-           row that takes the pinned slot while tips are open);
-           --bar-clear is published below for the door cards. */
+        var unit = document.getElementById('cookHeadUnit');
         var rootEl = document.documentElement;
-        rootEl.style.setProperty('--stack-h', (nav.offsetHeight + targetsBar.offsetHeight) + 'px');
+        var navH = nav ? nav.offsetHeight : 55;
+        var unitH = unit ? unit.offsetHeight : 0;
+        rootEl.style.setProperty('--stack-h', (navH + unitH) + 'px');
+        rootEl.style.setProperty('--head-unit-h', unitH + 'px');
         var anyToggle = document.querySelector('.info-toggle');
         if (anyToggle && anyToggle.offsetHeight) rootEl.style.setProperty('--tip-row-h', anyToggle.offsetHeight + 'px');
-        /* The clearance the door cards need below the docked bar:
-           their collapsed top margin already gives 16px below the
-           title block's bottom edge, so the padding only has to
-           cover the bar's height less that margin, plus the gap. */
-        rootEl.style.setProperty('--bar-clear', Math.max(0, Math.round(targetsBar.offsetHeight - 6)) + 'px');
+        rootEl.style.setProperty('--bar-clear', '0px');
     }
     /* Slot-covered: the recipe-name bar owns the slot while it is
        shown (it is the open recipe's own toggle), so this bar is
        covered then -- visibility:hidden, never unpinned. The name
        bar is created by a later script, so watch for it. */
     function coverTargetsBar(nb) {
-        if (targetsBar && nb) targetsBar.classList.toggle('covered', nb.classList.contains('show'));
+        if (!nb) return;
+        var show = nb.classList.contains('show');
+        if (targetsBar) targetsBar.classList.toggle('covered', show);
+        var unit = document.getElementById('cookHeadUnit');
+        if (unit) unit.classList.toggle('covered', show);
     }
     function watchNameBar(nb) {
         if (!nb) return;
@@ -14437,6 +14474,19 @@
         'use strict';
         var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var targetsBar = document.getElementById('targetsBar');
+        var headUnit = document.getElementById('cookHeadUnit');
+        /* The pinned stack's measured bottom edge: the header unit's
+           bottom, plus any section row stuck directly below it. */
+        function stackBottom() {
+            var b = headUnit ? Math.round(headUnit.getBoundingClientRect().bottom) : 55;
+            var rows = document.querySelectorAll('.info-toggle, .recipes-head-row, .tips-outer > summary, .tip-group > summary');
+            for (var i = 0; i < rows.length; i++) {
+                if (window.getComputedStyle(rows[i]).position !== 'sticky') continue;
+                var r = rows[i].getBoundingClientRect();
+                if (r.top <= b + 1.5 && r.bottom > b) b = Math.round(r.bottom);
+            }
+            return b;
+        }
 
         /* ---- Front-door cards: each card clicks its section's own
            toggle, so the section's state has exactly one source. The
@@ -14504,7 +14554,7 @@
                 if (state.cancelled || frames++ > 240) { done(); return; }
                 var y = window.scrollY;
                 if (Math.abs(y - startY) > 2) sawMove = true;
-                var barB = targetsBar ? targetsBar.getBoundingClientRect().bottom : 55;
+                var barB = stackBottom();
                 var moved = Math.abs(y - lastY) > 0.5 || (lastBar !== null && Math.abs(barB - lastBar) > 0.5);
                 lastY = y; lastBar = barB;
                 stable = moved ? 0 : stable + 1;
@@ -14523,7 +14573,7 @@
         function glideTo(cardEl) {
             var wrap = cardEl.closest('.explainer-wrapper');
             if (!wrap) return;
-            var offset = 55 + slotRowHeightBefore(wrap) + (targetsBar ? targetsBar.offsetHeight : 0) + 4;
+            var offset = 55 + slotRowHeightBefore(wrap) + (headUnit ? headUnit.offsetHeight : 0) + 4;
             var y = wrap.getBoundingClientRect().top + window.scrollY - offset;
             window.scrollTo({ top: Math.max(0, y), behavior: reduce ? 'auto' : 'smooth' });
             settleGlide(wrap);
@@ -14692,11 +14742,10 @@
         });
 
         /* Placement: the strip's sticky top is the measured bottom of
-           the pinned stack above it (the fixed targets bar already
-           stacks itself under the stuck head row, so its bottom edge
-           IS the stack's bottom edge). The strip stands down while a
+           the pinned stack above it (the header unit plus the stuck
+           head row directly below it). The strip stands down while a
            recipe is open (the recipe-name bar owns the slot and the
-           targets bar is covered) or the archive is closed. */
+           header unit is covered) or the archive is closed. */
         var ticking = false;
         function placeStrip() {
             ticking = false;
@@ -14706,7 +14755,7 @@
             var standDown = !recipeCard.classList.contains('active') || !!expanded || !!covered;
             strip.classList.toggle('no-stick', standDown);
             if (standDown) { strip.classList.remove('is-stuck'); return; }
-            var top = targetsBar ? Math.round(targetsBar.getBoundingClientRect().bottom) : 55;
+            var top = stackBottom();
             strip.style.top = top + 'px';
             var r = strip.getBoundingClientRect();
             strip.classList.toggle('is-stuck', Math.abs(r.top - top) <= 1.5);
@@ -14826,6 +14875,94 @@
     (function () {
         var el = document.getElementById('feelRecipeCount');
         if (el) { el.textContent = document.querySelectorAll('.recipe-wrapper').length + ' '; }
+    })();
+    </script>
+    <script>
+    /* Header pill bar (2026-11-24): the page's navigation — Recipes,
+       Pantry, Nutrition. A tap opens its section (through the doors'
+       own toggles, so section state has one source) and glides it
+       under the pinned stack; the scroll-spy lights the pill of the
+       section being read, the Sustainability chapter bar's pattern.
+       Highlight and glide only: the bar's size never changes. */
+    (function () {
+        var bar = document.getElementById('cookPillbar');
+        if (!bar) return;
+        var unit = document.getElementById('cookHeadUnit');
+        var pills = Array.prototype.slice.call(bar.querySelectorAll('.cook-pill'));
+        function stackBottom() {
+            var b = unit ? Math.round(unit.getBoundingClientRect().bottom) : 55;
+            var rows = document.querySelectorAll('.info-toggle, .recipes-head-row, .tips-outer > summary, .tip-group > summary');
+            for (var i = 0; i < rows.length; i++) {
+                if (window.getComputedStyle(rows[i]).position !== 'sticky') continue;
+                var r = rows[i].getBoundingClientRect();
+                if (r.top <= b + 1.5 && r.bottom > b) b = Math.round(r.bottom);
+            }
+            return b;
+        }
+        function scrollToEl(el) {
+            if (!el) return;
+            var y = el.getBoundingClientRect().top + window.scrollY - stackBottom() - 4;
+            window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+            var n = 0;
+            var iv = setInterval(function () {
+                var delta = el.getBoundingClientRect().top - (stackBottom() + 4);
+                if (Math.abs(delta) <= 1 || ++n > 10) { clearInterval(iv); return; }
+                window.scrollBy(0, delta);
+            }, 160);
+        }
+        function sectionToggle(arrowId) {
+            var a = document.getElementById(arrowId);
+            return a ? a.closest('button') : null;
+        }
+        pills.forEach(function (p) {
+            p.addEventListener('click', function () {
+                var nav = p.getAttribute('data-nav');
+                var rCard = document.getElementById('recipeCard');
+                var tCard = document.getElementById('nutritionToolCard');
+                if (nav === 'recipes') {
+                    if (rCard && !rCard.classList.contains('active')) document.getElementById('doorRecipes').click();
+                    else if (rCard) scrollToEl(rCard.closest('.explainer-wrapper'));
+                } else if (nav === 'nutrition') {
+                    if (tCard && !tCard.classList.contains('active')) document.getElementById('doorTool').click();
+                    else if (tCard) scrollToEl(tCard.closest('.explainer-wrapper'));
+                } else if (nav === 'pantry') {
+                    var go = function () {
+                        var fp = document.querySelector('.filter-pill[data-filter="pantry"]');
+                        if (fp && !fp.classList.contains('active')) fp.click();
+                        var sec = document.getElementById('pantry-section');
+                        if (sec) setTimeout(function () { scrollToEl(sec); }, 60);
+                    };
+                    if (rCard && !rCard.classList.contains('active')) {
+                        var tog = sectionToggle('recipeArrow');
+                        if (tog) tog.click();
+                        setTimeout(go, 60);
+                    } else go();
+                }
+            });
+        });
+        var rWrap = document.getElementById('recipeCard');
+        var tWrap = document.getElementById('nutritionToolCard');
+        var regions = [
+            { key: 'recipes', el: rWrap ? rWrap.closest('.explainer-wrapper') : null },
+            { key: 'pantry', el: document.getElementById('pantry-section') },
+            { key: 'nutrition', el: tWrap ? tWrap.closest('.explainer-wrapper') : null }
+        ];
+        function spy() {
+            var line = stackBottom() + 12;
+            var current = 'recipes';
+            regions.forEach(function (r) {
+                if (!r.el) return;
+                if (r.key === 'pantry' && r.el.hidden) return;
+                if (r.el.getBoundingClientRect().top <= line) current = r.key;
+            });
+            pills.forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-nav') === current); });
+        }
+        var tick = false;
+        window.addEventListener('scroll', function () {
+            if (!tick) { tick = true; window.requestAnimationFrame(function () { tick = false; spy(); }); }
+        }, { passive: true });
+        window.addEventListener('resize', spy);
+        spy();
     })();
     </script>
 </body>
