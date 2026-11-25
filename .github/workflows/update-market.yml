@@ -50,7 +50,20 @@ jobs:
       - name: Run share-stub refresher
         run: python update_share_stubs.py
 
+  # Step 2 of the automation (Johnny, 2026-11-24): verify the
+  # freshly built data BEFORE anything is committed. The suite
+  # recomputes every score and band dot from the built closes,
+  # cross-checks headline closes against independent sources
+  # (FRED, Coinbase, Nasdaq), checks the through date against
+  # the market calendar, and checks the fine rungs against the
+  # daily file. No continue-on-error: a failed verify fails
+  # the run, the commit step below never runs, and yesterday's
+  # verified data stays live.
+      - name: Verify built data (correctness gate)
+        run: python verify_market_data.py
+
       - name: Commit and push changes
+        if: success()
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
