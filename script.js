@@ -221,10 +221,11 @@ document.addEventListener('DOMContentLoaded', function () {
    anchors, so an iOS toolbar resize mid-gesture cannot move the
    anchors and jump the logo. The "Scroll to start" hint is sampled
    from the same master progress (no MutationObserver re-deriving it).
-   A 'jbo:introglide' window event, fired once when the morph first
-   moves forward in earnest, tells the hero photo's focus effect to
-   sharpen in step, so the photo is sharp at the landing instead of
-   waiting on scroll the intro has been holding at zero. NO timer ever
+   The hero photo's focus effect answers to page scroll alone: the
+   photo stays blurred through the whole intro and sharpens only once
+   the visitor actually scrolls the page (Johnny's ruling, 2026-11-25
+   — an earlier coupling sharpened it with the glide, so it sat sharp
+   at the landing; that coupling is removed). NO timer ever
    acts while a touch is held — the intro is a little game the visitor
    plays at their own pace; the only idle timer belongs to the desktop
    wheel, and a touch cancels it. */
@@ -274,7 +275,6 @@ function initLogoIntro() {
     var settleTimer = null;  // force-land safety net for a running settle
     var scrubRaf = null, pendingP = null; // drag writes, coalesced to one per frame
     var wheelIdleTimer = null;
-    var heroSignaled = false;
     function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
     function smooth(t) { return t * t * (3 - 2 * t); }
     function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
@@ -333,14 +333,6 @@ function initLogoIntro() {
             hintOpacity: (0.75 * (1 - clamp01(p / 0.35))).toFixed(3)
         };
     }
-    function signalHero() {
-        if (heroSignaled) return;
-        heroSignaled = true;
-        // The hero photo sharpens in step with the morph (its focus
-        // effect in index.html listens for this): sharp at the landing,
-        // not after scroll the intro has been holding at zero.
-        try { window.dispatchEvent(new CustomEvent('jbo:introglide')); } catch (e) { /* older engine: the hero keeps its scroll sharpening */ }
-    }
     // The ONLY writer on the morph's frame path, for every driver: the
     // tap glide's fallback, a settle, and the visitor's own drag. Three
     // style writes from the precomputed curve — no layout reads, no
@@ -348,7 +340,6 @@ function initLogoIntro() {
     function applyAt(p) {
         if (!start || !target) return;
         prog = p;
-        if (p >= 0.04) signalHero();
         var s = stateAt(p);
         logo.style.transform = s.transform;
         logo.style.borderRadius = s.borderRadius;
@@ -463,7 +454,6 @@ function initLogoIntro() {
     // glide's own rate. From rest that is exactly 720 ms.
     function startGlide() {
         if (done) return;
-        signalHero();
         startSettle(1, GLIDE_RATE);
     }
     function completeGlide() {
