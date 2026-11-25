@@ -1690,6 +1690,11 @@
        overrides the segment treatment. */
     .recipe-search-row { background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5); backdrop-filter: blur(var(--glass-blur)) saturate(1.5); border: 1px solid var(--border-color); border-bottom: none; border-radius: 26px 26px 0 0; padding: 16px 18px 6px; box-shadow: var(--feel-shadow); clip-path: inset(-60px -60px 0 -60px); }
     .recipe-search-row input[type="search"] { border-radius: 999px; background: var(--card-bg); min-height: 44px; padding: 0.55rem 2rem 0.55rem 1rem; }
+    /* Top-of-page search (2026-11-25): the same search row standing
+       alone above the doors — a complete panel, not a panel segment,
+       so it takes the full radius and the full border and casts its
+       shadow whole; a breath of space sets it off from the bar above. */
+    .top-search-row { border-bottom: 1px solid var(--border-color); border-radius: 26px; clip-path: none; padding: 14px 18px; margin-top: 1rem; }
     .recipe-controls { background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5); backdrop-filter: blur(var(--glass-blur)) saturate(1.5); border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color); margin: 0; padding: 6px 18px; box-shadow: var(--feel-shadow); clip-path: inset(0 -60px 0 -60px); }
     .recipe-controls.is-stuck { clip-path: none; border-left-color: transparent; border-right-color: transparent; }
     .recipe-controls > select { font: inherit; font-size: 1rem; color: var(--text-color); border: 1px solid var(--border-color); border-radius: 999px; background: var(--card-bg); min-height: 44px; padding: 0 0.85rem; }
@@ -1921,6 +1926,20 @@
             <button type="button" class="targets-basis" id="targetsBasis">FDA Daily Values · 2,000 kcal/day</button>
             <button type="button" class="profile-chip" id="targetsEdit" data-targets-edit hidden>Edit</button>
         </div>
+    </div>
+
+    <!-- Top-of-page search (2026-11-25): the page is searchable from
+         where the visitor lands — no pressing into the Recipes
+         section first. The row is the in-section search row's own
+         markup and glass, standing alone above the doors; its script
+         (placed after the grid's own layers) filters the grid live
+         from the first letter, with the cook picker's matching rule. -->
+    <div class="recipe-search-row top-search-row">
+        <span class="search-field">
+            <input type="search" id="top-search" placeholder="Search recipes" aria-label="Search recipes" autocomplete="off">
+            <button type="button" class="jbo-search-clear" id="top-search-clear" aria-label="Clear search" hidden>&times;</button>
+        </span>
+        <span class="recipe-search-count" id="top-search-count" role="status" hidden></span>
     </div>
 
     <!-- Front door (2026-11-20): two blog-style cards — photo, title,
@@ -9092,6 +9111,179 @@
         }, true);
         syncChips();
         refresh(true);
+    })();
+    </script>
+    <script>
+    /* Top-of-page search (2026-11-25): the search row above the
+       doors. Live from the first letter — every keystroke filters
+       the recipe grid in place, no submit, no button. The matching
+       rule is the cook picker's, verbatim: the normalized term must
+       appear in the recipe's name, and the active category pill
+       must claim the card through its data-tags — the two combine
+       with AND, exactly as the picker's chips and search combine.
+       (The in-section field keeps its own richer name + ingredients
+       rule; the two fields hand the grid to each other — typing in
+       one stands the other down, so the grid always has exactly one
+       search driving it.)
+       While a search stands, the recipes are what the page
+       presents: the Recipes section opens through its own head
+       toggle (never the door's glide — the field must not move
+       while it is being typed in), and the Vitamins and Pantry
+       sections step aside, as they do for the in-section search.
+       Clearing — the ×, or emptying the field — hands the grid
+       back to the category layer untouched: every card the pill
+       claims returns, the pill state is kept, and the page does
+       not scroll (Δ=0). This layer composes over the grid's own
+       layers the way the Leave out layer does: its listeners
+       register after theirs and it never rewrites their state. */
+    (function () {
+        var input = document.getElementById('top-search');
+        if (!input) return;
+        var clearBtn = document.getElementById('top-search-clear');
+        var countEl = document.getElementById('top-search-count');
+        var emptyEl = document.getElementById('recipe-search-empty');
+        var recipeEmpty = document.getElementById('recipe-empty');
+        var sectionSearch = document.getElementById('recipe-search');
+        var wrappers = Array.prototype.slice.call(document.querySelectorAll('.recipe-wrapper'));
+        var EMPTY_DEFAULT = 'No recipes match your search.';
+        var query = '';
+        var syncing = false;
+        var publishing = false;
+
+        function activeFilter() {
+            var a = document.querySelector('.recipe-filters .filter-pill.active');
+            return a ? a.getAttribute('data-filter') : 'all';
+        }
+        function nameOf(w) {
+            var t = w.querySelector('.recipe-card-title');
+            return (t ? t.textContent : '').replace(/\s+/g, ' ').trim().toLowerCase();
+        }
+        function matches(w) {
+            var f = activeFilter();
+            if (f !== 'all') {
+                var tags = (w.getAttribute('data-tags') || '').split(/\s+/);
+                if (tags.indexOf(f) === -1) return false;
+            }
+            return !query || nameOf(w).indexOf(query) !== -1;
+        }
+        /* Hand the grid back to the base layers and let them
+           settle: an input event on the in-section field with an
+           empty value is that field's own clear — the category
+           layer re-renders the pill's set and the Leave out layer
+           re-settles its exclusions over it. Guarded, so this
+           layer's own stand-down listener never mistakes the
+           settle for the visitor typing in the other field. */
+        function settleBase() {
+            if (!sectionSearch) return;
+            syncing = true;
+            if (sectionSearch.value) sectionSearch.value = '';
+            sectionSearch.dispatchEvent(new Event('input', { bubbles: true }));
+            syncing = false;
+        }
+        function bringGridForward() {
+            var card = document.getElementById('recipeCard');
+            if (!card || card.classList.contains('active')) return;
+            var arrow = document.getElementById('recipeArrow');
+            var tog = arrow ? arrow.closest('button') : null;
+            if (tog) tog.click();
+        }
+        function applyTopSearch() {
+            bringGridForward();
+            var n = 0;
+            wrappers.forEach(function (w) {
+                var show = matches(w) && !w.__loHidden;
+                w.style.display = show ? '' : 'none';
+                if (show) n++;
+            });
+            var vit = document.getElementById('vitamins-section');
+            if (vit) vit.hidden = true;
+            var pan = document.getElementById('pantry-section');
+            if (pan) pan.hidden = true;
+            if (recipeEmpty) recipeEmpty.hidden = true;
+            if (emptyEl) {
+                emptyEl.hidden = n !== 0;
+                if (n === 0) emptyEl.textContent = activeFilter() !== 'all'
+                    ? 'No recipes match. Clear the search or tap All to bring recipes back.'
+                    : EMPTY_DEFAULT;
+            }
+            if (countEl) {
+                countEl.textContent = n + ' recipes';
+                countEl.hidden = false;
+            }
+            /* While Leave out exclusions stand, the Filter row's
+               count is the combined visible count — republish it so
+               the row keeps telling the truth under this search. */
+            if (window.__loActive) {
+                window.__loVisible = n;
+                publishing = true;
+                document.dispatchEvent(new CustomEvent('lo-refresh'));
+                publishing = false;
+            }
+        }
+        function standDown() {
+            query = '';
+            input.value = '';
+            if (clearBtn) clearBtn.hidden = true;
+            if (countEl) countEl.hidden = true;
+            if (emptyEl) emptyEl.textContent = EMPTY_DEFAULT;
+        }
+        function clearTopSearch() {
+            standDown();
+            settleBase();
+        }
+
+        input.addEventListener('input', function () {
+            var q = input.value.replace(/\s+/g, ' ').trim().toLowerCase();
+            if (clearBtn) clearBtn.hidden = !q;
+            if (!q) { clearTopSearch(); return; }
+            if (!query) settleBase();
+            query = q;
+            applyTopSearch();
+        });
+        if (clearBtn) clearBtn.addEventListener('click', function () {
+            clearTopSearch();
+            input.focus();
+        });
+        /* A pill tap re-renders the grid from the category layer;
+           while a search stands, re-apply it over the new pill.
+           These listeners register after the page's own, so the
+           base state (and the Leave out layer's flags) are settled
+           when this runs. The Filter bubble's mirror pills click
+           the real pills, so they are covered by the same path. */
+        document.addEventListener('click', function (e) {
+            if (!query) return;
+            var pill = e.target && e.target.closest ? e.target.closest('.recipe-filters .filter-pill') : null;
+            if (pill) applyTopSearch();
+        });
+        /* The Leave out layer re-settles the grid when exclusions
+           change; while a search stands, re-apply it over the new
+           exclusions (its own republish above is guarded out). */
+        document.addEventListener('lo-refresh', function () {
+            if (publishing || !query) return;
+            applyTopSearch();
+        });
+        /* The two fields hand the grid to each other: typing in the
+           in-section field stands this layer down (its own handler
+           has already rendered when this listener runs). */
+        if (sectionSearch) sectionSearch.addEventListener('input', function () {
+            if (syncing || !query) return;
+            standDown();
+        });
+        /* A pair link names a recipe to open: if this search hides
+           it, stand the search down first (capture phase, before
+           the page's own pair handler runs) — the same reset the
+           Leave out layer makes for its own exclusions. */
+        document.addEventListener('click', function (e) {
+            if (!query) return;
+            var a = e.target && e.target.closest ? e.target.closest('.pair-link') : null;
+            if (!a) return;
+            var target = document.getElementById(a.getAttribute('data-pair'));
+            var wrap = target && target.closest ? target.closest('.recipe-wrapper') : null;
+            if (wrap && wrap.style.display === 'none' && !wrap.__loHidden && !matches(wrap)) {
+                standDown();
+                settleBase();
+            }
+        }, true);
     })();
     </script>
     <script>
