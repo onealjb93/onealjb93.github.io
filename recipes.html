@@ -866,8 +866,15 @@
     /* Dish-row serving steppers in the bubble: the combiner list's own
        stepper, always shown here (the list reveals its own only on
        checked rows); the qty span doubles as the tap-to-reset control. */
-    #combinerBarPanel .serv-stepper { display: inline-flex; flex: none; }
+    #combinerBarPanel .serv-stepper, #cookScorePanel .serv-stepper { display: inline-flex; flex: none; }
     #combinerBarPanel .serv-stepper .combiner-dish-qty { min-width: 3.2rem; text-align: center; font-size: 0.78rem; }
+    /* The Scorecard legend's steppers sit where the servings text sat:
+       at the row's right edge, visibly a control at rest. */
+    .bd-leg .serv-stepper { margin-left: auto; }
+    .bd-leg .serv-stepper .serv-mult { min-width: 3.2rem; text-align: center; font-size: 0.78rem; }
+    /* The description at the bottom of the card body keeps a breath
+       between the last tiles and its first line. */
+    .sc-card .sc-desc { margin-top: 0.65rem; }
     .combiner-bar-empty { color: var(--subtext-color); font-size: 0.85rem; margin: 0.35rem 0 0; }
     /* Add-a-dish picker in the bubble: the combiner list's row grammar,
        folded away until asked for; its list scrolls inside the bubble. */
@@ -9741,11 +9748,14 @@
     document.addEventListener('click', function (e) {
         var t = e.target;
         if (!t || !t.closest) return;
-        /* Dish-row serving steppers inside the bubble: they call the
+        /* Dish-row serving steppers inside the bubbles: they call the
            existing serving hook -- the same servMult state and 1-4
            clamp the list's steppers use, a tap on the count resetting
-           to 1 -- so servings agree everywhere by construction. */
-        var stp = t.closest('#combinerBarPanel .serv-step, #combinerBarPanel .serv-mult');
+           to 1 -- so servings agree everywhere by construction. The
+           steppers live in the bar's dish rows, in the Scorecard's own
+           legend rows, and on both bubble surfaces (the combiner bar's
+           panel and the cook view's score panel). */
+        var stp = t.closest('#combinerBarPanel .serv-step, #combinerBarPanel .serv-mult, #cookScorePanel .serv-step, #cookScorePanel .serv-mult');
         if (stp) {
             var stpWrap = stp.closest('.serv-stepper');
             var stpRid = stpWrap ? stpWrap.getAttribute('data-recipe') : null;
@@ -9770,6 +9780,10 @@
                 var open = bar.classList.toggle('expanded');
                 syncBarToggle(open);
                 syncBarSpace();
+                /* Opening presents a fresh render, never a stored one:
+                   recompute from the current selection and servings
+                   before the wake animates what is shown. */
+                if (open) { try { updateCombiner(); } catch (err) {} }
                 if (open && window.__jboScbWake) window.__jboScbWake('combiner');
                 /* Collapsing the box with nothing selected puts the
                    bar away entirely (its open-empty state only lives
@@ -9906,8 +9920,8 @@
     function renderProfileChip() {
         var t = activeTargets();
         var txt = current
-            ? 'Your day: ~' + (Math.round(t['208'] / 10) * 10).toLocaleString('en-US') + ' kcal \u00b7 ' + Math.round(t['203']) + ' g protein'
-            : 'Standard day: ' + Math.round(t['208']).toLocaleString('en-US') + ' kcal \u00b7 ' + Math.round(t['203']) + ' g protein';
+            ? 'Your target: ~' + (Math.round(t['208'] / 10) * 10).toLocaleString('en-US') + ' kcal \u00b7 ' + Math.round(t['203']) + ' g protein'
+            : 'Standard target: ' + Math.round(t['208']).toLocaleString('en-US') + ' kcal \u00b7 ' + Math.round(t['203']) + ' g protein';
         var days = document.querySelectorAll('[data-profile-day]');
         for (var i = 0; i < days.length; i++) days[i].textContent = txt;
     }
@@ -10162,7 +10176,8 @@
         var panel = document.getElementById('cookScorePanel');
         var body = document.getElementById('cookScoreBody');
         if (panel && body && !panel.hidden && window.__jboCookIds && window.__jboCookScorecard) {
-            var scbFrameHtml = window.__jboCookScorecard(window.__jboCookIds());
+            var scbFrameIds = window.__jboCookIds();
+            var scbFrameHtml = window.__jboCookScorecard(scbFrameIds, 'cook', null, null, window.__jboDescriptionFor ? window.__jboDescriptionFor(scbFrameIds) : '', true);
             if (window.__jboScbSetCook) window.__jboScbSetCook(body, scbFrameHtml); else body.innerHTML = scbFrameHtml;
         }
     }
@@ -11088,6 +11103,20 @@
         });
         return selectionBriefingHTML(ids, dishes, r.totals);
     };
+    /* The description generator itself, exported for the cook view's
+       scorecard: the same words the tool's readout carries (a single
+       dish's own Health benefits text, a combination's briefing),
+       from the same state, so every surface describes the selection
+       identically. */
+    window.__jboDescriptionFor = function (ids, multMap) {
+        if (!ids || !ids.length) return '';
+        var r = comboCore(ids, multMap || null);
+        if (!r || !r.count) return '';
+        var dishes = ids.map(function (rid) {
+            return { id: rid, name: nameOf(rid), mult: (multMap && multMap[rid] != null) ? multMap[rid] : (servMult[rid] || 1) };
+        });
+        return selectionDescriptionHTML(ids, dishes, r.totals);
+    };
     /* Compare was removed in the 2026-11-14 scorecard cut; clear
        any parked day a returning visitor still has stored. */
     try { localStorage.removeItem('jbo-compare-v1'); } catch (e) {}
@@ -11129,8 +11158,8 @@
         var vIds = (ids && ids.length) ? ids : allIds;
         var mm = {};
         dishes.forEach(function (d) { mm[d.id] = d.mult; });
-        var h = selectionDescriptionHTML(allIds, dishes, totals);
-        if (window.__jboCookScorecard) h += window.__jboCookScorecard(vIds, 'combiner', totals, mm);
+        var desc = selectionDescriptionHTML(allIds, dishes, totals);
+        var h = window.__jboCookScorecard ? window.__jboCookScorecard(vIds, 'combiner', totals, mm, desc, true) : desc;
         if (box) { if (window.__jboScbSetCombiner) window.__jboScbSetCombiner(box, h); else box.innerHTML = h; }
         if (prev) {
             var v = verdictFromTotals(totals, vIds, null, 'combiner');
@@ -11153,7 +11182,7 @@
        built from one groups array so the layout can re-slot without
        touching the numbers. No value is stated twice: the tiles own
        the totals, and sodium lives in its flag and its gauge only. */
-    window.__jboCookScorecard = function (ids, surface, totalsOverride, multMap) {
+    window.__jboCookScorecard = function (ids, surface, totalsOverride, multMap, descHTML, live) {
         if (!ids || !ids.length) return '';
         var totals = totalsOverride || null;
         if (!totals) {
@@ -11214,6 +11243,19 @@
         function bdSegHTML(segs) {
             return segs.map(function (s) { return '<span class="seg ' + s.cls + '" style="flex-grow:' + (Math.round(s.g * 10) / 10) + '"></span>'; }).join('');
         }
+        /* A legend row's servings: on the live (bubble) surfaces the
+           standard serving stepper itself -- the same control, the
+           same servMult state, the same 1-4 clamp and tap-to-reset
+           as the list's and the panes' steppers; on the in-page
+           readout the plain text span it has always carried. */
+        function srvHTML(id, name, m) {
+            var txt = m === 1 ? '1 serving' : esc(fmtServQty(m)) + ' servings';
+            if (!live) return '<span class="bd-leg-srv">' + txt + '</span>';
+            return '<span class="serv-stepper" data-recipe="' + id + '" role="group" aria-label="Servings of ' + esc(name) + '">' +
+                '<button type="button" class="serv-step" data-d="-1" aria-label="One fewer serving">\u2212</button>' +
+                '<button type="button" class="serv-mult" title="Tap to reset to 1 serving" aria-label="Servings: ' + fmtServQty(m) + '. Tap to reset to 1 serving">' + txt + '</button>' +
+                '<button type="button" class="serv-step" data-d="1" aria-label="One more serving">+</button></span>';
+        }
         var h = '';
         /* The panel's head (M1): the Together | By dish toggle
            (2+ dishes only) and the legend naming the selection --
@@ -11232,13 +11274,13 @@
         if (bdRows) {
             bdRows.forEach(function (r) {
                 if (!bdColored[r.id]) return;
-                h += '<div class="bd-leg"><span class="bd-dot ' + r.letter + '"></span><span class="bd-leg-name">' + esc(r.name) + '</span><span class="bd-leg-srv">' + (r.mult === 1 ? '1 serving' : esc(fmtServQty(r.mult)) + ' servings') + '</span></div>';
+                h += '<div class="bd-leg"><span class="bd-dot ' + r.letter + '"></span><span class="bd-leg-name">' + esc(r.name) + '</span>' + srvHTML(r.id, r.name, r.mult) + '</div>';
             });
             if (bdOther) h += '<div class="bd-leg"><span class="bd-dot o"></span><span class="bd-leg-name">Other dishes</span></div>';
         } else {
             var oneId = ids[0];
             var oneM = (multMap && multMap[oneId] != null) ? multMap[oneId] : (servMult[oneId] || 1);
-            h += '<div class="bd-leg"><span class="bd-leg-name">' + esc(nameOf(oneId)) + '</span><span class="bd-leg-srv">' + (oneM === 1 ? '1 serving' : esc(fmtServQty(oneM)) + ' servings') + '</span></div>';
+            h += '<div class="bd-leg"><span class="bd-leg-name">' + esc(nameOf(oneId)) + '</span>' + srvHTML(oneId, nameOf(oneId), oneM) + '</div>';
         }
         h += '</div></div>';
         h += '<div class="sc-card">';
@@ -11347,6 +11389,12 @@
             nums.forEach(function (n) { h += tile(n, g.mode); });
             h += '</div>';
         });
+        /* The common-language description rides at the bottom of the
+           card on the bubble surfaces (the caller passes it): after
+           the numbers, before the grade's own reasoning, which stays
+           the last element. Rendered in the same pass from the same
+           state, so the words describe the servings the tiles show. */
+        if (descHTML) h += descHTML;
         var whyOpen = !!window.__jboWhyOpen;
         h += '<button type="button" class="sc-why-toggle" data-sc-why aria-expanded="' + (whyOpen ? 'true' : 'false') + '"><span>Why this grade</span><span class="sc-chev" aria-hidden="true">\u203a</span></button>';
         h += '<div class="sc-why"' + (whyOpen ? '' : ' hidden') + '><p class="verdict-basis">' + VERDICT_BASIS + '</p>' + verdictFrameHTML(vv) + '<div class="verdict-checks">' + verdictCheckRows(vv) + '</div><p class="verdict-rule">' + VERDICT_STAKES + '</p></div>';
@@ -11584,9 +11632,19 @@
                     var cd = leg.querySelector('.bd-dot'), td = t.querySelector('.bd-dot');
                     if (cd && td) cd.className = td.className;
                     var cn = leg.querySelector('.bd-leg-name'), tn = t.querySelector('.bd-leg-name');
-                    var cv = leg.querySelector('.bd-leg-srv'), tv = t.querySelector('.bd-leg-srv');
                     if (cn && tn) fadeSwapText(cn, tn.textContent, 200);
-                    if (cv && tv) fadeSwapText(cv, tv.textContent, 200);
+                    /* Servings: a live legend row carries the stepper
+                       itself -- sync its count button (and its label);
+                       a text row syncs its span, as before. */
+                    var cm = leg.querySelector('.serv-mult'), tm = t.querySelector('.serv-mult');
+                    if (cm && tm) {
+                        fadeSwapText(cm, tm.textContent, 200);
+                        cm.setAttribute('aria-label', tm.getAttribute('aria-label') || '');
+                        cm.title = tm.title || '';
+                    } else {
+                        var cv = leg.querySelector('.bd-leg-srv'), tv = t.querySelector('.bd-leg-srv');
+                        if (cv && tv) fadeSwapText(cv, tv.textContent, 200);
+                    }
                 });
                 var cseg = curHead.querySelectorAll('.bd-seg'), tseg = tgtHead.querySelectorAll('.bd-seg');
                 cseg.forEach(function (b, i) { if (tseg[i]) { b.className = tseg[i].className; b.setAttribute('aria-selected', tseg[i].getAttribute('aria-selected')); } });
@@ -11831,6 +11889,16 @@
             var tmp = document.createElement('div');
             tmp.innerHTML = html;
             if (!tmp.querySelector('.sc-card')) { body.innerHTML = html; return; }
+            /* The description is prose: it lands instantly, exactly as
+               the combiner setter lands it; the card below morphs. */
+            var curDesc = body.querySelector('.sc-desc'), tgtDesc = tmp.querySelector('.sc-desc');
+            if (curDesc && tgtDesc) { if (curDesc.innerHTML !== tgtDesc.innerHTML) curDesc.innerHTML = tgtDesc.innerHTML; }
+            else if (curDesc && !tgtDesc) curDesc.remove();
+            else if (!curDesc && tgtDesc) {
+                var whyT = body.querySelector('[data-sc-why]');
+                if (whyT) whyT.parentNode.insertBefore(tgtDesc.cloneNode(true), whyT);
+                else body.appendChild(tgtDesc.cloneNode(true));
+            }
             morphCard(surf, body, tmp);
         };
         /* The grade previews on the buttons that open the Scorecard
@@ -13349,7 +13417,8 @@
            live through __jboPaneServSync above. */
         function renderCookScore() {
             if (!cookScoreBody) return;
-            var scbCookHtml = window.__jboCookScorecard ? window.__jboCookScorecard(selected) : '';
+            var scbDesc = window.__jboDescriptionFor ? window.__jboDescriptionFor(selected) : '';
+            var scbCookHtml = window.__jboCookScorecard ? window.__jboCookScorecard(selected, 'cook', null, null, scbDesc, true) : '';
             if (window.__jboScbSetCook) window.__jboScbSetCook(cookScoreBody, scbCookHtml); else cookScoreBody.innerHTML = scbCookHtml;
         }
         function setCookScore(open) {
