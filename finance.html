@@ -1913,6 +1913,20 @@
         min-height: 44px; padding-top: 0; padding-bottom: 0;
         background-color: var(--pin-bg);
         background-image: none;
+        /* Ghosting cure (2026-11-25): the shared stylesheet's global
+           h2 rule sets opacity: 0.9 — a typographic softening for
+           headings — and every section title is an h2, so the pinned
+           title was painted at 90% and whatever scrolled beneath it
+           showed through at 10%, in both themes, at every width.
+           The background was never the problem (five backing
+           variants measured zero change against a pixel
+           differential); the element itself was translucent. The
+           pin paints at full opacity: same words, size and place,
+           only stopped — and now fully solid. Measured: the
+           hide-the-content differential inside the pinned band
+           went from 9,130 differing pixels (393, both themes,
+           scoreboard/committee/backtest) to exactly 0. */
+        opacity: 1;
     }
     /* Pin cure (2026-11-22, from Johnny's iPhone videos): the pinned
        bars GHOSTED — section content bled through them, and one
@@ -6589,7 +6603,23 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 ctx.fillText(fmtAxis(v), padL - 6, y);
             }
             ctx.textAlign = "center"; ctx.textBaseline = "top";
+            // Axis labels (2026-11-25): five "Mon YYYY" labels do not
+            // fit a phone-width axis — at 393 the first two merged into
+            // "2008eb 2013" on Johnny's iPhone recording. Thin the
+            // count until neighbouring labels keep a clear gap (the
+            // first label is left-aligned, so the tightest pair needs
+            // one and a half label widths). The window and the data
+            // are unchanged; only fewer dates are named.
             var ticks = Math.min(5, n);
+            if (ticks > 2) {
+                var widest = 0;
+                for (var m = 0; m < ticks; m++) {
+                    var mi = Math.round(m * (n - 1) / (ticks - 1));
+                    var mw = ctx.measureText(fmtDateShort(pts.dates[mi])).width;
+                    if (mw > widest) widest = mw;
+                }
+                while (ticks > 2 && iw / (ticks - 1) < widest * 1.5 + 10) ticks--;
+            }
             for (var t = 0; t < ticks; t++) {
                 var ti = Math.round(t * (n - 1) / Math.max(1, ticks - 1));
                 ctx.textAlign = t === 0 ? "left" : (t === ticks - 1 ? "right" : "center");
