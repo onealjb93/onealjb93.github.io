@@ -1122,13 +1122,34 @@
        view, in both directions. Rows carry the page's own Cook
        vocabulary: a recipe in the set reads "✓ Cooking" on the filled
        link blue, exactly as its grid toggle and the pick rows above. */
-    #cookAddPop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
+    /* z-index 70, one step above the cook pops and the Nutrition
+       pill (all 60): while this sheet is open its scrim must paint
+       over the pill floating at the view's bottom, and the script
+       inerts everything under the scrim, so the sheet is the one
+       live layer (2026-11-25). */
+    #cookAddPop { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
     #cookAddPop[hidden] { display: none; }
     .cook-add-bubble { width: min(560px, 100%); max-height: min(78dvh, 720px); display: flex; flex-direction: column; overflow: hidden; }
     .cook-add-bubble-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem 0.35rem; font-weight: 700; font-size: 0.95rem; }
     .cook-add-bubble-head button { cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 999px; width: 30px; height: 30px; font-size: 1rem; line-height: 1; padding: 0; }
     .cook-add-tools { flex: none; padding: 0.35rem 1rem 0.5rem; }
     .cook-add-tools input { width: 100%; box-sizing: border-box; min-height: 44px; padding: 0.5rem 0.8rem; border-radius: 999px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font: inherit; font-size: 0.95rem; }
+    /* Category chips under the search field (2026-11-25): the grid's
+       own category filter, mirrored — the script builds the chips
+       from the grid's pills, so categories, labels, counts and order
+       are the grid's by construction. The chip metrics copy the
+       panel's .filter-pill exactly (the leave-out chips' precedent),
+       including this page's green active face; the row scrolls
+       sideways as one row, like the stuck strip's pill row. Scoped
+       class, not .filter-pill itself: three other scripts delegate
+       on '.recipe-filters .filter-pill' for the grid, and a tap in
+       this sheet must never reach them. */
+    .cook-add-filters { flex: none; display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 0.05rem 1rem 0.55rem; }
+    .cook-add-filters::-webkit-scrollbar { display: none; }
+    .cook-add-chip { flex: none; font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; background: var(--badge-bg); color: var(--text-color); border: 1px solid var(--border-color); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+    .cook-add-chip:hover { border-color: var(--link-color); }
+    .cook-add-chip.active { color: #4ae88a; border-color: #4ae88a; }
+    body.light-mode .cook-add-chip.active { color: #2e7d4f; border-color: #2e7d4f; }
     .cook-add-note { flex: none; margin: 0; padding: 0 1rem 0.5rem; font-size: 0.85rem; color: var(--subtext-color); }
     .cook-add-list { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 0.4rem 0.6rem 0.9rem; display: flex; flex-direction: column; gap: 0.3rem; }
     .cook-add-row { flex: none; display: flex; align-items: baseline; gap: 0.55rem; width: 100%; min-height: 44px; padding: 0.55rem 0.7rem; text-align: left; background: var(--badge-bg); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-color); font: inherit; font-size: 0.95rem; cursor: pointer; white-space: normal; }
@@ -12832,6 +12853,7 @@
             <div class="cook-add-bubble glass-bubble" role="dialog" aria-modal="true" aria-label="Add a recipe">
                 <div class="cook-add-bubble-head"><span>Add a recipe</span><button type="button" id="cookAddClose" aria-label="Close recipe list">&times;</button></div>
                 <div class="cook-add-tools"><input type="search" id="cookAddSearch" placeholder="Search recipes" aria-label="Search recipes" autocomplete="off"></div>
+                <div class="cook-add-filters" id="cookAddFilters" role="group" aria-label="Filter recipes by category"></div>
                 <p class="cook-add-note" id="cookAddNote" hidden>Cook mode holds up to 10 recipes — clear one to add another.</p>
                 <div class="cook-add-list" id="cookAddList"></div>
                 <p class="cook-add-empty" id="cookAddEmpty" hidden>No recipes match your search.</p>
@@ -14429,7 +14451,12 @@
            open that close waits for the sheet (the cook may be
            swapping the whole set); a sheet closed over an empty set
            closes the view then, so no empty cook view is ever
-           stranded. */
+           stranded. The sheet also carries the grid's category
+           filter as chips under its search field (built from the
+           grid's pills; the two combine), and while it is open the
+           rest of the view is inert under its scrim — one live layer
+           at a time (both 2026-11-25, from Johnny's recording of
+           the sheet in use). */
         var cookViewAdd = document.getElementById('cookViewAdd');
         var cookAddPop = document.getElementById('cookAddPop');
         var cookAddList = document.getElementById('cookAddList');
@@ -14437,8 +14464,11 @@
         var cookAddClose = document.getElementById('cookAddClose');
         var cookAddNote = document.getElementById('cookAddNote');
         var cookAddEmpty = document.getElementById('cookAddEmpty');
+        var cookAddFilters = document.getElementById('cookAddFilters');
         var addSheetOpen = false;
         var addRowsBuilt = false;
+        var addChipsBuilt = false;
+        var addFilter = 'all';
         function removeCookDish(id) {
             var at = selected.indexOf(id);
             if (at === -1) return;
@@ -14547,6 +14577,10 @@
                 row.type = 'button';
                 row.className = 'cook-add-row';
                 row.setAttribute('data-add-for', id);
+                /* The card's own tag set, so the sheet's category
+                   chips test membership exactly as the grid's pills
+                   do (a tag match, never the one displayed label). */
+                row.setAttribute('data-add-tags', wrapper ? (wrapper.getAttribute('data-tags') || '') : '');
                 row.innerHTML = '<span class="cook-add-name"></span><span class="cook-add-cat"></span><span class="cook-add-state">✓ Cooking</span>';
                 row.querySelector('.cook-add-name').textContent = name;
                 row.querySelector('.cook-add-cat').textContent = cat;
@@ -14566,25 +14600,89 @@
             });
             if (cookAddNote) cookAddNote.hidden = !full;
         }
+        /* The sheet's category chips are built from the grid's own
+           pills — same categories, labels (counts included) and
+           order, read out of the grid's filter row itself, so the
+           two can never drift apart. Two pills don't carry over:
+           Vitamins and Pantry swap in their own sections on the
+           grid (supplements and store-bought products, counted in
+           the combiner) and hold no recipes at all, so in a recipe
+           picker they could only ever show an empty list. Every
+           pill with a recipe in this list keeps its chip. */
+        function buildAddChips() {
+            if (!cookAddFilters) return;
+            cookAddFilters.innerHTML = '';
+            var pills = document.querySelectorAll('.recipe-controls .recipe-filters .filter-pill');
+            if (!pills.length) pills = document.querySelectorAll('.recipe-filters .filter-pill');
+            var member = {};
+            if (cookAddList) Array.prototype.forEach.call(cookAddList.children, function (row) {
+                (row.getAttribute('data-add-tags') || '').split(/\s+/).forEach(function (t) { if (t) member[t] = true; });
+            });
+            Array.prototype.forEach.call(pills, function (pill) {
+                var key = pill.getAttribute('data-filter');
+                if (key !== 'all' && cookAddList && !member[key]) return;
+                var chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'cook-add-chip' + (key === addFilter ? ' active' : '');
+                chip.setAttribute('data-add-filter', key);
+                chip.textContent = pill.textContent.replace(/\s+/g, ' ').trim();
+                cookAddFilters.appendChild(chip);
+            });
+            addChipsBuilt = true;
+        }
         function applyAddFilter() {
             if (!cookAddList || !cookAddSearch) return;
             var q = cookAddSearch.value.replace(/\s+/g, ' ').trim().toLowerCase();
             var any = false;
             Array.prototype.forEach.call(cookAddList.children, function (row) {
-                var show = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
+                var tags = (row.getAttribute('data-add-tags') || '').split(/\s+/);
+                var inCat = addFilter === 'all' || tags.indexOf(addFilter) !== -1;
+                var show = inCat && (!q || row.textContent.toLowerCase().indexOf(q) !== -1);
                 row.hidden = !show;
                 if (show) any = true;
             });
-            if (cookAddEmpty) cookAddEmpty.hidden = any;
+            if (cookAddEmpty) {
+                cookAddEmpty.hidden = any;
+                /* The empty line names the way back, in the page's own
+                   sentences: with a category standing, All is the
+                   reset; a search alone keeps its original line. */
+                if (!any) cookAddEmpty.textContent = (q && addFilter !== 'all')
+                    ? 'No recipes match. Clear the search or tap All to bring recipes back.'
+                    : (addFilter !== 'all' ? 'No recipes match. Tap All to bring recipes back.' : 'No recipes match your search.');
+            }
+        }
+        /* One live layer at a time (2026-11-25): while the picker
+           sheet is open, everything else in the cook view — header,
+           panes, the Scorecard panel, the floating Nutrition pill —
+           is inert: not tappable, not focusable, and the sheet's
+           scrim (z-index 70) paints over all of it. Before this, the
+           pill sat at the same z-index as the sheet but later in the
+           view, so it stayed live under the sheet and its Nutrition
+           Comparison Tool opened on top of the sheet — two sheets,
+           two × exits at once. Closing the sheet lifts the inert
+           exactly, so the view underneath is the view he left. */
+        function setAddUnderInert(on) {
+            if (!cookView) return;
+            Array.prototype.forEach.call(cookView.children, function (el) {
+                if (el === cookAddPop) return;
+                if (on) el.setAttribute('inert', '');
+                else el.removeAttribute('inert');
+            });
         }
         function openCookAdd() {
             if (!cookAddPop) return;
             if (!addRowsBuilt) buildAddRows();
+            if (!addChipsBuilt) buildAddChips();
             syncAddRows();
             if (cookAddSearch) cookAddSearch.value = '';
+            addFilter = 'all';
+            if (cookAddFilters) Array.prototype.forEach.call(cookAddFilters.children, function (chip) {
+                chip.classList.toggle('active', chip.getAttribute('data-add-filter') === 'all');
+            });
             applyAddFilter();
             addSheetOpen = true;
             cookAddPop.hidden = false;
+            setAddUnderInert(true);
             if (window.__jboTsBubbleOpened) window.__jboTsBubbleOpened();
             if (cookAddSearch) cookAddSearch.focus();
         }
@@ -14592,6 +14690,7 @@
             if (!cookAddPop || cookAddPop.hidden) return;
             cookAddPop.hidden = true;
             addSheetOpen = false;
+            setAddUnderInert(false);
             if (selected.length === 0) { closeCook(); return; }
             if (refocus && cookViewAdd) cookViewAdd.focus();
         }
@@ -14599,6 +14698,15 @@
         if (cookAddClose) cookAddClose.addEventListener('click', function () { closeCookAdd(true); });
         if (cookAddPop) cookAddPop.addEventListener('click', function (e) { if (e.target === cookAddPop) closeCookAdd(true); });
         if (cookAddSearch) cookAddSearch.addEventListener('input', applyAddFilter);
+        if (cookAddFilters) cookAddFilters.addEventListener('click', function (e) {
+            var chip = e.target && e.target.closest ? e.target.closest('.cook-add-chip') : null;
+            if (!chip) return;
+            addFilter = chip.getAttribute('data-add-filter') || 'all';
+            Array.prototype.forEach.call(cookAddFilters.children, function (c) {
+                c.classList.toggle('active', c === chip);
+            });
+            applyAddFilter();
+        });
         if (cookAddList) cookAddList.addEventListener('click', function (e) {
             var row = e.target && e.target.closest ? e.target.closest('.cook-add-row') : null;
             if (!row || row.hasAttribute('disabled')) return;
