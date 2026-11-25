@@ -7558,12 +7558,14 @@ if (typeof module !== "undefined") {
             // gesture-set window ends at the latest bar and spans
             // no more than eight days, the view is 1-minute bars —
             // zooming into today / this week is how the intraday
-            // layer is reached now that the range buttons are
-            // gone. The branch returns before the indicator
-            // mapping below — Johnny's buy / sell dots are
-            // computed from daily closes, so they never draw on
-            // an intraday view. Without the file (or without this
-            // series in it) the daily bars render as usual.
+            // layer is reached. The branch returns before the
+            // indicator mapping below, so buildIntraView runs
+            // its own mapping from the same daily series: the
+            // dots are computed from daily closes and draw on
+            // every rung, this one included (2026-11-25 — the
+            // 1D / 1W ranges showed none until they did).
+            // Without the file (or without this series in it)
+            // the daily bars render as usual.
             if (intraWanted()) {
                 var iview = buildIntraView(key, intraKind());
                 if (iview) return iview;
@@ -9947,6 +9949,60 @@ if (typeof module !== "undefined") {
             if (!bars.length || !sessInfo.length) return null;
             var closes = bars.map(function (b) { return b[4]; });
             var nulls = bars.map(function () { return null; });
+            // Johnny's indicator dots (2026-11-25): the signals
+            // are computed from daily closes, and they draw on
+            // this view too. Until now this view carried no sets
+            // at all, so every window routed here — the 1D and
+            // 1W ranges, the newest dots' own home — silently
+            // showed none. Each daily date anchors to its own
+            // session: the last bar at or before the day's close
+            // (16:00 for session instruments; the daily bar's
+            // own UTC-midnight end for the 24/7 ones), so the
+            // dot sits on the line where its day closed. A date
+            // with no session in this view takes the first bar
+            // of the next session shown — the weekly view's
+            // first-bar-on-or-after rule. Dates before the
+            // window's first day never mark, and a date past
+            // the last session shown does not draw: the
+            // intraday file is built in the same nightly run
+            // as the daily file, so its last session is the
+            // last daily bar's own day.
+            var buySet = null, sellSet = null, scoreSet = null;
+            if (indOn && dailyData && dailyData.series) {
+                var dsigI = dailyData.series[key];
+                if (dsigI && (dsigI.buy || dsigI.sell || dsigI.score_buys)) {
+                    buySet = {}; sellSet = {}; scoreSet = {};
+                    var winA = sessInfo[0].date;
+                    if (zoom && dsigI.bars && dsigI.bars[zoom.start]) winA = dsigI.bars[zoom.start][0];
+                    var is247 = fineIs247(key, dsigI);
+                    var anchorOf = function (d) {
+                        for (var si = 0; si < sessInfo.length; si++) {
+                            if (sessInfo[si].date === d) {
+                                var sn = sessInfo[si], j;
+                                if (is247) {
+                                    var closeTs = Date.parse(d) / 1000 + 86400, ans = sn.end;
+                                    for (j = sn.start; j <= sn.end; j++) { if (bars[j][0] < closeTs) ans = j; else break; }
+                                    return ans;
+                                }
+                                var ansR = -1;
+                                for (j = sn.start; j <= sn.end; j++) { if (etClock(bars[j][0]).mins <= 960) ansR = j; else break; }
+                                return ansR >= 0 ? ansR : sn.end;
+                            }
+                            if (sessInfo[si].date > d) return sessInfo[si].start;
+                        }
+                        return -1;
+                    };
+                    var markI = function (list, set) {
+                        if (!list) return;
+                        for (var k = 0; k < list.length; k++) {
+                            if (list[k] < winA) continue;
+                            var a = anchorOf(list[k]);
+                            if (a >= 0) set[a] = true;
+                        }
+                    };
+                    markI(dsigI.buy, buySet); markI(dsigI.sell, sellSet); markI(dsigI.score_buys, scoreSet);
+                }
+            }
             return {
                 s: { name: is.name, symbol: is.symbol, bars: bars },
                 closes: closes,
@@ -9959,9 +10015,7 @@ if (typeof module !== "undefined") {
                 rsi: rsiWilder(closes, 14),
                 volMa: nulls.slice(),
                 pe: null, peMedian: null,
-                // The dots are computed from daily closes; the
-                // signal mapping never runs for this view.
-                buySet: null, sellSet: null,
+                buySet: buySet, sellSet: sellSet, scoreSet: scoreSet,
                 isBench: PICK_KEYS.indexOf(key) >= 0,
                 start: 0, end: bars.length - 1,
                 hasVolume: bars.some(function (b) { return b[5] > 0; }),
