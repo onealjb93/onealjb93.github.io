@@ -27,7 +27,8 @@
     /* Sticky section heading rows (2026-11-13, site-wide pinning; the
        Expand/Collapse pair joined the row 2026-11-16) — same pattern as
        the homepage: the row pins below the frozen 55px site header while
-       you scroll its list. Single-slot rule, top: 55px, z-index 90,
+       you scroll its list. Single-slot rule, top: var(--pin-stack)
+       (measured at runtime — see the pin script), z-index 90,
        solid var(--bg-color), the row's border-bottom is the hairline.
        margin-top becomes padding-top so the resting gap is unchanged.
        Two-column layout (2026-11-13): the rows now live inside the
@@ -39,7 +40,7 @@
        pair: the right end of this heading row — the very top right of
        each box, identical on both sections. */
     .media-col > .media-box-head {
-        position: sticky; top: 55px; z-index: 90;
+        position: sticky; top: var(--pin-stack, 113px); z-index: 90;
         background: var(--bg-color);
         margin-top: 0; padding-top: 8px;
         display: flex; align-items: flex-end;
@@ -80,10 +81,11 @@
        untruncated (~436px of controls against a 357px row at 393px),
        so below 1000px the podcast bar wraps honestly inside the bar:
        the filter takes a full-width line, then the sort and the
-       toggle share the next. While the bar is actually stuck
-       (.is-pinned, set by the sentinel script below) the title steps
-       out — the row is the whole bar — and the bar bleeds to the
-       screen edges so the row gets the full viewport width. The
+       toggle share the next. The head keeps its title and its full
+       height while pinned (2026-11-24: the sentinel that hid the
+       title and bled the bar to the screen edges while stuck is
+       gone — a head that changes size or width when it sticks
+       moves everything below it). The
        podcast search is NOT one of the four controls: it sits below
        the head (see .podcast-search-row) and scrolls away while the
        row pins. */
@@ -108,13 +110,6 @@
     }
     body.light-mode .media-box-head .book-controls select {
         background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%2357606a' stroke-width='1.5' stroke-linecap='round'/></svg>");
-    }
-    .media-box-head.is-pinned > h2 { display: none; }
-    @media (max-width: 768px) {
-        .media-col > .media-box-head.is-pinned {
-            margin-left: -18px; margin-right: -18px;
-            padding-left: 18px; padding-right: 18px;
-        }
     }
     @media (max-width: 1000px) {
         .media-box-head .podcast-controls { flex-wrap: wrap; }
@@ -162,10 +157,10 @@
             gap: 32px;
             align-items: start;
         }
-        .media-col { position: sticky; top: 55px; min-width: 0; }
+        .media-col { position: sticky; top: var(--pin-stack, 113px); min-width: 0; }
     }
     @media (max-width: 899px) {
-        .media-col-podcasts > .media-box-head { padding-top: 40px; }
+        .media-col-podcasts { margin-top: 32px; }
     }
 
     /* Expand/Collapse: ONE state-aware toggle button used by both
@@ -308,7 +303,7 @@
            title or star row sliced in half) after scrolling inside it.
            In the expanded state the window does not scroll and the snap
            is inert. */
-        .media-window { scroll-snap-type: y mandatory; }
+        .media-window { scroll-snap-type: y proximity; }
         .media-window .bk-row { scroll-snap-align: end; }
         /* Format lock (2026-11-21): the shared sheet gives the books
            box a 20px bottom margin the podcasts box never had, and
@@ -317,8 +312,8 @@
            margin on this page. */
         .book-list-container { margin-bottom: 0; }
         .media-window { overflow-y: auto; }
-        .book-list-container .media-window { max-height: 346px; }
-        .podcast-list-container .media-window { max-height: 318px; }
+        .book-list-container .media-window { max-height: 466px; }
+        .podcast-list-container .media-window { max-height: 466px; }
         .book-list-container.list-expanded .media-window,
         .podcast-list-container.list-expanded .media-window { max-height: none; overflow-y: visible; }
         /* Cream scrollbars (2026-11-23): the windows carried no scrollbar
@@ -339,6 +334,81 @@
             border: 3px solid transparent;
             background-clip: padding-box;
         }
+    </style>
+    <style>
+        /* Feel conversion (2026-11-24): the navigation baseline — a
+           square title bar, then a glass pill bar holding the page's
+           real divisions (Books · Podcasts), then the two sections.
+           The pill bar takes Sustainability's chapter-bar values
+           verbatim (glass, 6px padding, 4px gap, 58px tall, the
+           active pill filled system green). The sticky offsets are
+           CSS variables the pin script at the end of the body fills
+           with MEASURED heights — the values here are only the
+           no-JS fallback. */
+        :root { --pin-nav: 55px; --pin-stack: 125px; }
+
+        /* The square title bar: a rectangular band carrying the
+           page title and its line; the 1.6rem below it is the
+           bar-zone top margin of the spacing scale. */
+        .page-header {
+            border: 1px solid var(--border-color);
+            border-radius: 0;
+            background: var(--glass-bg-solid);
+            padding: 15px 18px 13px;
+            margin-bottom: 1.6rem;
+        }
+        .page-header h1 { font-size: 1.5rem; margin-bottom: 4px; }
+        .page-header .subtitle { margin-bottom: 0; font-size: 0.95rem; }
+
+        /* The glass pill bar. The zone sticks under the site nav;
+           the bar inside it never resizes — only the active pill's
+           filled face changes. */
+        .media-pillzone { position: sticky; top: var(--pin-nav); z-index: 900; padding: 2px 0 10px; }
+        .media-pillbar {
+            display: flex; gap: 4px; padding: 6px; border-radius: 999px;
+            background: var(--glass-bg);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+            backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+        }
+        body.light-mode .media-pillbar { box-shadow: 0 14px 30px rgba(74, 60, 25, 0.18); }
+        .media-pillbar a {
+            flex: 1 1 0; display: flex; align-items: center; justify-content: center;
+            min-height: 44px; padding: 9px 2px; border-radius: 999px;
+            text-align: center; white-space: nowrap; text-decoration: none;
+            font-size: 0.88rem; font-weight: 600; color: var(--subtext-color);
+        }
+        .media-pillbar a.active { background: #4ae88a; color: #0b1512; font-weight: 700; }
+        body.light-mode .media-pillbar a.active { background: #2e7d4f; color: #ffffff; }
+
+        #books, #podcasts { scroll-margin-top: var(--pin-stack); }
+        .media-columns { margin-top: 2px; }
+
+        /* The pair's panels in the feel glass, under ONE cap. The
+           backdrop filter comes off both panels: the shared sheet
+           gave the Books panel backdrop-filter: blur(20px) (the
+           Podcasts panel never had it), and a backdrop-filtered
+           panel wrapped around a nested iOS momentum scroller is
+           the blacked-out bottom — iOS stops repainting the
+           filtered region behind the scroller's layer and the
+           panel's lower half paints black. Over this page's flat
+           background the blur showed nothing (a blur of one flat
+           colour is that colour), so the glass colour alone keeps
+           the exact look with the hazard removed. The shared
+           sheet's hover lift (a transform on the same panel) goes
+           with it — a transformed ancestor of the scroller is the
+           same repaint hazard, and a panel that moves when touched
+           is a jump. */
+        .book-list-container, .podcast-list-container {
+            max-height: 500px;
+            background: var(--glass-bg);
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            border-radius: 18px;
+        }
+        .book-list-container { transition: box-shadow var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out); }
+        .book-list-container:hover { transform: none; }
     </style>
 </head>
 <body>
@@ -402,8 +472,15 @@
         <p class="subtitle">A curated reading list and favorite podcast episodes.</p>
     </header>
 
+    <div class="media-pillzone">
+    <nav class="media-pillbar" aria-label="Books and podcasts sections">
+        <a href="#books" data-spy="books" class="active">Books</a>
+        <a href="#podcasts" data-spy="podcasts">Podcasts</a>
+    </nav>
+    </div>
+
     <div class="media-columns">
-    <section class="media-col media-col-books">
+    <section class="media-col media-col-books" id="books">
     <div class="media-box-head">
         <h2>A Curated Reading List</h2>
         <div class="book-controls">
@@ -559,7 +636,7 @@
     </div>
     </section>
 
-    <section class="media-col media-col-podcasts">
+    <section class="media-col media-col-podcasts" id="podcasts">
     <div class="media-box-head">
         <h2>A Curated Podcast List</h2>
         <div class="book-controls podcast-controls">
@@ -755,7 +832,8 @@
                     var anchorTarget = null;
                     if (expanded && head && window.scrollY > 0) {
                         var ht = head.getBoundingClientRect().top;
-                        anchorTarget = ht > 57 ? ht : 55;
+                        var stackH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pin-stack')) || 55;
+                        anchorTarget = ht > stackH + 2 ? ht : stackH;
                     }
                     expanded = !expanded;
                     apply(expanded);
@@ -788,37 +866,7 @@
             }
         })();
     </script>
-    <script>
-        // Pinned state (2026-11-16, one-row bar): a sentinel at each
-        // head's natural position marks the head .is-pinned while it
-        // is actually stuck under the frozen 55px header — the title
-        // steps out and the one-row bar is the whole bar (see the CSS
-        // above). The same sentinel pattern the homepage's pinned
-        // library bars use. At rest nothing changes.
-        (function () {
-            var HEADER_H = 55;
-            document.querySelectorAll('.media-box-head').forEach(function (head) {
-                var sentinel = document.createElement('div');
-                sentinel.setAttribute('aria-hidden', 'true');
-                sentinel.style.cssText = 'height: 0; overflow: hidden;';
-                head.parentElement.insertBefore(sentinel, head);
-                function update() {
-                    var sr = sentinel.getBoundingClientRect();
-                    var hr = head.getBoundingClientRect();
-                    head.classList.toggle('is-pinned', sr.top < HEADER_H && hr.bottom > HEADER_H);
-                }
-                var queued = false;
-                function queue() {
-                    if (queued) return;
-                    queued = true;
-                    requestAnimationFrame(function () { queued = false; update(); });
-                }
-                window.addEventListener('scroll', queue, { passive: true });
-                window.addEventListener('resize', queue);
-                update();
-            });
-        })();
-    </script>
+
     <script>
     /* Overview popovers for book rows: hover (desktop) / tap
        (mobile) shows a brief overview in the publisher's own words
@@ -1087,16 +1135,31 @@
             };
         }
 
+        // Candidate window heights for one measured side under a cap:
+        // every whole-entry bottom edge at or under the cap, plus the
+        // full content height when the whole list fits under the cap
+        // (the full height is never below a boundary, so the list
+        // stays ascending). Each option carries its whole-entry count.
+        function windowOptions(m, cap) {
+            var opts = [];
+            for (var i = 0; i < m.boundaries.length; i++) {
+                if (m.boundaries[i] <= cap) { opts.push({ h: m.boundaries[i], n: i + 1 }); } else { break; }
+            }
+            if (m.full <= cap && (!opts.length || opts[opts.length - 1].h !== m.full)) {
+                opts.push({ h: m.full, n: m.boundaries.length });
+            }
+            if (!opts.length) {
+                opts.push(m.boundaries.length ? { h: m.boundaries[0], n: 1 } : { h: m.full, n: 0 });
+            }
+            return opts;
+        }
+
         // The window for one measured side under a content ceiling:
         // the whole content when it fits, otherwise the bottom edge of
         // the last whole entry at or under the ceiling.
         function snapWindow(m, ceiling) {
-            if (m.full <= ceiling) { return m.full; }
-            var w = m.boundaries.length ? m.boundaries[0] : m.full;
-            for (var i = 0; i < m.boundaries.length; i++) {
-                if (m.boundaries[i] <= ceiling) { w = m.boundaries[i]; } else { break; }
-            }
-            return w;
+            var opts = windowOptions(m, ceiling);
+            return opts[opts.length - 1].h;
         }
 
         function fitPair() {
@@ -1114,13 +1177,48 @@
             if (!m[0] || !m[1]) { return; }
             var i, w;
             if (!expanded[0] && !expanded[1]) {
-                var ceiling = Math.min(m[0].capContent, m[1].capContent);
-                var win = [snapWindow(m[0], ceiling), snapWindow(m[1], ceiling)];
-                var panel = Math.max(m[0].chrome + win[0], m[1].chrome + win[1]);
-                for (i = 0; i < 2; i++) {
-                    sides[i].win.style.height = win[i] + 'px';
-                    sides[i].box.style.height = panel + 'px';
+                // Best match (2026-11-24 feel build): the old pass
+                // snapped each window independently under the shared
+                // ceiling and set the panel to the taller side, so the
+                // shorter side's panel foot stood empty — up to a full
+                // entry of dead space inside the box (53px measured
+                // under a genre filter), which read on the phone as
+                // the panel's blacked-out bottom. The pass now searches
+                // both lists' whole-entry heights for the pairing that
+                // shows the most whole entries on the SHORTER side
+                // first (the pair is one system: neither window may
+                // lag the other), then the smallest leftover foot,
+                // then the most entries overall — the windows stay as
+                // full as the cap allows and the foot that remains is
+                // the smallest the two lists' own entry heights allow
+                // at that fullness. (Simpler objectives were tried and
+                // rejected in this build's own fresh-load checks:
+                // minimizing the difference alone shrank both windows
+                // to a small size whose heights happened to match, and
+                // a fixed foot ceiling did the same one step up.)
+                var cap = Math.min(m[0].capContent, m[1].capContent);
+                var o0 = windowOptions(m[0], cap), o1 = windowOptions(m[1], cap);
+                var best = null;
+                for (var a = 0; a < o0.length; a++) {
+                    for (var b = 0; b < o1.length; b++) {
+                        var p0 = m[0].chrome + o0[a].h, p1 = m[1].chrome + o1[b].h;
+                        var panel = Math.max(p0, p1);
+                        var foot = panel - Math.min(p0, p1);
+                        var cand = { w0: o0[a].h, w1: o1[b].h, panel: panel, diff: foot,
+                                     minN: Math.min(o0[a].n, o1[b].n), totN: o0[a].n + o1[b].n };
+                        if (!best || cand.minN > best.minN ||
+                            (cand.minN === best.minN && cand.diff < best.diff - 0.01) ||
+                            (cand.minN === best.minN && Math.abs(cand.diff - best.diff) <= 0.01 &&
+                             (cand.totN > best.totN ||
+                              (cand.totN === best.totN && cand.panel > best.panel)))) {
+                            best = cand;
+                        }
+                    }
                 }
+                sides[0].win.style.height = best.w0 + 'px';
+                sides[1].win.style.height = best.w1 + 'px';
+                sides[0].box.style.height = best.panel + 'px';
+                sides[1].box.style.height = best.panel + 'px';
             } else {
                 // An expanded box is released to its natural height;
                 // the box still collapsed keeps its own snapped window
@@ -1192,6 +1290,87 @@
         // twice more as the page settles so the fold lands exactly.
         window.setTimeout(schedule, 600);
         window.setTimeout(schedule, 1400);
+    })();
+    </script>
+    <script>
+    // Pinned stack, measured (2026-11-24 feel build): this page's
+    // sticky offsets used to be hand-set constants — 55px for a site
+    // header whose rendered height is whatever the visitor's device
+    // and fonts make it — and a sentinel script hid each pinned
+    // head's title, changing the head's height by 28px mid-scroll.
+    // Together they were the page's jumps (every landmark below a
+    // head shifted 28.4px when it pinned) and its overlaps (a head
+    // sticking at 55px slides under a taller header, and the
+    // podcasts head's 40px of in-box top padding started its stick
+    // 40px early, striking its title through the books controls).
+    // Now the stack measures itself: the site nav's rendered height
+    // sets --pin-nav (the pill bar's stick line) and nav + pill bar
+    // sets --pin-stack (the section heads' stick line), re-measured
+    // whenever layout can change. Head heights never change on pin,
+    // so nothing below a head ever moves.
+    (function () {
+        var root = document.documentElement;
+        var nav = document.querySelector('.site-nav');
+        var zone = document.querySelector('.media-pillzone');
+        if (!nav || !zone) { return; }
+        function measure() {
+            var navH = nav.getBoundingClientRect().height;
+            root.style.setProperty('--pin-nav', navH + 'px');
+            root.style.setProperty('--pin-stack', (navH + zone.offsetHeight) + 'px');
+        }
+        var queued = false;
+        function schedule() {
+            if (queued) { return; }
+            queued = true;
+            requestAnimationFrame(function () { queued = false; measure(); });
+        }
+        window.addEventListener('resize', schedule);
+        window.addEventListener('load', schedule);
+        if (document.fonts && document.fonts.ready) { document.fonts.ready.then(schedule); }
+        measure();
+
+        // The pill bar: two pills naming the page's two sections. A
+        // tap scrolls its section's head to the foot of the pinned
+        // stack; the scroll-spy lights the pill of the section that
+        // occupies more of the screen below the stack.
+        var pills = Array.prototype.slice.call(zone.querySelectorAll('a[data-spy]'));
+        var sections = pills.map(function (a) { return document.getElementById(a.getAttribute('data-spy')); });
+        function stackH() { return parseFloat(getComputedStyle(root).getPropertyValue('--pin-stack')) || 0; }
+        pills.forEach(function (a, i) {
+            a.addEventListener('click', function (e) {
+                var sec = sections[i];
+                if (!sec) { return; }
+                e.preventDefault();
+                var y = sec.getBoundingClientRect().top + window.scrollY - stackH();
+                var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                window.scrollTo({ top: Math.max(0, y), behavior: reduce ? 'auto' : 'smooth' });
+                try { history.replaceState(null, '', '#' + sec.id); } catch (err) {}
+            });
+        });
+        var active = -1;
+        function spy() {
+            var line = stackH();
+            var best = -1, bestVis = -1;
+            sections.forEach(function (sec, i) {
+                if (!sec) { return; }
+                var r = sec.getBoundingClientRect();
+                var vis = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, line);
+                if (vis > bestVis) { bestVis = vis; best = i; }
+            });
+            if (best !== -1 && best !== active) {
+                active = best;
+                pills.forEach(function (a, i) { a.classList.toggle('active', i === active); });
+            }
+        }
+        var spyQueued = false;
+        function spySchedule() {
+            if (spyQueued) { return; }
+            spyQueued = true;
+            requestAnimationFrame(function () { spyQueued = false; spy(); });
+        }
+        window.addEventListener('scroll', spySchedule, { passive: true });
+        window.addEventListener('resize', spySchedule);
+        spy();
     })();
     </script>
 </body>
