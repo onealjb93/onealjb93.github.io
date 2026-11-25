@@ -427,7 +427,12 @@ var GAL_VERT = [
        big enough to carry it; far specks keep the smooth profile. */
     '    vDetail = clamp(px / 42.0, 0.0, 1.0);',
     '    float a = aBright;',
-    '    a *= smoothstep(0.10, 0.55, dist / aDiam);',  /* fade when flying through */
+    /* No through-fade (Johnny, 2026-11-24): a galaxy you fly to
+       stays — approaching, entering and passing its centre never
+       dissolves it, and looking back shows it still there. The
+       old smoothstep(0.10, 0.55, dist / aDiam) term erased a
+       galaxy from inside half its own diameter outward: at
+       0.19x Centaurus A's diameter it had already vanished. */
     '    a *= clamp(px / 2.5, mix(0.48, 0.35, uHalo), 1.0);',  /* far specks stay faint — the deep cloud's floor sits a touch higher, so its real walls and filaments survive full-catalog distance */
     '    vAlpha = a;',
     '    gl_Position = projectionMatrix * mv;',
@@ -523,6 +528,15 @@ var GAL_FRAG = [
     '            vec3 ph = texture2D(tHeroes, auv).rgb;',
     '            float phLum = dot(ph, vec3(0.299, 0.587, 0.114));',
     '            float hw = uHeroW * smoothstep(0.20, 0.65, vDetail);',
+    /* The photo hands back to the procedural layer before the
+       tile's edge: inside the box the mix replaces the alpha
+       that carries the wide halo, so an unfeathered box cut the
+       halo off along the tile's straight rotated edge — a
+       square outline around the galaxy, its corners standing
+       in the view as translucent wedges (Johnny's screenshot,
+       2026-11-24). Feathering hw to zero by |hp| = 0.487, the
+       box edge, keeps the halo continuous across it. */
+    '            hw *= 1.0 - smoothstep(0.40, 0.487, max(abs(hp.x), abs(hp.y)));',
     '            float heroA = clamp(phLum * 1.7, 0.0, 1.0) * vAlpha * (1.0 - smoothstep(1.28, 1.5, d));',
     '            col = mix(col, ph, hw);',
     '            a = mix(a, heroA, hw);',
@@ -577,7 +591,7 @@ var NEB_VERT = [
     '    float profD = max(aDiam, 9.0 * dist / uScaleH);',
     '    mv.xy += position.xy * (profD * 1.25);',
     '    vQ = position.xy * 1.25;',
-    '    vFade = smoothstep(0.35, 1.4, rawDist / max(aDiam, 0.001));',
+    '    vFade = 1.0;',   /* no close-range fade (Johnny, 2026-11-24): a nebula persists as you arrive and pass through, like the galaxies — the old smoothstep(0.35, 1.4, dist / aDiam) dissolved it on approach */
     '    vFam = aFam; vBright = aBright; vSeed = aSeed;',
     '    gl_Position = projectionMatrix * mv;',
     '}'
@@ -793,6 +807,8 @@ export function initUniverse(stage) {
     var nearestName = '', nearestDist = Infinity;
     var flyAnim = null;        /* jump-to flight */
     var tour = { on: false, index: 0, t: 0, dwell: 0, keys: [] };
+    var markedName = '';       /* the last jump-to target — the place the marked-object caption claims */
+    var captionClaim = null;   /* what the caption currently claims: null | {kind:'earth'} | {kind:'object', name} */
     var pointers = new Map();
     var pinchDist = 0;
     /* Steering rebuild (2026-11-19): grab-the-sky drag + tap-to-fly.
@@ -821,6 +837,32 @@ export function initUniverse(stage) {
     }
     function setCaption(text) {
         if (captionEl.textContent !== text) captionEl.textContent = text;
+    }
+    var EARTH_CAP = 'You are at Earth \u2014 home. Every light around you is a real star at its true position. Drag to look \u00B7 hold Fly (or press W) to fly anywhere \u00B7 scroll for speed. The tour is there when you want it.';
+    var CONTROLS_CAP = 'You have the controls. Drag to look around; hold Fly \u2014 or press W \u2014 to move.';
+    /* The caption is a place card, not a log: a caption that names
+       where you are must stay true as you fly. Free flight moves
+       the camera without ever touching the caption, so the boot
+       card ("You are at Earth") used to stay on screen 12 million
+       light-years out, contradicting both live readouts (Johnny's
+       screenshot, 2026-11-24). The reconciler runs on the HUD's
+       own cadence, in free flight only: a claim whose place no
+       longer matches the live Nearest readout falls back to the
+       neutral controls card, and flying home under your own power
+       restores the Earth card. Tour and jump captions are events,
+       set and cleared by the paths that own them. */
+    function syncCaption() {
+        if (tour.on || flyAnim) return;
+        if (captionClaim && captionClaim.kind === 'earth' && nearestName !== 'Earth') {
+            captionClaim = null; setCaption(CONTROLS_CAP);
+        } else if (captionClaim && captionClaim.kind === 'object' &&
+                   (nearestName !== captionClaim.name || nearestDist > captionClaim.dist * 2.5)) {
+            /* flown to another object's neighbourhood, or flown
+               away again — the arrival card has expired either way */
+            captionClaim = null; setCaption(CONTROLS_CAP);
+        } else if (!captionClaim && nearestName === 'Earth' && captionEl.textContent === CONTROLS_CAP) {
+            captionClaim = { kind: 'earth' }; setCaption(EARTH_CAP);
+        }
     }
 
     /* ---------------- data load ---------------- */
@@ -1900,7 +1942,7 @@ export function initUniverse(stage) {
             tour.dwell -= dt;
             camPos.copy(cur.pos);
             setViewFromTarget(cur.tgt);
-            if (tour.dwell <= 0) setCaption(nxt.cap);
+            if (tour.dwell <= 0) { captionClaim = null; setCaption(nxt.cap); }
             return;
         }
         tour.t += dt / nxt.dur;
@@ -1951,6 +1993,7 @@ export function initUniverse(stage) {
         spin.yaw = 0; spin.pitch = 0;
         if (!resume) { tour.index = 0; tour.t = 0; tour.dwell = 0; camPos.copy(tour.keys[0].pos); }
         tourBtn.textContent = '\u25A0 Stop the tour';
+        captionClaim = null;
         setCaption(tour.keys[Math.min(tour.index + 1, tour.keys.length - 1)].cap ||
             'The tour is flying. Grab the view any time to take over.');
     }
@@ -1960,6 +2003,7 @@ export function initUniverse(stage) {
         if (finished) {
             tour.index = 0; tour.t = 0;
             tourBtn.textContent = '\u25B6 Fly the tour';
+            captionClaim = null;
             setCaption('That is the tour. Fly anywhere you like \u2014 drag to look, hold Fly (or W) to move.');
         }
     }
@@ -1968,7 +2012,13 @@ export function initUniverse(stage) {
         spin.yaw = 0; spin.pitch = 0;
         if (tour.on) {
             stopTour(false);
-            setCaption('You have the controls. Drag to look around; hold Fly \u2014 or press W \u2014 to move.');
+            captionClaim = null;
+            setCaption(CONTROLS_CAP);
+        } else if (flyAnim) {
+            /* grabbing the view mid-jump cancels the flight — its
+               "Flying to ..." card must not outlive the flight */
+            captionClaim = null;
+            setCaption(CONTROLS_CAP);
         }
         flyAnim = null;
     }
@@ -2058,6 +2108,7 @@ export function initUniverse(stage) {
             .add(GAL_NORTH.clone().multiplyScalar(standoff * 0.22));
         flyAnim = { from: camPos.clone(), to: dest, target: target, t: 0, dur: 3.0 };
         ctrl.mode = 'jump';
+        markedName = entry.n; captionClaim = null;
         setCaption('Flying to ' + entry.n + '\u2026 grab the view to take over.');
     }
     function flyToSolar(b) {
@@ -2078,6 +2129,7 @@ export function initUniverse(stage) {
             .add(GAL_NORTH.clone().multiplyScalar(standoff * 0.30));
         flyAnim = { from: camPos.clone(), to: dest, target: target, t: 0, dur: 3.2 };
         ctrl.mode = 'jump';
+        markedName = b.n; captionClaim = null;
         setCaption('Flying to ' + b.n + '\u2026 grab the view to take over.');
     }
     function flyAnimFrame(dt) {
@@ -2085,8 +2137,14 @@ export function initUniverse(stage) {
         if (flyAnim.t >= 1) {
             camPos.copy(flyAnim.to);
             setViewFromTarget(flyAnim.target);
+            var arrDist = camPos.distanceTo(flyAnim.target);
             flyAnim = null; ctrl.mode = 'free';
             setCaption('You are looking at the marked object. Drag to look around; hold Fly \u2014 or press W \u2014 to move.');
+            /* the marked-object card claims the jump's target (the
+               solar list calls the Sun 'Sun', the named list 'The
+               Sun' — the claim uses the readout's own name) */
+            captionClaim = { kind: 'object', name: (markedName === 'The Sun') ? 'Sun' : markedName,
+                             dist: arrDist };
             return;
         }
         var t = smoother(flyAnim.t);
@@ -2103,6 +2161,7 @@ export function initUniverse(stage) {
         }
         flyAnim = { from: camPos.clone(), to: start.pos.clone(), target: start.tgt.clone(), t: 0, dur: 2.6 };
         ctrl.mode = 'jump';
+        markedName = 'Earth'; captionClaim = null;
     }
 
     /* ---------------- HUD / labels ---------------- */
@@ -2343,7 +2402,7 @@ export function initUniverse(stage) {
         hudDist.textContent = 'From the Sun: ' + fmtDist(alt);
         hudSpeed.textContent = 'Speed: ' + fmtSpeed(speedPc());
         labelTick++;
-        if (labelTick % 15 === 0) updateNearest();
+        if (labelTick % 15 === 0) { updateNearest(); syncCaption(); }
         var rect = canvas.getBoundingClientRect();
         updateLabels(rect.width, rect.height);
     }
@@ -2549,7 +2608,7 @@ export function initUniverse(stage) {
 
         tourBtn.addEventListener('click', function () {
             lastInputT = performance.now();
-            if (tour.on) { stopTour(false); setCaption('Tour stopped. You have the controls.'); }
+            if (tour.on) { stopTour(false); captionClaim = null; setCaption('Tour stopped. You have the controls.'); }
             else startTour(tour.index > 0);
             tourBtn.blur();
         });
@@ -2598,6 +2657,7 @@ export function initUniverse(stage) {
                     return;
                 }
             }
+            captionClaim = null;
             setCaption('No match for \u201C' + name + '\u201D \u2014 try a name from the list as you type.');
         }
         searchGo.addEventListener('click', function () { doSearch(); searchGo.blur(); });
@@ -2646,7 +2706,8 @@ export function initUniverse(stage) {
         loadingEl.hidden = true;
         ctrl.ready = true;
         lastInputT = performance.now();
-        setCaption('You are at Earth \u2014 home. Every light around you is a real star at its true position. Drag to look \u00B7 hold Fly (or press W) to fly anywhere \u00B7 scroll for speed. The tour is there when you want it.');
+        setCaption(EARTH_CAP);
+        captionClaim = { kind: 'earth' };
         updateNearest();
         if (ctrl.active) { lastT = performance.now(); rafId = requestAnimationFrame(frame); }
         if (window) window.__uv = ctrl;
