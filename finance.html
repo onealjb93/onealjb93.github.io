@@ -1060,6 +1060,11 @@
        already wrapped cleanly. */
     #sigTotals .sig-stat-num { white-space: normal; }
     .sig-viewrow .filter-pill { min-height: 44px; padding: 10px 18px; display: inline-flex; align-items: center; }
+    /* The $ / % toggle: one switch for the whole stage (totals
+       band, pulse, holdings table, chart axis), seated at the
+       right end of the view row in the page's pill pattern. */
+    .sig-axis-toggle { margin-left: auto; display: inline-flex; gap: 0.45rem; }
+    .sig-axis-toggle .filter-pill { min-width: 44px; justify-content: center; font-weight: 600; }
     .sig-controls-layer { margin-top: 0.9rem; border-top: 1px solid var(--border-color); padding-top: 0.9rem; }
     .sig-controls-layer .filter-pill { min-height: 44px; padding: 10px 16px; display: inline-flex; align-items: center; }
     .sig-controls-layer .sig-amt input { height: 44px; width: 6rem; }
@@ -1095,6 +1100,33 @@
     .sig-sheet .sig-name-row { min-height: 48px; }
     .sig-sheet .sig-name-check { min-height: 44px; }
     .sig-sheet .filter-pill { min-height: 40px; }
+    /* One screen (Johnny, 2026-11-25): the whole operating
+       surface — pulse, totals, chart, controls — fits the first
+       screen. The chart is the flexible element: the arrangement
+       script sizes its canvas to whatever height makes the whole
+       fit, so a toggle that grows the totals is absorbed by the
+       chart and no control ever moves. Controls keep their full
+       size; the totals compress inside their strip. On the phone
+       the strip becomes a compact three-column grid, the
+       timeframe pills share one row, the legend packs tight, the
+       Compare label takes its own line, and the thermostat's
+       state line rides beside its switch instead of under it. */
+    @media (max-width: 700px) {
+      #sigTotals { display: grid; grid-template-columns: repeat(3, 1fr); }
+      #sigTotals .sig-stat { flex: none; padding: 7px 8px; }
+      #sigTotals .sig-stat:nth-child(n+6) { flex: none; }
+      #sigTotals .sig-stat-num { font-size: 0.95rem; line-height: 1.25; }
+      #sigTotals .sig-stat-label { font-size: 0.7rem; line-height: 1.3; }
+      .sig-legend { gap: 0.35rem 0.8rem; margin-top: 0.3rem; }
+      .sig-controls-layer { margin-top: 0.6rem; padding-top: 0.6rem; gap: 0.5rem; }
+      .sig-tf-row { flex-wrap: nowrap; }
+      .sig-tf-row .filter-pill { flex: 1 1 0; min-width: 0; padding: 10px 4px; }
+      .sig-compare-label { flex: 1 1 100%; font-size: 0.82rem; line-height: 1.2; }
+      .sig-controls-layer .sig-thermo-state { flex: 1 1 0; min-width: 0; }
+      #sigLegend { row-gap: 0.25rem; }
+      #sigTotals { margin: 6px 0 4px; }
+      .sig-viewrow { margin: 0.3rem 0 0.4rem; }
+    }
     /* Johnny's card: the allocation bar (2026-11-17) — the strategy
        line drawn, 70 / 10 / 10 / 10. The $70 segment takes the page
        accent; the three $10 segments are steps of the subtext grey.
@@ -3979,6 +4011,10 @@
             <div class="chip-row sig-viewrow" id="sigViewRow" role="group" aria-label="Portfolio view">
                 <button type="button" class="filter-pill active" id="sigViewTable" aria-pressed="true">Table</button>
                 <button type="button" class="filter-pill" id="sigViewChart" aria-pressed="false">Chart</button>
+                <div class="sig-axis-toggle" role="group" aria-label="Amounts in dollars or percent">
+                    <button type="button" class="filter-pill active" id="sigAxisUsd" aria-pressed="true">$</button>
+                    <button type="button" class="filter-pill" id="sigAxisPct" aria-pressed="false">%</button>
+                </div>
             </div>
             <div id="sigTableWrap">
                 <div class="sig-table-wrap">
@@ -4144,6 +4180,156 @@
             window.scrollTo(0, savedY);
             namesBtn.focus({ preventScroll: true });
         }
+        // One screen: the chart canvas takes the height that
+        // makes the whole operating surface fit the first screen.
+        // Everything else is measured as it stands; the canvas
+        // absorbs the difference, so toggling a comparison or the
+        // thermostat — which grows the totals strip — never moves
+        // a control. In full screen the chart's own flex sizing
+        // rules, and this clears out of its way.
+        var canvas = $("sigChart"), wrap = $("sigChartWrap"), sec = $("backtest");
+        var fitBusy = false;
+        function fitChart() {
+            if (!canvas || !wrap || !sec || app.hidden || wrap.hidden) return;
+            if (document.fullscreenElement || sec.classList.contains("sig-fs")) {
+                if (canvas.style.height) canvas.style.height = "";
+                return;
+            }
+            var title = sec.querySelector(".section-title");
+            var pin = title ? parseFloat(getComputedStyle(title).top) : NaN;
+            if (!(pin >= 0)) pin = 55;
+            var thermoRow = thermoState.closest(".sig-ctl-row");
+            if (!thermoRow) return;
+            var others = (thermoRow.getBoundingClientRect().bottom
+                - sec.getBoundingClientRect().top) - canvas.clientHeight;
+            var target = (window.innerHeight - pin) - others - 3;
+            var w = window.innerWidth;
+            var min = w <= 700 ? 100 : 150;
+            var max = w <= 700 ? 300 : (w <= 1000 ? 520 : 400);
+            target = Math.max(min, Math.min(max, target));
+            if (Math.abs(target - canvas.clientHeight) > 2) {
+                canvas.style.height = target + "px";
+                fitBusy = true;
+                window.dispatchEvent(new Event("resize"));
+                fitBusy = false;
+            }
+        }
+        var fitQueued = false;
+        function queueFit() {
+            if (fitQueued) return;
+            fitQueued = true;
+            requestAnimationFrame(function () {
+                fitQueued = false;
+                fitChart();
+                // The engine renders a new state a beat after the
+                // click; measure again once it has settled.
+                setTimeout(fitChart, 350);
+            });
+        }
+        sec.addEventListener("click", queueFit);
+        if (window.MutationObserver) {
+            new MutationObserver(queueFit).observe(totals, { childList: true });
+            var legend = $("sigLegend");
+            if (legend) new MutationObserver(queueFit).observe(legend, { childList: true });
+        }
+        window.addEventListener("resize", function () { if (!fitBusy) queueFit(); });
+        document.addEventListener("fullscreenchange", queueFit);
+        queueFit();
+
+        // The $ / % toggle: one switch for the whole stage — the
+        // totals band, the pulse line, the holdings table and the
+        // chart's axis. A number that carries both forms shows
+        // one; a number with one natural form (Total value, Money
+        // in, Dividends, Max drawdown) never changes. The engine
+        // keeps the values — this only restyles their display
+        // from the engine's own rendered text, and the chart
+        // hears the mode through the sig-axis-mode event. The
+        // mode lives here, so it persists across timeframe,
+        // comparison and thermostat changes in the session.
+        var axisPct = false;
+        var usdBtn = $("sigAxisUsd"), pctBtn = $("sigAxisPct");
+        var pulse = $("backtestPulse"), rowsEl = $("sigRows");
+        var origNums = {}, origPulse = null, origRows = {};
+        function oneForm(text, pct) {
+            var m = text.match(/^([+-]?\$[\d,]+\.\d{2}) \(([+-]?[\d.]+%)\)$/);
+            if (m) return pct ? m[2] : m[1];
+            m = text.match(/^([+-]?\$[\d,]+\.\d{2}) · ([+-]?[\d.]+%)$/);
+            if (m) return pct ? m[2] : m[1];
+            return text;
+        }
+        function usdPart(text) {
+            var m = text.match(/^([+-]?\$[\d,]+\.\d{2}) [·(]/);
+            return m ? m[1] : text;
+        }
+        function pulseForm(orig, pct) {
+            if (pct || !orig) return orig;
+            var segs = orig.split(" · ");
+            if (segs.length < 3) return orig;
+            for (var i = 1; i < segs.length - 1; i++) {
+                var m = segs[i].match(/^(.*) ([+-]?[\d.]+%)$/);
+                if (!m) continue;
+                totals.querySelectorAll(".sig-stat").forEach(function (card) {
+                    var lab = card.querySelector(".sig-stat-label");
+                    if (lab && lab.textContent.indexOf(m[1] + " · ") === 0 && origNums[lab.textContent] !== undefined)
+                        segs[i] = m[1] + " " + usdPart(origNums[lab.textContent]);
+                });
+            }
+            return segs.join(" · ");
+        }
+        function applyTexts() {
+            totals.querySelectorAll(".sig-stat").forEach(function (card) {
+                var lab = card.querySelector(".sig-stat-label"), num = card.querySelector(".sig-stat-num");
+                if (!lab || !num) return;
+                var key = lab.textContent, cur = num.textContent;
+                if (origNums[key] === undefined || (cur !== origNums[key]
+                    && cur !== oneForm(origNums[key], false) && cur !== oneForm(origNums[key], true)))
+                    origNums[key] = cur;
+                var f = oneForm(origNums[key], axisPct);
+                if (cur !== f) num.textContent = f;
+            });
+            if (rowsEl) rowsEl.querySelectorAll("tr").forEach(function (tr) {
+                var name = tr.cells && tr.cells[0] ? tr.cells[0].textContent : "";
+                var td = tr.cells && tr.cells.length ? tr.cells[tr.cells.length - 1] : null;
+                if (!name || !td) return;
+                var cur = td.textContent;
+                if (origRows[name] === undefined || (cur !== origRows[name]
+                    && cur !== oneForm(origRows[name], false) && cur !== oneForm(origRows[name], true)))
+                    origRows[name] = cur;
+                var f = oneForm(origRows[name], axisPct);
+                if (cur !== f) td.textContent = f;
+            });
+            if (pulse && !pulse.hidden && pulse.textContent) {
+                var cur = pulse.textContent;
+                if (origPulse === null || (cur !== origPulse
+                    && cur !== pulseForm(origPulse, false) && cur !== pulseForm(origPulse, true)))
+                    origPulse = cur;
+                var f = pulseForm(origPulse, axisPct);
+                if (cur !== f) pulse.textContent = f;
+            }
+        }
+        function setAxis(pct) {
+            axisPct = !!pct;
+            if (usdBtn && pctBtn) {
+                usdBtn.classList.toggle("active", !axisPct);
+                pctBtn.classList.toggle("active", axisPct);
+                usdBtn.setAttribute("aria-pressed", axisPct ? "false" : "true");
+                pctBtn.setAttribute("aria-pressed", axisPct ? "true" : "false");
+            }
+            document.dispatchEvent(new CustomEvent("sig-axis-mode", { detail: { pct: axisPct } }));
+            applyTexts();
+            queueFit();
+        }
+        if (usdBtn && pctBtn) {
+            usdBtn.addEventListener("click", function () { setAxis(false); });
+            pctBtn.addEventListener("click", function () { setAxis(true); });
+        }
+        if (window.MutationObserver) {
+            new MutationObserver(applyTexts).observe(totals, { childList: true });
+            if (rowsEl) new MutationObserver(applyTexts).observe(rowsEl, { childList: true });
+            if (pulse) new MutationObserver(applyTexts).observe(pulse, { childList: true });
+        }
+        applyTexts();
+
         namesBtn.addEventListener("click", openSheet);
         closeBtn.addEventListener("click", closeSheet);
         scrim.addEventListener("click", function (e) { if (e.target === scrim) closeSheet(); });
@@ -6341,7 +6527,8 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             ready: false, failed: false, on: true,
             buyAmt: 1000, sellAmt: 1000,
             inc: {}, vix: false,
-            view: "table", benches: { SPX: true, IXIC: false, CASH: false }, range: "ALL"
+            view: "table", benches: { SPX: true, IXIC: false, CASH: false }, range: "ALL",
+            axisPct: false
         };
         SIG_NAMES.forEach(function (n) { state.inc[n] = true; });
         var DATA = null;          // the daily file, parsed
@@ -6555,7 +6742,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     if (bv > bs.peak) bs.peak = bv;
                     if (bs.peak > 0 && (bs.peak - bv) / bs.peak > bs.maxDD) bs.maxDD = (bs.peak - bv) / bs.peak;
                 });
-                series.push({ d: d, v: tot, b: bVals });
+                series.push({ d: d, v: tot, b: bVals, in: cumIn });
                 if (tot > peak) peak = tot;
                 if (peak > 0 && (peak - tot) / peak > maxDD) maxDD = (peak - tot) / peak;
             }
@@ -6754,23 +6941,42 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             ctx.font = "11px system-ui, sans-serif";
             if (!state.on || !chartPts || !chartPts.dates.length) return;
             var pts = chartPts, n = pts.dates.length;
-            var maxV = 0;
+            // The $ / % axis toggle (2026-11-25): in % mode every
+            // line is drawn as its gain against the money in at
+            // that date — (value − in) ÷ in × 100 — so the lines
+            // stay comparable exactly as the dollar view keeps
+            // them comparable. In $ mode the stored values are
+            // drawn untouched.
+            var dPort = pts.port, dBenches = pts.benches;
+            if (state.axisPct) {
+                var toPct = function (v, ix) { var m = pts.ins[ix]; return m > 0 ? (v - m) / m * 100 : 0; };
+                dPort = pts.port.map(toPct);
+                dBenches = pts.benches.map(function (bn) {
+                    return { name: bn.name, color: bn.color, vals: bn.vals.map(toPct) };
+                });
+            }
+            var maxV = 0, minV = 0;
             for (var i = 0; i < n; i++) {
-                if (pts.port[i] > maxV) maxV = pts.port[i];
-                pts.benches.forEach(function (bn) { if (bn.vals[i] > maxV) maxV = bn.vals[i]; });
+                if (dPort[i] > maxV) maxV = dPort[i];
+                if (dPort[i] < minV) minV = dPort[i];
+                dBenches.forEach(function (bn) {
+                    if (bn.vals[i] > maxV) maxV = bn.vals[i];
+                    if (bn.vals[i] < minV) minV = bn.vals[i];
+                });
             }
             if (maxV <= 0) maxV = 1;
             maxV *= 1.05;
+            if (minV < 0) minV *= 1.05;
             var padL = 58, padR = 10, padT = 10, padB = 22;
             var iw = W - padL - padR, ih = H - padT - padB;
             function X(i) { return padL + (n === 1 ? iw / 2 : (i / (n - 1)) * iw); }
-            function Y(v) { return padT + ih - (v / maxV) * ih; }
+            function Y(v) { return padT + ih - ((v - minV) / (maxV - minV)) * ih; }
             ctx.strokeStyle = grid; ctx.fillStyle = sub; ctx.lineWidth = 1;
             ctx.textAlign = "right"; ctx.textBaseline = "middle";
             for (var g = 0; g <= 4; g++) {
-                var v = maxV * g / 4, y = Y(v);
+                var v = minV + (maxV - minV) * g / 4, y = Y(v);
                 ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
-                ctx.fillText(fmtAxis(v), padL - 6, y);
+                ctx.fillText(state.axisPct ? fmtPct(v) : fmtAxis(v), padL - 6, y);
             }
             ctx.textAlign = "center"; ctx.textBaseline = "top";
             // Axis labels (2026-11-25): five "Mon YYYY" labels do not
@@ -6805,13 +7011,13 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 }
                 ctx.stroke(); ctx.setLineDash([]);
             }
-            pts.benches.forEach(function (bn) { line(bn.vals, bn.color, [5, 4]); });
-            line(pts.port, acc, null);
+            dBenches.forEach(function (bn) { line(bn.vals, bn.color, [5, 4]); });
+            line(dPort, acc, null);
             if (inspectIdx >= 0 && inspectIdx < n) {
                 ctx.strokeStyle = sub; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(X(inspectIdx), padT); ctx.lineTo(X(inspectIdx), padT + ih); ctx.stroke();
-                var pairs = [[pts.port[inspectIdx], acc]];
-                pts.benches.forEach(function (bn) { pairs.push([bn.vals[inspectIdx], bn.color]); });
+                var pairs = [[dPort[inspectIdx], acc]];
+                dBenches.forEach(function (bn) { pairs.push([bn.vals[inspectIdx], bn.color]); });
                 pairs.forEach(function (pr) {
                     ctx.fillStyle = pr[1];
                     ctx.beginPath(); ctx.arc(X(inspectIdx), Y(pr[0]), 3.5, 0, Math.PI * 2); ctx.fill();
@@ -6828,8 +7034,13 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             var i = Math.round(frac * (n - 1));
             if (i < 0) i = 0; if (i > n - 1) i = n - 1;
             inspectIdx = i;
-            var ro = fmtDate(chartPts.dates[i]) + " · Portfolio " + fmtMoney(chartPts.port[i]);
-            chartPts.benches.forEach(function (bn) { ro += " · " + bn.name + " " + fmtMoney(bn.vals[i]); });
+            var fmtVal = function (v) {
+                if (!state.axisPct) return fmtMoney(v);
+                var m = chartPts.ins[i];
+                return fmtPct(m > 0 ? (v - m) / m * 100 : 0);
+            };
+            var ro = fmtDate(chartPts.dates[i]) + " · Portfolio " + fmtVal(chartPts.port[i]);
+            chartPts.benches.forEach(function (bn) { ro += " · " + bn.name + " " + fmtVal(bn.vals[i]); });
             el("sigReadout").textContent = ro;
             drawChart();
         }
@@ -6839,9 +7050,9 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             el("sigChart").style.display = state.on ? "" : "none";
             el("sigReadout").style.display = state.on ? "" : "none";
             if (!state.on) { legend.innerHTML = ""; chartPts = null; return; }
-            chartPts = { dates: [], port: [], benches: (r.benches || []).map(function (bn) { return { sym: bn.sym, name: bn.name, color: bn.color, cashBench: bn.cashBench, vals: [] }; }) };
+            chartPts = { dates: [], port: [], ins: [], benches: (r.benches || []).map(function (bn) { return { sym: bn.sym, name: bn.name, color: bn.color, cashBench: bn.cashBench, vals: [] }; }) };
             (r.series || []).forEach(function (p) {
-                chartPts.dates.push(p.d); chartPts.port.push(p.v);
+                chartPts.dates.push(p.d); chartPts.port.push(p.v); chartPts.ins.push(p.in || 0);
                 chartPts.benches.forEach(function (bn) { bn.vals.push(p.b[bn.sym]); });
             });
             var acc = cssVar("--accent-color", "#22c55e");
@@ -6980,6 +7191,14 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     .observe(document.body, { attributes: true, attributeFilter: ["class"] });
             }
             bindFs();
+            // The $ / % toggle in the view row (the arrangement's
+            // switch) announces the mode here; the chart redraws
+            // in the chosen units. $ is the default and the
+            // stored values never change — only their display.
+            document.addEventListener("sig-axis-mode", function (e) {
+                state.axisPct = !!(e && e.detail && e.detail.pct);
+                drawChart();
+            });
         }
 
         // Full screen: the title-row pill takes the whole section,
