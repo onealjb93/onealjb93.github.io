@@ -171,7 +171,7 @@
            padding gives the stuck bar enough height to cover the
            heading bar beneath it, balanced by a smaller margin-bottom
            so the gap below the bar is unchanged. */
-        .btc-pick { position: sticky; top: 95px; z-index: 95; background-color: var(--bg-color); background-image: linear-gradient(var(--card-bg), var(--card-bg)); border-bottom: 1px solid var(--border-color); padding: 6px 0; margin-bottom: 0; }
+        .btc-pick { position: sticky; top: var(--idx-slot-h, 95px); z-index: 95; background-color: var(--bg-color); background-image: linear-gradient(var(--card-bg), var(--card-bg)); border-bottom: 1px solid var(--border-color); padding: 6px 0; margin-bottom: 0; }
         /* Picker pinning fix (2026-11-17, ported from bitcoin.html):
            the shared card style (style.css) gives .btc-chart-card
            backdrop-filter: blur(20px), a transform transition, and a
@@ -1278,7 +1278,7 @@
        collapsed section's heading scrolls normally; nothing pins. */
     .syn-duo > div { align-self: start; }
     .syn-duo > div.lib-open > .media-box-head {
-        position: sticky; top: 95px; z-index: 90;
+        position: sticky; top: var(--idx-slot-h, 95px); z-index: 90;
         background: var(--bg-color);
         margin-bottom: 0; padding-bottom: 0.6rem;
     }
@@ -1293,6 +1293,11 @@
        the bar either way; hiding it just removes the sliver, and it
        reappears the moment the bar releases the slot. */
     h2.slot-covered { visibility: hidden; }
+    /* Pin cover (2026-11-24 glitch repair): the chart picker
+       leaves its slot whole too — while its own card carries it
+       out (push-off), the slot script marks it .slot-covered
+       rather than letting the navigation bar slice it mid-line. */
+    #btcPick.slot-covered { visibility: hidden; }
     .syn-duo .media-box-head > .book-controls { flex: 1 1 100%; margin: 0 0 14px; }
     /* One-row pinned bar (2026-11-16, Johnny's order): while stuck,
        the bar is ONE row — [Filter] [Sort] [the Expand/Collapse
@@ -2182,7 +2187,7 @@
               <p><b>Production cost</b> — green in the bottom 5% of the range, yellow from 5% to 50% of the range, red above 50% of the range.</p>
               <p><b>Mayer</b> — green at or under the 200-day average, yellow between the average and 2.4× the average, red at or over 2.4× the average.</p>
               <p><b>MVRV</b> — green when the market value of all bitcoin is no more than 15% above what holders paid for their bitcoin, yellow above 15% up to a Z-score of 7, red at a Z-score of 7 or higher.</p>
-              <p id="btcScoreParts">…</p>
+              <p id="btcScoreParts">One real reading, as an example — the reading published on November 24, 2026: Power law 0.0 · Production cost 0.0 · Mayer Multiple 17.3 · MVRV Z-Score 3.8. The four parts averaged 5.3, inside the buy band. The gauge above shows the live reading, not this example.</p>
               <p><b>Johnny's ₿ Indicator</b> — each model is scaled from 0 to 100 against fixed anchors: the power law by the price's position in the power law's corridor; production cost by the price-to-cost ratio on a log scale (a ratio of 1 gives 0, a ratio of 10 gives 100); the Mayer Multiple on a line from 0.5 to 2.4 (0.5 gives 0, 2.4 gives 100); the MVRV Z-Score on a line from 0 to 7 (0 gives 0, 7 gives 100). The indicator's reading is the average of the four scalings.</p>
               <p>A reading of 7.79 or lower is the buy band — the rare buy; a reading of 92.91 or higher is the sell band — the rare sell.</p>
               <p>In the 564 weeks in the record — weeks, not days — the buy band fired in 13 weeks and the sell band fired in 6 weeks. The buy band fired on the day of the December 2018 bottom and on the day of the March 2020 bottom; the sell band fired on the day of the December 2013 top and on the day of the December 2017 top. No band fired in January 2015 or at either 2021 top.</p>
@@ -9580,8 +9585,22 @@ window.BTC_FINE = (function () {
         (function () {
             var HEADER_H = 95;
             // HEADER_H is the slot's top edge for this page's tool
-            // stickies: the 55px site header plus the 40px navigation
-            // bar (2026-11-20 — the stickies pin below the bar).
+            // stickies: the site header plus the navigation bar
+            // (2026-11-20 — the stickies pin below the bar). Since
+            // the 2026-11-24 glitch repair it is MEASURED from the
+            // two bars' rendered heights and republished as
+            // --idx-slot-h for the CSS pins — never a hand-set
+            // constant; 95 remains only as the pre-measure fallback.
+            function measureHeaderH() {
+                var nav = document.querySelector('.site-nav');
+                var bar = document.getElementById('homeNavBar');
+                var h = (nav && nav.offsetHeight ? nav.offsetHeight : 55) + (bar && bar.offsetHeight ? bar.offsetHeight : 40);
+                if (h && h !== HEADER_H) {
+                    HEADER_H = h;
+                    document.documentElement.style.setProperty('--idx-slot-h', h + 'px');
+                }
+            }
+            measureHeaderH();
             // Slot cover (2026-11-16 fix): the page's section headings
             // (body > .syn-sec > h2, .about-section h2) used to stick
             // at the same slot, and a stuck heading's box is taller
@@ -9633,6 +9652,14 @@ window.BTC_FINE = (function () {
                 var h2s = document.querySelectorAll('body > .syn-sec > h2, .about-section h2');
                 if (!slotPads || slotPads.length !== h2s.length) measureSlotPads(h2s);
                 var pr = slotPick ? slotPick.getBoundingClientRect() : null;
+                // The picker leaves whole (2026-11-24 glitch
+                // repair): while its card carries it out of the
+                // slot, its top rises above the slot's top edge and
+                // the navigation bar would slice it — cover it
+                // until it is back inside the slot.
+                if (slotPick && pr) {
+                    slotPick.classList.toggle('slot-covered', pr.top < HEADER_H - 1);
+                }
                 for (var i = 0; i < h2s.length; i++) {
                     var r = h2s[i].getBoundingClientRect();
                     var covered = anyPinned && r.top <= HEADER_H + 1;
@@ -9658,8 +9685,8 @@ window.BTC_FINE = (function () {
             // the bar's release point without a scroll: recheck as
             // the animation settles.
             window.addEventListener('scroll', syncSlotCover, { passive: true });
-            window.addEventListener('resize', function () { slotPads = null; syncSlotCover(); });
-            window.addEventListener('load', function () { slotPads = null; syncSlotCover(); });
+            window.addEventListener('resize', function () { measureHeaderH(); slotPads = null; syncSlotCover(); });
+            window.addEventListener('load', function () { measureHeaderH(); slotPads = null; syncSlotCover(); });
             if (slotAnim) slotAnim.addEventListener('transitionend', syncSlotCover);
             if (slotPick) slotPick.addEventListener('click', function () { window.setTimeout(syncSlotCover, 500); });
             syncSlotCover();
@@ -10228,7 +10255,6 @@ window.BTC_FINE = (function () {
         var gauge = document.getElementById('btcGauge');
         var gaugeFlag = document.getElementById('btcGaugeFlag');
         var gaugeTrack = document.getElementById('btcGaugeTrack');
-        var scoreParts = document.getElementById('btcScoreParts');
         /* the final-bottoms sub-line is created only when it is
            first needed, so every other state's DOM is exactly what
            it was before the sub-line existed; it sits under the
@@ -10349,11 +10375,16 @@ window.BTC_FINE = (function () {
                     ? 'The reading is in the sell band: a reading of 92.91 or higher is the rare sell. The buy band is a reading of 7.79 or lower.'
                     : 'The reading is between the bands. The buy band is a reading of 7.79 or lower; the sell band is a reading of 92.91 or higher.')
                     + ' The green segment at the left end of the scale marks the buy band, and the red segment at the right end of the scale marks the sell band.');
-                if (scoreParts) scoreParts.textContent = 'Power law ' + sc.parts.powerlaw.toFixed(1) +
-                    ' · Production cost ' + sc.parts.cost.toFixed(1) +
-                    ' · Mayer Multiple ' + sc.parts.mayer.toFixed(1) +
-                    ' · MVRV Z-Score ' + sc.parts.mvrv.toFixed(1) +
-                    ' — the average of the four parts is the indicator\u2019s reading.';
+                /* The explainer's parts line (#btcScoreParts) is a
+                   fixed, dated example in the HTML — one real
+                   published reading, with its date — and is NOT
+                   written from the live parts here. The live parts
+                   belong to the gauge, the pills and the minis
+                   above; presenting them in the explainer as the
+                   reading's own breakdown contradicted the
+                   published record whenever the live computation
+                   and the nightly published score diverged
+                   (accuracy fix, 2026-11-25). */
                 /* The mini scales (2026-11-19): each column's mini
                    carries the indicator's bands on the shared
                    0-to-100 axis — the gauge's bands, fixed in the
