@@ -697,6 +697,79 @@
        bar keeps its live size; only the expanded state changes. */
     #combinerBar.expanded #combinerScorecard { zoom: 0.89; }
     #combinerBar.expanded #combinerBarRow, #combinerBar.expanded #combinerBarMeta { zoom: 0.89; }
+    /* Scorecard glass bubble (2026-11-25, variant C as approved): the
+       expanded combiner panel and the cook scorecard panel take the
+       site's glass-bubble body -- a specular rim where light catches
+       the lip, a dome of light pooled high on the glass (its centre
+       held in --dx/--dy so it tracks the tilt), a deeper float shadow
+       over a soft shadow pool, and three depth planes inside: the
+       verdict band floats highest, the tiles sit raised at mid-depth,
+       the density bars recess behind the glass. The tilt is
+       transform-only, driven by the bubble script through --rx/--ry;
+       the layout box never moves. Radius 28px: a bubble is rounder
+       than a card (the glass token is 24px). */
+    #combinerBar.expanded, #cookScorePanel { border-radius: 28px; background-image: radial-gradient(115% 62% at var(--dx, 50%) var(--dy, 12%), rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.035) 46%, rgba(255, 255, 255, 0) 72%); box-shadow: var(--glass-shadow), 0 34px 55px -22px rgba(0, 0, 0, 0.65), 0 12px 22px -10px rgba(0, 0, 0, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -22px 34px -22px rgba(255, 255, 255, 0.10), inset 0 -2px 6px rgba(0, 0, 0, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.05); }
+    body.light-mode #combinerBar.expanded, body.light-mode #cookScorePanel { background-image: radial-gradient(115% 62% at var(--dx, 50%) var(--dy, 12%), rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.12) 46%, rgba(255, 255, 255, 0) 72%); box-shadow: var(--glass-shadow), 0 30px 50px -22px rgba(101, 78, 25, 0.42), 0 12px 22px -10px rgba(101, 78, 25, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -22px 34px -22px rgba(255, 255, 255, 0.55), inset 0 -2px 6px rgba(101, 78, 25, 0.10), inset 0 0 0 1px rgba(101, 78, 25, 0.06); }
+    #combinerBar.expanded { transform: translateX(-50%) perspective(1150px) rotateX(calc(var(--rx, 0) * 1deg)) rotateY(calc(var(--ry, 0) * 1deg)); }
+    #cookScorePanel { transform: perspective(1150px) rotateX(calc(var(--rx, 0) * 1deg)) rotateY(calc(var(--ry, 0) * 1deg)); }
+    /* The specular rim: light catching the bubble's lip -- a gradient
+       ring, bright at the top, dying down the sides. */
+    #combinerBar.expanded::before, #cookScorePanel::before { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.2px; background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.20) 34%, rgba(255, 255, 255, 0.03) 62%, rgba(255, 255, 255, 0.12)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; z-index: 6; }
+    body.light-mode #combinerBar.expanded::before, body.light-mode #cookScorePanel::before { background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.35) 34%, rgba(120, 90, 20, 0.05) 62%, rgba(255, 255, 255, 0.30)); }
+    /* The open light-pass: one sweep of light across the dome (the
+       .scb-pass layer is injected by the bubble script). */
+    .scb-pass { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; z-index: 5; display: none; }
+    #combinerBar.expanded .scb-pass, #cookScorePanel .scb-pass { display: block; }
+    .scb-pass i { position: absolute; top: -12%; bottom: -12%; left: 0; width: 42%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.13) 45%, rgba(255, 255, 255, 0.22) 50%, rgba(255, 255, 255, 0.13) 55%, transparent); transform: translateX(-170%) skewX(-12deg); }
+    /* The shadow pool the bubble floats over (injected siblings: the
+       combiner's mirrors the expanded bar's footprint and offsets;
+       the cook panel's rides inside the cook view under its panel). */
+    .scb-pool { position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: min(720px, calc(100vw - 20px)); height: 54px; transform: translateX(-50%) translateY(55%); background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 68%); filter: blur(7px); z-index: 1194; pointer-events: none; opacity: 0; transition: opacity var(--dur-3) var(--ease-out); }
+    body.cookpins-visible .scb-pool { bottom: calc(var(--cookpin-h, 116px) + 10px); }
+    body.cook-bar-visible .scb-pool { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+    #combinerBar.expanded + .scb-pool { opacity: 1; }
+    #cookView .scb-pool { position: absolute; left: 24px; right: 24px; bottom: calc(4px + env(safe-area-inset-bottom, 0px)); width: auto; transform: translateY(55%); z-index: 4; }
+    #cookScorePanel:not([hidden]) + .scb-pool { opacity: 1; }
+    body.light-mode .scb-pool { background: radial-gradient(50% 50% at 50% 50%, rgba(101, 78, 25, 0.38), rgba(101, 78, 25, 0) 68%); }
+    /* Highest plane: the verdict band floats, casting a real shadow
+       onto the card surface, with a grade-coloured aura and a
+       top-light gradient across its face; it leans toward the viewer
+       (--lean) while its number counts, and drifts a hair against
+       the tilt. */
+    #combinerBar.expanded .sc-verdict, #cookScorePanel .sc-verdict { position: relative; z-index: 3; transform: translate3d(calc(var(--ry, 0) * 0.55px), calc(var(--rx, 0) * -0.45px), 0) scale(var(--lean, 1)); background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.10)); box-shadow: 0 16px 28px -12px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -8px 14px -8px rgba(0, 0, 0, 0.35); transition: background-color 450ms ease, border-color 450ms ease; }
+    #combinerBar.expanded .sc-verdict.good, #cookScorePanel .sc-verdict.good { box-shadow: 0 16px 28px -12px rgba(0, 0, 0, 0.55), 0 18px 36px -14px rgba(34, 197, 94, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -8px 14px -8px rgba(0, 0, 0, 0.35); }
+    #combinerBar.expanded .sc-verdict.mid, #cookScorePanel .sc-verdict.mid { box-shadow: 0 16px 28px -12px rgba(0, 0, 0, 0.55), 0 18px 36px -14px rgba(245, 158, 11, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -8px 14px -8px rgba(0, 0, 0, 0.35); }
+    #combinerBar.expanded .sc-verdict.bad, #cookScorePanel .sc-verdict.bad { box-shadow: 0 16px 28px -12px rgba(0, 0, 0, 0.55), 0 18px 36px -14px rgba(239, 68, 68, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -8px 14px -8px rgba(0, 0, 0, 0.35); }
+    body.light-mode #combinerBar.expanded .sc-verdict, body.light-mode #cookScorePanel .sc-verdict { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.08) 55%, rgba(120, 90, 20, 0.05)); box-shadow: 0 14px 24px -12px rgba(101, 78, 25, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.65), inset 0 -8px 14px -8px rgba(101, 78, 25, 0.15); }
+    /* Mid plane: the tiles and the calories lead sit raised off the
+       back layer -- top-lit, with a contact shadow beneath each. */
+    #combinerBar.expanded .sc-tile, #combinerBar.expanded .sc-lead, #cookScorePanel .sc-tile, #cookScorePanel .sc-lead { position: relative; z-index: 2; transform: translate3d(calc(var(--ry, 0) * 0.28px), calc(var(--rx, 0) * -0.22px), 0); background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.015) 45%, rgba(0, 0, 0, 0.13)); box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.045); }
+    body.light-mode #combinerBar.expanded .sc-tile, body.light-mode #combinerBar.expanded .sc-lead, body.light-mode #cookScorePanel .sc-tile, body.light-mode #cookScorePanel .sc-lead { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.10) 45%, rgba(120, 90, 20, 0.06)); box-shadow: 0 5px 12px -4px rgba(101, 78, 25, 0.28), 0 2px 4px rgba(101, 78, 25, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(101, 78, 25, 0.10), inset 0 0 0 1px rgba(101, 78, 25, 0.05); }
+    /* Back plane: the density bars sit recessed behind the glass --
+       grooved tracks, fills lit like liquid under the surface. The
+       gauges group drifts least against the tilt. */
+    #combinerBar.expanded .sc-gauges, #cookScorePanel .sc-gauges { transform: translate3d(calc(var(--ry, 0) * -0.12px), calc(var(--rx, 0) * 0.10px), 0); }
+    #combinerBar.expanded .sc-track, #cookScorePanel .sc-track { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.60), inset 0 -1px 0 rgba(255, 255, 255, 0.05); background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(255, 255, 255, 0.02)); }
+    #combinerBar.expanded .sc-scale, #cookScorePanel .sc-scale { box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.55); }
+    body.light-mode #combinerBar.expanded .sc-track, body.light-mode #cookScorePanel .sc-track { box-shadow: inset 0 2px 5px rgba(101, 78, 25, 0.30), inset 0 -1px 0 rgba(255, 255, 255, 0.5); background-image: linear-gradient(180deg, rgba(101, 78, 25, 0.10), rgba(255, 255, 255, 0.05)); }
+    body.light-mode #combinerBar.expanded .sc-scale, body.light-mode #cookScorePanel .sc-scale { box-shadow: inset 0 1px 3px rgba(101, 78, 25, 0.28); }
+    #combinerBar.expanded .sc-fill:not(.split), #combinerBar.expanded .sc-scale i:not(.split), #cookScorePanel .sc-fill:not(.split), #cookScorePanel .sc-scale i:not(.split) { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.04) 55%, rgba(0, 0, 0, 0.12)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.25); }
+    #combinerBar.expanded .seg, #cookScorePanel .seg { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.03) 55%, rgba(0, 0, 0, 0.10)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.30); }
+    /* Living numbers: tabular figures so digits never wobble width,
+       and the colour washes that ride the counts. */
+    #combinerBar .sc-score, #combinerBar .sc-gp, #combinerBar .sc-val, #combinerBar .sc-lead-val, #combinerBar .sc-pct, #cookScorePanel .sc-score, #cookScorePanel .sc-gp, #cookScorePanel .sc-val, #cookScorePanel .sc-lead-val, #cookScorePanel .sc-pct, #combinerBarText, #verdictPreview, #cookScorePreview { font-variant-numeric: tabular-nums; }
+    #combinerBar.expanded .sc-score, #combinerBar.expanded .sc-vlabel, #cookScorePanel .sc-score, #cookScorePanel .sc-vlabel { transition: color 450ms ease; }
+    #combinerBar.expanded .sc-fill, #combinerBar.expanded .sc-scale i, #cookScorePanel .sc-fill, #cookScorePanel .sc-scale i { transition: background-color 350ms ease; transform-origin: left center; }
+    #combinerBar.expanded .sc-val, #combinerBar.expanded .sc-pct, #cookScorePanel .sc-val, #cookScorePanel .sc-pct { transition: color 350ms ease; }
+    #verdictPreview, #cookScorePreview { transition: color 450ms ease; }
+    /* Reduced motion: the full-depth bubble, fully static -- depth is
+       the design; motion is the garnish. */
+    @media (prefers-reduced-motion: reduce) {
+        #combinerBar.expanded { transform: translateX(-50%); }
+        #cookScorePanel { transform: none; }
+        #combinerBar.expanded .sc-verdict, #cookScorePanel .sc-verdict, #combinerBar.expanded .sc-tile, #combinerBar.expanded .sc-lead, #cookScorePanel .sc-tile, #cookScorePanel .sc-lead, #combinerBar.expanded .sc-gauges, #cookScorePanel .sc-gauges { transform: none; }
+        #combinerBar.expanded .sc-verdict, #cookScorePanel .sc-verdict, #combinerBar.expanded .sc-fill, #combinerBar.expanded .sc-scale i, #cookScorePanel .sc-fill, #cookScorePanel .sc-scale i, #combinerBar.expanded .sc-score, #combinerBar.expanded .sc-vlabel, #cookScorePanel .sc-score, #cookScorePanel .sc-vlabel, #combinerBar.expanded .sc-val, #combinerBar.expanded .sc-pct, #cookScorePanel .sc-val, #cookScorePanel .sc-pct, #verdictPreview, #cookScorePreview, .scb-pool { transition: none; }
+    }
     body.cookpins-visible #combinerBar.expanded { bottom: calc(var(--cookpin-h, 116px) + 10px); }
     body.cook-bar-visible #combinerBar.expanded { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
     #combinerBar.expanded #combinerBarPanel { max-height: calc(100dvh - 120px - var(--bar-tray, 0px)); }
@@ -9500,7 +9573,8 @@
         /* Slim bar: selection count + headline totals (calories, protein).
            Everything else lives in the expanded panel. */
         var base = labelOverride ? labelOverride : (count + ' recipe' + (count === 1 ? '' : 's'));
-        txt.textContent = base + ' \u00b7 ' + Math.round(totals['208'] || 0) + ' kcal \u00b7 ' + Math.round(totals['203'] || 0) + ' g protein';
+        var barTxt = base + ' \u00b7 ' + Math.round(totals['208'] || 0) + ' kcal \u00b7 ' + Math.round(totals['203'] || 0) + ' g protein';
+        if (window.__jboScbBarText) window.__jboScbBarText(txt, barTxt); else txt.textContent = barTxt;
         var db = document.getElementById('combinerBarDishes');
         if (db) {
             if (dishes && dishes.length) {
@@ -9655,6 +9729,7 @@
                 var open = bar.classList.toggle('expanded');
                 syncBarToggle(open);
                 syncBarSpace();
+                if (open && window.__jboScbWake) window.__jboScbWake('combiner');
                 /* Collapsing the box with nothing selected puts the
                    bar away entirely (its open-empty state only lives
                    while the box is open). */
@@ -10046,7 +10121,8 @@
         var panel = document.getElementById('cookScorePanel');
         var body = document.getElementById('cookScoreBody');
         if (panel && body && !panel.hidden && window.__jboCookIds && window.__jboCookScorecard) {
-            body.innerHTML = window.__jboCookScorecard(window.__jboCookIds());
+            var scbFrameHtml = window.__jboCookScorecard(window.__jboCookIds());
+            if (window.__jboScbSetCook) window.__jboScbSetCook(body, scbFrameHtml); else body.innerHTML = scbFrameHtml;
         }
     }
     document.addEventListener('click', function (e) {
@@ -10994,10 +11070,11 @@
         dishes.forEach(function (d) { mm[d.id] = d.mult; });
         var h = selectionDescriptionHTML(allIds, dishes, totals);
         if (window.__jboCookScorecard) h += window.__jboCookScorecard(vIds, 'combiner', totals, mm);
-        if (box) box.innerHTML = h;
+        if (box) { if (window.__jboScbSetCombiner) window.__jboScbSetCombiner(box, h); else box.innerHTML = h; }
         if (prev) {
             var v = verdictFromTotals(totals, vIds, null, 'combiner');
-            prev.textContent = v ? (v.points / 100).toFixed(2) : '';
+            var prevTxt = v ? (v.points / 100).toFixed(2) : '';
+            if (window.__jboScbPill) window.__jboScbPill(prev, prevTxt); else prev.textContent = prevTxt;
             prev.className = 'sc-prev' + (v ? ' ' + (v.score >= 4 ? 'good' : v.score === 3 ? 'mid' : 'bad') : '');
         }
     }
@@ -11269,6 +11346,596 @@
     };
 })();
 
+    </script>
+
+    <script>
+    /* Scorecard glass bubble (2026-11-25): variant C's body with variant
+       B's living-numbers engine inside -- the approved mock, applied to
+       the one M2 Scorecard in its two bubble homes (the combiner bar's
+       expanded panel and the cook view's scorecard panel). The render
+       paths above route their HTML through the setters below: while a
+       bubble is open, a re-render MORPHS the card on screen toward the
+       new HTML -- every bar and number tweens from its current
+       on-screen value, interruptibly -- instead of replacing it; while
+       closed, on a fresh open, or under reduced motion, the HTML lands
+       instantly as before. On open the card wakes (its numbers count
+       up in sequence) inside a bubble that swells toward the viewer;
+       the grade band leans in while its number counts; and the bubble
+       tips a few degrees with scroll and pointer, easing back level.
+       The settled state is the renderer's own output, untouched. */
+    (function () {
+        'use strict';
+        var RM = window.matchMedia('(prefers-reduced-motion: reduce)');
+        function reduced() { return RM.matches; }
+        /* Site motion token: cubic-bezier(0.23, 1, 0.32, 1), evaluated
+           exactly so JS tweens and CSS transitions share one curve. */
+        function makeBezier(x1, y1, x2, y2) {
+            var cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+            var cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+            function sx(t) { return ((ax * t + bx) * t + cx) * t; }
+            function sy(t) { return ((ay * t + by) * t + cy) * t; }
+            function dx(t) { return (3 * ax * t + 2 * bx) * t + cx; }
+            return function (x) {
+                var t = x;
+                for (var i = 0; i < 5; i++) {
+                    var e = sx(t) - x;
+                    if (Math.abs(e) < 1e-4) return sy(t);
+                    var d = dx(t);
+                    if (Math.abs(d) < 1e-4) break;
+                    t -= e / d;
+                }
+                return sy(t);
+            };
+        }
+        var EASE_OUT = makeBezier(0.23, 1, 0.32, 1);
+        var EASE_STR = 'cubic-bezier(0.23, 1, 0.32, 1)';
+        /* ---------- numeric text handling ---------- */
+        var NUMRE = /^([^\d-]*)(-?[\d,]*\.?\d+)([\s\S]*)$/;
+        function parseNumText(text) {
+            var m = NUMRE.exec(String(text).trim());
+            if (!m) return null;
+            return { pre: m[1], val: parseFloat(m[2].replace(/,/g, '')), dec: (m[2].split('.')[1] || '').length, comma: m[2].indexOf(',') >= 0, suf: m[3] };
+        }
+        function fmtNum(v, dec, comma) {
+            var s = v.toFixed(dec);
+            if (comma) { var p = s.split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); s = p.join('.'); }
+            return s;
+        }
+        /* ---------- the tween engine ---------- */
+        function TweenSet() { this.list = new Set(); this.raf = 0; this.onEmpty = null; }
+        TweenSet.prototype.add = function (tw) {
+            var self = this;
+            Array.from(this.list).forEach(function (t) { if (t.key === tw.key) { t.dead = true; self.list.delete(t); } });
+            tw.start = performance.now() + (tw.delay || 0);
+            this.list.add(tw);
+            this.kick();
+        };
+        TweenSet.prototype.kick = function () {
+            if (this.raf) return;
+            var self = this;
+            var step = function (now) {
+                self.raf = 0;
+                Array.from(self.list).forEach(function (t) {
+                    if (t.dead) { self.list.delete(t); return; }
+                    if (now < t.start) return;
+                    var p = (now - t.start) / t.dur;
+                    if (p >= 1) p = 1;
+                    t.apply(t.from + (t.to - t.from) * EASE_OUT(p));
+                    if (p === 1) { self.list.delete(t); if (t.done) t.done(); }
+                });
+                if (self.list.size) self.raf = requestAnimationFrame(step);
+                else if (self.onEmpty) self.onEmpty();
+            };
+            this.raf = requestAnimationFrame(step);
+        };
+        TweenSet.prototype.killPrefix = function (prefix) {
+            var self = this;
+            Array.from(this.list).forEach(function (t) { if (t.key && t.key.indexOf(prefix) === 0) { t.dead = true; self.list.delete(t); } });
+        };
+        TweenSet.prototype.killAll = function () {
+            this.list.forEach(function (t) { t.dead = true; });
+            this.list.clear();
+        };
+        var fxTweens = new TweenSet();
+        function tweenText(ts, key, el, targetText, dur, delay) {
+            if (!el) return;
+            var tgt = parseNumText(targetText);
+            if (!tgt) { fadeSwapText(el, targetText, dur || 220); return; }
+            if (reduced()) { el.textContent = targetText; el._nv = tgt.val; return; }
+            var cur = (el._nv != null) ? el._nv : (parseNumText(el.textContent) || { val: 0 }).val;
+            ts.add({ key: key, from: cur, to: tgt.val, dur: dur || 380, delay: delay || 0,
+                apply: function (v) { el._nv = v; el.textContent = tgt.pre + fmtNum(v, tgt.dec, tgt.comma) + tgt.suf; },
+                done: function () { el.textContent = targetText; el._nv = tgt.val; } });
+        }
+        function tweenWidth(ts, key, el, targetPct, dur, delay) {
+            if (!el) return;
+            if (reduced()) { el.style.width = targetPct + '%'; el._wv = targetPct; return; }
+            var from = (el._wv != null) ? el._wv : (parseFloat(el.style.width) || 0);
+            ts.add({ key: key, from: from, to: targetPct, dur: dur || 380, delay: delay || 0,
+                apply: function (v) { el._wv = v; el.style.width = v + '%'; },
+                done: function () { el.style.width = targetPct + '%'; el._wv = targetPct; } });
+        }
+        function fadeSwapText(el, targetText, dur) {
+            if (!el) return;
+            /* A fade already in flight owns a PENDING target: judge
+               "already there" against that, and cancel the old fade
+               before deciding -- otherwise a quick second morph whose
+               target matches the not-yet-swapped text would leave the
+               first morph's swap to land stale text at its finish. */
+            var current = el._fadeTgt != null ? el._fadeTgt : el.textContent;
+            el.getAnimations().forEach(function (a) { a.cancel(); });
+            el._fadeTgt = null;
+            if (current === targetText) { el.textContent = targetText; return; }
+            if (reduced()) { el.textContent = targetText; return; }
+            el._fadeTgt = targetText;
+            var half = Math.max(60, (dur || 220) / 2);
+            var a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: half, easing: 'ease-out', fill: 'forwards' });
+            a.onfinish = function () {
+                if (el._fadeTgt !== targetText) return;
+                el._fadeTgt = null;
+                el.textContent = targetText;
+                var b = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: half, easing: 'ease-out', fill: 'forwards' });
+                b.onfinish = function () { a.cancel(); b.cancel(); };
+            };
+        }
+        /* ---------- slot collection (positional; the renderer's
+           structure is stable across states) ---------- */
+        function collectSlots(root) {
+            var s = [];
+            var V = root.querySelector('.sc-verdict');
+            if (V) {
+                s.push({ k: 'verdict', el: V });
+                var sc = V.querySelector('.sc-score'); if (sc) s.push({ k: 'score', el: sc });
+                var vl = V.querySelector('.sc-vlabel'); if (vl) s.push({ k: 'vlabel', el: vl });
+            }
+            root.querySelectorAll('.sc-gauge').forEach(function (g, i) {
+                var gp = g.querySelector('.sc-gp'); if (gp) s.push({ k: 'gp', i: i, el: gp });
+                var fl = g.querySelector('.sc-fill'); if (fl) s.push({ k: 'fill', i: i, el: fl });
+            });
+            var lead = root.querySelector('.sc-lead');
+            if (lead) {
+                var lv = lead.querySelector('.sc-lead-val'); if (lv) s.push({ k: 'leadval', el: lv });
+                var lp = lead.querySelector('.sc-pct'); if (lp) s.push({ k: 'leadpct', el: lp });
+                var ls = lead.querySelector('.sc-scale i'); if (ls) s.push({ k: 'leadscale', el: ls });
+            }
+            root.querySelectorAll('.sc-tile').forEach(function (t, i) {
+                var lab = t.querySelector('.sc-lab'); if (lab) s.push({ k: 'tilelab', i: i, el: lab });
+                var tv = t.querySelector('.sc-val'); if (tv) s.push({ k: 'tileval', i: i, el: tv });
+                var tp = t.querySelector('.sc-pct'); if (tp) s.push({ k: 'tilepct', i: i, el: tp });
+                var ts2 = t.querySelector('.sc-scale i'); if (ts2) s.push({ k: 'tilescale', i: i, el: ts2 });
+            });
+            return s;
+        }
+        function slotKey(s) { return s.k + ':' + (s.i || 0); }
+        /* ---------- the morph: current DOM -> target HTML ---------- */
+        function headSig(head) {
+            if (!head) return '';
+            return (head.querySelector('.bd-toggle') ? 'T' : '-') + ':' + head.querySelectorAll('.bd-leg').length;
+        }
+        function morphHead(surf, scope, tgtHead) {
+            var curHead = scope.querySelector('.bd-head');
+            if (!curHead || !tgtHead) return;
+            curHead.getAnimations().forEach(function (a) { a.cancel(); });
+            if (headSig(curHead) === headSig(tgtHead)) {
+                var cl = curHead.querySelectorAll('.bd-leg'), tl = tgtHead.querySelectorAll('.bd-leg');
+                cl.forEach(function (leg, i) {
+                    var t = tl[i]; if (!t) return;
+                    var cd = leg.querySelector('.bd-dot'), td = t.querySelector('.bd-dot');
+                    if (cd && td) cd.className = td.className;
+                    var cn = leg.querySelector('.bd-leg-name'), tn = t.querySelector('.bd-leg-name');
+                    var cv = leg.querySelector('.bd-leg-srv'), tv = t.querySelector('.bd-leg-srv');
+                    if (cn && tn) fadeSwapText(cn, tn.textContent, 200);
+                    if (cv && tv) fadeSwapText(cv, tv.textContent, 200);
+                });
+                var cseg = curHead.querySelectorAll('.bd-seg'), tseg = tgtHead.querySelectorAll('.bd-seg');
+                cseg.forEach(function (b, i) { if (tseg[i]) { b.className = tseg[i].className; b.setAttribute('aria-selected', tseg[i].getAttribute('aria-selected')); } });
+            } else {
+                if (reduced()) { curHead.replaceWith(tgtHead.cloneNode(true)); return; }
+                var a = curHead.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 130, easing: 'ease-out', fill: 'forwards' });
+                a.onfinish = function () {
+                    var now = scope.querySelector('.bd-head');
+                    var nh = tgtHead.cloneNode(true);
+                    if (now) now.replaceWith(nh);
+                    var b = nh.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: 'ease-out', fill: 'forwards' });
+                    b.onfinish = function () { b.cancel(); };
+                };
+            }
+        }
+        function restackFill(el, applySwap, gen) {
+            if (reduced()) { applySwap(); return; }
+            el.getAnimations().forEach(function (a) { a.cancel(); });
+            el.style.transformOrigin = 'left center';
+            var a = el.animate(
+                [{ transform: 'scaleX(1)', opacity: 1 }, { transform: 'scaleX(.93)', opacity: .25 }],
+                { duration: 130, easing: EASE_STR, fill: 'forwards' });
+            a.onfinish = function () {
+                if (gen != null && el._fillGen !== gen) { a.cancel(); el.style.removeProperty('transform-origin'); return; }
+                applySwap();
+                var b = el.animate(
+                    [{ transform: 'scaleX(.93)', opacity: .25 }, { transform: 'scaleX(1)', opacity: 1 }],
+                    { duration: 250, easing: EASE_STR, fill: 'forwards' });
+                b.onfinish = function () { a.cancel(); b.cancel(); el.style.removeProperty('transform-origin'); };
+            };
+        }
+        /* Copy a class without leaving an empty class="" attribute
+           behind where the fresh render has none. */
+        function syncClass(el, tgt) {
+            var c = tgt.className;
+            if (c) el.className = c; else el.removeAttribute('class');
+        }
+        function morphFill(surf, key, el, tgtEl) {
+            el._fillGen = (el._fillGen || 0) + 1;
+            var gen = el._fillGen;
+            var tgtW = parseFloat(tgtEl.style.width) || 0;
+            var curSplit = el.classList.contains('split'), tgtSplit = tgtEl.classList.contains('split');
+            function setW() { tweenWidth(surf.tweens, key, el, tgtW, 380); }
+            if (curSplit !== tgtSplit) {
+                restackFill(el, function () { syncClass(el, tgtEl); el.innerHTML = tgtEl.innerHTML; el._wv = parseFloat(el.style.width) || 0; setW(); }, gen);
+                return;
+            }
+            syncClass(el, tgtEl);
+            if (tgtSplit) {
+                var cs = el.querySelectorAll('.seg'), ts = tgtEl.querySelectorAll('.seg');
+                if (cs.length === ts.length && cs.length) {
+                    cs.forEach(function (seg, j) {
+                        var to = parseFloat(ts[j].style.flexGrow) || 0;
+                        if (!reduced()) {
+                            var from = parseFloat(seg.style.flexGrow) || 0;
+                            surf.tweens.add({ key: key + ':seg' + j, from: from, to: to, dur: 380,
+                                apply: function (v) { seg.style.flexGrow = v; }, done: function () { seg.style.flexGrow = to; } });
+                        } else seg.style.flexGrow = to;
+                    });
+                } else el.innerHTML = tgtEl.innerHTML;
+            }
+            setW();
+        }
+        function morphCard(surf, scope, tmp) {
+            surf.tweens.killPrefix(surf.id + ':wake:');
+            var curV = scope.querySelector('.sc-verdict'), tgtV = tmp.querySelector('.sc-verdict');
+            if (curV && tgtV) curV.className = tgtV.className; /* the tint washes via CSS transition */
+            morphHead(surf, scope, tmp.querySelector('.bd-head'));
+            /* The flags box is prose with a warning's job: it lands
+               instantly, exactly as a re-render would land it. */
+            var curF = scope.querySelector('.sc-flags'), tgtF = tmp.querySelector('.sc-flags');
+            if (curF && tgtF) { if (curF.innerHTML !== tgtF.innerHTML) curF.innerHTML = tgtF.innerHTML; }
+            else if (curF && !tgtF) curF.remove();
+            else if (!curF && tgtF && curV) curV.parentNode.insertBefore(tgtF.cloneNode(true), curV.nextSibling);
+            var cs = collectSlots(scope), ts2 = collectSlots(tmp);
+            var tmap = new Map();
+            ts2.forEach(function (s) { tmap.set(slotKey(s), s); });
+            cs.forEach(function (s) {
+                var t = tmap.get(slotKey(s));
+                if (!t || s.k === 'verdict') return;
+                var key = surf.id + ':' + slotKey(s);
+                if (s.k === 'fill' || s.k === 'leadscale' || s.k === 'tilescale') morphFill(surf, key, s.el, t.el);
+                else if (s.k === 'tilelab') fadeSwapText(s.el, t.el.textContent, 200);
+                else {
+                    if ((s.k === 'tileval' || s.k === 'tilepct' || s.k === 'leadpct') && s.el.className !== t.el.className) syncClass(s.el, t.el);
+                    tweenText(surf.tweens, key, s.el, t.el.textContent, s.k === 'score' ? 430 : 380);
+                }
+            });
+            /* Why this grade: the words update; the reader's own open
+               state (kept on window by the page) is never touched. */
+            var curW = scope.querySelector('.sc-why'), tgtW = tmp.querySelector('.sc-why');
+            if (curW && tgtW && curW.innerHTML !== tgtW.innerHTML) curW.innerHTML = tgtW.innerHTML;
+            lean(surf, scope);
+        }
+        /* While the engine counts the score, the grade band leans
+           toward the viewer a touch and relaxes as the number lands. */
+        function lean(surf, scope) {
+            if (reduced()) return;
+            var V = scope.querySelector('.sc-verdict');
+            if (!V) return;
+            surf.tweens.add({ key: surf.id + ':lean', from: 0, to: 1, dur: 480,
+                apply: function (e) { V.style.setProperty('--lean', (1 + 0.02 * (1 - Math.abs(2 * e - 1))).toFixed(4)); },
+                done: function () { V.style.removeProperty('--lean'); if (!V.style.cssText) V.removeAttribute('style'); } });
+        }
+        /* ---------- the wake: the card lights in sequence on open -- */
+        function wake(surf, scope) {
+            if (reduced()) return;
+            surf.tweens.killAll();
+            var slots = collectSlots(scope);
+            var jobs = [];
+            slots.forEach(function (s) {
+                if (s.k === 'verdict' || s.k === 'tilelab') return;
+                if (s.k === 'vlabel') { jobs.push({ s: s, kind: 'fade' }); return; }
+                if (s.k === 'fill' || s.k === 'leadscale' || s.k === 'tilescale') {
+                    jobs.push({ s: s, kind: 'width', to: parseFloat(s.el.style.width) || 0 });
+                    s.el._wv = 0; s.el.style.width = '0%';
+                } else {
+                    var tgt = parseNumText(s.el.textContent);
+                    if (tgt) {
+                        jobs.push({ s: s, kind: 'text', text: s.el.textContent });
+                        s.el._nv = 0;
+                        s.el.textContent = tgt.pre + fmtNum(0, tgt.dec, tgt.comma) + tgt.suf;
+                    }
+                }
+            });
+            var blocks = [];
+            var desc = scope.querySelector('.sc-desc'); if (desc) blocks.push(desc);
+            var head = scope.querySelector('.bd-head'); if (head) blocks.push(head);
+            var V = scope.querySelector('.sc-verdict'); if (V) blocks.push(V);
+            scope.querySelectorAll('.sc-sec').forEach(function (sec) {
+                blocks.push(sec);
+                if (sec.nextElementSibling) blocks.push(sec.nextElementSibling);
+            });
+            var whyT = scope.querySelector('[data-sc-why]'); if (whyT) blocks.push(whyT);
+            blocks.forEach(function (b, i) {
+                b.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }],
+                    { duration: 300, delay: i * 55, easing: EASE_STR, fill: 'backwards' });
+            });
+            var tail = blocks.length * 55;
+            jobs.forEach(function (j) {
+                var key = surf.id + ':wake:' + slotKey(j.s);
+                if (j.kind === 'width') {
+                    var idx = j.s.i || 0;
+                    var delay = j.s.k === 'fill' ? 150 + idx * 45 : 320 + idx * 24;
+                    tweenWidth(surf.tweens, key, j.s.el, j.to, 400, Math.min(delay, tail));
+                } else if (j.kind === 'text') {
+                    var d2 = j.s.k === 'score' ? 60 : (j.s.k === 'gp' ? 170 + (j.s.i || 0) * 45 : 330 + (j.s.i || 0) * 24);
+                    tweenText(surf.tweens, key, j.s.el, j.text, j.s.k === 'score' ? 460 : 400, Math.min(d2, tail + 60));
+                } else if (j.kind === 'fade') {
+                    j.s.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 200, easing: 'ease-out', fill: 'backwards' });
+                }
+            });
+        }
+        /* ---------- the swell: the bubble inflates toward the viewer */
+        function swell(surf) {
+            if (reduced()) return;
+            var el = surf.rootEl();
+            if (!el) return;
+            var pre = surf.id === 'combiner' ? 'translateX(-50%) ' : '';
+            el.animate([
+                { transform: pre + 'scale(0.96)' },
+                { transform: pre + 'scale(1.012)', offset: 0.55 },
+                { transform: pre + 'scale(0.998)', offset: 0.78 },
+                { transform: pre + 'scale(1)' }
+            ], { duration: 580, easing: EASE_STR });
+            var pool = surf.poolEl();
+            if (pool) {
+                var pb = surf.id === 'combiner' ? 'translateX(-50%) translateY(55%) ' : 'translateY(55%) ';
+                pool.animate([
+                    { transform: pb + 'scale(0.92)', opacity: 0.7 },
+                    { transform: pb + 'scale(1.03)', opacity: 1, offset: 0.55 },
+                    { transform: pb + 'scale(1)', opacity: 1 }
+                ], { duration: 580, easing: EASE_STR });
+            }
+            var pass = el.querySelector('.scb-pass i');
+            if (pass) {
+                pass.getAnimations().forEach(function (a) { a.cancel(); });
+                pass.animate([
+                    { transform: 'translateX(-170%) skewX(-12deg)' },
+                    { transform: 'translateX(320%) skewX(-12deg)' }
+                ], { duration: 780, delay: 80, easing: EASE_STR });
+            }
+        }
+        /* ---------- surfaces ---------- */
+        function poolOf(root) {
+            var n = root && root.nextElementSibling;
+            return (n && n.classList && n.classList.contains('scb-pool')) ? n : null;
+        }
+        var surfaces = {
+            combiner: { id: 'combiner', tweens: new TweenSet(),
+                rootEl: function () { return document.getElementById('combinerBar'); },
+                scopeEl: function () { return document.getElementById('combinerScorecard'); },
+                poolEl: function () { return poolOf(this.rootEl()); },
+                isOpen: function () { var b = this.rootEl(); return !!(b && b.classList.contains('expanded')); } },
+            cook: { id: 'cook', tweens: new TweenSet(),
+                rootEl: function () { return document.getElementById('cookScorePanel'); },
+                scopeEl: function () { return document.getElementById('cookScoreBody'); },
+                poolEl: function () { return poolOf(this.rootEl()); },
+                isOpen: function () { var p = this.rootEl(); return !!(p && !p.hidden); } }
+        };
+        /* Settled-state guarantee: when a surface's last tween ends,
+           sweep any motion residue (a stranded --lean, an empty style
+           attribute) so the settled card is exactly the renderer's own
+           DOM, however the tweens were interrupted on the way. */
+        function sweepScope(surf) {
+            var scope = surf.scopeEl();
+            if (!scope) return;
+            var V = scope.querySelector('.sc-verdict');
+            if (V) V.style.removeProperty('--lean');
+            scope.querySelectorAll('[style]').forEach(function (el) {
+                if (!el.style.cssText) el.removeAttribute('style');
+            });
+        }
+        Object.keys(surfaces).forEach(function (k) {
+            var s = surfaces[k];
+            s.tweens.onEmpty = function () { sweepScope(s); };
+        });
+        /* ---------- the render-path setters ---------- */
+        window.__jboScbSetCombiner = function (box, html) {
+            var surf = surfaces.combiner;
+            if (!html) { box.innerHTML = ''; return; }
+            var curCard = box.querySelector('.sc-card');
+            if (reduced() || !surf.isOpen() || !curCard) { box.innerHTML = html; return; }
+            var tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            if (!tmp.querySelector('.sc-card')) { box.innerHTML = html; return; }
+            /* The description is prose: it lands instantly, exactly as
+               a re-render lands it; the card below it morphs. */
+            var curDesc = box.querySelector('.sc-desc'), tgtDesc = tmp.querySelector('.sc-desc');
+            if (curDesc && tgtDesc) { if (curDesc.innerHTML !== tgtDesc.innerHTML) curDesc.innerHTML = tgtDesc.innerHTML; }
+            else if (curDesc && !tgtDesc) curDesc.remove();
+            else if (!curDesc && tgtDesc) box.insertBefore(tgtDesc, box.firstChild);
+            morphCard(surf, box, tmp);
+        };
+        window.__jboScbSetCook = function (body, html) {
+            var surf = surfaces.cook;
+            var fresh = window.__jboScbFresh === 'cook';
+            if (fresh) window.__jboScbFresh = null;
+            if (!html) { body.innerHTML = ''; return; }
+            var curCard = body.querySelector('.sc-card');
+            if (fresh || reduced() || !surf.isOpen() || !curCard) { body.innerHTML = html; return; }
+            var tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            if (!tmp.querySelector('.sc-card')) { body.innerHTML = html; return; }
+            morphCard(surf, body, tmp);
+        };
+        /* The grade previews on the buttons that open the Scorecard
+           count like every other number on the card. */
+        window.__jboScbPill = function (el, text) {
+            if (!el) return;
+            if (reduced() || !text || !el.textContent) {
+                el.textContent = text;
+                var p0 = parseNumText(text);
+                el._nv = p0 ? p0.val : null;
+                return;
+            }
+            tweenText(fxTweens, 'pill:' + (el.id || 'x'), el, text, 430);
+        };
+        /* The slim bar's summary line: its two numbers count; the
+           words around them are the renderer's, untouched. */
+        window.__jboScbBarText = function (el, target) {
+            if (!el) return;
+            var m = /^(.* \u00b7 )([\d,]+)( kcal \u00b7 )([\d,]+)( g protein)$/.exec(target);
+            if (!m || reduced() || !el.textContent) {
+                el.textContent = target;
+                if (m) { el._bk = parseFloat(m[2].replace(/,/g, '')); el._bp = parseFloat(m[4].replace(/,/g, '')); }
+                return;
+            }
+            var cur = /^(.* \u00b7 )([\d,]+)( kcal \u00b7 )([\d,]+)( g protein)$/.exec(el.textContent);
+            var toK = parseFloat(m[2].replace(/,/g, '')), toP = parseFloat(m[4].replace(/,/g, ''));
+            var fromK = el._bk != null ? el._bk : (cur ? parseFloat(cur[2].replace(/,/g, '')) : toK);
+            var fromP = el._bp != null ? el._bp : (cur ? parseFloat(cur[4].replace(/,/g, '')) : toP);
+            var pre = m[1], mid = m[3], suf = m[5], cK = m[2].indexOf(',') >= 0, cP = m[4].indexOf(',') >= 0;
+            fxTweens.add({ key: 'bartext:k', from: fromK, to: toK, dur: 380,
+                apply: function (v) { el._bk = v; el.textContent = pre + fmtNum(Math.round(v), 0, cK) + mid + fmtNum(Math.round(el._bp != null ? el._bp : toP), 0, cP) + suf; },
+                done: function () { el._bk = toK; } });
+            fxTweens.add({ key: 'bartext:p', from: fromP, to: toP, dur: 380,
+                apply: function (v) { el._bp = v; el.textContent = pre + fmtNum(Math.round(el._bk != null ? el._bk : toK), 0, cK) + mid + fmtNum(Math.round(v), 0, cP) + suf; },
+                done: function () { el._bp = toP; el.textContent = target; } });
+        };
+        /* ---------- open: wake + swell ---------- */
+        window.__jboScbWake = function (name) {
+            var surf = surfaces[name];
+            if (!surf) return;
+            var scope = surf.scopeEl();
+            if (scope && scope.querySelector('.sc-card')) wake(surf, scope);
+            swell(surf);
+            kickTilt();
+        };
+        /* ---------- tilt: a few degrees of physical tip, driven by
+           scroll velocity (the card tips as the page moves under it
+           and eases back level) and by the pointer on desktop. One
+           lerped loop writes --rx/--ry on the open bubble and tracks
+           the dome highlight across the glass; it sleeps when settled.
+           No device motion -- iOS gates it behind a permission. -- */
+        var tiltState = {
+            combiner: { prx: 0, pry: 0, crx: 0, cry: 0 },
+            cook: { prx: 0, pry: 0, crx: 0, cry: 0 }
+        };
+        var tilt = { raf: 0, scroller: null, sx: 0, sy: 0, vx: 0, vy: 0, lastEvt: 0 };
+        function activeSurfaceName() {
+            if (surfaces.cook.isOpen()) return 'cook';
+            if (surfaces.combiner.isOpen()) return 'combiner';
+            return null;
+        }
+        function scrollPos(t) {
+            if (!t || t === document || t === window) return { x: window.scrollX || 0, y: window.scrollY || 0 };
+            return { x: t.scrollLeft || 0, y: t.scrollTop || 0 };
+        }
+        function onScroll(e) {
+            var t = (e && e.target) || document;
+            if (t === document) t = document.scrollingElement || document.documentElement;
+            var p = scrollPos(t);
+            var now = performance.now();
+            if (tilt.scroller !== t || !tilt.lastEvt) {
+                tilt.scroller = t;
+                tilt.sx = p.x; tilt.sy = p.y; tilt.vx = 0; tilt.vy = 0;
+            } else {
+                var dt = Math.max(1, now - tilt.lastEvt);
+                tilt.vx = Math.max(-60, Math.min(60, (p.x - tilt.sx) / dt * 16.7));
+                tilt.vy = Math.max(-60, Math.min(60, (p.y - tilt.sy) / dt * 16.7));
+                tilt.sx = p.x; tilt.sy = p.y;
+            }
+            tilt.lastEvt = now;
+            kickTilt();
+        }
+        function tiltLoop(now) {
+            tilt.raf = 0;
+            if (now - tilt.lastEvt > 90) { tilt.vx *= 0.86; tilt.vy *= 0.86; }
+            var vx = tilt.vx, vy = tilt.vy;
+            var active = activeSurfaceName();
+            var anyLive = Math.abs(vx) > 0.5 || Math.abs(vy) > 0.5;
+            ['combiner', 'cook'].forEach(function (name) {
+                var st = tiltState[name], el = surfaces[name].rootEl();
+                if (!el) return;
+                var trx = 0, tryy = 0;
+                if (name === active) {
+                    trx = Math.max(-2.8, Math.min(2.8, vy * 0.045 + st.prx));
+                    tryy = Math.max(-2.8, Math.min(2.8, vx * 0.045 + st.pry));
+                }
+                st.crx += (trx - st.crx) * 0.10;
+                st.cry += (tryy - st.cry) * 0.10;
+                el.style.setProperty('--rx', st.crx.toFixed(3));
+                el.style.setProperty('--ry', st.cry.toFixed(3));
+                el.style.setProperty('--dx', (50 + st.cry * 4.5).toFixed(2) + '%');
+                el.style.setProperty('--dy', (13 - st.crx * 3.0).toFixed(2) + '%');
+                if (Math.abs(trx - st.crx) > 0.004 || Math.abs(tryy - st.cry) > 0.004) anyLive = true;
+            });
+            if (anyLive) tilt.raf = requestAnimationFrame(tiltLoop);
+        }
+        function kickTilt() {
+            if (tilt.raf || reduced()) return;
+            tilt.raf = requestAnimationFrame(tiltLoop);
+        }
+        function attachPointer(el, name) {
+            el.addEventListener('pointermove', function (e) {
+                if (activeSurfaceName() !== name) return;
+                var r = el.getBoundingClientRect();
+                if (!r.width || !r.height) return;
+                var st = tiltState[name];
+                st.pry = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width - 0.5) * 2)) * 2.2;
+                st.prx = Math.max(-1, Math.min(1, -((e.clientY - r.top) / r.height - 0.5) * 2)) * 1.8;
+                kickTilt();
+            });
+            el.addEventListener('pointerleave', function () {
+                var st = tiltState[name];
+                st.prx = 0; st.pry = 0;
+                kickTilt();
+            });
+        }
+        /* ---------- init: the light-pass layer and the shadow pools
+           are injected, so no page markup changes. ---------- */
+        function injectChrome(root) {
+            if (!root || !root.parentNode || root.querySelector('.scb-pass')) return;
+            var pass = document.createElement('div');
+            pass.className = 'scb-pass';
+            pass.setAttribute('aria-hidden', 'true');
+            pass.appendChild(document.createElement('i'));
+            root.insertBefore(pass, root.firstChild);
+            var pool = document.createElement('div');
+            pool.className = 'scb-pool';
+            pool.setAttribute('aria-hidden', 'true');
+            root.parentNode.insertBefore(pool, root.nextSibling);
+        }
+        function init() {
+            var bar = document.getElementById('combinerBar');
+            var panel = document.getElementById('cookScorePanel');
+            if (bar) injectChrome(bar);
+            if (panel) injectChrome(panel);
+            if (!reduced()) {
+                window.addEventListener('scroll', onScroll, { capture: true, passive: true });
+                if (window.matchMedia('(pointer: fine)').matches) {
+                    if (bar) attachPointer(bar, 'combiner');
+                    if (panel) attachPointer(panel, 'cook');
+                }
+            }
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
+        window.__scb = {
+            version: 'bubble-c1',
+            tilt: function () {
+                return {
+                    combiner: { rx: tiltState.combiner.crx, ry: tiltState.combiner.cry },
+                    cook: { rx: tiltState.cook.crx, ry: tiltState.cook.cry }
+                };
+            },
+            reduced: reduced
+        };
+    })();
     </script>
 
     <script>
@@ -12621,13 +13288,14 @@
            live through __jboPaneServSync above. */
         function renderCookScore() {
             if (!cookScoreBody) return;
-            cookScoreBody.innerHTML = window.__jboCookScorecard ? window.__jboCookScorecard(selected) : '';
+            var scbCookHtml = window.__jboCookScorecard ? window.__jboCookScorecard(selected) : '';
+            if (window.__jboScbSetCook) window.__jboScbSetCook(cookScoreBody, scbCookHtml); else cookScoreBody.innerHTML = scbCookHtml;
         }
         function setCookScore(open) {
             scoreOpen = !!open;
             if (cookScorePanel) cookScorePanel.hidden = !scoreOpen;
             if (cookScoreToggle) cookScoreToggle.setAttribute('aria-expanded', scoreOpen ? 'true' : 'false');
-            if (scoreOpen) renderCookScore();
+            if (scoreOpen) { window.__jboScbFresh = 'cook'; renderCookScore(); if (window.__jboScbWake) window.__jboScbWake('cook'); }
         }
         if (cookScoreToggle) cookScoreToggle.addEventListener('click', function () { setCookScore(!scoreOpen); });
         if (cookScoreClose) cookScoreClose.addEventListener('click', function () { setCookScore(false); if (cookScoreToggle) cookScoreToggle.focus(); });
@@ -13743,7 +14411,8 @@
             var pv = document.getElementById('cookScorePreview');
             var setPreview = function (v) {
                 if (!pv) return;
-                pv.textContent = v ? (v.points / 100).toFixed(2) : '';
+                var pvTxt = v ? (v.points / 100).toFixed(2) : '';
+                if (window.__jboScbPill) window.__jboScbPill(pv, pvTxt); else pv.textContent = pvTxt;
                 pv.className = 'sc-prev' + (v ? ' ' + (v.score >= 4 ? 'good' : v.score === 3 ? 'mid' : 'bad') : '');
             };
             if (!ids || !ids.length || !window.__jboCombo) { el.innerHTML = ''; setPreview(null); return; }
