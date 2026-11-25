@@ -387,13 +387,16 @@
             transition: opacity var(--dur-2) var(--ease-out);
         }
         .gen-img.fading { opacity: 0; }
-        /* SWIPE TO DEAL (2026-11-21): the picture claims its own
-           gestures — a drag on the picture deals instead of
-           scrolling (the picture is the deck); scrolling stays
-           natural from every other part of the page. The waiting
-           card sits behind the dealt picture, so a drag reveals it
-           underneath; the dealt picture rides above it. Fly and
-           settle use the site's own durations and easings. */
+        /* SWIPE TO DEAL (2026-11-21; revised 2026-11-24): the
+           picture claims its own gestures — a drag on the picture
+           deals instead of scrolling; scrolling stays natural from
+           every other part of the page. The waiting card is a
+           preload only: it sits behind the dealt picture in the
+           DOM but is never displayed, the dealt picture never
+           moves, and a committed drag fires the draw at once — the
+           stage shows exactly one card at any instant. (The fly /
+           settle rules below are retained unused from the deck
+           visual this revision removed.) */
         .gen-img, .gen-quote, .gen-fs-img, .gen-fs-quote { touch-action: none; -webkit-user-drag: none; -webkit-touch-callout: none; }
         /* VIEWER ZOOM (fix, 2026-11-21): in the fullscreen viewer a
            two-finger pinch belongs to the browser again — pinch-zoom
@@ -4018,13 +4021,25 @@
     // previews the visible pool's next deal; an All draw may still
     // land on another pool — the button's own behaviour, kept
     // identical on purpose.
+    //
+    // REVISED (2026-11-24) — ONE CARD ON STAGE, ALWAYS: the deck
+    // visual is gone. Johnny's recording showed the waiting card
+    // standing in the stage under the previous entry's name and
+    // words while a committed swipe settled, and the dragged
+    // picture sliding over the title with the next photo stacked
+    // beneath it. The waiting card now exists only as a preload
+    // and a peek record (behindId) — paintBehind never displays
+    // it — and a swipe never moves, flies out or lifts the
+    // picture: a committed swipe fires the draw at once, and the
+    // card on stage stays whole until renderEntry's atomic commit
+    // replaces photo and words in one frame. Exactly one item is
+    // ever visible in the stage, on every path that changes it.
     (function () {
         var PREFIXES = ['animals', 'art', 'arch', 'space', 'quotes', 'engineering', 'websites', 'scifi'];
         var TAP_DIST = 28;      // px of travel before a press becomes a drag
         var COMMIT_DIST = 88;   // px of travel that commits the deal on release
         var FLICK_VEL = 0.45;   // px/ms over the last ~100ms that commits a short drag
         var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-        var pending = {};       // prefix -> a committed swipe whose draw is still settling
         var behind = {};        // prefix -> { img, quote, text, attrib } stage behind elements
         var fsBehind = { img: null, quote: null, text: null, attrib: null };
         var suppressEl = null;
@@ -4032,18 +4047,24 @@
 
         function viewMode() { return lovedOnly ? 'loved' : 'all'; }
 
+        // Preload only (2026-11-24): the waiting card's bitmap and
+        // words are loaded into these elements so the deal that
+        // takes them is instant — but the elements are NEVER
+        // displayed. The stage shows exactly one card at a time;
+        // a second card rendered underneath, however briefly or
+        // however covered, is the glitch this fix removes.
         function paintBehind(imgEl, quoteEl, textEl, attribEl, e, fs) {
             if (e.quote) {
                 imgEl.hidden = true;
                 textEl.textContent = e.quote;
                 attribEl.textContent = '— ' + e.name;
                 quoteEl.className = (fs ? 'gen-fs-quote ' : 'gen-quote ') + quoteLenClass(e.quote.length) + (fs ? ' gen-fs-quote-behind' : ' gen-quote-behind');
-                quoteEl.hidden = false;
+                quoteEl.hidden = true;
             } else {
                 quoteEl.hidden = true;
                 var u = stageUrl(e.img);
                 if (imgEl.getAttribute('src') !== u) { imgEl.src = u; }
-                imgEl.hidden = false;
+                imgEl.hidden = true;
             }
         }
 
@@ -4075,7 +4096,7 @@
         // the card waiting there.
         function dealBehind(prefix) {
             var st = GEN[prefix];
-            if (!st || pending[prefix]) { return; }
+            if (!st) { return; }
             var els = behind[prefix];
             if (!els) { return; }
             var mode = viewMode();
@@ -4221,47 +4242,6 @@
             }
         }, true);
 
-        function stageImgSwapped(prefix) {
-            var img = document.getElementById(prefix + '-img');
-            if (!img) { return true; }
-            var src = img.getAttribute('src');
-            return !!src && src === img.getAttribute('data-stage');
-        }
-        // A committed swipe's draw has settled when the new entry
-        // is actually on the stage (photo decoded and swapped in —
-        // the same settle idea as the viewer's own gate) and, in
-        // the viewer, when the viewer has re-read that photo.
-        function settled(prefix, isFs, shownBefore) {
-            var st = GEN[prefix];
-            if (!st) { return true; }
-            if (st.shownId === shownBefore) { return false; }
-            var e = st.byId[st.shownId];
-            if (!e || e.quote) { return true; }
-            if (!stageImgSwapped(prefix)) { return false; }
-            if (isFs) {
-                var fImg = document.getElementById('gen-fs-img');
-                var sImg = document.getElementById(prefix + '-img');
-                if (!fImg || !sImg) { return true; }
-                // The stage's photo, or the full-res upgrade of it
-                // the viewer swaps in over the stage's photo.
-                return fImg.src === (sImg.currentSrc || sImg.src) || fImg.src === e.img;
-            }
-            return true;
-        }
-        function finishSwipe(el, prefix, isFs, shownBefore) {
-            var tries = 0;
-            var iv = setInterval(function () {
-                tries++;
-                if (!settled(prefix, isFs, shownBefore) && tries <= 30) { return; }
-                clearInterval(iv);
-                el.classList.remove('rg-swipe-fly');
-                el.style.transition = 'none';
-                el.style.transform = '';
-                setTimeout(function () { el.style.transition = ''; }, 60);
-                pending[prefix] = false;
-                dealBehind(prefix);
-            }, 50);
-        }
         function fireDraw(isFs, prefix) {
             var b = document.getElementById(isFs ? 'gen-fs-draw' : prefix + '-btn');
             if (b) { b.click(); }
@@ -4305,10 +4285,10 @@
                 g.samples.push({ x: e.clientX, y: e.clientY, t: now });
                 while (g.samples.length > 2 && now - g.samples[0].t > 100) { g.samples.shift(); }
                 if (!g.dragging && Math.hypot(g.dx, g.dy) >= TAP_DIST) { g.dragging = true; }
-                if (g.dragging && !reduceMotion) {
-                    el.style.transition = 'none';
-                    el.style.transform = 'translate(' + g.dx + 'px, ' + g.dy + 'px)';
-                }
+                // The picture itself never moves (2026-11-24): the
+                // drag is measured, not shown — moving the card is
+                // what exposed the waiting card beneath it and slid
+                // the photo over the entry's own title.
             });
             function end(e, cancelled) {
                 if (!g || e.pointerId !== g.id) { return; }
@@ -4323,34 +4303,15 @@
                 var dt = Date.now() - s0.t;
                 if (dt > 0) { vel = Math.hypot(e.clientX - s0.x, e.clientY - s0.y) / dt; }
                 var commit = !cancelled && (dist >= COMMIT_DIST || (dist >= TAP_DIST && vel >= FLICK_VEL));
-                if (reduceMotion) {
-                    if (commit) { fireDraw(opt.isFs, done.prefix); }
-                    return;
-                }
-                if (!commit) {
-                    el.classList.add('rg-swipe-settle');
-                    el.style.transition = '';
-                    el.style.transform = '';
-                    setTimeout(function () { el.classList.remove('rg-swipe-settle'); }, 300);
-                    return;
-                }
-                // Commit: the picture leaves along the drag
-                // direction; the waiting card underneath carries
-                // the screen until the draw settles onto the
-                // stage, and only then does the picture reset.
-                var d = dist || 1;
-                var far = Math.hypot(window.innerWidth, window.innerHeight) + 120;
-                pending[done.prefix] = true;
-                el.classList.add('rg-swipe-fly');
-                el.style.transition = '';
-                el.style.transform = 'translate(' + (done.dx + (done.dx / d) * far) + 'px, ' + (done.dy + (done.dy / d) * far) + 'px)';
-                var isFs = opt.isFs;
-                var prefix = done.prefix;
-                var shownBefore = done.shownBefore;
-                setTimeout(function () {
-                    fireDraw(isFs, prefix);
-                    finishSwipe(el, prefix, isFs, shownBefore);
-                }, 270);
+                // ONE CARD ON STAGE (fix, 2026-11-24): a committed
+                // swipe fires the draw immediately — the path the
+                // reduced-motion setting always took, now the only
+                // path. The card on stage is never moved, flown out
+                // or lifted, so the waiting card is never revealed
+                // and no frame ever pairs one entry's photo with
+                // another entry's words: the current card stays
+                // whole until renderEntry's atomic commit lands.
+                if (commit) { fireDraw(opt.isFs, done.prefix); }
             }
             el.addEventListener('pointerup', function (e) { end(e, false); });
             el.addEventListener('pointercancel', function (e) { end(e, true); });
