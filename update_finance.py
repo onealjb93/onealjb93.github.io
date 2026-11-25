@@ -6,10 +6,25 @@ Writes finance-data.json, which finance.html fetches and renders. One row per
 ticker, with a price and a set of fundamentals.
 
 Sources (all free; only Alpha Vantage needs a key, and only from the env):
-- Price: Alpha Vantage GLOBAL_QUOTE, 19 calls/day, 12 s apart (free tier is
-  5/min and 25/day). "05. price" is the latest close; "07. latest trading
-  day" is its as-of date. The workflow runs at 22:00 UTC, after the 4 p.m. ET
-  close, so that price is the latest close.
+- Price: the latest close from the daily-history chain below (Nasdaq's
+  official history first, Stooq second); the as-of date is the last bar's
+  date. The workflow runs at 22:00 UTC, after the 4 p.m. ET close, so
+  that close is the latest close. Alpha Vantage GLOBAL_QUOTE is only the
+  last resort, called for a ticker when both history sources failed for
+  it — including when the chain's last bar predates the last completed
+  session (Nasdaq's history table can lag the close by hours, and a
+  stale close may not stand in for tonight's price); the quote's
+  "05. price" / "07. latest trading day" then serve as price / as-of,
+  and if the quote also fails the ticker keeps the history close with
+  its honest older date. Source order changed 2026-11-25: Stooq
+  connect-times-out from
+  GitHub-hosted runners (its IP ranges are refused — 30 s x 2 calls per
+  ticker burned ~2.5 min/ticker and one run took 82 minutes) and the
+  repeated retries exhausted Alpha Vantage's 25/day free quota, so
+  every run that day failed before writing. Nasdaq's official history
+  is the exchange's own record, is reachable from the runners, and its
+  closes were verified to the cent against the Yahoo-built chart file
+  for all 19 tickers before the switch.
 - Market cap: price x shares outstanding from the latest SEC EDGAR filing
   (companyfacts, no key). The ticker->CIK map is committed as cik_map.json
   because the live SEC file 403s automated access from cloud IPs; the live
@@ -86,13 +101,23 @@ Sources (all free; only Alpha Vantage needs a key, and only from the env):
   PEG is also no longer computed when earnings or growth are
   negative — the ratio is undefined there, and a negative "PEG"
   is a nonsense number, not a bearish signal.
-- Momentum: 3-month % price return computed from Stooq daily closes (free,
-  no key): (latest close / close 63 trading days earlier - 1) x 100.
-  NOTE: Stooq now serves a JavaScript browser-verification page to
-  automated clients, so this often yields no rows; the run logs that
-  plainly instead of failing silently. The finance page no longer depends
-  on this field — it derives 3-month momentum in-page from
-  finance-history.json (Yahoo weekly closes).
+- Momentum: 3-month % price return computed from the daily-history
+  chain's closes (Nasdaq official history, then Stooq; free, no key):
+  (latest close / close 63 trading days earlier - 1) x 100. Average
+  daily volume comes from the same rows. NOTE: Stooq now serves a
+  JavaScript browser-verification page to automated clients and
+  connect-times-out from GitHub-hosted runners, so as a source it
+  often yields no rows; the run logs that plainly instead of failing
+  silently. The finance page no longer depends on this field — it
+  derives 3-month momentum in-page from finance-history.json
+  (Yahoo weekly closes).
+- Source health (added 2026-11-25 with the source-order change): each
+  history source carries a per-run health flag. Two connection-class
+  failures (connect timeout / connection error) mark the source DOWN
+  for the rest of the run and it is skipped instantly — a fully dead
+  source costs two short probes (10 s connect timeout, no retries),
+  never 2.5 minutes per ticker again. A per-symbol miss (no rows for
+  one ticker) is not a source failure and never marks a source down.
 - Institutional ownership: there is NO free reliable source for this (it lives
   in 13F filings, not in EDGAR companyfacts or OVERVIEW). The value is carried
   forward from the existing JSON as the author's estimate, and the page's
@@ -107,18 +132,24 @@ Honesty rules (do not weaken them)
   miss all come out as null, and the page shows a dash.
 - Alpha Vantage throttling comes in two payload shapes: a "Note" (the
   per-minute limit) and an "Information" message (the 25/day quota).
-  Both are detected. If either arrives during the PRICE phase, the run
-  stops immediately with a non-zero exit and writes nothing (a partial
-  price file would be misleading). If it arrives during the
-  FUNDAMENTALS phase, the prices are already complete: the run records
-  the throttle in fundamentals_status, notes it on the affected
-  tickers, makes no further OVERVIEW calls that run, and still writes —
-  carried-forward fundamentals next to an explicit failure record are
-  honest; silently null fundamentals were not.
-- Call budget, enforced by a counter in code: 19 GLOBAL_QUOTE calls +
-  at most 4 OVERVIEW calls = 23 planned, hard cap 24, under the free
-  tier's 25/day. The counter stops OVERVIEW attempts (never quotes
-  mid-file) before the cap is crossed.
+  Both are detected. Since 2026-11-25 Alpha Vantage is the LAST resort,
+  not the price primary: if either shape arrives — during a last-resort
+  quote or during the FUNDAMENTALS phase — Alpha Vantage is marked
+  spent for the run, no further Alpha Vantage calls are made, the
+  throttle is recorded in fundamentals_status and noted on the
+  affected tickers, and the run still writes on the strength of the
+  history sources. (Before the source-order change a price-phase
+  throttle aborted the run with nothing written, because Alpha
+  Vantage was the only price source and a partial price file would
+  be misleading; that completeness protection now lives in the
+  price guard at write time — a run in which NO ticker carries a
+  price writes nothing and exits non-zero.) Carried-forward
+  fundamentals next to an explicit failure record are honest;
+  silently null fundamentals were not.
+- Call budget, enforced by a counter in code: GLOBAL_QUOTE calls only
+  as a last resort (zero on a healthy night) + at most 4 OVERVIEW
+  calls, hard cap 24, under the free tier's 25/day. The counter stops
+  OVERVIEW attempts before the cap is crossed.
 - A missing or unreachable ticker->CIK map never kills a run: prices are
   still fetched and missing fundamentals come out as null.
 - Nothing is written until every ticker has been processed.
@@ -128,7 +159,7 @@ import json
 import os
 import sys
 import time
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 import requests
 
@@ -253,6 +284,13 @@ class DailyQuota(RateLimited):
 # the limit even if the plan changes.
 AV_CALL_BUDGET = 24
 _av_call_count = [0]
+
+# Set the first time Alpha Vantage answers with a throttle/quota
+# payload (or the local budget guard trips): from then on the run
+# makes no further Alpha Vantage calls of any kind. Alpha Vantage is
+# the last resort since 2026-11-25, so a spent quota retires the
+# fallback — it no longer aborts the run (see the honesty rules).
+_av_spent = [False]
 
 # Why the most recent OVERVIEW call failed (set by fetch_overview), so the
 # run can record the reason in finance-data.json, not just in the log.
@@ -543,24 +581,177 @@ def ttm_value(entries):
     return None, None
 
 
-# ---------------------------------------------------------------- Stooq ---
+# -------------------------------------------------------- Daily history ---
+# One chain serves the price, the 3-month momentum and the average
+# volume: Nasdaq's official history first, Stooq second, Alpha Vantage
+# GLOBAL_QUOTE (in the price block of the main loop) only when both
+# history sources failed for the ticker. Rows everywhere below are
+# (iso_date, close, volume) tuples, oldest first; volume may be None.
+#
+# Fail-fast health (2026-11-25): each source carries a per-run flag.
+# Two connection-class failures (connect timeout / connection error)
+# mark the source DOWN for the rest of the run and it is skipped
+# instantly. Probes use a 10 s connect timeout on a no-retry session,
+# so a fully dead source costs the run two short probes — never the
+# ~2.5 min/ticker the old 30 s-timeout Stooq calls burned while
+# stooq.com refused the runners' IP ranges. HTTP errors and empty
+# answers are per-symbol events: logged, never a down-marking.
+
+# NYSE full-day closures (early closes still trade, so only full
+# closures belong here) — the same table verify_market_data.py
+# carries, mirrored so the two scripts agree on what a session is.
+NYSE_HOLIDAYS = {
+    2025: ["01-01", "01-20", "02-17", "04-18", "05-26", "06-19",
+           "07-04", "09-01", "11-27", "12-25"],
+    2026: ["01-01", "01-19", "02-16", "04-03", "05-25", "06-19",
+           "07-03", "09-07", "11-26", "12-25"],
+    2027: ["01-01", "01-18", "02-15", "03-26", "05-31", "06-18",
+           "07-05", "09-06", "11-25", "12-24"],
+    2028: ["01-17", "02-21", "04-14", "05-29", "06-19", "07-04",
+           "09-04", "11-23", "12-25"],
+}
+_HOLIDAY_SET = {("%d-%s" % (y, md)) for y, mds in NYSE_HOLIDAYS.items()
+                for md in mds}
+
+
+def _is_session(day):
+    return day.weekday() < 5 and day.isoformat() not in _HOLIDAY_SET
+
+
+def _last_completed_session():
+    """The last US session whose 16:00 ET close is complete.
+    (Fixed UTC-5 offset, like verify_market_data.py: at the 22:00 UTC
+    run time the ET hour is past the close under either offset.)"""
+    now_et = datetime.now(timezone.utc) - timedelta(hours=5)
+    day = now_et.date()
+    if _is_session(day) and now_et.hour >= 16:
+        return day
+    day -= timedelta(days=1)
+    while not _is_session(day):
+        day -= timedelta(days=1)
+    return day
+
+
+NASDAQ_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/120.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+_history_session = requests.Session()
+_history_session.mount(
+    "https://", requests.adapters.HTTPAdapter(max_retries=0))
+
+_source_health = {
+    "Nasdaq": {"conn_failures": 0, "down": False},
+    "Stooq": {"conn_failures": 0, "down": False},
+}
+
+
+def _source_conn_failed(source, symbol, exc):
+    health = _source_health[source]
+    health["conn_failures"] += 1
+    log("  %s connection failed for %s (%d this run): %s"
+        % (source, symbol, health["conn_failures"], exc))
+    if health["conn_failures"] >= 2 and not health["down"]:
+        health["down"] = True
+        log("  %s marked DOWN for the rest of this run after %d "
+            "connection failures; skipping it for the remaining "
+            "tickers" % (source, health["conn_failures"]))
+
+
+def _source_ok(source):
+    _source_health[source]["conn_failures"] = 0
+
+
+def _nasdaq_num(text):
+    """'$1,234.56' / '123,456,789' / 'N/A' -> float, or None."""
+    if text is None:
+        return None
+    t = str(text).replace("$", "").replace(",", "").strip()
+    if not t or t.upper() in ("N/A", "NA", "--"):
+        return None
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def fetch_nasdaq_history(symbol):
+    """Daily bars from Nasdaq's official historical-data API (the
+    exchange's own published history; it serves NYSE-listed names
+    too, and its split-adjusted closes were verified to the cent
+    against the Yahoo-built chart file for all 19 tickers on
+    2026-11-25). The request pattern and headers are the chart
+    builder's (fetch_chart_data.py), proven from the runners.
+    Returns rows or None."""
+    if _source_health["Nasdaq"]["down"]:
+        return None
+    today = date.today()
+    params = {"fromdate": (today - timedelta(days=200)).isoformat(),
+              "todate": today.isoformat(), "limit": "9999"}
+    url = "https://api.nasdaq.com/api/quote/%s/historical" % symbol
+    for assetclass in ("stocks", "etf"):
+        try:
+            resp = _history_session.get(
+                url, params=dict(params, assetclass=assetclass),
+                headers=NASDAQ_HEADERS, timeout=(10, 30))
+            resp.raise_for_status()
+            data = resp.json()
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as exc:
+            _source_conn_failed("Nasdaq", symbol, exc)
+            return None
+        except Exception as exc:
+            log("  Nasdaq history failed for %s: %s" % (symbol, exc))
+            return None
+        rows = []
+        raw = (((data or {}).get("data") or {}).get("tradesTable")
+               or {}).get("rows") or []
+        for row in raw:
+            try:
+                d = datetime.strptime(row.get("date") or "",
+                                      "%m/%d/%Y").date().isoformat()
+            except (ValueError, AttributeError):
+                continue
+            close = _nasdaq_num(row.get("close"))
+            if close is None or close <= 0:
+                continue
+            rows.append((d, close, _nasdaq_num(row.get("volume"))))
+        if rows:
+            rows.sort()
+            _source_ok("Nasdaq")
+            return rows
+    log("  Nasdaq served no history rows for %s" % symbol)
+    return None
+
 
 def fetch_stooq_history(symbol):
-    """Daily closes from Stooq: list of (date, close), oldest first."""
+    """Daily bars from Stooq's CSV: rows, or None. One fetch serves
+    closes and volumes (the old code fetched the same CSV twice per
+    ticker — two 30 s timeouts a ticker when Stooq was unreachable)."""
+    if _source_health["Stooq"]["down"]:
+        return None
     url = "https://stooq.com/q/d/l/?s=%s.us&i=d" % symbol.lower()
     try:
-        resp = requests.get(url, timeout=30)
+        resp = _history_session.get(url, timeout=(10, 30))
         resp.raise_for_status()
+    except (requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout) as exc:
+        _source_conn_failed("Stooq", symbol, exc)
+        return None
     except Exception as exc:
         log("  Stooq history failed for %s: %s" % (symbol, exc))
-        return []
+        return None
     if not resp.text.startswith("Date,"):
         # Stooq now answers automated clients with a JavaScript
         # browser-verification page (HTTP 200, HTML body). Say so plainly
         # instead of parsing it into zero rows and staying silent.
         log("  Stooq served a non-CSV response for %s (browser-verification "
-            "page); momentum unavailable from Stooq this run" % symbol)
-        return []
+            "page); no history from Stooq this run" % symbol)
+        return None
     rows = []
     for line in resp.text.splitlines()[1:]:  # skip header
         parts = line.split(",")
@@ -570,34 +761,37 @@ def fetch_stooq_history(symbol):
             close = float(parts[4])
         except ValueError:
             continue
-        rows.append((parts[0], close))
+        try:
+            volume = float(parts[5]) if len(parts) > 5 else None
+        except ValueError:
+            volume = None
+        rows.append((parts[0], close, volume))
+    if not rows:
+        return None
     rows.sort()
+    _source_ok("Stooq")
     return rows
 
 
-def fetch_stooq_avg_volume(symbol, days=60):
-    """Average daily share volume over the last `days` trading days,
-    from the same Stooq CSV the momentum pull reads (its sixth
-    column). None when Stooq doesn't answer with a CSV — the caller
-    keeps the previous run's figure."""
-    url = "https://stooq.com/q/d/l/?s=%s.us&i=d" % symbol.lower()
-    try:
-        resp = requests.get(url, timeout=30)
-        resp.raise_for_status()
-    except Exception as exc:
-        log("  Stooq volume failed for %s: %s" % (symbol, exc))
+def fetch_daily_history(symbol):
+    """The history chain: Nasdaq, then Stooq.
+    Returns (rows, source_name) or (None, None)."""
+    rows = fetch_nasdaq_history(symbol)
+    if rows:
+        return rows, "Nasdaq"
+    rows = fetch_stooq_history(symbol)
+    if rows:
+        return rows, "Stooq"
+    return None, None
+
+
+def avg_volume_from_rows(rows, days=60):
+    """Average daily share volume over the last `days` trading days
+    in rows. None when no row carries a volume — the caller keeps the
+    previous run's figure."""
+    if not rows:
         return None
-    if not resp.text.startswith("Date,"):
-        return None
-    vols = []
-    for line in resp.text.splitlines()[1:]:
-        parts = line.split(",")
-        if len(parts) < 6:
-            continue
-        try:
-            vols.append(float(parts[5]))
-        except ValueError:
-            continue
+    vols = [v for (_d, _c, v) in rows if v is not None]
     if not vols:
         return None
     tail = vols[-days:]
@@ -2643,6 +2837,8 @@ def main():
         "tickers_still_missing": [],
     }
     overview_throttled = False
+    expected_session = _last_completed_session().isoformat()
+    log("Last completed session: %s" % expected_session)
 
     for symbol in TICKERS:
         log("=== %s ===" % symbol)
@@ -2655,38 +2851,70 @@ def main():
             "inst": prev.get("inst"),
         }
 
-        # ---- price (daily, Alpha Vantage) ----
-        try:
-            price, price_as_of = fetch_quote(api_key, symbol)
-        except RateLimited as exc:
-            log("ERROR: %s" % exc)
-            log("Stopping without writing: partial data would be misleading.")
-            return 1
-        record["price"] = price
-        record["price_as_of"] = price_as_of
-        record["price_source"] = "Alpha Vantage" if price is not None else None
-        time.sleep(12)  # 5/min free limit
-
-        # ---- momentum + price cross-check (daily, Stooq) ----
-        history = fetch_stooq_history(symbol)
+        # ---- daily history (Nasdaq official first, Stooq second) ----
+        rows, history_source = fetch_daily_history(symbol)
+        history = [(d, c) for (d, c, _v) in rows] if rows else []
         mom, mom_as_of = momentum_3m(history)
         record["momentum"] = mom
         record["momentum_as_of"] = mom_as_of
         # Average daily volume (pass 2): the Drill Down's trading-
         # volume check reads it. A failed pull keeps the old figure.
-        avg_vol = fetch_stooq_avg_volume(symbol)
+        avg_vol = avg_volume_from_rows(rows)
         record["avg_volume"] = (avg_vol if avg_vol is not None
                                 else prev.get("avg_volume"))
-        if history and price is not None:
-            stooq_close = history[-1][1]
-            diff = abs(stooq_close - price) / price * 100.0
-            log("  price cross-check: AV $%.2f vs Stooq $%.2f (%.2f%%)"
-                % (price, stooq_close, diff))
-            if diff > 2.0:
-                log("  WARNING: AV/Stooq price mismatch > 2%% for %s" % symbol)
-        elif history:
-            log("  Stooq latest close for %s: $%.2f on %s"
-                % (symbol, history[-1][1], history[-1][0]))
+
+        # ---- price: the history chain's latest close, when that
+        # close IS the last completed session's. Nasdaq's history
+        # table can lag the close by hours, and yesterday's close
+        # presented as tonight's price would break the page's
+        # accuracy rule — so a history whose last bar predates the
+        # last completed session has failed to serve a current price
+        # for this ticker, and Alpha Vantage GLOBAL_QUOTE is the
+        # last resort for it, exactly as when both history sources
+        # returned nothing. A throttle/quota answer retires Alpha
+        # Vantage for the run (it is the fallback now, not the
+        # primary); the ticker then keeps the history close with its
+        # honest older date rather than a null. The price-
+        # completeness guard at write time still refuses to publish
+        # a file in which no ticker carries a price. ----
+        price = None
+        price_as_of = None
+        price_source = None
+        if history and history[-1][0] >= expected_session:
+            price_as_of, price = history[-1]
+            price_source = history_source
+            log("  price from %s history: $%.2f on %s"
+                % (history_source, price, price_as_of))
+        else:
+            if history:
+                log("  %s history ends %s, before the last completed "
+                    "session %s; trying Alpha Vantage for a current "
+                    "close" % (history_source, history[-1][0],
+                               expected_session))
+            if not _av_spent[0]:
+                try:
+                    price, price_as_of = fetch_quote(api_key, symbol)
+                    if price is not None:
+                        price_source = "Alpha Vantage"
+                    time.sleep(12)  # 5/min free limit, after an AV call
+                except RateLimited as exc:
+                    _av_spent[0] = True
+                    overview_throttled = True
+                    fstatus["overview"]["throttled"] = True
+                    fstatus["overview"]["detail"] = str(exc)[:300]
+                    log("ERROR: %s" % exc)
+                    log("  Alpha Vantage marked spent for this run; "
+                        "no further Alpha Vantage calls. Remaining "
+                        "tickers rely on the history sources.")
+            if price is None and history:
+                price_as_of, price = history[-1]
+                price_source = history_source
+                log("  no current close for %s; keeping the %s close "
+                    "from %s, dated as such"
+                    % (symbol, price_as_of, history_source))
+        record["price"] = price
+        record["price_as_of"] = price_as_of
+        record["price_source"] = price_source
 
         # ---- EDGAR: shares (daily, for market cap) + fundamentals (weekly) ----
         cik = cik_map.get(symbol)
@@ -2990,8 +3218,11 @@ def main():
                 # Fundamentals-phase throttle: the prices are already
                 # complete, so record it loudly (fundamentals_status +
                 # the ticker notes below), make no further OVERVIEW
-                # calls this run, and still write. A price-phase
-                # throttle (above) still aborts with nothing written.
+                # calls this run, and still write. A last-resort-quote
+                # throttle (above) likewise only retires Alpha Vantage
+                # for the run; the write-time price guard is the
+                # completeness stop now.
+                _av_spent[0] = True
                 overview_throttled = True
                 ov_outcome = "throttled"
                 fstatus["overview"]["throttled"] = True
