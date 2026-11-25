@@ -7287,6 +7287,7 @@ if (typeof module !== "undefined") {
         var hover = -1; // full-series index under the pointer; -1 = latest bar
         var lastPtr = { type: "mouse", y: 0 }; // last pointer spot inside the frame (touch tooltip placement)
         var view = null, layout = null;
+        var btnFit = null;      // {range, key, sig, fit}: the range-button price fit (2026-11-24) — armed by a range-button tap, it fits the price axis to that button's window (see applyBtnFit) and stands down the moment the window on screen is no longer the button's own
         // Pinch zoom (2026-11-16): a window inside the active
         // range's window, as full-series indices; null = the range
         // window itself. rangeStart/rangeEnd remember the range
@@ -7570,6 +7571,7 @@ if (typeof module !== "undefined") {
                 if (ze - zs + 1 >= rangeEnd - rangeStart + 1 || ze - zs + 1 < Math.min(5, rangeEnd - rangeStart + 1)) zoom = null;
                 else { zoom = { start: zs, end: ze }; view.start = zs; view.end = ze; }
             }
+            applyBtnFit();
             if (hover < view.start || hover > view.end) hover = -1;
             var nt = noteText(view);
             if (note) { note.textContent = nt; note.hidden = !nt; }
@@ -8723,11 +8725,16 @@ if (typeof module !== "undefined") {
         // ending at the latest bar (the intraday views answer to
         // their own names); a pinched or panned custom window
         // matches no button, so no pill stays lit under it.
-        function syncRangePills() {
-            var el = document.getElementById("chartRanges");
-            if (!el || !view) return;
+        // The range the window on screen answers to — the lit
+        // pill's own computation, shared with the button fit
+        // below: a button's window is its named span ending at
+        // the latest bar (the intraday views answer to their
+        // own names); a pinched or panned custom window matches
+        // no button.
+        function litRangeName() {
+            if (!view) return null;
             var ds = (dailyData && dailyData.series) ? dailyData.series[cur.key] : null;
-            if (!ds || !ds.bars || !ds.bars.length) return;
+            if (!ds || !ds.bars || !ds.bars.length) return null;
             var n = ds.bars.length, lastD = ds.bars[n - 1][0], active = null, k;
             if (view.intra) {
                 active = view.intra.kind === "1D" ? "1D" : "1W";
@@ -8745,9 +8752,75 @@ if (typeof module !== "undefined") {
                 for (k in RANGE_DAYS) { var dd2 = Math.abs(RANGE_DAYS[k] - sd2); if (dd2 < bd2) { bd2 = dd2; active = k; } }
                 if (!active && zoom.start === 0) active = "ALL";
             }
+            return active;
+        }
+        function syncRangePills() {
+            var el = document.getElementById("chartRanges");
+            if (!el || !view) return;
+            var active = litRangeName();
             el.querySelectorAll("button[data-range]").forEach(function (b) {
                 b.classList.toggle("active", b.getAttribute("data-range") === active);
             });
+        }
+        // ---- the range-button price fit (2026-11-24) ----
+        // A range button promises a view fitted to its frame,
+        // the way every great chart tool fits one: the window
+        // (set by the tap, through applyWindow) AND a price axis
+        // fitted to that window's own price range — the closes,
+        // or the candle extremes in candle style — with an
+        // eighth of the range as headroom above and below, so
+        // the line fills about 80% of the pane and never rides
+        // an edge. The general auto-fit keeps its wider,
+        // average-inclusive range for pinch-set windows; a
+        // button's frame is a promise, so its fit is exact: the
+        // fitted range rides the manual-range path (its domain
+        // is never snapped outward to the tick ladder — the
+        // snap was the old buttons' flattening: a 10-year domain
+        // floored to zero under data that starts at 2,191).
+        // The fit is armed by the tap and held by render: while
+        // the button's window is the window on screen, a sharper
+        // layer landing (the intraday file, a fine rung) refits
+        // to its own bars; the moment the window is no longer
+        // the button's — a pinch, a wheel turn, a series change
+        // — the fit stands down and hands the axis back, unless
+        // a vertical pinch has already taken the axis for its
+        // own (that range is the reader's, and it stays). A
+        // gesture in progress is never touched: the fit steps
+        // aside until the fingers lift.
+        function btnFitRange(v) {
+            var bars = v.s.bars, lo = Infinity, hi = -Infinity;
+            for (var i = v.start; i <= v.end; i++) {
+                var b = bars[i];
+                var bl = cur.style === "candles" ? b[3] : b[4], bh = cur.style === "candles" ? b[2] : b[4];
+                if (bl < lo) lo = bl;
+                if (bh > hi) hi = bh;
+            }
+            if (!isFinite(lo) || !isFinite(hi)) return null;
+            if (!(hi > lo)) { var m = hi || 1; lo = m * 0.995; hi = m * 1.005; }
+            var pad = (hi - lo) * 0.12;
+            // A price axis never fits below zero (the All view's
+            // pad otherwise carries the floor negative and the
+            // lowest tick prints as -0.00).
+            return { lo: Math.max(0, lo - pad), hi: hi + pad };
+        }
+        function btnFitSig(v) {
+            var bars = v.s.bars;
+            var kind = v.intra ? "I" + v.intra.kind : (v.fine ? "F" + v.fine.rung : "D");
+            var f = bars[v.start], l = bars[v.end];
+            return [cur.key, cur.style, kind, v.start, v.end, bars.length, f ? f[0] : "", l ? l[0] : ""].join("|");
+        }
+        function applyBtnFit() {
+            if (!btnFit || gest) return;
+            if (!view || cur.key !== btnFit.key || litRangeName() !== btnFit.range) {
+                if (manualY && btnFit.fit && manualY === btnFit.fit) manualY = null;
+                btnFit = null;
+                return;
+            }
+            var sig = btnFitSig(view);
+            if (sig !== btnFit.sig) {
+                var f = btnFitRange(view);
+                if (f) { manualY = f; btnFit.fit = f; btnFit.sig = sig; }
+            }
         }
         // ---- Johnny's indicator switch ----
         // Turning it on needs the daily file (the pipeline's
@@ -9253,6 +9326,12 @@ if (typeof module !== "undefined") {
                 var ds = (dailyData && dailyData.series) ? dailyData.series[cur.key] : null;
                 if (!ds || !ds.bars || !ds.bars.length) return;
                 manualY = null; hover = -1;
+                // The tap arms the button's price fit (see
+                // applyBtnFit): this frame's axis fits this
+                // frame's data, refitting as its sharper layers
+                // land, until the window stops being this
+                // button's window.
+                btnFit = { range: r, key: cur.key, sig: null, fit: null };
                 if (r === "ALL") { zoom = null; fineWin = null; fineLastRung = null; render(); return; }
                 var lastD = ds.bars[ds.bars.length - 1][0];
                 applyWindow(Date.parse(lastD) - RANGE_DAYS[r] * 86400000, Date.parse(lastD) + 86399999);
@@ -9279,6 +9358,7 @@ if (typeof module !== "undefined") {
                 gWin = gest.intra ? null : seedGWin();
                 gest.win0 = gWin;
                 gest.fx0 = cl01(((a.x + b.x) / 2 - rect.left - 6) / layout.plotW);
+                gest.fy0 = cl01(((a.y + b.y) / 2 - rect.top - layout.priceY) / layout.priceH);
                 gest.midX0 = (a.x + b.x) / 2;
                 gest.anchorT = null;
                 if (gWin && view.s && view.s.bars && view.s.bars.length > 1) {
@@ -9302,21 +9382,24 @@ if (typeof module !== "undefined") {
             }
             // The price half of one gesture step: the range scales
             // by the vertical spread ratio about the price under
-            // the fingers' midpoint, and follows the midpoint's
-            // height — spreading narrows the range (the line
-            // stretches taller), closing widens it, the photo
-            // model's direction. The range is bounded to [10%,
-            // 10x] of the view's auto-fit span, measured against
-            // autoSpanY so repeated pinches cannot walk past the
-            // bounds. Auto-fit stands until a vertical spread
-            // first engages Y; once engaged, Y tracks the gesture
-            // (midpoint height included) to its end. Returns true
-            // when the manual range changed.
+            // the fingers' BEGIN midpoint — spreading narrows the
+            // range (the line stretches taller), closing widens
+            // it, the photo model's direction. The anchor height
+            // is fixed at the gesture's first frame (2026-11-24,
+            // Johnny's no-pan law: pinch changes span only, and a
+            // two-finger translation moves nothing, on either
+            // axis). The range is bounded to [10%, 10x] of the
+            // view's auto-fit span, measured against autoSpanY so
+            // repeated pinches cannot walk past the bounds.
+            // Auto-fit stands until a vertical spread first
+            // engages Y; once engaged, Y tracks the spread to the
+            // gesture's end. Returns true when the manual range
+            // changed.
             function applyPinchY(pmy, midY, dyP, dyN, rect) {
                 if (!layout || layout.lo === null || layout.hi === null || !layout.priceH) return false;
                 var top = rect.top + layout.priceY;
-                var fyP = cl01((pmy - top) / layout.priceH);
-                var fyN = cl01((midY - top) / layout.priceH);
+                var fyP = (gest && gest.fy0 != null) ? gest.fy0 : cl01((pmy - top) / layout.priceH);
+                var fyN = fyP;
                 var anchorPrice = layout.hi - fyP * (layout.hi - layout.lo);
                 var span = manualY ? (manualY.hi - manualY.lo) : (layout.hi - layout.lo);
                 var scaled = false;
@@ -9355,7 +9438,12 @@ if (typeof module !== "undefined") {
                 var yChanged = applyPinchY(pmy, midY, dyP, dyN, rect);
                 if (gest.intra) {
                     var c = gest.count * gest.d0x / Math.max(1, dxN);
-                    var f = cl01((midX - rect.left - 6) / layout.plotW);
+                    // The anchor fraction is the gesture's BEGIN
+                    // fraction (2026-11-24, the no-pan law): the
+                    // rung stepping keys off the finger distance
+                    // alone, and translating both fingers sideways
+                    // steps nothing.
+                    var f = gest.fx0;
                     var s = gest.anchor - f * (c - 1);
                     setZoomWindow(s, s + c - 1);
                     if (yChanged) render();
@@ -9372,26 +9460,31 @@ if (typeof module !== "undefined") {
                     if (yChanged) render();
                     return;
                 }
-                // X as a state function of the fingers: the
-                // window is the begin window scaled by the
-                // finger-distance ratio, with the begin
-                // centroid's time placed under the current
-                // centroid. No per-event composition, so scale
-                // and translation never fight; a rung swap
-                // mid-gesture redraws the same window at a new
-                // density and changes nothing the fingers hold.
-                var fxN = cl01((midX - rect.left - 6) / layout.plotW);
+                // X as a state function of the finger DISTANCE
+                // alone (2026-11-24, Johnny's no-pan law: buttons
+                // + one-finger inspect + pinch zoom only — the
+                // two-finger pan is removed). The window is the
+                // begin window scaled by the finger-distance
+                // ratio, with the begin centroid's time held
+                // under the BEGIN centroid: the anchor bar never
+                // leaves the spot where the gesture started, and
+                // translating both fingers — any distance, any
+                // direction — changes nothing at all. No
+                // per-event composition; a rung swap mid-gesture
+                // redraws the same window at a new density and
+                // changes nothing the fingers hold.
+                var fxN = gest.fx0;
                 var span0 = gest.win0.b - gest.win0.a;
                 var anchorLin = gest.win0.a + gest.fx0 * span0;
                 var anchorT = anchorLin;
                 if (gest.anchorT != null) {
-                    // Blend the index-mapped anchor in with
-                    // horizontal finger travel (24px to full):
-                    // zero horizontal input keeps the window
-                    // exactly (a pure Y pinch never pans), real
-                    // pinches and drags get the true bar under
-                    // the fingers.
-                    var hTravel = Math.abs(midX - gest.midX0) + Math.abs(dxN - gest.d0x) / 2;
+                    // Blend the index-mapped anchor in with the
+                    // finger-distance change (24px to full): zero
+                    // spread change keeps the window exactly (a
+                    // pure Y pinch, or a pure translation, never
+                    // moves it), a real pinch gets the true bar
+                    // under the fingers.
+                    var hTravel = Math.abs(dxN - gest.d0x) / 2;
                     var hw = Math.min(1, hTravel / 24);
                     anchorT = anchorLin + (gest.anchorT - anchorLin) * hw;
                 }
