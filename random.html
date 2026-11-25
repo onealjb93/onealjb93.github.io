@@ -473,6 +473,10 @@
             border-radius: 8px;
             color: var(--subtext-color);
             font-size: 0.95rem;
+            /* It is a swipe surface when it is the card's visible
+               face (the swipe wiring sits on it) — same gesture
+               contract as the photo itself. */
+            touch-action: none;
         }
         .gen-name { font-size: 1.2rem; font-weight: 600; color: var(--text-color); margin: 0 0 0.15rem 0; }
         .gen-sub { font-size: 0.9rem; color: var(--subtext-color); margin: 0 0 0.5rem 0; }
@@ -1861,6 +1865,7 @@
             // views — or tabs — returns to exactly the card that was showing.
             var st = { pool: pool, poolKey: poolKey, ids: [], byId: {},
                 decks: { all: [], loved: [] }, last: { all: null, loved: null },
+                bagOrder: { all: [], loved: [] },
                 cur: { all: null, loved: null }, started: { all: false, loved: false },
                 shownId: null, domMode: null, gen: 0, hist: [], histPos: -1 };
             pool.forEach(function (e) {
@@ -1941,6 +1946,46 @@
             });
         }
 
+        // Shuffle-bag seam guard (2026-11-24): a card may not be
+        // dealt again until every card in its pool has been shown
+        // once — including across a reshuffle. The previous guard
+        // only kept the single last-dealt card out of the new bag's
+        // first slot, so a card seen two draws before the bag
+        // emptied could reappear at once (Johnny's repeats). A
+        // fresh deck is therefore repaired against the previous
+        // cycle's deal order: the card at each position must have
+        // sat at that position or earlier last cycle, which makes
+        // every card's gap across the seam at least a full cycle.
+        // (The order that satisfies this always exists — the
+        // previous order itself — and the repair's swap partner,
+        // the earliest-dealt remaining card, always qualifies.)
+        function seamGuard(st, mode, deck) {
+            var prev = (st.bagOrder && st.bagOrder[mode]) || null;
+            if (!prev || !prev.length) {
+                // No recorded cycle (a deck restored from a previous
+                // session): keep at least the original guard — the
+                // last-dealt card never opens the fresh bag.
+                if (deck.length > 1 && st.last[mode] !== null && deck[0] === st.last[mode]) {
+                    var t0 = deck[0]; deck[0] = deck[1]; deck[1] = t0;
+                }
+                return;
+            }
+            if (deck.length < 2) { return; }
+            var pos = {};
+            prev.forEach(function (id, i) { pos[id] = i; });
+            function pOf(id) { return (id in pos) ? pos[id] : -1; }
+            for (var q = 0; q < deck.length; q++) {
+                if (pOf(deck[q]) <= q) { continue; }
+                var best = -1;
+                for (var j = q; j < deck.length; j++) {
+                    if (best === -1 || pOf(deck[j]) < pOf(deck[best])) { best = j; }
+                }
+                if (best > q) {
+                    var t = deck[q]; deck[q] = deck[best]; deck[best] = t;
+                }
+            }
+        }
+
         function draw(prefix) {
             var st = GEN[prefix];
             var mode = lovedOnly ? 'loved' : 'all';
@@ -1948,10 +1993,8 @@
             if (ids.length === 0) { showLovedEmpty(prefix); return; }
             if (st.decks[mode].length === 0) {
                 st.decks[mode] = weightedDeck(st, ids);
-                // never repeat back-to-back across a reshuffle
-                if (st.last[mode] !== null && st.decks[mode][0] === st.last[mode] && st.decks[mode].length > 1) {
-                    var t = st.decks[mode][0]; st.decks[mode][0] = st.decks[mode][1]; st.decks[mode][1] = t;
-                }
+                seamGuard(st, mode, st.decks[mode]);
+                st.bagOrder[mode] = st.decks[mode].slice();
                 // silent reshuffle: no message, no announcement
             }
             var entry = st.byId[st.decks[mode].shift()];
@@ -2261,11 +2304,8 @@
                     var bids = effIds(pst);
                     if (bids.length) {
                         pst.decks[mode] = weightedDeck(pst, bids);
-                        if (pst.last[mode] !== null && pst.decks[mode][0] === pst.last[mode] && pst.decks[mode].length > 1) {
-                            var bt = pst.decks[mode][0];
-                            pst.decks[mode][0] = pst.decks[mode][1];
-                            pst.decks[mode][1] = bt;
-                        }
+                        seamGuard(pst, mode, pst.decks[mode]);
+                        pst.bagOrder[mode] = pst.decks[mode].slice();
                     }
                 }
                 var odeck = pst.decks[mode] || [];
@@ -2447,6 +2487,16 @@
             // current photo; the error box appears only when there
             // is no photo to keep.
             var stage = stageUrl(entry.img);
+            // The card actually on stage before this render: a
+            // failed load restores these, so the stage attributes
+            // always describe the photo that is showing.
+            var prevDataStage = img.getAttribute('data-stage');
+            var prevDataFull = img.getAttribute('data-full');
+            var prevShownStage = st.shownStage;
+            // Websites entries carry hotlinked images on foreign
+            // hosts (seconds slow, sometimes forbidden outright):
+            // their commit is bounded — see the grace timer below.
+            var relaxed = (prefix === 'websites');
             img.setAttribute('data-stage', stage);
             img.setAttribute('data-full', entry.img);
             // Generation guard: a rapid Generate tap can supersede a
@@ -2466,8 +2516,17 @@
             img.hidden = false;
             img.onload = null;
             img.onerror = null;
+            var committed = false;
+            var graceTimer = null;
+            function restoreStageAttrs() {
+                if (prevDataStage) { img.setAttribute('data-stage', prevDataStage); } else { img.removeAttribute('data-stage'); }
+                if (prevDataFull) { img.setAttribute('data-full', prevDataFull); } else { img.removeAttribute('data-full'); }
+                st.shownStage = prevShownStage;
+            }
             function swapIn(url) {
-                if (gen !== st.gen) { return; }
+                if (gen !== st.gen || committed) { return; }
+                committed = true;
+                if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; }
                 st.shownStage = stage;
                 // The commit: words, heart and photo change in this
                 // one task, so the browser paints them together.
@@ -2478,7 +2537,7 @@
                 capStageImg(prefix, natW, natH);
             }
             function loadFailed() {
-                if (gen !== st.gen) { return; }
+                if (gen !== st.gen || committed) { return; }
                 // One retry (flaky mobile networks): same file, fresh fetch.
                 if (!retried) {
                     retried = true;
@@ -2490,12 +2549,36 @@
                     // Nothing on stage to keep: the entry's words
                     // arrive together with its error box — the two
                     // are one state, never a half-card.
+                    committed = true;
                     applyText();
                     img.hidden = true;
                     err.hidden = false;
+                } else if (relaxed) {
+                    // Websites: a forbidden hotlink must not make
+                    // the draw look dead — the dealt card still
+                    // becomes the current card, words and error box
+                    // together, exactly as a first card would. The
+                    // stage attributes return to the photo actually
+                    // on stage, so the fullscreen settle gate keeps
+                    // telling the truth about what is showing.
+                    committed = true;
+                    if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; }
+                    applyText();
+                    img.hidden = true;
+                    err.hidden = false;
+                    restoreStageAttrs();
+                } else {
+                    // With a photo on stage, the failed draw changes
+                    // nothing visible: the current card stays whole.
+                    // The stage attributes are restored to the photo
+                    // actually on stage — left pointing at the failed
+                    // entry, the fullscreen viewer's settle gate
+                    // (shownStage === data-stage) could never pass
+                    // again, and its foreground froze for good while
+                    // the waiting cards kept cycling behind it
+                    // (Johnny, 2026-11-24).
+                    restoreStageAttrs();
                 }
-                // With a photo on stage, the failed draw changes
-                // nothing at all: the current card stays whole.
             }
             function tryStage(url) {
                 if (gen !== st.gen) { return; }
@@ -2520,6 +2603,36 @@
                 swapIn(stage);
             } else {
                 tryStage(stage);
+            }
+            if (relaxed && !committed) {
+                // Websites grace (2026-11-24): the atomic wait is
+                // right for the photo pools' fast Wikimedia thumbs,
+                // but a hotlinked image can take seconds — a swipe
+                // that waits on it looks dead, and rapid swipes
+                // starve every commit by superseding the load
+                // before it lands. If the image has not decoded
+                // within the grace window, the card commits anyway
+                // and the stage element loads the same file in
+                // place: the dealt card is the current item, and
+                // the stage always reaches it. A loader that
+                // settles later is ignored (the committed guard) —
+                // the stage is already loading that file itself.
+                graceTimer = setTimeout(function () {
+                    if (gen !== st.gen || committed) { return; }
+                    committed = true;
+                    st.shownStage = stage;
+                    applyText();
+                    img.hidden = false;
+                    img.src = stage;
+                    img.classList.remove('fading');
+                    capStageImg(prefix);
+                    img.onerror = function () {
+                        if (gen !== st.gen) { return; }
+                        img.hidden = true;
+                        err.hidden = false;
+                        restoreStageAttrs();
+                    };
+                }, 1000);
             }
             // No trailing syncHeart: the heart is part of the
             // commit (applyText), so it can never announce an
@@ -3790,10 +3903,13 @@
                 stopFsDrawWatch();
                 btn.click();
                 if (fsRefresh()) { return; }
-                var tries = 0;
+                // The watch waits as long as the viewer is open.
+                // It used to give up after 80 tries (8 seconds), so
+                // a slower load left the viewer's foreground frozen
+                // on the old photo for good while the waiting cards
+                // kept cycling behind it (Johnny, 2026-11-24).
                 fsDrawWatch = setInterval(function () {
-                    tries++;
-                    if (!fsOpen || tries > 80) { stopFsDrawWatch(); return; }
+                    if (!fsOpen) { stopFsDrawWatch(); return; }
                     if (fsRefresh()) { stopFsDrawWatch(); }
                 }, 100);
             });
@@ -3834,10 +3950,8 @@
             stopFsCatWatch();
             if (!fsOpen) { return; }
             if (fsRefresh()) { return; }
-            var tries = 0;
             fsCatWatch = setInterval(function () {
-                tries++;
-                if (!fsOpen || tries > 80) { stopFsCatWatch(); return; }
+                if (!fsOpen) { stopFsCatWatch(); return; }
                 if (fsRefresh()) { stopFsCatWatch(); }
             }, 100);
         }
@@ -4119,11 +4233,9 @@
             }
             if (!st.decks[mode].length) {
                 st.decks[mode] = weightedDeck(st, ids);
-                // never repeat back-to-back across a reshuffle —
                 // the same seam guard draw() runs
-                if (st.last[mode] !== null && st.decks[mode][0] === st.last[mode] && st.decks[mode].length > 1) {
-                    var t = st.decks[mode][0]; st.decks[mode][0] = st.decks[mode][1]; st.decks[mode][1] = t;
-                }
+                seamGuard(st, mode, st.decks[mode]);
+                st.bagOrder[mode] = st.decks[mode].slice();
             }
             var id = st.decks[mode][0];
             if (st.behindId !== id || st.behindMode !== mode) {
@@ -4334,6 +4446,12 @@
         PREFIXES.forEach(function (p) {
             wireSwipe(document.getElementById(p + '-img'), { isFs: false, prefix: function () { return p; } });
             wireSwipe(document.getElementById(p + '-quote'), { isFs: false, prefix: function () { return p; } });
+            // The image-error box is the card's visible surface
+            // when its photo could not load (Websites' forbidden
+            // hotlinks land there): the whole card surface is the
+            // swipe target, so it carries the same wiring
+            // (2026-11-24).
+            wireSwipe(document.getElementById(p + '-imgerr'), { isFs: false, prefix: function () { return p; } });
         });
         wireSwipe(document.getElementById('gen-fs-img'), { isFs: true, prefix: visiblePrefix });
         wireSwipe(document.getElementById('gen-fs-quote'), { isFs: true, prefix: visiblePrefix });
