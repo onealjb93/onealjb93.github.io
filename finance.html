@@ -438,8 +438,21 @@
        Bitcoin chart already follows (its readout leaves the
        layout there; Finance's seven values stay, in one row,
        scrolling sideways inside the strip if a narrow screen
-       ever needs it). */
-    #chart:fullscreen .fin-readout, #chart:-webkit-full-screen .fin-readout, #chart.chart-fs .fin-readout { grid-template-columns: repeat(7, minmax(0, auto)); overflow-x: auto; column-gap: 14px; margin: 6px 0 8px; padding: 0 76px 6px 2px; scrollbar-width: none; }
+       ever needs it).
+       Flex, not grid (2026-11-24, Johnny's fullscreen shot: the
+       DATE value ran into CLOSE and VOLUME sat under the colour
+       pill): a grid track sized minmax(0, auto) may shrink below
+       its content, so on iOS — whose text measures wider than
+       the sandbox's — the nowrap values spilled over their
+       neighbours instead of scrolling, and the last value slid
+       under the pill the strip's right padding was meant to
+       clear. Flex items at flex: none (the rule below) can
+       never shrink, so the row either fits or scrolls, and no
+       two values can ever share a pixel. The pill's corner is
+       reserved by the strip's own box (margin-right in the
+       fullscreen block below), not by padding inside the scroll
+       area, so no scroll position can carry a value under it. */
+    #chart:fullscreen .fin-readout, #chart:-webkit-full-screen .fin-readout, #chart.chart-fs .fin-readout { display: flex; flex-wrap: nowrap; overflow-x: auto; column-gap: 14px; margin: 6px 0 8px; padding: 0 2px 6px; scrollbar-width: none; }
     #chart:fullscreen .fin-readout::-webkit-scrollbar, #chart:-webkit-full-screen .fin-readout::-webkit-scrollbar, #chart.chart-fs .fin-readout::-webkit-scrollbar { display: none; }
     #chart:fullscreen .fin-stat, #chart:-webkit-full-screen .fin-stat, #chart.chart-fs .fin-stat { flex: none; }
     #chart:fullscreen .fin-stat-label, #chart:-webkit-full-screen .fin-stat-label, #chart.chart-fs .fin-stat-label { font-size: 0.66rem; }
@@ -776,7 +789,18 @@
     .fin-alert-sub-text .zd-sell { background: #ef4444; }
     body.light-mode .fin-alert-sub-text .zd-buy { background: #16a34a; }
     body.light-mode .fin-alert-sub-text .zd-sell { background: #dc2626; }
-    .fin-alert-sub-foot { margin: 0; font-size: 0.78rem; line-height: 1.4; color: var(--subtext-color); }
+    /* One line, always (Johnny, 2026-11-24): this line never
+       wraps, on any page. The homepage panel fits it at the
+       full size; this panel is narrower and wrapped it
+       ("…any / time."). The size therefore steps down fluidly
+       as the viewport narrows, sized so that even a
+       three-digit count ("Join the 128 other subscribers ·
+       Unsubscribe any time.") holds one line at 320px, with
+       iOS's wider text metrics allowed for — the sandbox's
+       fonts measure this line about a fifth narrower than
+       his iPhone's, which is why it wrapped there first.
+       Where the full size fits, min() hands it back. */
+    .fin-alert-sub-foot { margin: 0; font-size: min(0.78rem, calc((100vw - 100px) * 0.038)); line-height: 1.4; color: var(--subtext-color); white-space: nowrap; }
     .fin-alert-sub-form { display: flex; align-items: center; gap: 8px; margin: 0; }
     .fin-alert-sub-form input[type="email"] { flex: 1 1 auto; min-width: 0; box-sizing: border-box; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-color); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; min-height: 44px; }
     .fin-alert-sub-form button[type="submit"] { flex: 0 0 auto; box-sizing: border-box; background: var(--glass-bg-solid); border: 1px solid var(--glass-border-strong); color: var(--text-color); border-radius: 8px; padding: 10px 14px; font-size: 0.9rem; font-weight: 600; min-height: 44px; cursor: pointer; white-space: nowrap; }
@@ -852,27 +876,47 @@
        strip's tall framed block does not ride along. The Chart
        tools fold is set-up, done in the page view; it steps
        aside here and returns on exit exactly as it was left.
-       The range row steps aside with it, exactly as it did
-       when it lived inside the fold (split 2026-11-24: in the
-       page view the ranges are always visible; this mode's
-       settled behaviour is unchanged).
+       The range row does NOT step aside (Johnny, 2026-11-24
+       21:05, superseding the split's preserved behaviour):
+       "we always need to have those time frames available just
+       like we do when we're not in full screen" — the row stays
+       visible and tappable in this mode, in the same place in
+       the controls row as the page view, wearing the mode's own
+       slim pill padding (the fin-dots treatment below). The
+       verdict chip's row leaves with the chip: the chip itself
+       was already display: none here, but its row kept its
+       reserved height as an empty band at the top of the stage
+       — that band is the "empty space at the top" of Johnny's
+       same screenshot, and it now goes to the graph.
        What stays: the title row (Share + the exit), the
-       dropdown row, the indicator switch and Latest dots, the
-       one slim readout row — and the graph takes the rest. */
+       dropdown row, the time frames, the indicator switch and
+       Latest dots, the one slim readout row — and the graph
+       takes the rest. */
     #chart:fullscreen #futStrip, #chart:-webkit-full-screen #futStrip, #chart.chart-fs #futStrip,
     #chart:fullscreen #chartToolsBtn, #chart:-webkit-full-screen #chartToolsBtn, #chart.chart-fs #chartToolsBtn,
     #chart:fullscreen #chartTools, #chart:-webkit-full-screen #chartTools, #chart.chart-fs #chartTools,
-    #chart:fullscreen #chartRanges, #chart:-webkit-full-screen #chartRanges, #chart.chart-fs #chartRanges { display: none; }
+    #chart:fullscreen .chart-line-row, #chart:-webkit-full-screen .chart-line-row, #chart.chart-fs .chart-line-row { display: none; }
     #chart:fullscreen > #chart-body, #chart:-webkit-full-screen > #chart-body, #chart.chart-fs > #chart-body { gap: 0.22rem; }
     #chart:fullscreen .chart-controls, #chart:-webkit-full-screen .chart-controls, #chart.chart-fs .chart-controls { align-items: center; gap: 0.4rem 0.75rem; }
-    #chart:fullscreen .chart-controls .selector-group, #chart:-webkit-full-screen .chart-controls .selector-group, #chart.chart-fs .chart-controls .selector-group { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 0.5rem; width: 100%; }
+    #chart:fullscreen .chart-controls .selector-group, #chart:-webkit-full-screen .chart-controls .selector-group, #chart.chart-fs .chart-controls .selector-group { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 0.5rem; }
+    /* The selector group keeps the page view's own width (the
+       .stock-dd token, min(21rem, 100%)) so the time frames sit
+       beside it on wide screens, exactly as in the page view;
+       the group stretched to 100% only while the ranges were
+       hidden here and the dropdown row stood alone. At phone
+       widths the group takes its full-width row and the ranges
+       take the row under it — the page view's phone order. */
+    @media (max-width: 640px) {
+        #chart:fullscreen .chart-controls .selector-group, #chart:-webkit-full-screen .chart-controls .selector-group, #chart.chart-fs .chart-controls .selector-group { width: 100%; }
+    }
     #chart:fullscreen .chart-controls .selector-group .group-label, #chart:-webkit-full-screen .chart-controls .selector-group .group-label, #chart.chart-fs .chart-controls .selector-group .group-label { display: inline; margin: 0; white-space: nowrap; }
     #chart:fullscreen .stock-dd, #chart:-webkit-full-screen .stock-dd, #chart.chart-fs .stock-dd { flex: 1 1 auto; width: auto; min-width: 0; }
     #chart:fullscreen .stock-dd-face, #chart:-webkit-full-screen .stock-dd-face, #chart.chart-fs .stock-dd-face { min-height: 36px; padding: 5px 0.7rem; }
     #chart:fullscreen .fin-dots-row, #chart:-webkit-full-screen .fin-dots-row, #chart.chart-fs .fin-dots-row { gap: 0.4rem 0.75rem; }
     #chart:fullscreen .fin-ind-switch, #chart:-webkit-full-screen .fin-ind-switch, #chart.chart-fs .fin-ind-switch { height: 36px; }
     #chart:fullscreen .fin-dots .filter-pill, #chart:-webkit-full-screen .fin-dots .filter-pill, #chart.chart-fs .fin-dots .filter-pill { padding-top: 7px; padding-bottom: 7px; }
-    #chart:fullscreen .fin-readout, #chart:-webkit-full-screen .fin-readout, #chart.chart-fs .fin-readout { margin: 3px 0 4px; padding: 0 2px 4px; }
+    #chart:fullscreen #chartRanges .filter-pill, #chart:-webkit-full-screen #chartRanges .filter-pill, #chart.chart-fs #chartRanges .filter-pill { padding-top: 7px; padding-bottom: 7px; }
+    #chart:fullscreen .fin-readout, #chart:-webkit-full-screen .fin-readout, #chart.chart-fs .fin-readout { margin: 3px 76px 4px 0; padding: 0 2px 4px; }
     #chart:fullscreen, #chart:-webkit-full-screen, #chart.chart-fs { padding-top: calc(env(safe-area-inset-top, 0px) + 0.45rem); padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.45rem); }
     /* Full-screen backtest (2026-11-19): the same title-row pill
        as the chart's takes the WHOLE backtest block full screen,
