@@ -296,6 +296,31 @@
         @media (prefers-reduced-motion: reduce) {
             .game-body { transition: none; }
         }
+        /* Seamless games (2026-11-25): a game is never played in the
+           page any more — its body is either hidden, warming, or
+           inside the full-viewport stage layer. Warming lays the
+           body out at full viewport size, invisible, so the engine
+           starts and paints its first frames while the visitor is
+           still browsing the doors; opening then only reveals a
+           scene that is already running. The open/close motion is a
+           clip-path window that grows out of the tapped door's exact
+           rectangle to the whole viewport (and shrinks back into
+           it): the stage itself is full-size from the first frame,
+           so nothing inside it ever resizes or reframes. The motion
+           is a FLIP transform — the assembled full-viewport section
+           is mapped into the door's rectangle and eased to identity
+           — so what the visitor sees is the door itself growing
+           into the stage, compositor-only, no re-layout. */
+        .game-body.game-warm {
+            position: fixed; inset: 0; z-index: 1400;
+            visibility: hidden; pointer-events: none;
+        }
+        /* While a game plays, its section is a fixed layer; this
+           empty holder keeps the section's exact cell in the grid,
+           so the doors behind the stage never move a pixel. */
+        .game-slot { min-width: 0; }
+        .game-flying { border-radius: 14px; overflow: hidden; will-change: transform;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, .45); }
         /* One size per heading level (2026-11-20 heading standard):
            the narrow-width shrink ladder that used to stand here is
            gone — the game headings keep the shared category size
@@ -355,7 +380,25 @@
         .lr-section:fullscreen .game-card > h2, .lr-section.lr-section-fs .game-card > h2 { position: static; flex: 0 0 auto; }
         .lr-section:fullscreen .game-card > p, .lr-section.lr-section-fs .game-card > p { display: none; }
         .lr-section:fullscreen .game-body, .lr-section.lr-section-fs .game-body { flex: 1 1 auto; min-height: 0; }
-        .lr-section:fullscreen .lr-howto, .lr-section.lr-section-fs .lr-howto { display: none; }
+        /* How to play rides inside the game now (2026-11-25): the
+           page is doors only, so the rules live behind the toolbar's
+           How to play button as a glass sheet over the stage, with
+           its own Close — the same words, reachable while playing. */
+        .lr-section:fullscreen .lr-howto, .lr-section.lr-section-fs .lr-howto {
+            display: none; position: fixed; z-index: 1700;
+            top: 64px; left: 50%; transform: translateX(-50%);
+            width: min(620px, calc(100vw - 24px));
+            max-height: calc(100vh - 130px); max-height: calc(100dvh - 130px);
+            overflow-y: auto; margin: 0; padding: 16px 18px;
+            background: var(--card-bg);
+            background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+            border: 1px solid var(--border-color); border-radius: 18px;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(22px) saturate(1.25); -webkit-backdrop-filter: blur(22px) saturate(1.25);
+            text-align: left;
+        }
+        .lr-section:fullscreen .lr-howto.open, .lr-section.lr-section-fs .lr-howto.open { display: block; }
+        .lr-howto-close { float: right; margin: 0 0 8px 12px; }
         .lr-section:fullscreen .lr-stage, .lr-section.lr-section-fs .lr-stage { height: 100%; }
         html.lr-fs-lock { overflow: hidden; }
         /* Universe stage: the same one-screen frame as Line Rider — the
@@ -652,21 +695,38 @@
         html.tk-fs-lock { overflow: hidden; }
         .tk-keys { color: var(--subtext-color); font-size: 0.85rem; line-height: 1.55; margin: 10px 0 0; }
         .uv-panel {
-            position: absolute; top: 54px; left: 10px; right: 10px; z-index: 5;
+            position: absolute; top: 54px; left: 10px; z-index: 5;
+            width: min(500px, calc(100% - 20px));
             max-height: calc(100% - 150px); overflow-y: auto;
-            padding: 14px; border-radius: 14px;
-            background: var(--card-bg); border: 1px solid var(--border-color);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            padding: 12px 14px 14px; border-radius: 18px;
+            background: var(--card-bg);
+            background: color-mix(in srgb, var(--card-bg) 76%, transparent);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(22px) saturate(1.25); -webkit-backdrop-filter: blur(22px) saturate(1.25);
             color: var(--text-color);
         }
         .uv-panel[hidden] { display: none; }
         .uv-panel-bar {
-            position: sticky; top: -14px; z-index: 2;
+            position: sticky; top: -12px; z-index: 2;
             display: flex; justify-content: flex-end;
-            margin: -14px -14px 10px; padding: 10px 14px 8px;
-            background: var(--card-bg); border-radius: 14px 14px 0 0;
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            margin: -12px -14px 10px; padding: 10px 14px 8px;
+            background: var(--card-bg);
+            background: color-mix(in srgb, var(--card-bg) 82%, transparent);
+            border-radius: 18px 18px 0 0;
+            backdrop-filter: blur(22px) saturate(1.25); -webkit-backdrop-filter: blur(22px) saturate(1.25);
         }
+        /* The provenance essay lives behind this one expander,
+           closed by default: the panel is controls only until the
+           visitor asks for the story, and even open the essay gets
+           its own bounded, scrolling layer — never the screen. */
+        .uv-about-btn { margin-top: 10px; }
+        .uv-about-wrap {
+            max-height: 32vh; overflow-y: auto; margin-top: 8px;
+            padding-right: 4px;
+        }
+        .uv-about-wrap[hidden] { display: none; }
+        .uv-about-wrap .uv-about { margin-top: 0; }
         .uv-search-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
         .uv-search-row label { font-weight: 600; font-size: 0.92rem; }
         .uv-search {
@@ -1198,11 +1258,11 @@
     <section class="lr-section" aria-labelledby="line-rider-heading">
         <div class="game-card">
         <span class="game-card-photo" data-card-open="linerider" aria-hidden="true"><img src="game-peek-linerider.webp" alt="" width="1156" height="546" loading="lazy" decoding="async"></span>
-        <h2 id="line-rider-heading"><button type="button" class="game-toggle" data-game-btn="linerider" aria-expanded="true" aria-controls="game-body-linerider"><span class="game-arrow" aria-hidden="true">▼</span> Line Rider</button><button type="button" class="lr-btn lr-fs-btn lr-fs-head" aria-label="Full screen" aria-pressed="false"><svg class="lr-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="lr-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="lr-fs-label">Full screen</span></button></h2>
+        <h2 id="line-rider-heading"><button type="button" class="game-toggle" data-game-btn="linerider" aria-expanded="false" aria-controls="game-body-linerider"><span class="game-arrow" aria-hidden="true">▶</span> Line Rider</button><button type="button" class="lr-btn lr-fs-btn lr-fs-head" aria-label="Full screen" aria-pressed="false"><svg class="lr-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="lr-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg><span class="lr-fs-label">Full screen</span></button></h2>
         <p data-card-open="linerider">Draw a track, then send the rider down it. Downhill he picks up speed, off a ramp he flies — steer him in the air with the arrow keys and land him back on the track. If his head hits a line, he crashes. How far can you keep him going?</p>
         </div>
 
-        <div class="game-body" id="game-body-linerider" role="region" aria-labelledby="line-rider-heading"><div class="game-body-inner">
+        <div class="game-body game-collapsed" id="game-body-linerider" role="region" aria-labelledby="line-rider-heading" hidden><div class="game-body-inner">
         <div class="lr-stage">
         <div class="lr-hud" aria-live="polite">
             <div class="lr-stats">
@@ -1219,6 +1279,7 @@
             <button class="lr-btn" id="lr-speed" type="button" title="Slow the ride down to watch a landing — or a crash — up close">Speed 1×</button>
             <button class="lr-btn active" id="lr-tool-draw" type="button">✏️ Draw</button>
             <button class="lr-btn lr-tools-btn" id="lr-tools-toggle" type="button" aria-expanded="false" aria-controls="lr-tools-panel">🧰 Tools <span class="lr-tools-arrow" aria-hidden="true">▾</span></button>
+            <button class="lr-btn" id="lr-howto-toggle" type="button" aria-expanded="false" aria-controls="lr-howto">How to play</button>
         </div>
 
         <div class="lr-toolbar lr-tools-panel" id="lr-tools-panel" role="toolbar" data-grab-scroll aria-label="Line Rider editing tools" hidden>
@@ -1272,7 +1333,8 @@
         });
     })();
     </script>
-    <section class="lr-howto" aria-labelledby="how-to-play-heading">
+    <section class="lr-howto" id="lr-howto" aria-labelledby="how-to-play-heading">
+        <button class="lr-btn lr-howto-close" id="lr-howto-close" type="button">Close</button>
         <h2 id="how-to-play-heading">How to play</h2>
         <ol>
             <li><strong>Draw a track</strong> — drag on the canvas with your mouse or finger. Downhill slopes build speed; ramps launch him into the air. The 📏 Straight tool draws one straight line between two points — press, drag, let go.</li>
@@ -1283,18 +1345,40 @@
             <li><strong>Tools</strong> — Erase wipes lines, Clear all starts fresh, Default track brings back the starter track, Restart (R) sends him back to the flag. Drew a bad line? Undo (Ctrl+Z) takes back the last stroke, Redo (Ctrl+Shift+Z) puts it back, and Backspace deletes the last line. The 🚩 Flag tool plants a checkpoint on the track — Restart then starts him there instead. Speed slows the ride to ½× or ¼× so you can watch a landing up close. Your best distance is saved on your device.</li>
         </ol>
     </section>
+    <script>
+    // Line Rider How to play (2026-11-25): the rules sheet that used
+    // to sit under the game in the page now opens over the stage from
+    // the toolbar button beside Tools, and closes from its own Close
+    // button — the toggle never moves, and closing returns the player
+    // to exactly the ride they left. (This script stands after the
+    // sheet's markup: it wires the real elements, not future ones.)
+    (function () {
+        var btn = document.getElementById('lr-howto-toggle');
+        var sheet = document.getElementById('lr-howto');
+        var close = document.getElementById('lr-howto-close');
+        if (!btn || !sheet) return;
+        function setOpen(on) {
+            sheet.classList.toggle('open', on);
+            btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+        }
+        btn.addEventListener('click', function () {
+            setOpen(!sheet.classList.contains('open'));
+        });
+        if (close) close.addEventListener('click', function () { setOpen(false); });
+    })();
+    </script>
         </div></div>
     </section>
     <script>
-    // Games shell (part 1 of 2): a fresh arrival opens with all games
-    // collapsed (Johnny, 2026-11-23), but a refresh keeps your spot:
-    // when this load is a reload and a game was open, that game is
-    // the open game here. Line Rider — the one game whose markup
-    // ships open — is collapsed below, before the rest of the page
-    // parses, before any visitor can see it flash open, unless Line
-    // Rider itself is the game being restored. Part 2, after the
-    // Universe section, wires the toggles and re-opens the restored
-    // game. The open game is tracked in sessionStorage only, so it
+    // Games shell (part 1 of 2): a fresh arrival opens with all
+    // games closed (Johnny, 2026-11-23), but a refresh keeps your
+    // spot: when this load is a reload and a game was open, that
+    // game is the open game here. All four games' markup ships
+    // closed (2026-11-25 — the page is doors only now), so this
+    // part only records the restore choice before the page paints;
+    // part 2, after the Universe section, wires the stage manager
+    // and brings a restored game straight back as the stage. The
+    // open game is tracked in sessionStorage only, so it
     // lives for this tab and this visit alone; between visits
     // nothing is remembered, and the old 'games-open-v1' key is
     // removed, so a stale stored value can never take effect again.
@@ -1435,7 +1519,10 @@
                     <button type="button" class="uv-btn uv-mouse-btn">Mouse flight</button>
                     <button type="button" class="uv-btn uv-reset-btn">Back to Earth</button>
                     <p class="uv-keys">Keys: W A S D to fly, R and F to rise and sink, scroll to set speed. Drag to look around — the sky follows your finger, and a flick keeps it turning; tap a name to fly to it. On a phone, hold the Fly button and drag.</p>
+                    <button type="button" class="uv-btn uv-about-btn" aria-expanded="false" aria-controls="uv-about-wrap">About this universe <span class="uv-about-arrow" aria-hidden="true">▾</span></button>
+                    <div class="uv-about-wrap" id="uv-about-wrap" hidden>
                     <p class="uv-about">Every position is real: 99,692 stars from the HYG database (Hipparcos, Yale Bright Star and Gliese catalogs) and 10,124 galaxies from OpenNGC, built on NASA’s Extragalactic Database — both CC BY-SA 4.0. Named galaxies use published distances; the deep cloud’s distances come from redshift, so they are approximate. Stars and galaxies are drawn far larger than life — at true size they would be invisible points — and flight is faster than light. The speed readout says by how much. Sizes follow a logarithm — each symbol grows with the star's real brightness or the galaxy's real width, squeezed until everything in the catalog can be seen — while every position and distance stays exactly as measured. The sky's soft glow is summed from the catalog itself — where mapped stars crowd together, their light is added into a faint haze, so the texture you see is the catalog's own density, and no light appears where no stars are mapped. The brightest stars shimmer slightly, and left alone the view drifts very slowly. The Sun and planets hang at their true directions and relative distances for 18 November 2026, but their sizes are enlarged to be seen — the planets 1,000×, the Sun 40×; their sizes relative to each other stay true. Surfaces are published mission and reference maps; Saturn's rings are drawn from the published ring profile, not a photograph. Earth's spin phase is not shown. The Moon hangs beside Earth: her direction from Earth and her size against Earth are true for the same day, but her distance is compressed — she stands six Earth radii out, so Earth's enlarged globe does not swallow her. Earth herself is layered like the real planet — a Blue Marble day map, city lights across the night side, a separate cloud layer drifting slowly overhead, sunlight glinting off the oceans, and terrain relief shading — and she sharpens as you approach: a good map at once, the heavy maps streamed in on approach. The bright nebulae are real places from the same OpenNGC catalog — their directions and sizes are the catalog's, their distances are published values — drawn as soft coloured glows: pink-red where young stars light the gas, teal for planetary nebulae, violet for supernova remnants, blue for starlight reflected off dust; the wisps inside each glow are a drawing convention, like the galaxies' spiral arms. Bright objects bloom — light spilling around the brightest stars, nebulae and galaxy cores — the way bright things bloom to an eye; nothing blooms that is not bright in the data. Twelve of the best-known galaxies — Andromeda, the Whirlpool, the Sombrero and nine more — resolve into real photographs as you close in (NASA, ESA, ESO and NOIRLab press images, credited on the credits page), fitted to their catalogued sizes and tilts; every other galaxy keeps its drawn form. Near home the sky itself is a photograph — ESO's panorama of the whole night sky as seen from Earth — which fades as you leave the Sun's neighbourhood, where the catalog's own summed light takes over again. And flying fast stretches each star along its own motion, spreading its light over the path it crosses — nothing in this universe dims when you speed up.</p>
+                    </div>
                 </div>
                 <div class="uv-loading">
                     <div class="uv-spinner" aria-hidden="true"></div>
@@ -5001,20 +5088,38 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
     </script>
 
     <script>
-    // Games shell (part 2 of 2): the toggles. One game open at a time;
-    // tapping the open game's heading closes it. The open game is
-    // written to sessionStorage as it changes, so a refresh restores
-    // it (part 1 reads the key on reloads only); a fresh arrival
-    // starts with all games closed.
-    // The Universe engine and its data, and the Thumb Drive
-    // engine, start only on that game's first expand. Line Rider's own code is untouched —
-    // if it loaded collapsed, its Fit button is pressed once on its first
-    // expand so its view is framed exactly as if it had loaded open.
+    // Games shell (part 2 of 2): the stage manager (2026-11-25).
+    // The page is a gallery of doors and nothing else: no game is
+    // ever played inside the page. Tapping a door takes its game to
+    // the full-viewport stage in ONE motion — the section's own
+    // full-screen layer (the *-section-fs fixed layer the per-game
+    // full-screen buttons have always used), the stage assembled
+    // full-size underneath and then presented through a FLIP
+    // transform that maps it into the door's exact rectangle and
+    // eases it to full size — the door itself grows into the stage,
+    // and nothing resizes, reframes or loads in view. Exit (the
+    // title-row button, the heading, or Esc) runs the motion back
+    // into the door and restores the exact scroll
+    // position the visitor left. One game at a time; leaving a
+    // game pauses its engine but keeps it warm, so switching back
+    // is instant with its state intact. Engines also warm up as
+    // their door approaches the viewport (see warm() below), so a
+    // first tap usually reveals a scene already running. The open
+    // game is written to sessionStorage as it changes, so a refresh
+    // restores it (part 1 reads the key on reloads only); a fresh
+    // arrival starts with all games closed.
     (function () {
-        var open = window.__gamesOpen || 'linerider';
-        if (open === 'none') open = null;
+        var restore = window.__gamesOpen;
+        if (restore === 'none') restore = null;
+        var open = null;
         var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-        var gens = { linerider: 0, universe: 0, thumbkart: 0, frequency: 0 };
+        var NAMES = ['linerider', 'universe', 'thumbkart', 'frequency'];
+        var FS_CLASS = { linerider: 'lr-section-fs', universe: 'uv-section-fs', thumbkart: 'tk-section-fs', frequency: 'fg-section-fs' };
+        var LOCK_CLASS = { linerider: 'lr-fs-lock', universe: 'uv-fs-lock', thumbkart: 'tk-fs-lock', frequency: 'fg-fs-lock' };
+        var FS_ON = { linerider: 'lr-fs-on', universe: 'uv-fs-on', thumbkart: 'tk-fs-on', frequency: 'fg-fs-on' };
+        var FS_BTN = { linerider: '.lr-fs-btn', universe: '.uv-fs-btn', thumbkart: '.tk-fs-btn', frequency: '.fg-fs-btn' };
+        var sections = {}, fsBtns = {}, slots = {};
+        var savedScroll = 0, doorRect = null, animating = false;
         var bodies = {
             linerider: document.getElementById('game-body-linerider'),
             universe: document.getElementById('game-body-universe'),
@@ -5027,6 +5132,11 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             thumbkart: document.querySelector('[data-game-btn="thumbkart"]'),
             frequency: document.querySelector('[data-game-btn="frequency"]')
         };
+        NAMES.forEach(function (name) {
+            var sec = btns[name] ? btns[name].closest('section') : null;
+            sections[name] = sec;
+            fsBtns[name] = sec ? sec.querySelector(FS_BTN[name]) : null;
+        });
         var uvStarted = false, uvCtrl = null, lrFitDone = false;
         var tkStarted = false, tkCtrl = null;
         var fgStarted = false, fgCtrl = null;
@@ -5069,34 +5179,181 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             }
         }
         function fixLrFit() {
-            if (lrFitDone || !window.__gamesLrCollapsed) return;
+            if (lrFitDone) return;
             lrFitDone = true;
             setTimeout(function () {
                 var b = document.getElementById('lr-zoom-fit');
                 if (b) b.click();
             }, 150);
         }
-        function setOpen(name, isOpen, instant) {
-            var body = bodies[name], btn = btns[name];
-            if (!body || !btn) return;
-            var gen = ++gens[name];
-            btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-            setArrow(btn, isOpen);
-            if (isOpen) {
-                body.hidden = false;
-                void body.offsetHeight;
-                body.classList.remove('game-collapsed');
-                if (name === 'universe') startUniverse();
-                if (name === 'thumbkart') startKart();
-                if (name === 'frequency') startFreq();
-                if (name === 'linerider') fixLrFit();
-            } else {
+        function engineStart(name) {
+            if (name === 'universe') startUniverse();
+            if (name === 'thumbkart') startKart();
+            if (name === 'frequency') startFreq();
+        }
+        function engineSetActive(name, on) {
+            if (name === 'universe' && uvCtrl) uvCtrl.setActive(on);
+            if (name === 'thumbkart' && tkCtrl) tkCtrl.setActive(on);
+            if (name === 'frequency' && fgCtrl) fgCtrl.setActive(on);
+        }
+        function setFsBtn(name, on) {
+            var b = fsBtns[name];
+            if (!b) return;
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+            b.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
+            b.classList.toggle(FS_ON[name], on);
+            var label = b.querySelector('span');
+            if (label) label.textContent = on ? 'Exit' : 'Full screen';
+        }
+        // The FLIP mapping: with transform-origin at the section's
+        // own top-left (which sits at the viewport's top-left in
+        // the full-screen layer), this transform presents the whole
+        // full-size stage exactly inside the door's rectangle.
+        function growFor(rect) {
+            var vw = window.innerWidth, vh = window.innerHeight;
+            if (!vw || !vh) return '';
+            return 'translate(' + Math.round(rect.left) + 'px, ' + Math.round(rect.top) + 'px) '
+                + 'scale(' + (rect.width / vw).toFixed(5) + ', ' + (rect.height / vh).toFixed(5) + ')';
+        }
+        function openGame(name, instant) {
+            if (open === name || animating) return;
+            var section = sections[name], body = bodies[name], btn = btns[name];
+            if (!section || !body || !btn) return;
+            if (open) closeGame(open, true);
+            open = name;
+            savedScroll = window.scrollY || window.pageYOffset || 0;
+            doorRect = section.getBoundingClientRect();
+            // A holder takes the door's cell in the same pass, so
+            // the grid behind the stage is pixel-identical all the
+            // way through the visit.
+            var slot = document.createElement('div');
+            slot.className = 'game-slot';
+            slot.setAttribute('aria-hidden', 'true');
+            slot.style.height = doorRect.height + 'px';
+            section.parentNode.insertBefore(slot, section);
+            slots[name] = slot;
+            // The stage is assembled at full size BEFORE anything is
+            // revealed — body unhidden, full-screen layer on, engine
+            // live — all in one synchronous pass, so the first frame
+            // the visitor can see is the finished stage, and the
+            // clip window only decides how much of it shows.
+            body.hidden = false;
+            body.classList.remove('game-collapsed', 'game-warm');
+            section.classList.add(FS_CLASS[name]);
+            document.documentElement.classList.add(LOCK_CLASS[name]);
+            btn.setAttribute('aria-expanded', 'true');
+            setArrow(btn, true);
+            setFsBtn(name, true);
+            engineStart(name);
+            engineSetActive(name, true);
+            if (name === 'linerider') fixLrFit();
+            saveSession();
+            if (instant || reduce) return;
+            animating = true;
+            section.style.transformOrigin = '0 0';
+            section.style.transition = 'none';
+            section.style.transform = growFor(doorRect);
+            section.classList.add('game-flying');
+            void section.offsetWidth;
+            section.style.transition = 'transform 420ms var(--ease-inout)';
+            section.style.transform = 'translate(0px, 0px) scale(1, 1)';
+            setTimeout(function () {
+                section.classList.remove('game-flying');
+                section.style.transition = '';
+                section.style.transform = '';
+                section.style.transformOrigin = '';
+                animating = false;
+            }, 480);
+        }
+        function closeGame(name, instant) {
+            if (open !== name) return;
+            var section = sections[name], body = bodies[name], btn = btns[name];
+            if (!section || !body || !btn) return;
+            open = null;
+            engineSetActive(name, false);
+            saveSession();
+            if (name === 'linerider') {
+                var ht = document.querySelector('.lr-howto.open');
+                if (ht) ht.classList.remove('open');
+                var hb = document.getElementById('lr-howto-toggle');
+                if (hb) hb.setAttribute('aria-expanded', 'false');
+            }
+            function finish() {
+                section.classList.remove('game-flying');
+                section.style.transition = '';
+                section.style.transform = '';
+                section.style.transformOrigin = '';
+                section.classList.remove(FS_CLASS[name]);
+                if (slots[name]) { slots[name].remove(); slots[name] = null; }
+                document.documentElement.classList.remove(LOCK_CLASS[name]);
                 body.classList.add('game-collapsed');
-                if (name === 'universe' && uvCtrl) uvCtrl.setActive(false);
-                if (name === 'thumbkart' && tkCtrl) tkCtrl.setActive(false);
-                if (name === 'frequency' && fgCtrl) fgCtrl.setActive(false);
-                if (instant || reduce) body.hidden = true;
-                else setTimeout(function () { if (gens[name] === gen) body.hidden = true; }, 480);
+                body.hidden = true;
+                btn.setAttribute('aria-expanded', 'false');
+                setArrow(btn, false);
+                setFsBtn(name, false);
+                animating = false;
+                // Δ = 0: the page returns to the exact scroll
+                // position the visitor left — the layout never
+                // changed underneath (the stage lived in a fixed
+                // layer), so this is a confirmation, not a repair.
+                if ((window.scrollY || window.pageYOffset || 0) !== savedScroll) {
+                    window.scrollTo(0, savedScroll);
+                }
+            }
+            if (instant || reduce || !doorRect) { finish(); return; }
+            animating = true;
+            section.style.transformOrigin = '0 0';
+            section.style.transition = 'none';
+            section.style.transform = 'translate(0px, 0px) scale(1, 1)';
+            section.classList.add('game-flying');
+            void section.offsetWidth;
+            section.style.transition = 'transform 420ms var(--ease-inout)';
+            // Land back in the door's own cell — the holder kept
+            // its place, and the page never scrolled underneath.
+            var land = slots[name] ? slots[name].getBoundingClientRect() : doorRect;
+            section.style.transform = growFor(land);
+            setTimeout(finish, 480);
+        }
+        /* Warming: as a door approaches the viewport its engine
+           starts inside an invisible full-size layout of its body,
+           so by the time the door is tapped the scene is painted
+           and only paused. A visitor who never opens the game pays
+           nothing visible — no layout moves, no hitch in the
+           scroll: the warm body is a fixed, invisible layer. */
+        var warmed = {};
+        function warm(name) {
+            if (warmed[name] || open === name) return;
+            var body = bodies[name];
+            if (!body) return;
+            warmed[name] = true;
+            // Line Rider needs no warm body: its engine is live from
+            // parse, and its stage relay re-sizes the canvas the
+            // moment the stage takes its full size on open — a
+            // full-size idle redraw loop behind the doors would be
+            // pure cost.
+            if (name === 'linerider') return;
+            body.hidden = false;
+            body.classList.remove('game-collapsed');
+            body.classList.add('game-warm');
+            engineStart(name);
+            if (name === 'thumbkart' || name === 'frequency') {
+                setTimeout(function () { if (open !== name) engineSetActive(name, false); }, 1200);
+            }
+            if (name === 'universe') {
+                // The data build runs whether or not the engine is
+                // drawing; once it reports ready, run the loop just
+                // long enough to paint real frames into the canvas,
+                // then pause — a warmed Universe costs the browser
+                // nothing while the visitor keeps browsing.
+                var tries = 0;
+                var iv = setInterval(function () {
+                    tries++;
+                    if (open === 'universe' || tries > 120) { clearInterval(iv); return; }
+                    if (!uvCtrl || !uvCtrl.getState || !uvCtrl.getState().ready) return;
+                    clearInterval(iv);
+                    uvCtrl.setActive(true);
+                    setTimeout(function () { if (open !== 'universe') uvCtrl.setActive(false); }, 350);
+                }, 250);
             }
         }
         var SESSION_KEY = 'games-open-session-v1';
@@ -5107,13 +5364,9 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             } catch (e) { /* storage blocked */ }
         }
         function toggle(name) {
-            if (open === name) { setOpen(name, false); open = null; }
-            else {
-                if (open) setOpen(open, false);
-                setOpen(name, true);
-                open = name;
-            }
-            saveSession();
+            if (animating) { setTimeout(function () { toggle(name); }, 500); return; }
+            if (open === name) closeGame(name);
+            else openGame(name);
         }
         Object.keys(btns).forEach(function (name) {
             if (btns[name]) btns[name].addEventListener('click', function () { toggle(name); });
@@ -5128,16 +5381,93 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         var tkScoreBtnEl = document.getElementById('tk-scoreBtn');
         if (tkScoreBtnEl) tkScoreBtnEl.addEventListener('click', function () {
             if (open === 'thumbkart' && tkStarted) return;
-            if (open !== 'thumbkart') toggle('thumbkart');
+            if (open !== 'thumbkart') openGame('thumbkart');
             if (window.__tk && window.__tk.openScores) window.__tk.openScores();
         });
-        /* Refresh restore: part 1 set the open game from
-           sessionStorage on a reload; re-open it now that the
-           toggles are wired. Line Rider needs no call — its markup
-           ships open and part 1 left it that way. The browser's own
-           scroll restoration puts the visitor back where they were,
-           with the game open around that spot. */
-        if (open && open !== 'linerider') setOpen(open, true, true);
+        /* The title-row full-screen buttons are the stage's exit
+           now: the shell owns them (capture phase, so the per-game
+           handlers that used to expand-then-fullscreen never fire).
+           In the stage the button closes the game back into its
+           door; on the rare path that reaches one while its game is
+           closed, it opens the game instead. */
+        document.addEventListener('click', function (e) {
+            var b = e.target && e.target.closest ? e.target.closest('.lr-fs-btn, .uv-fs-btn, .tk-fs-btn, .fg-fs-btn') : null;
+            if (!b) return;
+            e.preventDefault();
+            e.stopPropagation();
+            var name = b.classList.contains('lr-fs-btn') ? 'linerider'
+                : b.classList.contains('uv-fs-btn') ? 'universe'
+                : b.classList.contains('tk-fs-btn') ? 'thumbkart' : 'frequency';
+            toggle(name);
+        }, true);
+        /* Esc leaves the game — unless a glass dialog inside it is
+           open, in which case Esc closes the dialog first. */
+        document.addEventListener('keydown', function (e) {
+            if (!open || (e.key !== 'Escape' && e.key !== 'Esc')) return;
+            var fgShade = document.getElementById('fg-infoShade');
+            if (fgShade && !fgShade.classList.contains('fg-hidden')) {
+                var fc = document.getElementById('fg-infoClose');
+                if (fc) { fc.click(); return; }
+            }
+            var tkShade = document.getElementById('tk-scoreShade');
+            if (tkShade && !tkShade.classList.contains('tk-hidden')) {
+                var tc = document.getElementById('tk-scoreClose');
+                if (tc) { tc.click(); return; }
+            }
+            closeGame(open);
+        });
+        /* Warm every engine as its door approaches; a pointerdown
+           on a door warms it too, so even a fast first tap gets a
+           head start on the tap's own click. Threads lives on its
+           own page — warm the hop instead, by prefetching it. */
+        if ('IntersectionObserver' in window) {
+            var io = new IntersectionObserver(function (entries) {
+                entries.forEach(function (en) {
+                    if (!en.isIntersecting) return;
+                    io.unobserve(en.target);
+                    var n = en.target.getAttribute('data-warm-name');
+                    if (n === 'threads') {
+                        var l = document.createElement('link');
+                        l.rel = 'prefetch'; l.href = 'ar-rhythm.html';
+                        document.head.appendChild(l);
+                    } else if (n) warm(n);
+                });
+            }, { rootMargin: '600px 0px 600px 0px' });
+            NAMES.forEach(function (name) {
+                if (sections[name]) { sections[name].setAttribute('data-warm-name', name); io.observe(sections[name]); }
+            });
+            var thr = document.querySelector('.thr-card-section');
+            if (thr) { thr.setAttribute('data-warm-name', 'threads'); io.observe(thr); }
+        }
+        document.addEventListener('pointerdown', function (e) {
+            var hit = e.target && e.target.closest ? e.target.closest('[data-game-btn], [data-card-open]') : null;
+            if (!hit) return;
+            var n = hit.getAttribute('data-game-btn') || hit.getAttribute('data-card-open');
+            if (n && bodies[n]) warm(n);
+        }, true);
+        /* Universe: the About this universe expander inside More
+           controls — the provenance essay's own layer, closed by
+           default, the panel stays controls-sized either way. */
+        var uvAboutBtn = document.querySelector('.uv-about-btn');
+        var uvAboutWrap = document.getElementById('uv-about-wrap');
+        if (uvAboutBtn && uvAboutWrap) uvAboutBtn.addEventListener('click', function () {
+            var show = uvAboutWrap.hidden;
+            uvAboutWrap.hidden = !show;
+            uvAboutBtn.setAttribute('aria-expanded', show ? 'true' : 'false');
+            var ar = uvAboutBtn.querySelector('.uv-about-arrow');
+            if (ar) ar.textContent = show ? '▴' : '▾';
+        });
+        /* Refresh restore: part 1 read the open game from
+           sessionStorage on a reload; bring it straight back as the
+           stage, with no opening motion. The browser's own scroll
+           restoration settles after load, so the exit position is
+           re-noted then — closing later still lands at Δ = 0. */
+        if (restore && bodies[restore]) {
+            openGame(restore, true);
+            window.addEventListener('load', function () {
+                if (open === restore) savedScroll = window.scrollY || window.pageYOffset || 0;
+            });
+        }
     })();
     </script>
 
@@ -6832,20 +7162,14 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
 </script>
 <script>
     // Games grid: a closed card is one tap target (anywhere on its
-    // face forwards to the game's title toggle, the shell's only path
-    // in or out), and an open/close round-trip returns the reader to
-    // the exact spot they left: the section's viewport position is
-    // noted before the toggle fires and restored once the shell's
-    // height animation has settled, so closing a game lands back on
-    // its card in the grid, not wherever the reflow left the page.
+    // face forwards to the game's title toggle, the shell's only
+    // path in or out). The scroll-settle passes that used to live
+    // here are gone with the in-page stage they served: opening a
+    // game no longer moves the page at all, and the shell restores
+    // the exact scroll position itself when the game closes.
     (function () {
         var grid = document.getElementById('gamesGrid');
         if (!grid) return;
-        var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-        function sectionFor(name) {
-            var btn = document.querySelector('[data-game-btn="' + name + '"]');
-            return btn ? btn.closest('section') : null;
-        }
         grid.addEventListener('click', function (e) {
             if (e.target.closest('button, a, input, select, textarea, canvas, .game-body, [data-card-open]')) return;
             var card = e.target.closest('.game-card');
@@ -6853,28 +7177,6 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             var btn = card.querySelector('.game-toggle');
             if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click();
         });
-        document.addEventListener('click', function (e) {
-            var hit = e.target.closest('[data-game-btn], [data-card-open]');
-            if (!hit) return;
-            var name = hit.getAttribute('data-game-btn') || hit.getAttribute('data-card-open');
-            var sec = sectionFor(name);
-            var btn = document.querySelector('[data-game-btn="' + name + '"]');
-            if (!sec || !btn) return;
-            var wasOpen = btn.getAttribute('aria-expanded') === 'true';
-            var top = sec.getBoundingClientRect().top;
-            // Settle passes: each re-measures against the noted
-            // position and corrects only what is still off, so a late
-            // reflow (a starting engine, a wrapping HUD) cannot leave
-            // the reader stranded away from the card they pressed.
-            var delays = reduce ? [60] : [540, 950, 1500];
-            delays.forEach(function (delay) {
-                setTimeout(function () {
-                    var d = sec.getBoundingClientRect().top - top;
-                    if (Math.abs(d) > 1) window.scrollTo(0, window.scrollY + d);
-                }, delay);
-            });
-            void wasOpen;
-        }, true);
     })();
 </script>
 <button type="button" class="back-to-top" id="backToTop" aria-label="Back to top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 15l7-7 7 7"/></svg></button>
