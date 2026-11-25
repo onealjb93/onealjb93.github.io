@@ -87,6 +87,25 @@ EPS timeline — at daily granularity: each day's close divided by
 the TTM EPS knowable that day. Benchmarks get none; TSM stays
 excluded by the same rule.
 
+Authoritative fill and date-completeness guard (added 2026-11-25):
+Johnny's rule is that the site's data must match what a visitor
+sees on Yahoo / Schwab / Robinhood, with the exchange's official
+history outranking an aggregator feed, and completeness meaning
+every trading day present — a date set, not a bar count. The
+count guard could not see a hole (a shrunken fetch ties the count
+again as soon as the newest day lands), and on 2026-11-25 it very
+nearly shipped one: Yahoo nulled SNDK's first three split-adjusted
+trading days after its 8-for-1 split (2026-11-20, 11-23, 11-24 —
+all real sessions in Nasdaq's official history) and only the
+count dipping for a day caught it. So now: (1) every date the
+feed timestamps but returns no bar for is filled from the
+exchange's official history (Nasdaq for US-listed names, Coinbase
+for BTC) before anything is judged; (2) a date guard beside the
+count guard fails the run if any previously published date
+vanishes, if any expected trading day inside the last 45 days is
+missing from a series, or if a weekly series skips a week. A day
+that cannot be filled fails loudly — the previous file stands.
+
 Indicator signals (added 2026-11-22): each daily series also gains
 "buy" / "sell" arrays of ISO dates — Johnny's indicator, computed
 from the daily bars, the P/E array and the VIX series in this same
@@ -471,7 +490,13 @@ def years_ago(d, years):
 
 
 def fetch_yahoo_daily(symbol, period1, period2):
-    """Daily OHLCV bars: list of [iso_date, o, h, l, c, v], oldest first.
+    """Daily OHLCV bars: list of [iso_date, o, h, l, c, v], oldest first."""
+    bars, _holes = fetch_yahoo_daily_holed(symbol, period1, period2)
+    return bars
+
+
+def fetch_yahoo_daily_holed(symbol, period1, period2):
+    """Daily bars plus the dates Yahoo nulled: (bars, hole_dates).
 
     Yahoo timestamps a daily bar on its trading day (midnight or the
     open in exchange time — both land on the same UTC date for the
@@ -479,6 +504,16 @@ def fetch_yahoo_daily(symbol, period1, period2):
     date needs no Friday mapping. Bars with no close are skipped;
     a missing open/high/low falls back to that bar's close; a
     missing volume is 0 — the same conventions as the weekly fetch.
+
+    A timestamp whose close came back null (or non-positive) is
+    ALSO returned in hole_dates: the feed is saying "a row exists
+    for this day but carries no data". That is the SNDK failure of
+    2026-11-25 — Yahoo nulled the first three split-adjusted
+    trading days after SanDisk's 8-for-1 split while every other
+    series traded normally. The caller fills each hole from the
+    exchange's official history (fill_daily_holes below) before
+    the guards run; a still-forming current day lands here too
+    and is filtered out by the caller's through-date.
     """
     last_exc = None
     for host in HOSTS:
@@ -508,20 +543,181 @@ def fetch_yahoo_daily(symbol, period1, period2):
         closes = quote.get("close") or []
         vols = quote.get("volume") or []
         by_date = {}
+        holes = set()
         for i, ts in enumerate(stamps):
+            d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
             close = closes[i] if i < len(closes) else None
             if close is None or close <= 0:
-                continue  # no close, no bar (a still-forming day lands here on some symbols)
+                holes.add(d)  # a row exists but carries no bar
+                continue
             def num(arr):
                 v = arr[i] if i < len(arr) else None
                 return float(v) if v is not None else float(close)
-            d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
             vol = vols[i] if i < len(vols) and vols[i] is not None else 0
             by_date[d] = [d, round(num(opens), 4), round(num(highs), 4),
                           round(num(lows), 4), round(float(close), 4),
                           int(vol)]
-        return [by_date[k] for k in sorted(by_date)]
+        return [by_date[k] for k in sorted(by_date)], sorted(holes)
     raise last_exc if last_exc else ValueError("no host answered")
+
+
+# --- Authoritative fill (2026-11-25) ---------------------------------
+# Johnny's rule: the site's market data must match what a visitor
+# sees on the top platforms, and the exchange's official history
+# outranks an aggregator feed when they disagree. When Yahoo
+# returns a null bar for a day that really traded, the bar is
+# filled from the exchange's own published history BEFORE the
+# guards run — Nasdaq's official historical-data API for US-listed
+# stocks and ETFs (it serves NYSE-listed names too), Coinbase's
+# exchange API for BTC-USD. A day neither source can fill stays
+# missing and the date-completeness guard fails the run loudly:
+# a loud failure beats silently-wrong data, always.
+NASDAQ_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/120.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+def _nasdaq_num(text):
+    """'$1,234.56' / '123,456,789' / 'N/A' -> float, or None."""
+    if text is None:
+        return None
+    t = str(text).replace("$", "").replace(",", "").strip()
+    if not t or t.upper() in ("N/A", "NA", "--"):
+        return None
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def fetch_nasdaq_daily(symbol, first_iso, last_iso):
+    """Nasdaq official daily bars for one US-listed symbol:
+    {iso_date: [iso_date, o, h, l, c, v]} over the window.
+
+    Nasdaq's published history is split-adjusted on the same
+    basis as the feed's (verified 2026-11-25: its SNDK rows
+    around the 8-for-1 split match the published file's bars,
+    and its 2026-11-24 row is the bar the guard defended), so a
+    filled bar sits consistently beside its feed-built neighbours.
+    Raises on any failure — the caller treats that as "cannot
+    fill", never as an empty history.
+    """
+    out = {}
+    for assetclass in ("stocks", "etf"):
+        url = "https://api.nasdaq.com/api/quote/%s/historical" % symbol
+        resp = requests.get(
+            url,
+            params={"assetclass": assetclass, "fromdate": first_iso,
+                    "todate": last_iso, "limit": "9999"},
+            headers=NASDAQ_HEADERS, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        rows = (((data or {}).get("data") or {}).get("tradesTable")
+                or {}).get("rows") or []
+        for row in rows:
+            try:
+                d = datetime.strptime(row.get("date") or "",
+                                      "%m/%d/%Y").date().isoformat()
+            except ValueError:
+                continue
+            close = _nasdaq_num(row.get("close"))
+            if close is None or close <= 0:
+                continue
+            open_ = _nasdaq_num(row.get("open"))
+            high = _nasdaq_num(row.get("high"))
+            low = _nasdaq_num(row.get("low"))
+            vol = _nasdaq_num(row.get("volume"))
+            out[d] = [d,
+                      round(open_ if open_ is not None else close, 4),
+                      round(high if high is not None else close, 4),
+                      round(low if low is not None else close, 4),
+                      round(close, 4),
+                      int(vol) if vol is not None else 0]
+        if out:
+            return out
+    return out
+
+
+def fetch_coinbase_btc_daily(first_iso, last_iso):
+    """BTC-USD daily bars from the Coinbase exchange API:
+    {iso_date: [iso_date, o, h, l, c, v]} over the window.
+    Coinbase candles are [epoch, low, high, open, close, volume]
+    with volume in BTC; the feed's BTC volume convention is the
+    same base-unit volume, so a filled bar is consistent."""
+    out = {}
+    start = date.fromisoformat(first_iso)
+    end = date.fromisoformat(last_iso)
+    while start <= end:
+        chunk_end = min(start + timedelta(days=250), end)
+        resp = requests.get(
+            "https://api.exchange.coinbase.com/products/BTC-USD/candles",
+            params={"granularity": "86400",
+                    "start": start.isoformat(),
+                    "end": (chunk_end + timedelta(days=1)).isoformat()},
+            headers={"User-Agent": HEADERS["User-Agent"],
+                     "Accept": "application/json"},
+            timeout=30)
+        resp.raise_for_status()
+        for row in resp.json():
+            ts, low, high, open_, close, vol = row[:6]
+            d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
+            if close is None or float(close) <= 0:
+                continue
+            out[d] = [d, round(float(open_), 4), round(float(high), 4),
+                      round(float(low), 4), round(float(close), 4),
+                      int(float(vol))]
+        start = chunk_end + timedelta(days=1)
+    return out
+
+
+def fill_daily_holes(key, symbol, bars, hole_dates, first_iso, last_iso):
+    """Fill feed-nulled daily bars from the authoritative source.
+
+    hole_dates are the days the feed timestamped but returned no
+    bar for, already clipped by the caller to the completed-day
+    window. Returns (bars, filled_dates, unfilled_dates) with the
+    merged series re-sorted. Sources: Nasdaq official history for
+    plain US tickers, Coinbase for BTC-USD. Indexes, futures and
+    FX have no free exchange-official daily source, so their
+    holes stay unfilled and the date guard judges them — loudly.
+    """
+    wanted = [d for d in hole_dates if first_iso <= d <= last_iso]
+    if not wanted:
+        return bars, [], []
+    have = {b[0] for b in bars}
+    wanted = [d for d in wanted if d not in have]
+    if not wanted:
+        return bars, [], []
+    official = {}
+    try:
+        if symbol == "BTC-USD":
+            official = fetch_coinbase_btc_daily(wanted[0], wanted[-1])
+        elif symbol.isalpha() or ("." in symbol and "=" not in symbol
+                                  and "-" not in symbol
+                                  and "^" not in symbol):
+            official = fetch_nasdaq_daily(symbol, wanted[0], wanted[-1])
+    except Exception as exc:
+        log("  FILL FAILED for %s (%s): %s — holes stand for the "
+            "date guard to judge" % (key, symbol, exc))
+        return bars, [], wanted
+    filled, unfilled = [], []
+    merged = {b[0]: b for b in bars}
+    for d in wanted:
+        if d in official:
+            merged[d] = official[d]
+            filled.append(d)
+        else:
+            unfilled.append(d)
+    if filled:
+        log("  FILLED %s hole(s) for %s from the official source: %s"
+            % (len(filled), key, ", ".join(filled)))
+    if unfilled:
+        log("  UNFILLED hole(s) for %s: %s" % (key, ", ".join(unfilled)))
+    return [merged[k] for k in sorted(merged)], filled, unfilled
 
 
 def fetch_yahoo_adjclose(symbol, period1, period2):
@@ -2121,6 +2317,191 @@ def guard_no_shrink(kind, new_series, prev_series, through, anchor,
     return problems
 
 
+# How far back the daily date-completeness guard looks. The count
+# guard alone cannot see a hole: tonight's SNDK fetch ties the
+# published count once the newest day's bar lands, holes and all.
+# The recent window is checked day by day; deeper history is
+# protected by the no-vanished-date rule below (a date that was
+# ever published may never disappear) — and by the 2026-11-25
+# full-history scan archived with this change, which found the
+# only deep holes are legacy futures/FX archive gaps in the band
+# series (pit-era exchange holidays and two Yahoo-wide gap days),
+# for which no free exchange-official fill exists.
+DATE_GUARD_WINDOW_DAYS = 45
+
+
+def guard_dates_daily(new_series, prev_series, through_day):
+    """Date-completeness guard for the daily file (2026-11-25).
+
+    Two rules, alongside (never instead of) the count guard:
+      1. No vanished date: every date the previous file published
+         for a series must still be present. A feed that restates
+         history by dropping a real trading day (SNDK 2026-11-24)
+         fails here even when its bar count ties.
+      2. Recent completeness: inside the last DATE_GUARD_WINDOW_DAYS
+         days up to through_day, every expected trading day inside
+         a series' own span must carry a bar. Expected days are
+         the market's own consensus — a day at least half of this
+         run's span-eligible US series traded — unioned with the
+         previous file's SPX dates, so a feed-wide null day cannot
+         vote itself out of the calendar. BTC trades every
+         calendar day and is judged against the calendar itself.
+         Yahoo timestamps
+         EURUSD=X bars in UTC against a 17:00-ET FX day, so its
+         dates wobble by a day around DST changes (the 2026-11-25
+         scan found 676 Friday "holes" against 697 Sunday bars —
+         the data is complete, the dating is not day-exact), so
+         EURO is judged by the week instead: each recent Mon–Fri
+         week must carry at least four of its bars. Rule 1 above
+         still binds EURO at full strength.
+    """
+    problems = []
+    through_iso = through_day.isoformat()
+    window_start = (through_day
+                    - timedelta(days=DATE_GUARD_WINDOW_DAYS)).isoformat()
+
+    def date_set(entry):
+        return {b[0] for b in (entry or {}).get("bars") or []}
+
+    new_sets = {k: date_set(v) for k, v in new_series.items()}
+
+    # Rule 1: no previously published date may vanish.
+    for key in sorted(prev_series):
+        prev_dates = date_set(prev_series.get(key))
+        if not prev_dates:
+            continue
+        vanished = sorted(prev_dates - new_sets.get(key, set()))
+        if vanished:
+            problems.append(
+                "daily: %s lost %d previously published date(s): %s"
+                % (key, len(vanished),
+                   ", ".join(vanished[:6])
+                   + ("..." if len(vanished) > 6 else "")))
+
+    # Expected market days for the recent window.
+    us_keys = [k for k in new_series if k != "BTC"]
+    span = {}
+    for k in us_keys:
+        ds = new_sets.get(k) or set()
+        if ds:
+            span[k] = (min(ds), max(ds))
+    expected = set()
+    day = date.fromisoformat(window_start)
+    while day <= through_day:
+        iso = day.isoformat()
+        if day.weekday() < 5:  # US markets never session on a weekend
+            eligible = [k for k in us_keys
+                        if k in span and span[k][0] <= iso <= through_iso]
+            if eligible:
+                have = sum(1 for k in eligible
+                           if iso in new_sets.get(k, set()))
+                if have >= 0.5 * len(eligible):
+                    expected.add(iso)
+        day += timedelta(days=1)
+    prev_spx = date_set(prev_series.get("SPX"))
+    expected |= {d for d in prev_spx if window_start <= d <= through_iso}
+
+    # Rule 2: recent completeness per series.
+    for key in sorted(new_series):
+        ds = new_sets.get(key) or set()
+        if not ds:
+            continue
+        first = min(ds)
+        if key == "BTC":
+            want = set()
+            day = max(date.fromisoformat(window_start),
+                      date.fromisoformat(first))
+            while day <= through_day:
+                want.add(day.isoformat())
+                day += timedelta(days=1)
+            missing = sorted(want - ds)
+        elif key == "EURO":
+            # Week-granularity check (see the docstring): each of
+            # the last six Mon–Fri weeks inside the window must
+            # carry at least four bars dated from its Monday up
+            # to the next Monday (a Sunday-dated bar belongs to
+            # the week it opens).
+            missing = []
+            monday = through_day - timedelta(days=through_day.weekday())
+            for w in range(6):
+                wk_start = monday - timedelta(days=7 * w)
+                wk_end = wk_start + timedelta(days=7)
+                if wk_end <= date.fromisoformat(window_start):
+                    break
+                if wk_start.isoformat() < first:
+                    break
+                n = sum(1 for d in ds
+                        if wk_start.isoformat() <= d < wk_end.isoformat())
+                if w == 0:
+                    # The through day's own week is still forming:
+                    # demand only the weekdays already elapsed,
+                    # less one for the Sunday-dating wobble.
+                    elapsed = sum(
+                        1 for i in range(7)
+                        if wk_start + timedelta(days=i) <= through_day
+                        and (wk_start + timedelta(days=i)).weekday() < 5)
+                    need = max(0, elapsed - 1)
+                else:
+                    need = 4
+                if n < need:
+                    missing.append("%s week (%d bars, needs %d)"
+                                   % (wk_start.isoformat(), n, need))
+            if missing:
+                problems.append(
+                    "daily: EURO carries too few bars in recent "
+                    "week(s): %s" % ", ".join(missing))
+            continue
+        else:
+            missing = sorted(d for d in expected
+                             if first <= d and d not in ds)
+        if missing:
+            problems.append(
+                "daily: %s is missing trading day(s) %s inside the "
+                "last %d days"
+                % (key, ", ".join(missing[:6])
+                   + ("..." if len(missing) > 6 else ""),
+                   DATE_GUARD_WINDOW_DAYS))
+    return problems
+
+
+def guard_dates_weekly(new_series, prev_series):
+    """Date-completeness guard for the weekly file (2026-11-25):
+    no previously published Friday may vanish (full history), and
+    no weekly series may skip a week among its recent bars —
+    weekly bars are dated by Friday, so consecutive bars sit
+    exactly 7 days apart and a 14-day step is a dropped week.
+    The grid check covers only the last ten bars: the deep
+    archive carries three legacy Yahoo gaps (BRENT 2009, CORN
+    2000, EURO 2008, all found by the 2026-11-25 scan) that no
+    free exchange-official source can fill, and a full-history
+    grid check would fail every run over them forever — the
+    no-vanished rule still keeps them from ever growing."""
+    problems = []
+    for key in sorted(new_series):
+        bars = (new_series.get(key) or {}).get("bars") or []
+        if not bars:
+            continue
+        dates = [b[0] for b in bars]
+        prev_dates = {b[0] for b in
+                      (prev_series.get(key) or {}).get("bars") or []}
+        vanished = sorted(prev_dates - set(dates))
+        if vanished:
+            problems.append(
+                "weekly: %s lost %d previously published date(s): %s"
+                % (key, len(vanished),
+                   ", ".join(vanished[:6])
+                   + ("..." if len(vanished) > 6 else "")))
+        recent = dates[-11:]
+        for a, b in zip(recent, recent[1:]):
+            gap = (date.fromisoformat(b) - date.fromisoformat(a)).days
+            if gap != 7:
+                problems.append(
+                    "weekly: %s jumps %s -> %s (%d days) — a week "
+                    "is missing or misdated" % (key, a, b, gap))
+                break
+    return problems
+
+
 def main():
     out_path = sys.argv[1] if len(sys.argv) > 1 else OUT_FILE
     now_utc = datetime.now(timezone.utc)
@@ -2274,6 +2655,7 @@ def main():
     }
     problems = guard_no_shrink("weekly", series, previous,
                                output["through"], through, 9)
+    problems += guard_dates_weekly(series, previous)
     if problems:
         for p in problems:
             log("GUARD: %s" % p)
@@ -2330,11 +2712,22 @@ def main():
     for key, symbol, name in ALL_INSTRUMENTS:
         log("=== %s (%s) daily ===" % (key, symbol))
         try:
-            bars = fetch_yahoo_daily(symbol, d_period1, period2)
+            bars, holes = fetch_yahoo_daily_holed(symbol, d_period1,
+                                                  period2)
             bars = [b for b in bars
                     if cutoff.isoformat() <= b[0] <= through_day.isoformat()]
             if not bars:
                 raise ValueError("no completed daily bars returned")
+            # Authoritative fill (2026-11-25): a day the feed
+            # timestamped but returned no bar for is filled from
+            # the exchange's official history before anything is
+            # judged — the SNDK split holes are the first case.
+            holes = [h for h in holes
+                     if cutoff.isoformat() <= h <= through_day.isoformat()]
+            if holes:
+                bars, _filled, _unfilled = fill_daily_holes(
+                    key, symbol, bars, holes,
+                    bars[0][0], through_day.isoformat())
         except Exception as exc:
             log("  FAILED: %s" % exc)
             if key in d_previous and d_previous[key].get("bars"):
@@ -2484,7 +2877,12 @@ def main():
         "source": "Yahoo Finance v8 chart API (query1.finance.yahoo.com), "
                   "daily OHLCV bars since 2000 (or the instrument's "
                   "first trading day); "
-                  "completed days only. P/E arrays: daily close / "
+                  "completed days only. A bar the feed returns empty "
+                  "for a trading day is filled from the exchange's "
+                  "official history (Nasdaq; Coinbase for BTC) before "
+                  "publication, and a day that cannot be filled fails "
+                  "the run rather than shipping with a hole. "
+                  "P/E arrays: daily close / "
                   "trailing-twelve-month diluted EPS from SEC EDGAR "
                   "companyfacts, point-in-time by first filing date, "
                   "each period taken from its original filing and "
@@ -2497,6 +2895,7 @@ def main():
     }
     problems = guard_no_shrink("daily", d_series, d_previous,
                                d_output["through"], through_day, 4)
+    problems += guard_dates_daily(d_series, d_previous, through_day)
     if problems:
         for p in problems:
             log("GUARD: %s" % p)
