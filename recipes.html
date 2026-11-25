@@ -309,7 +309,7 @@
            the first use (the Random generate button's precedent). */
         .recipes-head-row { display: flex; align-items: center; }
         .recipes-head-row .info-toggle { flex: 1 1 auto; width: auto; min-width: 0; }
-        .explainer-wrapper:has(> .explainer-card.active) > .recipes-head-row { position: sticky; top: 55px; z-index: 100; background: var(--bg-color); box-shadow: 0 1px 0 var(--border-color); }
+        .explainer-wrapper:has(> .explainer-card.active) > .recipes-head-row { z-index: 100; background: var(--bg-color); box-shadow: 0 1px 0 var(--border-color); }
         .head-cook-btn { flex: none; display: inline-flex; align-items: center; gap: 0.45rem; min-height: 44px; margin-right: 0.75rem; padding: 0.5rem 1.15rem; border-radius: 999px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font: inherit; font-size: 0.95rem; font-weight: 700; white-space: nowrap; cursor: pointer; transition: transform 0.15s ease; }
         .head-cook-btn:active { transform: scale(0.98); }
         .head-cook-btn.has-selection { background: var(--link-color); border-color: var(--link-color); color: #fff; }
@@ -1122,7 +1122,7 @@
        - While the DGA card is open, its own details' summary stops sticking
          and the DGA toggle takes the slot. */
     .explainer-wrapper:has(> .explainer-card.active) > .info-toggle {
-        position: sticky; top: 55px; z-index: 100;
+        z-index: 100;
         background: var(--bg-color);
         box-shadow: 0 1px 0 var(--border-color);
     }
@@ -1492,9 +1492,19 @@
        pill family, under the header unit. */
     #targetsBar { position: static; max-width: none; margin: 0.55rem 0 0; padding: 0; box-sizing: border-box; background: none; border-bottom: none; }
     #targetsBar .targets-inner { width: auto; max-width: none; min-height: 58px; margin: 0; padding: 6px 14px 6px 20px; gap: 10px; box-sizing: border-box; }
-    /* Section rows pin below the header unit, not the bare header. */
-    .explainer-wrapper:has(> .explainer-card.active) > .recipes-head-row { top: calc(55px + var(--head-unit-h, 0px)); }
-    .explainer-wrapper:has(> .explainer-card.active) > .info-toggle { top: calc(55px + var(--head-unit-h, 0px)); }
+    /* Section rows pin below the header unit, not the bare header.
+       Round 2 (2026-11-24): the pin is no longer CSS sticky — on
+       Johnny's iPhone the sticky rows trailed mid-viewport and sliced
+       the content scrolling under them. The pin-driver script at the
+       end of the body now fixes a row (.row-pinned) at the measured
+       bottom of the visible pinned stack, the recipe-name bar's own
+       proven pattern: a fixed bar cannot lag, and its top is measured
+       from what is actually on screen (the header unit counts only
+       while it is visible; while a recipe is open the unit is covered
+       and the name bar owns the stack). The spacer holds the row's
+       place in flow, so pinning and unpinning move nothing (Δ=0). */
+    .row-pinned { position: fixed; z-index: 930; margin-top: 0; }
+    .row-pin-spacer { display: none; }
     /* Opened-card landings clear the full pinned stack. */
     .recipe-wrapper { scroll-margin-top: calc(55px + var(--head-unit-h, 120px) + 16px); }
     .recipe-content { scroll-margin-top: calc(55px + var(--head-unit-h, 120px) + 16px); }
@@ -1506,6 +1516,15 @@
     .recipe-grid .recipe-wrapper:not(.expanded) .recipe-toggle.photo-fit .recipe-card-photo { object-fit: contain; position: relative; z-index: 1; }
     .door-card-photo.photo-fit::before { content: ''; position: absolute; inset: 0; background-image: var(--photo); background-size: cover; background-position: center; filter: blur(16px) saturate(1.3) brightness(0.9); transform: scale(1.25); }
     .door-card-photo.photo-fit img { object-fit: contain; position: relative; z-index: 1; }
+    /* One header per section (2026-11-24, round 2): while a door's
+       section is open, the section's own head row is the header, so
+       the door's name strip stands down — the door stays a live
+       photo that still toggles its section closed, but the page
+       never shows two "Nutrition Comparison Tool" (or two
+       "Johnny's Recipes") headers at once. The strip returns the
+       moment the section closes, so the door's closed state — and
+       every open/close landing measured against it — is unchanged. */
+    .door-card.open .door-card-body { display: none; }
 
     /* ---- Repair pass (2026-11-24, from Johnny's screen recordings) ----
        Paint order: the contained photo's z-index:1 (needed over its
@@ -1649,14 +1668,14 @@
          width; the section's head row is its labeled close control. -->
     <div class="door-cards">
         <button type="button" class="door-card" id="doorRecipes" aria-expanded="false" aria-controls="recipeCard">
-            <span class="door-card-photo photo-fit" style="--photo:url('images/door-recipes.jpg')"><img src="images/door-recipes.jpg" alt="A cook's station from above — cutting board, cast-iron skillet, mortar and pestle, knives, spices and herbs on dark wood" width="1280" height="846" loading="lazy" decoding="async"></span>
+            <span class="door-card-photo photo-fit" style="--photo:url('images/door-recipes-raw-board.jpg')"><img src="images/door-recipes-raw-board.jpg" alt="A whole raw chicken and beef steaks on a wooden cutting board, ready to prepare" width="1280" height="645" loading="lazy" decoding="async"></span>
             <span class="door-card-body">
                 <span class="door-card-name">🍳 Johnny's Recipes</span>
                 <span class="door-card-state"><span class="door-card-arrow" aria-hidden="true">▶</span></span>
             </span>
         </button>
         <button type="button" class="door-card" id="doorTool" aria-expanded="false" aria-controls="nutritionToolCard">
-            <span class="door-card-photo photo-fit" style="--photo:url('images/door-nutrition-tool-padded.jpg')"><img src="images/door-nutrition-tool-padded.jpg" alt="The Nutrition Comparison Tool's Scorecard for Miso Sheetpan Chicken and Brussels sprouts with Potatoes au Gratin — grade 0.68, genuinely healthy" width="1264" height="948" loading="lazy" decoding="async"></span>
+            <span class="door-card-photo photo-fit" style="--photo:url('images/door-nutrition-bowl.jpg')"><img src="images/door-nutrition-bowl.jpg" alt="A Buddha bowl — rice with avocado, edamame, radish, greens and tempeh, many foods on one plate" width="1280" height="960" loading="lazy" decoding="async"></span>
             <span class="door-card-body">
                 <span class="door-card-name">🥗 Nutrition Comparison Tool</span>
                 <span class="door-card-lead">What each recipe covers — and what it doesn't.</span>
@@ -7927,7 +7946,7 @@
                 <p class="pantry-intro">Store-bought foods I keep around — not recipes, just good products, added with their labels.</p>
                 <div class="pantry-grid">
                     <article class="pantry-card">
-                        <img style="--cap:800px;" class="pantry-photo" src="images/pantry-smoked-fresh-turkey-kielbasa.jpg" alt="Wellshire Smoked Fresh Turkey Kielbasa package" loading="lazy" decoding="async" width="800" height="608">
+                        <img style="--cap:800px;" class="pantry-photo" src="images/pantry-smoked-fresh-turkey-kielbasa.jpg" alt="Wellshire Smoked Fresh Turkey Kielbasa package" decoding="async" width="800" height="608">
                         <span class="pantry-badge">Store-bought</span>
                         <h3 class="pantry-name">Smoked Fresh Turkey Kielbasa</h3>
                         <p class="pantry-meta">Wellshire · NET WT 12 OZ (340g) · Fully cooked</p>
@@ -7937,7 +7956,7 @@
                         <p class="pantry-source">Nutrition: manufacturer's current label for this 12 oz package · UPC 616973083003</p>
                     </article>
                     <article class="pantry-card">
-                        <img style="--cap:738px;" class="pantry-photo" src="images/pantry-organic-sprouted-pumpkin-seeds-sea-salt.jpg" alt="Go Raw Organic Sprouted Pumpkin Seeds bag" loading="lazy" decoding="async" width="738" height="1140">
+                        <img style="--cap:738px;" class="pantry-photo" src="images/pantry-organic-sprouted-pumpkin-seeds-sea-salt.jpg" alt="Go Raw Organic Sprouted Pumpkin Seeds bag" decoding="async" width="738" height="1140">
                         <span class="pantry-badge">Store-bought</span>
                         <h3 class="pantry-name">Organic Sprouted Pumpkin Seeds — Sea Salt</h3>
                         <p class="pantry-meta">Go Raw · NET WT 22 OZ (1 LB 6 OZ) 624 g</p>
@@ -9330,6 +9349,23 @@
 
     /* Sticky combiner footer bar: live totals, the same numbers updateCombiner() computed. */
     /* Sticky combiner footer bar: live totals, the same numbers updateCombiner() computed. */
+    /* One close path for the score surfaces (2026-11-24, round 2):
+       the pill bar and the doors call this before they move the
+       reader, so an open score bubble never bleeds across a section
+       switch — each bubble closes through its own toggle, exactly
+       as if its own close control had been tapped. */
+    window.__jboCloseScoreBubbles = function () {
+        var bar = document.getElementById('combinerBar');
+        if (bar && bar.classList.contains('expanded')) {
+            var det = document.getElementById('combinerBarDetails');
+            if (det) det.click();
+        }
+        var pop = document.getElementById('nutriPop');
+        if (pop && !pop.hidden) {
+            var pc = document.getElementById('nutriPopClose');
+            if (pc) pc.click();
+        }
+    };
     function updateCombinerBar(count, totals, servings, recipeIds, labelOverride, allOne, dishes) {
         var bar = document.getElementById('combinerBar');
         var txt = document.getElementById('combinerBarText');
@@ -14532,7 +14568,7 @@
             var b = headUnit ? Math.round(headUnit.getBoundingClientRect().bottom) : 55;
             var rows = document.querySelectorAll('.info-toggle, .recipes-head-row, .tips-outer > summary, .tip-group > summary');
             for (var i = 0; i < rows.length; i++) {
-                if (window.getComputedStyle(rows[i]).position !== 'sticky') continue;
+                if (window.getComputedStyle(rows[i]).position !== 'sticky' && !rows[i].classList.contains('row-pinned')) continue;
                 var r = rows[i].getBoundingClientRect();
                 if (r.top <= b + 1.5 && r.bottom > b) b = Math.round(r.bottom);
             }
@@ -14572,7 +14608,7 @@
             var rows = document.querySelectorAll('.info-toggle, .recipes-head-row, .tips-outer > summary, .tip-group > summary');
             var h = 0;
             for (var i = 0; i < rows.length; i++) {
-                if (window.getComputedStyle(rows[i]).position !== 'sticky') continue;
+                if (window.getComputedStyle(rows[i]).position !== 'sticky' && !rows[i].classList.contains('row-pinned')) continue;
                 if (wrap.compareDocumentPosition(rows[i]) & 2) h = rows[i].offsetHeight || 0;
             }
             return h;
@@ -14631,6 +14667,7 @@
             if (!d.btn || !d.card || !d.toggle) return;
             d.btn.addEventListener('click', function () {
                 if (d.card.closest('.glass-scrim')) return; // the tool is open as a bubble; its own close governs
+                if (window.__jboCloseScoreBubbles) window.__jboCloseScoreBubbles();
                 var wasOpen = d.card.classList.contains('active');
                 d.toggle.click();
                 syncDoor(d);
@@ -14900,7 +14937,7 @@
             var b = unit ? Math.round(unit.getBoundingClientRect().bottom) : 55;
             var rows = document.querySelectorAll('.info-toggle, .recipes-head-row, .tips-outer > summary, .tip-group > summary');
             for (var i = 0; i < rows.length; i++) {
-                if (window.getComputedStyle(rows[i]).position !== 'sticky') continue;
+                if (window.getComputedStyle(rows[i]).position !== 'sticky' && !rows[i].classList.contains('row-pinned')) continue;
                 var r = rows[i].getBoundingClientRect();
                 if (r.top <= b + 1.5 && r.bottom > b) b = Math.round(r.bottom);
             }
@@ -14923,6 +14960,7 @@
         }
         pills.forEach(function (p) {
             p.addEventListener('click', function () {
+                if (window.__jboCloseScoreBubbles) window.__jboCloseScoreBubbles();
                 var nav = p.getAttribute('data-nav');
                 var rCard = document.getElementById('recipeCard');
                 var tCard = document.getElementById('nutritionToolCard');
@@ -14970,6 +15008,101 @@
         }, { passive: true });
         window.addEventListener('resize', spy);
         spy();
+    })();
+    </script>
+    <script>
+    /* Pinned section rows (2026-11-24, round 2). The section rows —
+       the Johnny's Recipes head row and each section's lone toggle —
+       used to pin with CSS sticky, and on Johnny's iPhone they
+       trailed mid-viewport, painting over and slicing the content
+       scrolling beneath them; their sticky top also kept counting
+       the header unit's height while a recipe was open and the unit
+       was covered invisible, so the row pinned far below the top
+       with live text scrolling through the gap. This driver pins a
+       row the way the recipe-name bar has always pinned — position:
+       fixed, placed by measurement on scroll — at the bottom of the
+       stack that is actually visible: the site header, plus the
+       header unit while it is stuck and not covered, plus the
+       recipe-name bar while it is shown. A spacer holds the row's
+       exact place in flow while it is pinned, so pinning and
+       unpinning shift nothing (Δ=0), and a row is pinned only while
+       its own section is open and on screen: it is either fully at
+       the stack's bottom edge or fully absent, never mid-page. */
+    (function () {
+        'use strict';
+        var nav = document.querySelector('.site-nav');
+        var unit = document.getElementById('cookHeadUnit');
+        var items = [];
+        document.querySelectorAll('.explainer-wrapper > .recipes-head-row, .explainer-wrapper > .info-toggle').forEach(function (row) {
+            var card = row.parentElement.querySelector(':scope > .explainer-card');
+            if (!card) return;
+            var spacer = document.createElement('div');
+            spacer.className = 'row-pin-spacer';
+            spacer.setAttribute('aria-hidden', 'true');
+            row.parentElement.insertBefore(spacer, row);
+            items.push({ row: row, card: card, wrap: row.parentElement, spacer: spacer });
+        });
+        if (!items.length) return;
+        function stackBottom() {
+            var b = 0;
+            if (nav) b = Math.max(b, Math.round(nav.getBoundingClientRect().bottom));
+            var nb = document.getElementById('recipeStickyName');
+            if (unit && !unit.classList.contains('covered')) b = Math.max(b, Math.round(unit.getBoundingClientRect().bottom));
+            if (nb && nb.classList.contains('show')) b = Math.max(b, Math.round(nb.getBoundingClientRect().bottom));
+            return b;
+        }
+        function unpin(it) {
+            it.row.classList.remove('row-pinned');
+            it.row.style.top = '';
+            it.row.style.left = '';
+            it.row.style.width = '';
+            it.spacer.style.display = 'none';
+            it.spacer.style.height = '0px';
+        }
+        function place() {
+            var b = stackBottom();
+            var changed = false;
+            items.forEach(function (it) {
+                var pinned = it.row.classList.contains('row-pinned');
+                if (!it.card.classList.contains('active')) { if (pinned) { unpin(it); changed = true; } return; }
+                var anchor = pinned ? it.spacer.getBoundingClientRect() : it.row.getBoundingClientRect();
+                var wrapB = it.wrap.getBoundingClientRect().bottom;
+                if (anchor.top < b - 1 && wrapB > b + anchor.height + 4) {
+                    if (!pinned) {
+                        it.spacer.style.height = it.row.offsetHeight + 'px';
+                        it.spacer.style.display = 'block';
+                        it.row.classList.add('row-pinned');
+                        changed = true;
+                    }
+                    var sr = it.spacer.getBoundingClientRect();
+                    it.row.style.top = b + 'px';
+                    it.row.style.left = Math.round(sr.left) + 'px';
+                    it.row.style.width = Math.round(sr.width) + 'px';
+                } else if (pinned) { unpin(it); changed = true; }
+            });
+            /* The filter strip stacks itself under the pinned stack and
+               measures on scroll; when a pin engages or releases, tell
+               it to measure again so it lands under the row, not on it. */
+            if (changed) window.dispatchEvent(new Event('scroll'));
+        }
+        var ticking = false;
+        function onScroll() {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(function () { ticking = false; place(); });
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+        window.addEventListener('load', place);
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
+        if (window.MutationObserver) {
+            var mo = new MutationObserver(onScroll);
+            items.forEach(function (it) { mo.observe(it.card, { attributes: true, attributeFilter: ['class'] }); });
+            var nbEl = document.getElementById('recipeStickyName');
+            if (nbEl) mo.observe(nbEl, { attributes: true, attributeFilter: ['class'] });
+            if (unit) mo.observe(unit, { attributes: true, attributeFilter: ['class'] });
+        }
+        place();
     })();
     </script>
 </body>
