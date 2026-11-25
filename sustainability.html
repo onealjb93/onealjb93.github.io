@@ -1221,23 +1221,55 @@ body.light-mode .explainer-wrapper[id]:has(> .door-photo) > .info-toggle.entry-t
         background: var(--card-bg); border: 1px solid var(--border-color);
         padding: 0.14rem 0.55rem; border-radius: 999px;
     }
+
+    /* V1A (landed 2026-11-25): the spheres are the control. At rest
+       they carry names only; a tap grows the sphere in place and its
+       definition + "what counts" open as face text INSIDE the
+       expanded bubble (the .ees-face, positioned by the gesture
+       controller and faded in only after the growth settles and the
+       canvas has re-rendered sharp). The .ees-hit buttons are the
+       keyboard/touch targets that ride their spheres. */
+    .ees-face { position: absolute; left: 0; top: 0; z-index: 4;
+        transform: translate(-50%, -50%); text-align: center;
+        pointer-events: none; opacity: 0; color: var(--text-color);
+        text-shadow: 0 0 6px var(--ees-halo), 0 0 14px var(--ees-halo);
+        transition: opacity 0.25s ease; }
+    .ees-face-name { font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.06rem; font-weight: 650; margin-bottom: 0.3rem; }
+    .ees-face p { margin: 0 0 0.45rem; font-size: 0.94rem; line-height: 1.42; }
+    .ees-face p.counts { font-size: 0.87rem; color: var(--subtext-color); }
+    .ees-face p:last-child { margin-bottom: 0; }
+    .ees-hit { position: absolute; z-index: 5; border-radius: 50%;
+        background: transparent; border: none; padding: 0; margin: 0;
+        pointer-events: none; cursor: pointer;
+        -webkit-tap-highlight-color: transparent; }
+    .ees-hit:focus-visible { outline: 2px solid var(--text-color); outline-offset: 2px; }
+
+    /* V1A: the choreography anchors the stage's top edge itself, so
+       the browser's own scroll anchoring must not "help" — it would
+       move the stage to keep the caption still, the exact opposite
+       of the design. Scoped to this figure. Canvas motion is
+       transform-only during flight. */
+    .overview-band .loop-figure, .ees3d-wrap, .ees3d-stage { overflow-anchor: none; }
+    .ees3d-stage canvas { will-change: transform; }
 </style>
 <div class="ees3d-wrap ees-venn" id="ees3dWrap">
-    <div class="ees3d-stage" id="ees3dStage" role="img" aria-label="Three overlapping glass spheres — Environment, Economy, and Equity. Where all three overlap, in the middle, is Sustainability: a plan passes only there." hidden>
+    <div class="ees3d-stage" id="ees3dStage" role="group" aria-label="The Three E's Venn — three overlapping glass spheres: Environment, Economy, and Equity. Where all three overlap, in the middle, is Sustainability." hidden>
         <div class="ees3d-block ees3d-block-env" id="ees3dBlockEnv">
             <div class="ees3d-block-name">Environment</div>
-            <div class="ees3d-block-def">Actively preserving and enhancing ecological systems.</div>
         </div>
         <div class="ees3d-block ees3d-block-eco" id="ees3dBlockEco">
             <div class="ees3d-block-name">Economy</div>
-            <div class="ees3d-block-def">Fostering efficient, short-term and long-term market-based prosperity.</div>
         </div>
         <div class="ees3d-block ees3d-block-eq" id="ees3dBlockEq">
             <div class="ees3d-block-name">Equity</div>
-            <div class="ees3d-block-def">Embedding equity so gains from environmental and economic progress are more fairly distributed.</div>
         </div>
         <div class="ees3d-label ees3d-center" id="ees3dCenter">SUSTAINABILITY</div>
-        <div class="ees3d-hint" aria-hidden="true">Drag to turn</div>
+        <div class="ees3d-hint" aria-hidden="true">Drag to turn · Hold to preview · Tap to select</div>
+        <div class="ees-face" id="eesFace" aria-hidden="true"></div>
+        <button type="button" class="ees-hit" id="eesHit0" data-e="0" aria-pressed="false" aria-label="Environment sphere — tap to select, hold to preview"></button>
+        <button type="button" class="ees-hit" id="eesHit1" data-e="1" aria-pressed="false" aria-label="Economy sphere — tap to select, hold to preview"></button>
+        <button type="button" class="ees-hit" id="eesHit2" data-e="2" aria-pressed="false" aria-label="Equity sphere — tap to select, hold to preview"></button>
     </div>
     <div class="ees-fallback" id="ees3dFallback">
         <svg class="loop-svg ees-venn" viewBox="0 0 720 643" role="img" aria-label="Three overlapping circles — Environment, Economy, and Equity. A plan passes only where all three overlap.">
@@ -1273,19 +1305,6 @@ body.light-mode .explainer-wrapper[id]:has(> .door-photo) > .info-toggle.entry-t
                 <text x="206.5" y="73">Environment</text>
                 <text x="560" y="88">Economy</text>
                 <text x="360" y="429">Equity</text>
-            </g>
-            <g font-size="29.95" text-anchor="middle" fill="var(--text-color)">
-                <text x="166.7" y="119.5">Actively preserving</text>
-                <text x="160" y="156.7">and enhancing</text>
-                <text x="160" y="193.8">ecological systems.</text>
-                <text x="560" y="134.5">Fostering efficient,</text>
-                <text x="560" y="171.7">short-term and</text>
-                <text x="563.9" y="208.8">long-term market-based</text>
-                <text x="560" y="246">prosperity.</text>
-                <text x="360" y="475.5">Embedding equity so gains from</text>
-                <text x="360" y="512.7">environmental and economic</text>
-                <text x="360" y="549.8">progress are more fairly</text>
-                <text x="360" y="587">distributed.</text>
             </g>
         </svg>
     </div>
@@ -1353,9 +1372,9 @@ function boot() {
     // real front and back before it ever turns — rotation then trades
     // genuine parallax instead of spinning three discs in one plane.
     var DEFS = [
-        { c: new THREE.Vector3(-1.50,  0.733,  0.26), r: 2.05 },
-        { c: new THREE.Vector3( 1.50,  0.733, -0.26), r: 2.05 },
-        { c: new THREE.Vector3( 0.00, -1.467,  0.05), r: 2.10 }
+        { c: new THREE.Vector3(-1.50,  0.733,  0.26), r: 2.05, key: 'env', col: new THREE.Color('#3fb950'), meshes: [] },
+        { c: new THREE.Vector3( 1.50,  0.733, -0.26), r: 2.05, key: 'eco', col: new THREE.Color('#e8a13a'), meshes: [] },
+        { c: new THREE.Vector3( 0.00, -1.467,  0.05), r: 2.10, key: 'eq',  col: new THREE.Color('#4da6ff'), meshes: [] }
     ];
     var LIGHT = new THREE.Vector3(-0.55, 0.80, 0.55).normalize();
 
@@ -1372,7 +1391,7 @@ function boot() {
     // lit, and the far wall seen through the ball (uBack 1) dimmed — a
     // glass ball has an inside, and the eye reads that as volume.
     var frag = [
-        'uniform vec3 uColor; uniform float uDensity; uniform float uRadius; uniform vec3 uLight;',
+        'uniform vec3 uColor; uniform float uDensity; uniform float uRadius; uniform vec3 uLight; uniform float uEmph; uniform float uDim;',
         'uniform vec4 uOtherA; uniform vec4 uOtherB; uniform float uBack; uniform float uBright; uniform float uSpecAmt;',
         'varying vec3 vN; varying vec3 vW;',
         '',
@@ -1423,6 +1442,7 @@ function boot() {
         '  float bright = mix(0.34, 1.22, wrap * wrap * (3.0 - 2.0 * wrap));',
         '  bright += 0.10 * (N.y * 0.5 + 0.5);',                 // hemisphere fill, so undersides are not dead
         '  vec3 col = uColor * bright * uBright * shade;',
+        '  col *= (1.0 + 0.38 * uEmph) * (1.0 - 0.62 * uDim);',
         '',
         '  // Fresnel rim: the silhouette edge catches the light and',
         '  // defines the sphere as a volume against the page.',
@@ -1439,7 +1459,7 @@ function boot() {
         '  spec *= (1.0 - occ);',
         '  col += vec3(1.0) * spec * shade;',
         '',
-        '  float alpha = clamp(absorb + fres * (0.30 + 0.25 * rimLight) + spec * 0.5 + occ * 0.07, 0.0, 0.95);',
+        '  float alpha = clamp((absorb + fres * (0.30 + 0.25 * rimLight) + spec * 0.5 + occ * 0.07) * (1.0 + 0.25 * uEmph) * (1.0 - 0.90 * uDim), 0.0, 0.96);',
         '  gl_FragColor = vec4(col, alpha);',
         '}'
     ].join('\n');
@@ -1484,13 +1504,16 @@ function boot() {
     // back material that differ only in their pass constants.
     var units = [];
     var glassMats = [];
+    var sphereMeshes = [];
     DEFS.forEach(function (d, i) {
         var shared = {
             uColor: { value: accentColor() },
             uRadius: { value: d.r },
             uLight: { value: LIGHT },
             uOtherA: { value: new THREE.Vector4() },
-            uOtherB: { value: new THREE.Vector4() }
+            uOtherB: { value: new THREE.Vector4() },
+            uEmph: { value: 0 },
+            uDim: { value: 0 }
         };
         function passMat(side, back, density, bright, specAmt, order) {
             var uniforms = Object.assign({}, shared, {
@@ -1505,6 +1528,7 @@ function boot() {
             });
             var m = new THREE.Mesh(new THREE.SphereGeometry(d.r, 96, 64), mat);
             m.position.copy(d.c);
+            d.meshes.push(m);
             m.renderOrder = order;
             group.add(m);
             return mat;
@@ -1512,9 +1536,11 @@ function boot() {
         glassMats.push(passMat(THREE.BackSide, 1, 0.055, 0.45, 0.12, 1));   // the dim far wall
         glassMats.push(passMat(THREE.FrontSide, 0, 0.085, 1.00, 1.00, 2));  // the lit front
         units.push(shared);
+        sphereMeshes.push(d.meshes);
     });
     new MutationObserver(function () {
         var c = accentColor();
+        accentCache.copy(c);
         units.forEach(function (u) { u.uColor.value.copy(c); });
         themeShadow();
     }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
@@ -1583,7 +1609,7 @@ function boot() {
         blocks.forEach(function (B) {
             var range = document.createRange();
             range.selectNodeContents(B.el.querySelector('.ees3d-block-name'));
-            var nr = range.getBoundingClientRect(), dr = B.el.querySelector('.ees3d-block-def').getBoundingClientRect();
+            var nr = range.getBoundingClientRect(), dr = nr; // V1A: names only — the box is the name's box
             B.relL = (Math.min(nr.left, dr.left) - sr.left - B._bx) / w;
             B.relT = (Math.min(nr.top, dr.top) - sr.top - B._by) / w;
             B.relR = (Math.max(nr.right, dr.right) - sr.left - B._bx) / w;
@@ -1653,12 +1679,114 @@ function boot() {
             THREE.MathUtils.clamp((Math.abs(rotY) - 0.39) / 0.05, 0, 1),
             THREE.MathUtils.clamp((Math.abs(rotX) - 0.13) / 0.06, 0, 1));
         if (gate < 1) blocks.forEach(function (B) { B._yield = 1 - gate * (1 - B._yield); });
-        blocks.forEach(function (B) {
-            B.el.style.opacity = (THREE.MathUtils.clamp((B._facing + 0.10) / 0.45, 0, 1) * B._yield).toFixed(2);
+        blocks.forEach(function (B, bi) {
+            var o = THREE.MathUtils.clamp((B._facing + 0.10) / 0.45, 0, 1) * B._yield;
+            if (selOpen >= 0) o *= (bi === selOpen ? 0 : 0.22);
+            B.el.style.opacity = o.toFixed(2);
         });
     }
 
+    // V1A: selection state + per-sphere pose animation. The gesture
+    // controller sets pose targets through window.__eesAPI; the
+    // render loop eases each sphere's scale, offset, colour and dim
+    // toward them and drives the shader uniforms + mesh transforms
+    // from the eased values. Occlusion uniforms still use the
+    // resting centres, so shading between spheres is approximate
+    // while one is expanded.
+    var selOpen = -1;
+    var flightSquash = 1; // V1A: inverse of the canvas's flight stretch
+    var centerTarget = 1, centerCur = 1;
+    var accentCache = accentColor();
+    var anim = [];
+    for (var ai0 = 0; ai0 < 3; ai0++) {
+        anim.push({
+            s: 1, x: 0, y: 0, z: 0, e: 0, d: 0,
+            t: { s: 1, x: 0, y: 0, z: 0, e: 0, d: 0 },
+            col: accentColor()
+        });
+    }
+    var _pv = new THREE.Vector3();
+    function stepAnim() {
+        for (var i = 0; i < 3; i++) {
+            var A = anim[i], T = A.t, k = 0.13;
+            A.s += (T.s - A.s) * k; A.x += (T.x - A.x) * k;
+            A.y += (T.y - A.y) * k; A.z += (T.z - A.z) * k;
+            A.e += (T.e - A.e) * k; A.d += (T.d - A.d) * k;
+            var ms = sphereMeshes[i];
+            for (var mi = 0; mi < ms.length; mi++) {
+                ms[mi].position.set(DEFS[i].c.x + A.x, DEFS[i].c.y + A.y, DEFS[i].c.z + A.z);
+                // V1A: while the canvas is transform-stretched during
+                // a stage flight, each sphere's local Y scale carries
+                // the inverse factor, so the drawn spheres stay
+                // circular at every instant of the flight.
+                ms[mi].scale.set(A.s, A.s * flightSquash, A.s);
+            }
+            units[i].uEmph.value = A.e;
+            units[i].uDim.value = A.d;
+            A.col.lerp(T.e > 0.01 ? DEFS[i].col : accentCache, 0.13);
+            units[i].uColor.value.copy(A.col);
+        }
+        centerCur += (centerTarget - centerCur) * 0.13;
+        centerEl.style.opacity = centerCur.toFixed(2);
+    }
+    window.__eesAPI = {
+        setPose: function (i, pose) {
+            var T = anim[i].t;
+            if (pose.scale !== undefined) T.s = pose.scale;
+            if (pose.off) { T.x = pose.off[0]; T.y = pose.off[1]; T.z = pose.off[2]; }
+            if (pose.emph !== undefined) T.e = pose.emph;
+            if (pose.dim !== undefined) T.d = pose.dim;
+        },
+        setOpen: function (i) { selOpen = i; },
+        setCenter: function (v) { centerTarget = v; },
+        poseSettled: function () {
+            for (var i = 0; i < 3; i++) {
+                var A = anim[i], T = A.t;
+                if (Math.abs(A.s - T.s) > 0.01 || Math.abs(A.z - T.z) > 0.02 ||
+                    Math.abs(A.x - T.x) > 0.02 || Math.abs(A.y - T.y) > 0.02) return false;
+            }
+            return true;
+        },
+        project: function (i) {
+            var A = anim[i];
+            _pv.copy(DEFS[i].c); _pv.x += A.x; _pv.y += A.y; _pv.z += A.z;
+            group.localToWorld(_pv);
+            var p = _pv.clone().project(camera);
+            var w = stage.clientWidth || 1, h = stage.clientHeight || 1;
+            var cx = (p.x * 0.5 + 0.5) * w, cy = (-p.y * 0.5 + 0.5) * h;
+            var right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+            var rp = _pv.clone().addScaledVector(right, DEFS[i].r * A.s).project(camera);
+            var rx = (rp.x * 0.5 + 0.5) * w, ry = (-rp.y * 0.5 + 0.5) * h;
+            return { x: cx, y: cy, r: Math.sqrt((rx - cx) * (rx - cx) + (ry - cy) * (ry - cy)) };
+        },
+        stageSize: function () { return { w: stage.clientWidth, h: stage.clientHeight }; },
+        // V1A: exact pose writes (current = target, no easing lag)
+        // so the choreography clock is the only source of motion,
+        // plus the settle-time sharp refit to the grown stage size.
+        setPoseExact: function (i, pose) {
+            var A = anim[i];
+            if (pose.scale !== undefined) { A.s = pose.scale; A.t.s = pose.scale; }
+            if (pose.off) { A.x = pose.off[0]; A.y = pose.off[1]; A.z = pose.off[2]; A.t.x = pose.off[0]; A.t.y = pose.off[1]; A.t.z = pose.off[2]; }
+            if (pose.emph !== undefined) { A.e = pose.emph; A.t.e = pose.emph; }
+            if (pose.dim !== undefined) { A.d = pose.dim; A.t.d = pose.dim; }
+            A.col.copy(A.t.e > 0.01 ? DEFS[i].col : accentCache);
+        },
+        setCenterExact: function (v) { centerTarget = v; centerCur = v; centerEl.style.opacity = v.toFixed(2); },
+        setFlightSquash: function (f) { flightSquash = f; },
+        refitSharp: function (hPx) {
+            var w = wrap.clientWidth;
+            renderer.setSize(w, hPx, false);
+            camera.aspect = w / hPx;
+            camera.updateProjectionMatrix();
+        },
+        restoreFit: function () { fit(); },
+        getDistance: function () { return camera.position.z; },
+        setDistance: function (d) { camera.position.set(0, 0, d); camera.lookAt(0, 0, 0); },
+        sphereR: function (i) { return DEFS[i].r * anim[i].s; }
+    };
+
     function fit() {
+        if (window.__eesHoldFit) return; // V1A: the choreography owns the stage size while a sphere is open or in flight
         // Sized from the WRAPPER, which is on the page from the first
         // paint (it holds the flat SVG), so the off-DOM canvas gets its
         // true size while the stage is still hidden. The stage's own
@@ -1755,31 +1883,35 @@ function boot() {
     var fixed = params.has('spin') || params.has('spinx');
     var dragging = false, lastX = 0, lastY = 0, lastTouch = 0;
     var velRX = 0, velRY = 0;
-    stage.addEventListener('pointerdown', function (e) {
-        dragging = true; lastX = e.clientX; lastY = e.clientY; lastTouch = performance.now();
-        velRX = 0; velRY = 0; // a grab kills the spin
-        stage.setPointerCapture(e.pointerId);
-    });
-    stage.addEventListener('pointermove', function (e) {
-        if (!dragging) return;
-        var dx = e.clientX - lastX, dy = e.clientY - lastY;
-        lastX = e.clientX; lastY = e.clientY; lastTouch = performance.now();
-        var stepY = dx * 0.0055;
-        targetRY += stepY;
-        velRY = velRY * 0.65 + stepY * 0.35;
-        if (e.pointerType !== 'touch') { // touch: vertical stays page scroll
-            var stepX = dy * 0.0055;
-            targetRX += stepX;
-            velRX = velRX * 0.65 + stepX * 0.35;
-        }
-        targetRX = THREE.MathUtils.clamp(targetRX, -1.15, 1.15);
-    });
+    // V1A: the stage's drag is driven through this handle — the
+    // gesture controller classifies each press (drag / hold / tap)
+    // and calls grab/move/end only for true drags, so a hold or a
+    // tap never turns the figure. The step maths, velocity
+    // smoothing, clamps and endDrag are the figure's own.
     function endDrag() {
         dragging = false; lastTouch = performance.now();
         if (reduced) { velRX = 0; velRY = 0; }
     }
-    stage.addEventListener('pointerup', endDrag);
-    stage.addEventListener('pointercancel', endDrag);
+    window.__eesDrag = {
+        grab: function () {
+            dragging = true; velRX = 0; velRY = 0; // a grab kills the spin
+            lastTouch = performance.now();
+        },
+        move: function (dx, dy, isTouch) {
+            var stepY = dx * 0.0055;
+            targetRY += stepY;
+            velRY = velRY * 0.65 + stepY * 0.35;
+            if (!isTouch) { // touch: vertical stays page scroll
+                var stepX = dy * 0.0055;
+                targetRX += stepX;
+                velRX = velRX * 0.65 + stepX * 0.35;
+            }
+            targetRX = THREE.MathUtils.clamp(targetRX, -1.15, 1.15);
+            lastTouch = performance.now();
+        },
+        end: function () { endDrag(); },
+        turn: function () { return { x: rotX, y: rotY }; }
+    };
 
     var visible = true;
     new IntersectionObserver(function (en) { visible = en[0].isIntersecting; }, { threshold: 0.02 }).observe(stage);
@@ -1809,6 +1941,7 @@ function boot() {
         rotY += (targetRY - rotY) * k;
         rotX += (targetRX - rotX) * k;
         group.rotation.set(rotX, rotY, 0);
+        stepAnim();
         updateOthers();
         // The shadow stays with the floor: it counter-shifts a little
         // against the turn and breathes wider as the cluster swings.
@@ -1820,6 +1953,367 @@ function boot() {
         renderer.render(scene, camera);
     })(performance.now());
 }
+</script>
+<script>
+// =====================================================================
+// The Three E's Venn — gesture controller (V1A, landed 2026-11-25):
+// drag = turn · hold = preview · tap = lock. One rAF choreography
+// clock grows the tapped sphere in place and breathes the stage
+// taller by exactly the room its text needs; the words fade in only
+// once the growth has settled and the canvas has re-rendered sharp.
+// Ported from Johnny's approved mockup (variant V1A) without
+// redesign; V3 remains the fallback if the feel fails on his phone.
+// =====================================================================
+(function () {
+    var KEYS = ['env', 'eco', 'eq'];
+    var NAMES = ['Environment', 'Economy', 'Equity'];
+    var COLORS = ['#3fb950', '#e8a13a', '#4da6ff'];
+    var FACE = {
+        env: { def: 'Actively preserving and enhancing ecological systems.',
+               counts: ['Ecological restoration, biodiversity, water, energy, and resource conservation.'] },
+        eco: { def: 'Fostering efficient, short-term and long-term market-based prosperity.',
+               counts: ['Profitability, productivity, innovation, resource efficiency, and long-term financial viability.'] },
+        eq:  { def: 'Embedding equity so gains from environmental and economic progress are more fairly distributed.',
+               counts: ['<strong>Equity is not charity:</strong> it means fair access to opportunities, fair compensation, participation in decisions, and sharing the benefits and costs of progress.',
+                        'Opportunity, accessibility, worker welfare, affordability, and community benefits.'] }
+    };
+    var HOMES = [[-1.50, 0.733, 0.26], [1.50, 0.733, -0.26], [0.00, -1.467, 0.05]];
+    var HOLD_MS = 250, MOVE_T = 9; // ms to preview · px of travel that makes a drag
+
+    var locked = -1, preview = -1, lastOpen = -1;
+    var API = null, DRAG = null;
+    var stage, face, hits = [];
+    var fitTimer = null;
+
+    function openIdx() { return preview >= 0 ? preview : locked; }
+
+    function faceHTML(i) {
+        var f = FACE[KEYS[i]];
+        return '<div class="ees-face-name" style="color:' + COLORS[i] + '">' + NAMES[i] + '</div>' +
+            '<p>' + f.def + '</p>' +
+            f.counts.map(function (c) { return '<p class="counts">' + c + '</p>'; }).join('');
+    }
+
+    function hideFace() {
+        face.dataset.open = '0';
+        face.style.opacity = '0';
+        clearInterval(fitTimer);
+    }
+
+    // ----- V1A · Grow in place + animated stage -----
+    // One rAF clock drives the whole choreography: every visual value
+    // (sphere poses, stage height, canvas scale, hint, centre word) is
+    // a pure function of the clock's eased progress between a snapshot
+    // frame and a target frame. Any gesture mid-flight snapshots the
+    // current frame and starts a new segment from it, so interrupts
+    // and spam can never strand a half-state. The WebGL canvas is
+    // never resized during flight — it stretches by transform and is
+    // re-rendered sharp once, at settle, at the grown size.
+    var v1a = { ready: false, H0: 0, W: 0, targets: null, cur: null,
+                seg: null, raf: 0, bufferH: 0, settledOpen: -1, segments: [] };
+    var OPEN_MS = 320; // open and close share the duration family
+
+    function easeIO(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+
+    function v1aComputeTargets() {
+        // Measure each sphere's text block across widths and take the
+        // width whose corner bound is smallest; the bubble diameter
+        // then guarantees >= 13px of rim clearance at that width.
+        var tan = Math.tan(18 * Math.PI / 180), d0 = API.getDistance();
+        var out = [];
+        face.dataset.open = '0';
+        for (var i = 0; i < 3; i++) {
+            face.innerHTML = faceHTML(i);
+            face.style.visibility = 'hidden'; face.style.opacity = '0';
+            var best = null;
+            for (var w = 230; w <= 320; w += 5) {
+                face.style.width = w + 'px';
+                var h = face.scrollHeight;
+                var bound = Math.sqrt((w / 2) * (w / 2) + (h / 2) * (h / 2));
+                if (!best || bound < best.bound) best = { w: w, h: h, bound: bound };
+            }
+            var D = Math.ceil(2 * (best.bound + 13));
+            var z = HOMES[i][2] + 1.5;
+            var scale = (D / 2) * tan * (d0 - z) / ((v1a.H0 / 2) * (i === 2 ? 2.10 : 2.05));
+            out.push({ D: D, w: best.w, h: best.h, bound: Math.round(best.bound * 10) / 10,
+                       H1: D + 48, scale: Math.round(scale * 1000) / 1000,
+                       off: [-HOMES[i][0] * 0.92, -HOMES[i][1] * 0.92, 1.5] });
+        }
+        face.innerHTML = '';
+        return out;
+    }
+    function v1aInit() {
+        v1a.W = stage.clientWidth; v1a.H0 = stage.clientHeight;
+        v1a.bufferH = v1a.H0;
+        v1a.targets = v1aComputeTargets();
+        v1a.cur = v1aRestFrame();
+        v1a.ready = true;
+    }
+    function v1aRestFrame() {
+        return { sphere: -1, e: 0, stageH: v1a.H0, center: 1, hint: 1,
+                 poses: [0, 1, 2].map(function () { return { scale: 1, off: [0, 0, 0], emph: 0, dim: 0 }; }) };
+    }
+    function v1aOpenFrame(s) {
+        var T = v1a.targets[s], poses = [];
+        for (var j = 0; j < 3; j++) {
+            if (j === s) poses.push({ scale: T.scale, off: T.off.slice(), emph: 1, dim: 0 });
+            else {
+                var dx = HOMES[j][0] - HOMES[s][0], dy = HOMES[j][1] - HOMES[s][1];
+                var m = Math.hypot(dx, dy) || 1;
+                poses.push({ scale: 0.5, off: [dx / m * 0.85, dy / m * 0.85, -0.9], emph: 0, dim: 0.78 });
+            }
+        }
+        return { sphere: s, e: 1, stageH: T.H1, center: 0, hint: 0, poses: poses };
+    }
+    function v1aLerpFrame(a, b, t) {
+        var f = { sphere: t >= 1 ? b.sphere : (a.sphere >= 0 ? a.sphere : b.sphere),
+                  e: a.e + (b.e - a.e) * t,
+                  stageH: a.stageH + (b.stageH - a.stageH) * t,
+                  center: a.center + (b.center - a.center) * t,
+                  hint: a.hint + (b.hint - a.hint) * t, poses: [] };
+        for (var i = 0; i < 3; i++) {
+            var pa = a.poses[i], pb = b.poses[i];
+            f.poses.push({ scale: pa.scale + (pb.scale - pa.scale) * t,
+                off: [pa.off[0] + (pb.off[0] - pa.off[0]) * t,
+                      pa.off[1] + (pb.off[1] - pa.off[1]) * t,
+                      pa.off[2] + (pb.off[2] - pa.off[2]) * t],
+                emph: pa.emph + (pb.emph - pa.emph) * t,
+                dim: pa.dim + (pb.dim - pa.dim) * t });
+        }
+        return f;
+    }
+    function v1aApplyFrame(f) {
+        for (var i = 0; i < 3; i++) API.setPoseExact(i, f.poses[i]);
+        API.setFlightSquash(v1a.bufferH / f.stageH); // cancel the canvas stretch per-sphere: circles stay circles
+        API.setCenterExact(f.center);
+        API.setOpen(f.sphere >= 0 && f.e > 0.03 ? f.sphere : -1);
+        stage.style.height = f.stageH + 'px';
+        var cv = document.getElementById('ees3dCanvas');
+        if (cv) {
+            cv.style.height = v1a.bufferH + 'px';
+            cv.style.transformOrigin = '50% 0';
+            cv.style.transform = 'scaleY(' + (f.stageH / v1a.bufferH) + ')';
+        }
+        var hint = stage.querySelector('.ees3d-hint');
+        hint.style.opacity = f.hint.toFixed(3);
+        hint.style.visibility = f.hint <= 0.02 ? 'hidden' : 'visible';
+        v1a.cur = f;
+    }
+    function v1aSettle(f) {
+        v1a.cur = f;
+        API.setFlightSquash(1);
+        var cv = document.getElementById('ees3dCanvas');
+        if (f.sphere >= 0 && f.e === 1) {
+            var s = f.sphere, T = v1a.targets[s], k, pr;
+            API.refitSharp(T.H1); // one sharp re-render at the grown size
+            for (k = 0; k < 6; k++) { // solve camera distance for the exact diameter
+                pr = API.project(s);
+                if (Math.abs(pr.r * 2 - T.D) < 1) break;
+                API.setDistance(API.getDistance() * (pr.r / (T.D / 2)));
+            }
+            for (k = 0; k < 4; k++) { // centre the sphere in the grown stage
+                pr = API.project(s);
+                var dx = v1a.W / 2 - pr.x, dy = T.H1 / 2 - pr.y;
+                if (Math.abs(dx) < 2 && Math.abs(dy) < 2) break;
+                var wpp = API.sphereR(s) / pr.r;
+                var off = f.poses[s].off.slice();
+                off[0] += dx * wpp; off[1] -= dy * wpp;
+                f.poses[s].off = off;
+                API.setPoseExact(s, f.poses[s]);
+            }
+            for (k = 0; k < 2; k++) {
+                pr = API.project(s);
+                if (Math.abs(pr.r * 2 - T.D) < 1) break;
+                API.setDistance(API.getDistance() * (pr.r / (T.D / 2)));
+            }
+            pr = API.project(s);
+            v1a.bufferH = T.H1;
+            if (cv) { cv.style.transform = ''; cv.style.height = ''; }
+            // text fades in only now — growth first, words at full size
+            face.innerHTML = faceHTML(s);
+            face.dataset.open = 'v1a';
+            face.style.width = T.w + 'px';
+            face.style.left = pr.x + 'px';
+            face.style.top = pr.y + 'px';
+            face.style.visibility = 'visible';
+            var h = face.scrollHeight;
+            var bound = Math.sqrt((T.w / 2) * (T.w / 2) + (h / 2) * (h / 2));
+            var clearance = pr.r - bound;
+            window.__eesFit = { variant: 'v1a', e: KEYS[s], bubbleDiameterPx: Math.round(pr.r * 2),
+                textWidthPx: T.w, textHeightPx: h,
+                cornerOverflowPx: Math.max(0, Math.round(-clearance * 10) / 10),
+                clearancePx: Math.round(clearance * 10) / 10, stageHeightPx: T.H1,
+                defFont: '0.94rem (15.0px)', countsFont: '0.87rem (13.9px)' };
+            face.style.opacity = '1';
+            v1a.settledOpen = s;
+        } else {
+            window.__eesHoldFit = false;
+            API.restoreFit(); // rest framing, sharp at the rest size
+            stage.style.height = '';
+            if (cv) { cv.style.transform = ''; cv.style.height = ''; }
+            v1a.bufferH = v1a.H0;
+            v1a.settledOpen = -1;
+        }
+    }
+    function v1aChoreoTo(target) {
+        var from = v1a.cur || v1aRestFrame();
+        var morph = (from.sphere >= 0 && target.sphere >= 0 && from.sphere !== target.sphere) ? 1 : 0;
+        var dist = Math.max(Math.abs(target.e - from.e),
+                            Math.abs(target.stageH - from.stageH) / 90, morph);
+        if (dist < 0.02) { v1aSettle(target); return; }
+        var dur = Math.max(90, OPEN_MS * Math.min(1, dist));
+        window.__eesHoldFit = true;
+        hideFace();
+        v1a.settledOpen = -1;
+        if (v1a.raf) cancelAnimationFrame(v1a.raf);
+        var seg = { from: from, to: target, t0: 0, dur: dur,
+                    kind: morph ? 'morph' : (target.e === 1 ? 'open' : 'close'),
+                    frames: [], last: 0 };
+        v1a.seg = seg;
+        var step = function (now) {
+            if (v1a.seg !== seg) return; // superseded by a newer segment
+            if (!seg.t0) { seg.t0 = now; seg.last = now; }
+            else { seg.frames.push(now - seg.last); seg.last = now; }
+            var q = Math.min(1, (now - seg.t0) / seg.dur);
+            v1aApplyFrame(v1aLerpFrame(seg.from, seg.to, easeIO(q)));
+            if (q < 1) v1a.raf = requestAnimationFrame(step);
+            else {
+                v1a.seg = null;
+                v1a.segments.push({ kind: seg.kind, durMs: Math.round(seg.dur), frames: seg.frames });
+                v1aSettle(seg.to);
+            }
+        };
+        v1a.raf = requestAnimationFrame(step);
+    }
+    window.__eesV1A = {
+        targets: function () { return v1a.targets; },
+        frame: function () { return v1a.cur ? { sphere: v1a.cur.sphere, e: Math.round(v1a.cur.e * 1000) / 1000, stageH: Math.round(v1a.cur.stageH * 10) / 10 } : null; },
+        settled: function () { return !v1a.seg; },
+        segments: function () { return v1a.segments; },
+        resetSegments: function () { v1a.segments = []; }
+    };
+
+    // ----- state application -----
+    function applyState() {
+        var open = openIdx();
+        if (!v1a.ready) v1aInit();
+        hideFace();
+        v1aChoreoTo(open >= 0 ? v1aOpenFrame(open) : v1aRestFrame());
+        if (open >= 0) lastOpen = open;
+        hits.forEach(function (btn, i) { btn.setAttribute('aria-pressed', locked === i ? 'true' : 'false'); });
+        window.__eesState = { locked: locked, preview: preview, open: open, variant: 'v1a' };
+    }
+
+    // ----- hit testing + per-frame followers -----
+    function hitTest(x, y) {
+        var best = -1, bestScore = 1e9;
+        for (var i = 0; i < 3; i++) {
+            var p = API.project(i);
+            var d = Math.hypot(x - p.x, y - p.y);
+            if (d <= p.r && d / p.r < bestScore) { bestScore = d / p.r; best = i; }
+        }
+        return best;
+    }
+    function tick() {
+        if (API && stage && !stage.hidden) {
+            for (var i = 0; i < 3; i++) {
+                var p = API.project(i), btn = hits[i];
+                btn.style.left = (p.x - p.r) + 'px';
+                btn.style.top = (p.y - p.r) + 'px';
+                btn.style.width = (p.r * 2) + 'px';
+                btn.style.height = (p.r * 2) + 'px';
+            }
+            if (v1a.settledOpen >= 0 && face.dataset.open === 'v1a') {
+                var pv = API.project(v1a.settledOpen);
+                face.style.left = pv.x + 'px';
+                face.style.top = pv.y + 'px';
+            }
+        }
+        requestAnimationFrame(tick);
+    }
+
+    // ----- the gesture state machine -----
+    var g = null;
+    function onDown(e) {
+        if (g || !API) return;
+        var rect = stage.getBoundingClientRect();
+        var cand = hitTest(e.clientX - rect.left, e.clientY - rect.top);
+        g = { id: e.pointerId, cand: cand, sx: e.clientX, sy: e.clientY,
+              lx: e.clientX, ly: e.clientY, mode: 'pending', touch: e.pointerType === 'touch', timer: null };
+        g.timer = setTimeout(function () {
+            if (g && g.mode === 'pending') {
+                g.mode = 'preview';
+                if (g.cand >= 0) { preview = g.cand; applyState(); }
+            }
+        }, HOLD_MS);
+    }
+    function onMove(e) {
+        if (!g || e.pointerId !== g.id) return;
+        var dx = e.clientX - g.lx, dy = e.clientY - g.ly;
+        var tdx = e.clientX - g.sx, tdy = e.clientY - g.sy;
+        g.lx = e.clientX; g.ly = e.clientY;
+        if (g.mode === 'pending' && Math.hypot(tdx, tdy) >= MOVE_T) {
+            clearTimeout(g.timer);
+            g.mode = 'drag';
+            DRAG.grab(); DRAG.move(tdx, tdy, g.touch);
+        } else if (g.mode === 'preview' && Math.hypot(tdx, tdy) >= MOVE_T) {
+            preview = -1; applyState();
+            g.mode = 'drag';
+            DRAG.grab(); DRAG.move(tdx, tdy, g.touch);
+        } else if (g.mode === 'drag') {
+            DRAG.move(dx, dy, g.touch);
+        }
+    }
+    function endGesture(commitTap) {
+        if (!g) return;
+        clearTimeout(g.timer);
+        if (g.mode === 'drag') DRAG.end();
+        else if (g.mode === 'preview') { preview = -1; applyState(); }
+        else if (g.mode === 'pending' && commitTap && g.cand >= 0) {
+            locked = (locked === g.cand) ? -1 : g.cand;
+            applyState();
+        }
+        g = null;
+    }
+
+    function init() {
+        stage = document.getElementById('ees3dStage');
+        face = document.getElementById('eesFace');
+        hits = [0, 1, 2].map(function (i) { return document.getElementById('eesHit' + i); });
+        stage.addEventListener('pointerdown', onDown);
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', function (e) { if (g && e.pointerId === g.id) endGesture(true); });
+        window.addEventListener('pointercancel', function (e) { if (g && e.pointerId === g.id) endGesture(false); });
+        hits.forEach(function (btn, i) {
+            btn.addEventListener('click', function () {
+                locked = (locked === i) ? -1 : i;
+                applyState();
+            });
+        });
+        applyState();
+        requestAnimationFrame(tick);
+    }
+
+    // Read-only diagnostics, in the module's own window.__ees3d*
+    // tradition: state, last fit, current turn.
+    window.__eesCtl = {
+        state: function () { return window.__eesState || null; },
+        fit: function () { return window.__eesFit || null; },
+        turn: function () { return DRAG ? DRAG.turn() : null; }
+    };
+
+    var tries = 0;
+    (function boot() {
+        if (window.__eesAPI && window.__eesDrag) {
+            API = window.__eesAPI; DRAG = window.__eesDrag;
+            init();
+        } else if (tries++ < 100) {
+            setTimeout(boot, 100);
+        }
+        // Otherwise WebGL is unavailable: the flat Venn stands and
+        // there is nothing to control.
+    })();
+})();
 </script>
         <p class="loop-caption">A plan passes only in the middle, where all three overlap.</p>
         
