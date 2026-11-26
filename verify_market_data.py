@@ -49,8 +49,21 @@ Checks (each failure prints one plain line and fails the run):
              Yahoo to the penny on the calibration day
              (2026-11-24); the tolerances sit far above vendor
              noise and far below any wrong-symbol or
-             wrong-feed error. A source that cannot be reached
-             after retries fails its leg loudly — an unchecked
+             wrong-feed error.
+             FALLBACK (Johnny, 2026-11-26): if — and only if —
+             a FRED index leg cannot be reached after its
+             retries, that leg falls back to the index's own
+             publisher: SPX and VIX to CBOE's published daily
+             index prices, IXIC to Nasdaq's official index
+             history (COMP). Same tolerances, same comparison;
+             the fallback sources are independent of Yahoo
+             (the builders' feed) and matched the FRED-verified
+             closes to the penny on the calibration day. A leg
+             verified by fallback says so loudly in the log
+             and in verification-report.json; if the fallback
+             also fails or disagrees, the leg still fails.
+             Any other source that cannot be reached after
+             retries fails its leg loudly — an unchecked
              night is not a silent night.
 
 Usage (workflow):  python verify_market_data.py
@@ -574,6 +587,13 @@ _JOHNNY19 = {"GOOGL", "ASST", "CIFR", "SPCX", "NBIS", "IREN",
 
 
 # ------------------------------------------------------------- cross-check
+# Which source verified each leg tonight; main() writes this to
+# verification-report.json so a fallback-verified publish is
+# visible outside the run log (the watchdog reads the served
+# copy).
+VERIFY_SOURCES = {}
+
+
 def _compare(suite, label, mine, ref, tol, min_common, newest_within,
              through):
     common = sorted(set(mine) & set(ref))
@@ -617,6 +637,55 @@ def _fred(series_id):
     return out
 
 
+def _cboe_index(name):
+    """CBOE's published daily prices for one of its indexes
+    ("SPX" or "VIX"), as {iso-date: close}. CBOE publishes the
+    VIX and is the licensed disseminator of SPX index values —
+    the official source, independent of Yahoo. The SPX file is
+    DATE,SPX; the VIX file is DATE,OPEN,HIGH,LOW,CLOSE; the
+    header row names the columns either way."""
+    raw = fetch_text("https://cdn.cboe.com/api/global/us_indices/"
+                     "daily_prices/%s_History.csv" % name)
+    rows = [r for r in csv.reader(io.StringIO(raw)) if r]
+    head = [c.strip().upper() for c in rows[0]]
+    col = head.index("CLOSE") if "CLOSE" in head else 1
+    out = {}
+    for row in rows[1:]:
+        if len(row) <= col:
+            continue
+        try:
+            day = datetime.strptime(row[0].strip(),
+                                    "%m/%d/%Y").strftime("%Y-%m-%d")
+            out[day] = float(row[col])
+        except (ValueError, IndexError):
+            pass
+    return out
+
+
+def _nasdaq_index(sym, through):
+    """Nasdaq's official history for an index symbol (COMP is
+    the Nasdaq Composite, whose publisher is Nasdaq itself),
+    or None."""
+    try:
+        raw = fetch_text(
+            "https://api.nasdaq.com/api/quote/%s/"
+            "historical?assetclass=index&fromdate=%s&limit=9999"
+            % (sym, (through - timedelta(days=45)).isoformat()))
+        rows = ((json.loads(raw).get("data") or {})
+                .get("tradesTable", {}).get("rows") or [])
+        if rows:
+            ref = {}
+            for r in rows:
+                day = datetime.strptime(
+                    r["date"], "%m/%d/%Y").strftime("%Y-%m-%d")
+                ref[day] = float(r["close"].replace("$", "")
+                                 .replace(",", ""))
+            return ref
+    except Exception:
+        pass
+    return None
+
+
 def _nasdaq(sym, through):
     """Nasdaq official history for one symbol, or None."""
     for assetclass in ("stocks", "etf"):
@@ -646,19 +715,53 @@ def check_crosscheck(suite, series, through):
         return {b[0]: float(b[4])
                 for b in (series.get(key) or {}).get("bars", [])[-n:]}
     # Indexes via FRED (Federal Reserve Bank of St. Louis —
-    # independent of Yahoo, the builders' feed).
+    # independent of Yahoo, the builders' feed). FALLBACK
+    # (Johnny, 2026-11-26): only when a FRED leg is unreachable
+    # after its retries does that leg fall back to the index's
+    # own publisher — SPX/VIX to CBOE's published daily prices,
+    # IXIC to Nasdaq's official COMP history — with the SAME
+    # tolerance and the SAME comparison. A fallback that
+    # disagrees, or is also unreachable, still fails the leg.
     for key, fid, tol, minc, within in (
             ("SPX", "SP500", 0.0035, 2, 5),
             ("IXIC", "NASDAQCOM", 0.0035, 2, 7),
             ("VIX", "VIXCLS", 0.01, 2, 5)):
+        ref = None
+        fred_exc = None
         try:
             ref = _fred(fid)
         except Exception as exc:
-            suite.fail("crosscheck %s: independent source (FRED "
-                       "%s) %s" % (key, fid, exc))
+            fred_exc = exc
+        if ref is not None:
+            VERIFY_SOURCES[key] = "FRED %s" % fid
+            _compare(suite, "%s vs FRED %s" % (key, fid),
+                     closes(key), ref, tol, minc, within, through)
             continue
-        _compare(suite, "%s vs FRED %s" % (key, fid), closes(key),
-                 ref, tol, minc, within, through)
+        # FRED unreachable after its retries — publisher
+        # fallback, never consulted when FRED answers.
+        try:
+            if key == "IXIC":
+                ref = _nasdaq_index("COMP", through)
+                if ref is None:
+                    raise RuntimeError("no COMP history returned")
+                src = "Nasdaq official index history (COMP)"
+            else:
+                ref = _cboe_index(key)
+                src = "CBOE published daily prices (%s)" % key
+        except Exception as fb_exc:
+            suite.fail("crosscheck %s: independent source (FRED "
+                       "%s) %s; fallback source also failed (%s)"
+                       % (key, fid, fred_exc, fb_exc))
+            VERIFY_SOURCES[key] = ("UNVERIFIED — FRED and its "
+                                   "fallback both failed")
+            continue
+        VERIFY_SOURCES[key] = "FALLBACK %s (FRED unreachable)" % src
+        suite.note("crosscheck %s: FRED %s UNREACHABLE (%s) — "
+                   "this leg was verified against the FALLBACK "
+                   "source, %s, NOT against FRED"
+                   % (key, fid, fred_exc, src))
+        _compare(suite, "%s vs FALLBACK %s" % (key, src),
+                 closes(key), ref, tol, minc, within, through)
     # BTC via Coinbase Exchange daily candles (independent of
     # both Yahoo and CoinMetrics).
     try:
@@ -673,7 +776,9 @@ def check_crosscheck(suite, series, through):
         suite.fail("crosscheck BTC: independent source (Coinbase) "
                    "%s" % exc)
         ref = None
+        VERIFY_SOURCES["BTC"] = "UNVERIFIED — Coinbase failed"
     if ref:
+        VERIFY_SOURCES["BTC"] = "Coinbase"
         _compare(suite, "BTC vs Coinbase", closes("BTC"), ref,
                  0.01, 2, 2, through)
     # GOLD (front-month futures) vs GLD (spot-backed ETF):
@@ -682,9 +787,11 @@ def check_crosscheck(suite, series, through):
     # returns differed by 0.25–0.94 points; tolerance 1.5.
     gld = _nasdaq("GLD", through)
     if gld is None:
+        VERIFY_SOURCES["GOLD"] = "UNVERIFIED — Nasdaq GLD failed"
         suite.fail("crosscheck GOLD: independent source "
                    "(Nasdaq GLD history) unreachable")
     else:
+        VERIFY_SOURCES["GOLD"] = "Nasdaq GLD daily returns"
         mine = closes("GOLD", 30)
         common = sorted(set(mine) & set(gld))
         if len(common) < 4:
@@ -732,6 +839,8 @@ def check_crosscheck(suite, series, through):
             found += 1
             _compare(suite, "%s vs Nasdaq" % key, closes(key), ref,
                      0.005, 2, 5, through)
+        VERIFY_SOURCES["tickers"] = ("Nasdaq official history "
+                                      "(rotating sample)")
         if found < 6:
             suite.fail("crosscheck tickers: only %d of the sampled "
                        "8 tickers could be verified against Nasdaq "
@@ -833,6 +942,29 @@ def main():
                     allow_partial, now_utc)
         if not skip_cross:
             check_crosscheck(suite, series, through)
+
+    # The verification report is committed with the data, so
+    # the watchdog (and anyone) can see WHICH source verified
+    # each leg — in particular whether any leg ran on its
+    # fallback. On a failed run nothing commits, so the served
+    # copy always describes the last PUBLISHED data.
+    report = {
+        "generated_at": now_utc.isoformat(),
+        "through": through.isoformat(),
+        "crosscheck_skipped": skip_cross,
+        "fallback_used": any(str(v).startswith("FALLBACK")
+                             for v in VERIFY_SOURCES.values()),
+        "sources": VERIFY_SOURCES,
+    }
+    try:
+        with open(os.path.join(base_dir,
+                               "verification-report.json"),
+                  "w") as fh:
+            json.dump(report, fh, indent=1, sort_keys=True)
+            fh.write("\n")
+    except Exception as exc:
+        print("WARNING: verification-report.json could not be "
+              "written (%s)" % exc)
 
     for line in suite.notes:
         print("ok: %s" % line)
