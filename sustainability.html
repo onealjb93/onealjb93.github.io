@@ -1056,6 +1056,21 @@ body.light-mode .explainer-wrapper[id]:has(> .door-photo) > .info-toggle.entry-t
         <h1>Sustainable Development</h1>
         <p class="thesis">Sustainability is not perfection — it is improvement.</p>
         <p class="countline">46 real case studies across this page, each one tested against all three E&rsquo;s.</p>
+        <!-- Top search (2026-11-25, magnifier form): the field
+             lives in this title bar — the magnifier at its right
+             end opens it in place; its script (the last before
+             </body>) searches every chapter live from the first
+             letter. -->
+        <div class="mag-cluster">
+            <div class="mag-field" id="susSearchField" hidden>
+                <div class="sus-search-row">
+                    <input class="sus-search-input" id="susSearchInput" type="text" autocomplete="off" spellcheck="false" placeholder="Search all of Sustainability" aria-label="Search all of Sustainability">
+                    <span class="sus-search-count" id="susSearchCount" role="status"></span>
+                    <button type="button" class="sus-search-clear" id="susSearchClear" aria-label="Clear the search" hidden>&#10005;</button>
+                </div>
+            </div>
+            <button type="button" class="mag-btn" id="susSearchBtn" aria-label="Search all of Sustainability" aria-expanded="false" aria-controls="susSearchField"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+        </div>
     </header>
 
     <div class="hero">
@@ -2361,11 +2376,23 @@ function boot() {
 
     <style>
     /* Top search (2026-11-25): the site pattern's second instance —
-       Cooking's top search in this page's own glass. One quiet pill
-       directly under the chapter bar: live from the first letter,
-       a count beside the field, a clear that hands the page back
-       exactly as it was. */
-    .sus-search { margin: 0.9rem 0 0.2rem; }
+       Cooking's top search in this page's own glass. Live from the
+       first letter, a count beside the field, a clear that hands
+       the page back exactly as it was. Magnifier form (same day):
+       the search lives in the title bar — a magnifier at its right
+       end opens the field in place inside the bar (an overlay on
+       the page's own background, so the bar's box measures the
+       same in every state and the page never jumps); the pill row
+       below is the field's face when it stands open. The old
+       under-bar row is gone and its space is the page's again;
+       the empty line keeps its place under the chapter bar. */
+    .page-header { position: relative; }
+    .mag-cluster { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+    .mag-btn { position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--subtext-color); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; pointer-events: auto; }
+    .mag-btn:hover { background: var(--hover-bg); color: var(--text-color); }
+    .mag-field { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 58px 0 0; background: var(--bg-color); pointer-events: auto; }
+    .mag-field[hidden] { display: none; }
+    .mag-field .sus-search-row { flex: 1 1 auto; min-width: 0; }
     .sus-search-row { display: flex; align-items: center; gap: 0.6rem;
         border: 1px solid var(--border-color); background: var(--glass-bg);
         -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
@@ -2393,14 +2420,7 @@ function boot() {
     .sus-search-empty[hidden] { display: none; }
     .ss-hide { display: none !important; }
     </style>
-    <div class="sus-search" id="susSearch">
-        <div class="sus-search-row">
-            <input class="sus-search-input" id="susSearchInput" type="text" autocomplete="off" spellcheck="false" placeholder="Search stories" aria-label="Search stories">
-            <span class="sus-search-count" id="susSearchCount" role="status"></span>
-            <button type="button" class="sus-search-clear" id="susSearchClear" aria-label="Clear the search" hidden>&#10005;</button>
-        </div>
-        <p class="sus-search-empty" id="susSearchEmpty" hidden>No stories match. Clear the search to bring every story back.</p>
-    </div>
+    <p class="sus-search-empty" id="susSearchEmpty" hidden>No stories match. Clear the search to bring every story back.</p>
 
     <section id="chap-food">
     <div class="chapter-head"><h2>Food abundance</h2><p class="section-line">Chapter 1 of 5 &middot; Grow food while rebuilding the land that grows it.</p></div>
@@ -6003,6 +6023,70 @@ body.light-mode .gtype-face{background:
     var nav = document.getElementById('chapnav');
     if (nav) nav.addEventListener('click', function (e) {
         if (snapshot && e.target && e.target.closest && e.target.closest('a')) clearSearch(true);
+    }, true);
+})();
+</script>
+<script>
+/* Top search, magnifier wiring (2026-11-25): the button in the
+   title bar opens the field in place; the search layer above does
+   all the finding, exactly as before. This layer only owns the
+   fold: tapping the magnifier with a search standing, tapping the
+   ×, or pressing Esc clears through the search's own clear path
+   and folds the field back to the magnifier; a stand-down arriving
+   from elsewhere (a chapter pill tap) folds it too. The bar's box
+   never changes — the field is an overlay — and clearing restores
+   the page through the search layer's own restore. */
+(function () {
+    var btn = document.getElementById('susSearchBtn');
+    var field = document.getElementById('susSearchField');
+    var input = document.getElementById('susSearchInput');
+    var clearBtn = document.getElementById('susSearchClear');
+    if (!btn || !field || !input) return;
+    var cluster = btn.parentNode;
+    var open = false;
+    function expand() {
+        if (open) return;
+        open = true;
+        field.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }
+    }
+    function collapse() {
+        if (!open) return;
+        open = false;
+        field.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+        if (field.contains(document.activeElement)) btn.focus();
+    }
+    function clearViaSearch() {
+        if (clearBtn && !clearBtn.hidden) { clearBtn.click(); return; }
+        if (input.value) {
+            input.value = '';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+    btn.addEventListener('click', function () {
+        if (!open) { expand(); return; }
+        clearViaSearch();
+        collapse();
+    });
+    if (clearBtn) clearBtn.addEventListener('click', function () { collapse(); });
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' || e.keyCode === 27) { clearViaSearch(); collapse(); }
+    });
+    btn.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' || e.keyCode === 27) { clearViaSearch(); collapse(); }
+    });
+    if (window.MutationObserver && clearBtn) {
+        new MutationObserver(function () {
+            if (open && !input.value && clearBtn.hidden && document.activeElement !== input) collapse();
+        }).observe(clearBtn, { attributes: true, attributeFilter: ['hidden'] });
+    }
+    document.addEventListener('click', function (e) {
+        if (!open || cluster.contains(e.target)) return;
+        window.setTimeout(function () {
+            if (open && !input.value && (!clearBtn || clearBtn.hidden)) collapse();
+        }, 0);
     }, true);
 })();
 </script>
