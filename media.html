@@ -479,6 +479,48 @@
     </nav>
     </div>
 
+    <style>
+    /* Top search (2026-11-25): the site pattern's third instance —
+       one quiet glass pill directly under the pill bar, in the bar's
+       own glass. Live from the first letter across BOTH lists; the
+       count rides inside the pill; the clear hands the page back
+       exactly as it was. */
+    .media-search { margin: 0.35rem 0 0.15rem; }
+    .media-search-row { display: flex; align-items: center; gap: 0.6rem;
+        border: 1px solid var(--border-color); background: var(--glass-bg);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+        backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+        border-radius: 999px; padding: 6px 6px 6px 18px;
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35); }
+    body.light-mode .media-search-row { box-shadow: 0 14px 30px rgba(74, 60, 25, 0.18); }
+    .media-search-input { flex: 1 1 auto; min-width: 0; border: none; background: transparent;
+        color: var(--text-color); font: inherit; font-size: 16px; line-height: 1.4;
+        padding: 8px 0; outline: none; }
+    .media-search-input::placeholder { color: var(--subtext-color); opacity: 1; }
+    .media-search-count { color: var(--subtext-color); font-size: 0.9rem; white-space: nowrap; }
+    .media-search-clear { appearance: none; flex: none; cursor: pointer;
+        width: 38px; height: 38px; border-radius: 50%;
+        border: 1px solid var(--border-color); background: var(--card-bg);
+        color: var(--text-color); font-size: 0.95rem; line-height: 1;
+        display: inline-flex; align-items: center; justify-content: center; }
+    .media-search-clear:hover { background: var(--hover-bg); }
+    .media-search-clear[hidden] { display: none; }
+    .media-search-empty { margin: 0.9rem 0 0; padding: 1rem 1.15rem;
+        border: 1px solid var(--border-color); border-radius: 20px;
+        background: var(--glass-bg); color: var(--text-color);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+        backdrop-filter: blur(var(--glass-blur)) saturate(1.5); }
+    .media-search-empty[hidden] { display: none; }
+    </style>
+    <div class="media-search" id="mediaSearch">
+        <div class="media-search-row">
+            <input class="media-search-input" id="mediaSearchInput" type="text" autocomplete="off" spellcheck="false" placeholder="Search books and podcasts" aria-label="Search books and podcasts">
+            <span class="media-search-count" id="mediaSearchCount" role="status"></span>
+            <button type="button" class="media-search-clear" id="mediaSearchClear" aria-label="Clear the search" hidden>&#10005;</button>
+        </div>
+        <p class="media-search-empty" id="mediaSearchEmpty" hidden>No titles match. Clear the search to bring them all back.</p>
+    </div>
+
     <div class="media-columns">
     <section class="media-col media-col-books" id="books">
     <div class="media-box-head">
@@ -1371,6 +1413,138 @@
         window.addEventListener('scroll', spySchedule, { passive: true });
         window.addEventListener('resize', spySchedule);
         spy();
+    })();
+    </script>
+    <script>
+    // Top search (2026-11-25): the site pattern — one field over BOTH
+    // lists, live from the first letter. A row matches when every word
+    // of the term appears in what the page shows for it: the title,
+    // the author (books) or show (podcasts) line, and for a book its
+    // genre as the page's own filter names it. The search composes
+    // with each section's own controls the way the sections already
+    // compose search with filter (a row shows only if it passes
+    // both): the two filter functions are wrapped — outside the pair
+    // pass's own wrap, so the pass re-measures the final state — and
+    // the top search re-applies over the fresh section state after
+    // every section change. Clearing hands the page back exactly:
+    // both lists return to their section state and the scroll returns
+    // to the snapshot taken when the search began.
+    (function () {
+        var input = document.getElementById('mediaSearchInput');
+        var countEl = document.getElementById('mediaSearchCount');
+        var clearBtn = document.getElementById('mediaSearchClear');
+        var emptyEl = document.getElementById('mediaSearchEmpty');
+        if (!input || !countEl || !clearBtn || !emptyEl) return;
+        function norm(s) {
+            return (s || '').toLowerCase().normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, ' ').trim();
+        }
+        // A book's category as the page displays it: the genre
+        // filter's own label for the row's genre ("Ecology & Nature"),
+        // beside the stored genre word itself, which also covers the
+        // genres the filter doesn't list.
+        var genreLabel = {};
+        document.querySelectorAll('#genre-filter option').forEach(function (opt) {
+            genreLabel[opt.value] = opt.textContent;
+        });
+        function haystack(row, isBook) {
+            var main = row.querySelector('.bk-main');
+            if (!main) return '';
+            var hay = main.querySelector('a').textContent;
+            main.childNodes.forEach(function (node) {
+                if (node.nodeType === 3) hay += node.textContent;
+            });
+            if (isBook) {
+                var g = row.getAttribute('data-genre') || '';
+                hay += ' ' + g + ' ' + (genreLabel[g] || '');
+            }
+            return norm(hay);
+        }
+        var sides = [
+            { list: document.getElementById('book-list'), note: document.getElementById('book-empty'), isBook: true, orig: null, lastN: 0, rows: [] },
+            { list: document.getElementById('episode-list'), note: document.getElementById('podcast-empty'), isBook: false, orig: null, lastN: 0, rows: [] }
+        ];
+        sides.forEach(function (s) {
+            if (!s.list) return;
+            s.rows = Array.prototype.slice.call(s.list.querySelectorAll('li.bk-row')).map(function (row) {
+                return { row: row, hay: haystack(row, s.isBook) };
+            });
+        });
+        sides[0].orig = window.filterAndSortBooks;
+        sides[1].orig = window.filterAndSortPodcasts;
+
+        var snapshot = null;   // scrollY when the search began
+        var words = [];
+        function standing() { return words.length > 0; }
+
+        // Hide this side's non-matches over its (fresh) section state
+        // and set its empty note for the search's own state. The note
+        // is the window's content when a side runs dry — the pair
+        // pass measures it exactly as it does for the sections' own
+        // searches, so the pair stays one size in every state.
+        function applySide(s) {
+            var n = 0;
+            s.rows.forEach(function (r) {
+                if (r.row.style.display === 'none') return;
+                var hit = words.every(function (w) { return r.hay.indexOf(w) !== -1; });
+                if (hit) { n++; } else { r.row.style.display = 'none'; }
+            });
+            if (s.note) s.note.hidden = n !== 0;
+            return n;
+        }
+        function finish() {
+            var n = (sides[0].lastN || 0) + (sides[1].lastN || 0);
+            countEl.textContent = n ? (n + (n === 1 ? ' title' : ' titles')) : '';
+            emptyEl.hidden = n !== 0;
+            clearBtn.hidden = false;
+        }
+        function applyAll() {
+            sides.forEach(function (s) {
+                if (typeof s.orig === 'function') s.orig();
+                s.lastN = applySide(s);
+            });
+            finish();
+        }
+        // Compose: any section filter / sort / search change runs its
+        // function (the pair pass's wrap included), then the top
+        // search re-applies over the fresh section state.
+        [['filterAndSortBooks', 0], ['filterAndSortPodcasts', 1]].forEach(function (pair) {
+            var name = pair[0], s = sides[pair[1]];
+            if (typeof s.orig !== 'function') return;
+            window[name] = function () {
+                var out = s.orig.apply(this, arguments);
+                if (standing()) { s.lastN = applySide(s); finish(); }
+                return out;
+            };
+        });
+        function clearSearch() {
+            var y = snapshot;
+            snapshot = null; words = [];
+            input.value = '';
+            sides.forEach(function (s) {
+                if (typeof s.orig === 'function') s.orig();
+                s.lastN = 0;
+            });
+            countEl.textContent = '';
+            emptyEl.hidden = true;
+            clearBtn.hidden = true;
+            if (y !== null && y !== undefined) {
+                var restore = function () { window.scrollTo(0, y); };
+                restore();
+                window.requestAnimationFrame(restore);
+                setTimeout(restore, 120);
+                setTimeout(restore, 300);
+            }
+        }
+        input.addEventListener('input', function () {
+            var q = norm(input.value);
+            if (!q) { if (snapshot !== null || words.length) clearSearch(); return; }
+            if (snapshot === null) snapshot = window.scrollY;
+            words = q.split(' ').filter(Boolean);
+            applyAll();
+        });
+        clearBtn.addEventListener('click', function () { clearSearch(); input.focus(); });
     })();
     </script>
 </body>
