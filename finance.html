@@ -4031,7 +4031,7 @@
                     <canvas id="sigChart" aria-label="Portfolio value over time, against the chosen comparison"></canvas>
                 </div>
                 <div class="sig-legend" id="sigLegend"></div>
-                <div class="sig-readout" id="sigReadout">Drag on the chart to read values.</div>
+                <div class="sig-readout" id="sigReadout"></div>
                 <p class="empty-state" id="sigOffNote" hidden>The indicator is off &mdash; turn on Johnny&rsquo;s indicator to run the portfolio.</p>
             </div>
             <div class="sig-controls sig-controls-layer">
@@ -7024,6 +7024,20 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 });
             }
         }
+        // The readout's one writer: the values at index i, in the
+        // $ / % form the toggle has chosen. Inspection calls it,
+        // the render's resting state calls it, the axis toggle
+        // calls it — the band never holds anything else.
+        function setReadout(i) {
+            var fmtVal = function (v) {
+                if (!state.axisPct) return fmtMoney(v);
+                var m = chartPts.ins[i];
+                return fmtPct(m > 0 ? (v - m) / m * 100 : 0);
+            };
+            var ro = fmtDate(chartPts.dates[i]) + " · Portfolio " + fmtVal(chartPts.port[i]);
+            chartPts.benches.forEach(function (bn) { ro += " · " + bn.name + " " + fmtVal(bn.vals[i]); });
+            el("sigReadout").textContent = ro;
+        }
         function chartInspect(clientX) {
             var canvas = el("sigChart");
             if (!canvas || !chartPts || !chartPts.dates.length) return;
@@ -7034,14 +7048,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             var i = Math.round(frac * (n - 1));
             if (i < 0) i = 0; if (i > n - 1) i = n - 1;
             inspectIdx = i;
-            var fmtVal = function (v) {
-                if (!state.axisPct) return fmtMoney(v);
-                var m = chartPts.ins[i];
-                return fmtPct(m > 0 ? (v - m) / m * 100 : 0);
-            };
-            var ro = fmtDate(chartPts.dates[i]) + " · Portfolio " + fmtVal(chartPts.port[i]);
-            chartPts.benches.forEach(function (bn) { ro += " · " + bn.name + " " + fmtVal(bn.vals[i]); });
-            el("sigReadout").textContent = ro;
+            setReadout(i);
             drawChart();
         }
         function renderChart(r) {
@@ -7060,8 +7067,16 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 + chartPts.benches.map(function (bn) {
                     return "<span class=\"sig-leg\"><span class=\"sig-swatch\" style=\"background:" + bn.color + "\"></span>" + esc(bn.name) + (bn.cashBench ? " — same money in, held as cash" : " — same money in, held") + "</span>";
                 }).join("");
-            el("sigReadout").textContent = "Drag on the chart to read values.";
-            inspectIdx = -1;
+            // The band rests on the latest point (2026-11-25):
+            // real values on show, the crosshair on the last day —
+            // no instruction line. Touching the chart moves the
+            // inspection from there.
+            if (chartPts.dates.length) {
+                inspectIdx = chartPts.dates.length - 1;
+                setReadout(inspectIdx);
+            } else {
+                inspectIdx = -1;
+            }
             requestAnimationFrame(drawChart);
         }
 
@@ -7197,6 +7212,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             // stored values never change — only their display.
             document.addEventListener("sig-axis-mode", function (e) {
                 state.axisPct = !!(e && e.detail && e.detail.pct);
+                if (chartPts && inspectIdx >= 0 && inspectIdx < chartPts.dates.length) setReadout(inspectIdx);
                 drawChart();
             });
         }
