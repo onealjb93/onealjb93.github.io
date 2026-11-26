@@ -478,7 +478,78 @@
             flex: 1 1 170px; min-height: 44px;
             color: var(--subtext-color); font-size: 0.85rem;
         }
-        .uv-speed { flex: 1 1 auto; min-width: 84px; height: 44px; accent-color: var(--accent-color); }
+        /* Speed slider (JOB C1, 2026-11-25): the native range gave
+           iPad a ~28px system thumb on a hairline track — hard to
+           grab, easy to miss, and the browser could steal the drag
+           for scrolling. Now a custom slider in the site's own
+           style: the whole 44px row is the target, the thumb is a
+           30px disc, and touch-action:none keeps the drag on the
+           control from the first pixel — one finger (or mouse)
+           slides it, and the gesture never leaks to the stage. */
+        .uv-speed {
+            flex: 1 1 auto; min-width: 84px; height: 44px; margin: 0;
+            -webkit-appearance: none; appearance: none;
+            background: transparent; cursor: pointer; touch-action: none;
+            --uv-fill: 50%;
+        }
+        .uv-speed::-webkit-slider-runnable-track {
+            height: 6px; border-radius: 999px;
+            background: linear-gradient(to right, var(--accent-color) 0 var(--uv-fill), rgba(140, 150, 165, 0.38) var(--uv-fill) 100%);
+        }
+        .uv-speed::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 30px; height: 30px; margin-top: -12px; border-radius: 50%;
+            background: var(--accent-color); border: 2.5px solid #fff;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+        }
+        .uv-speed::-moz-range-track {
+            height: 6px; border-radius: 999px; background: rgba(140, 150, 165, 0.38);
+        }
+        .uv-speed::-moz-range-progress {
+            height: 6px; border-radius: 999px; background: var(--accent-color);
+        }
+        .uv-speed::-moz-range-thumb {
+            width: 25px; height: 25px; border-radius: 50%;
+            background: var(--accent-color); border: 2.5px solid #fff;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+        }
+        .uv-speed:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; border-radius: 999px; }
+        /* ============ THE DEMO PATTERN (all four games, 2026-11-25) ============
+           One caption pill per game, in the games' shared glass style,
+           riding the stage's lower edge; the Demo button reads its
+           state on its face (accent fill + pressed). The caption is
+           demo-only dressing: hidden unless a demo is running. */
+        .demo-caption {
+            position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+            z-index: 30; max-width: min(88%, 430px); text-align: center;
+            padding: 9px 18px; border-radius: 999px;
+            background: rgba(8, 14, 24, 0.82); border: 1px solid rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: #eef4fb; font-size: 0.95rem; font-weight: 600; line-height: 1.35;
+            pointer-events: none; white-space: normal;
+        }
+        .demo-btn[aria-pressed="true"] {
+            background: var(--accent-color); border-color: transparent; color: #fff;
+        }
+        .fg-stage, .lr-stage { position: relative; }
+        /* the ghost handset (Thumb Kart demo): a simple phone outline
+           in the game's neon style. It tilts with the demo's own tilt
+           stream — what it shows is literally what the player's phone
+           does. Demo-only: never overlays normal play. */
+        #tk-handset {
+            position: absolute; right: 18px; bottom: 108px; z-index: 31;
+            pointer-events: none; perspective: 300px;
+        }
+        .tk-handset-body {
+            width: 52px; height: 92px; border-radius: 11px;
+            border: 2.5px solid rgba(190, 250, 255, 0.9);
+            background: rgba(10, 22, 34, 0.72);
+            box-shadow: 0 0 18px rgba(34, 211, 238, 0.45), inset 0 0 12px rgba(34, 211, 238, 0.25);
+            display: flex; flex-direction: column; align-items: center;
+            transition: transform 90ms linear;
+        }
+        .tk-handset-notch { width: 18px; height: 4px; border-radius: 2px; background: rgba(190, 250, 255, 0.8); margin-top: 5px; }
+        .tk-handset-screen { color: rgba(190, 250, 255, 0.9); font-size: 11px; margin-top: 30px; letter-spacing: 2px; }
         .uv-fly-btn { touch-action: none; user-select: none; -webkit-user-select: none; }
         .uv-labels-bar {
             display: inline-flex; align-items: center; gap: 7px;
@@ -912,6 +983,7 @@
         .fg-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 16px; }
         .fg-fact small { display: block; color: rgba(233, 230, 220, 0.5); font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 2px; }
         .fg-fact span { font-size: 0.98rem; font-variant-numeric: tabular-nums; }
+        .fg-nw { white-space: nowrap; }
         .fg-status { font-size: 0.95rem; line-height: 1.45; color: #ffd98f; min-height: 1.45em; }
         .fg-status.fg-status-off { color: rgba(233, 230, 220, 0.6); }
         .fg-vol-row { display: flex; align-items: center; gap: 10px; }
@@ -1306,6 +1378,7 @@
             <button class="lr-btn active" id="lr-tool-draw" type="button">✏️ Draw</button>
             <button class="lr-btn lr-tools-btn" id="lr-tools-toggle" type="button" aria-expanded="false" aria-controls="lr-tools-panel">🧰 Tools <span class="lr-tools-arrow" aria-hidden="true">▾</span></button>
             <button class="lr-btn" id="lr-howto-toggle" type="button" aria-expanded="false" aria-controls="lr-howto">How to play</button>
+            <button class="lr-btn demo-btn" id="lr-demo-btn" type="button" aria-pressed="false">Demo</button>
         </div>
 
         <div class="lr-toolbar lr-tools-panel" id="lr-tools-panel" role="toolbar" data-grab-scroll aria-label="Line Rider editing tools" hidden>
@@ -1339,6 +1412,7 @@
         </div>
 
         <canvas id="lr-canvas" aria-label="Line Rider game canvas. Draw a track with your mouse or finger, switch to Move to slide the view without drawing, then press Play."></canvas>
+        <div class="demo-caption" id="lr-demo-caption" hidden></div>
         </div>
     <script>
     // Line Rider Tools expander (Johnny, 2026-11-23: "Too many buttons
@@ -1532,6 +1606,7 @@
                 <div class="uv-labels" aria-hidden="true"></div>
                 <div class="uv-hud"><span class="uv-hud-dist"></span><span class="uv-hud-speed"></span><span class="uv-hud-near"></span></div>
                 <p class="uv-caption" aria-live="polite"></p>
+                <div class="demo-caption" id="uv-demo-caption" hidden></div>
                 <div class="uv-panel" id="uv-panel" hidden>
                     <div class="uv-panel-bar"><button type="button" class="uv-btn uv-panel-close">Close</button></div>
                     <div class="uv-search-row">
@@ -1561,8 +1636,9 @@
             </div>
             <div class="uv-controls">
                 <button type="button" class="uv-btn uv-fly-btn">Hold to fly</button>
-                <label class="uv-speed-wrap"><span>Speed</span><input type="range" class="uv-speed" min="0" max="1" step="0.001" value="0.373" aria-label="Flight speed"></label>
+                <label class="uv-speed-wrap"><span>Speed</span><input type="range" class="uv-speed" min="0" max="1" step="0.001" value="0.373" style="--uv-fill: 37.3%" aria-label="Flight speed"></label>
                 <button type="button" class="uv-btn uv-tour-btn">▶ Fly the tour</button>
+                <button type="button" class="uv-btn demo-btn" id="uv-demo-btn" aria-pressed="false">Demo</button>
                 <label class="uv-labels-bar"><input type="checkbox" class="uv-labels-toggle-bar" checked> Labels</label>
                 <button type="button" class="uv-btn uv-more-btn" aria-expanded="false" aria-controls="uv-panel">More controls ▾</button>
             </div>
@@ -1583,6 +1659,8 @@
         <div class="tk-shell" id="tk-shell">
       <div id="tk-stage" class="tk-title-up">
           <canvas id="tk-game" aria-label="Thumb Drive race. Touch: hold the right thumb zone to go and the left zone for the banana. Mouse: hold the button to go and move the mouse to steer. Space works the banana: press to hold it behind you, press again to drop it, double-tap to throw it ahead."></canvas>
+          <div class="demo-caption" id="tk-demo-caption" hidden></div>
+          <div id="tk-handset" hidden aria-hidden="true"><div class="tk-handset-body"><div class="tk-handset-notch"></div><div class="tk-handset-screen">◀ ▶</div></div></div>
 
           <div id="tk-hud">
             <div class="tk-hud-box"><small>LAP</small><span id="tk-hudLap">1 / 3</span></div>
@@ -1607,8 +1685,11 @@
             <p id="tk-instLead">Your machine <span class="tk-key">steers itself</span> around the corners — your thumbs do the driving.</p>
             <p id="tk-instGo"><span class="tk-key">RIGHT thumb — GO:</span> hold to speed up, let go to brake. While you hold, <span class="tk-key">slide ◀ ▶</span> to lean across the track. In a corner, let go and press again fast to <span class="tk-key">drift</span> — finish the move for a boost.</p>
             <p id="tk-instBanana"><span class="tk-key">LEFT thumb — BANANA:</span> drive over a bunch to pick one up. Hold to carry it behind you as a shield, let go to drop it, flick up to throw it ahead.</p>
+            <p id="tk-instTilt"><span class="tk-key">TILT:</span> tilt the phone to steer. <span class="tk-key">Tip the top toward you — jump</span>: clear a banana, or leap a rival when a boost brings you up fast behind them. (No tilt? Flick the right thumb up, or press <span class="tk-key">J</span>.)</p>
+            <p id="tk-instPads"><span class="tk-key">ON THE COURSE:</span> cyan <span class="tk-key">pads</span> give a burst of speed — aim for one. Jump just before a <span class="tk-key">glider zone</span> and you glide. A spinning <span class="tk-key">₿ coin</span> turns you gold for five seconds: boost speed, bananas can't touch you, rivals you meet get bumped. The <span class="tk-key">winged ₿</span> — one per race — is ten seconds of free flight.</p>
             <p>3 laps · 3 rivals · don't slip on the bananas.</p>
             <button id="tk-startBtn" class="tk-bigbtn" type="button">START RACE</button>
+            <button id="tk-demoBtn" class="tk-bigbtn demo-btn" type="button" aria-pressed="false">▶ DEMO — WATCH IT PLAY</button>
             <p class="tk-kb-hint" style="font-size:.78em;opacity:.85;margin-top:10px">Keyboard: ↑ hold = go · ← → = slide · Space = banana (press hold · press drop · double-tap throw)</p>
             </div>
           </div>
@@ -1678,6 +1759,7 @@
                 <div class="fg-vignette" aria-hidden="true"></div>
                 <div class="fg-grain" aria-hidden="true"></div>
                 <div class="fg-loading" id="fg-loading">Setting up the plate…</div>
+                <div class="demo-caption" id="fg-demo-caption" hidden></div>
             </div>
             <div class="fg-deck">
                 <button type="button" class="fg-step" data-step="-0.1" aria-label="Step the frequency down — tap for a tenth of a hertz, hold for bigger steps">−</button>
@@ -1687,6 +1769,7 @@
                 </div>
                 <button type="button" class="fg-step" data-step="0.1" aria-label="Step the frequency up — tap for a tenth of a hertz, hold for bigger steps">+</button>
                 <button type="button" class="fg-play" id="fg-play" aria-pressed="false">▶ Play tone</button>
+                <button type="button" class="fg-play demo-btn" id="fg-demo-btn" aria-pressed="false">Demo</button>
             </div>
             <div class="fg-panel">
                 <div class="fg-slider-wrap">
@@ -1819,15 +1902,69 @@ const easeIn=(a,b,p)=>a+(b-a)*p*p, easeInOut=(a,b,p)=>a+(b-a)*(-Math.cos(p*Math.
 const overlap=(x1,w1,x2,w2,p)=>{ const h1=w1*p/2,h2=w2*p/2; return !(x1+h1<x2-h2||x1-h1>x2+h2); };
 
 /* ---------- engine constants ---------- */
-const SEG_LEN=200, RUMBLE=3, ROAD_W=2100, DRAW_DIST=230, CAM_H=3200;
+const SEG_LEN=200, RUMBLE=3, ROAD_W=2100, DRAW_DIST=245, CAM_H=5800;
 const BASE_DEPTH = 1/Math.tan((92/2)*Math.PI/180);    /* FOV 92 */
-const YSCALE=0.62;   /* vertical projection stretch: pitches the view down
+const YSCALE=0.74;   /* vertical projection stretch: pitches the view down
                         so the road ahead spreads over more of the screen —
                         the vanishing point stays at H/2, so the backdrop
-                        horizon alignment is untouched */
+                        horizon alignment is untouched.
+   CAMERA (JOB D, Johnny 2026-11-25): raised from CAM_H 3200 /
+   YSCALE 0.62 to 4400 / 0.68 — the chase camera sits higher
+   behind the machine, the course ahead owns the frame, and the
+   machine rides low in it. Bananas, pads and rivals ahead read
+   earlier at speed; in flight the camera lifts with the machine
+   (camLift, in render) so the whole arc stays framed.
+   RAISED AGAIN (Johnny's device verdict, 2026-11-25 21:38: "view
+   isnt high up and far back enough to see a lot more of the
+   course"): CAM_H 4400 -> 5800 (CAM_H is also the pull-back
+   anchor — playerZ = CAM_H x depth — so the machine sits
+   farther away and smaller, and a lot more course reads ahead),
+   YSCALE 0.68 -> 0.74, DRAW_DIST 230 -> 245 with the roadside
+   stream extended to match (fade 190-228). */
 const GRAV=20000;    /* jump gravity, world units / s^2 */
 const MAX_SPEED = SEG_LEN*62;                          /* 12,400 u/s */
 const BOOST_MAX = MAX_SPEED*1.18;
+/* ---------- JOB D features (Johnny, 2026-11-25) ----------
+   Tip-jump, boost pads, glider zones, the ₿ coin (golden window)
+   and the winged ₿ (free flight). All ride the game's existing
+   systems: the jump uses the ramp-jump airborne physics, pads
+   feed the one boost (boostT / BOOST_MAX — the drift feather's
+   boost, same strength and duration), collisions stay
+   height-aware through the same `airborne` flag. */
+const JUMP_VY=8500;        /* tip-jump impulse: ~0.85 s of air, ~1,800 u of height at GRAV */
+const JUMP_COOLDOWN=0.25;  /* seconds after a landing before the next jump can fire */
+const GLIDE_H=1500;        /* glider cruise height above the road */
+const GLIDE_SINK=520;      /* glider descent rate once past its zone, u/s */
+const FLY_H=2600;          /* wings cruise height above the road */
+const GOLD_T=5.0;          /* the golden window, seconds */
+const WINGS_T=10.0;        /* free flight, seconds */
+const PAD_BOOST_T=0.9;     /* a pad gives the drift boost: 0.9 s at BOOST_MAX */
+/* Boost pads — six per lap, one lane each from Johnny's five
+   (far left −0.72 · mid-left −0.36 · centre 0 · mid-right +0.36 ·
+   far right +0.72), staggered stations, never two at once. A pad
+   is 0.30 of the road half-width: hitting one is a steering
+   choice. Stations sit on straights and the run-outs. */
+const PADS=[
+  {seg:40,  offset:-0.36},   /* start straight, mid-left */
+  {seg:120, offset: 0.72},   /* gentle right, far right */
+  {seg:262, offset:-0.72},   /* jump 1 run-out, far left */
+  {seg:415, offset: 0.36},   /* ring-gate straight, mid-right */
+  {seg:700, offset: 0.00},   /* jump 2 run-out, centre */
+  {seg:880, offset:-0.36},   /* home run, mid-left */
+];
+/* Glider zones — entered AIRBORNE (a jump timed just before) the
+   kart glides; entered grounded, nothing. Each zone starts right
+   where a ramp's landing hill ends, so the ramp's own flight can
+   carry in, and runs across the bend that follows. */
+const GLIDE_ZONES=[ {from:250, to:330},   /* over the canyon entry bend */
+                    {from:668, to:745} ]; /* over the hard-left downhill entry */
+/* ₿ coins — two per lap, on lines worth aiming for. First kart
+   through collects; both respawn each lap. */
+const COIN_DEFS=[ {seg:58,  offset: 0.36},   /* just past pad 1 — the demo's line */
+                  {seg:430, offset:-0.36} ]; /* ring-gate straight, mid-left */
+/* The winged ₿ — ONE per race, late on the home run, half a lane
+   off the ideal line: taking it is a choice. */
+const WING_DEF={seg:895, offset:-0.55};
 const ACCEL=4600, BRAKE=9800, RUMBLE_SCRUB=5600;
 const PARTICLE_CAP=260;
 const TOTAL_LAPS=3;
@@ -1896,14 +2033,23 @@ function buildTrack(){
     if(i%17===8){ s.sprites.push({type:'marker', offset:(r<0.5?-1.22:1.22)}); continue; }
     if(canyon(i)){
       if(i%2===0){
-        s.sprites.push({type: r<0.5?'towerA':'spire',  offset:-(1.5+r*0.35),  s:0.8+hashRand(i*3+1)*0.55});
-        s.sprites.push({type: r2<0.5?'spire':'towerA', offset: (1.5+r2*0.35), s:0.8+hashRand(i*7+2)*0.55});
+        s.sprites.push({type: r<0.30?'garden':(r<0.65?'towerA':'spire'),  offset:-(1.5+r*0.35),  s:0.8+hashRand(i*3+1)*0.55});
+        s.sprites.push({type: r2<0.30?'garden':(r2<0.65?'spire':'towerA'), offset: (1.5+r2*0.35), s:0.8+hashRand(i*7+2)*0.55});
       } else if(i%4===1){
         s.sprites.push({type: r<0.5?'towerA':'spire', offset:-(1.55+r*0.4), s:0.8+hashRand(i*3+1)*0.55});
       }
     } else if(i%3!==0){
       const side = r<0.5?-1:1;
-      s.sprites.push({type: r2<0.45?'towerA':'spire', offset: side*(1.8+r*0.9), s:0.8+hashRand(i*5+3)*0.55});
+      /* the living city (JOB D world pass, 2026-11-25): alongside
+         the towers — garden towers with green terraces, luminous
+         domes, and transit light-rails running beside the road.
+         The wings flight and the raised camera look at this city
+         constantly; it is composed, not filler. */
+      const pick = hashRand(i*11+7);
+      if(pick<0.20) s.sprites.push({type:'garden', offset: side*(1.8+r*0.8), s:0.85+hashRand(i*5+3)*0.5});
+      else if(pick<0.30) s.sprites.push({type:'dome', offset: side*(2.0+r*0.7), s:0.9+hashRand(i*5+3)*0.4});
+      else if(pick<0.42) s.sprites.push({type:'rail', offset: side*1.38, s:1});
+      else s.sprites.push({type: r2<0.45?'towerA':'spire', offset: side*(1.8+r*0.9), s:0.8+hashRand(i*5+3)*0.55});
     }
   }
 }
@@ -1921,6 +2067,12 @@ let position=0, playerTotal=0, playerX=0, speed=0, raceTime=0, countT=0, finishT
 let spinT=0, invulnT=0, driftT=0, boostT=0, fovKick=1, hillFar=0, hillNear=0, cloudDrift=0, shake=0;
 let airborne=false, airY=0, airVY=0, landT=0, pitchSm=0;
 let carry=0, holding=false, thrown=null, trackBananas=[];
+/* JOB D state: the golden window, the wings flight, the glide,
+   the tip-jump cooldown, the camera's flight lift, and the
+   per-feature field state (reset with the race). */
+let goldT=0, wingsT=0, flying=false, gliding=false, jumpCooldown=0, camLift=0;
+let pads=[], coins=[], wingCoin=null, playerLap=0;
+let tiltSeen=false, tiltSteer=0, tiltPitch=0, tiltNeutral=null, tiltArm=true, tiltPrev=null, tiltPrevT=0;
 let goHeld=false, leftHeld=false, slideTarget=0, slideCur=0;
 let releaseStamp=-9, releaseWasCorner=false, releaseSpeedOk=false, driftDir=0;
 let stats={drifts:0, boosts:0, spins:0, drops:0, throws:0};
@@ -1936,9 +2088,14 @@ function resetRace(){
   driftT=0; boostT=0; fovKick=1; shake=0;
   airborne=false; airY=0; airVY=0; landT=0; pitchSm=0;
   carry=0; holding=false; thrown=null; trackBananas=[];
+  goldT=0; wingsT=0; flying=false; gliding=false; jumpCooldown=0; camLift=0; playerLap=0;
+  pads=PADS.map(p=>({seg:p.seg, offset:p.offset, hot:true}));
+  coins=COIN_DEFS.map(c=>({seg:c.seg, offset:c.offset, ready:true}));
+  wingCoin={seg:WING_DEF.seg, offset:WING_DEF.offset, ready:true};
+  tiltNeutral=null; tiltArm=true; tiltPrev=null;
   goHeld=false; leftHeld=false; slideTarget=0; slideCur=0; releaseStamp=-9;
   stats={drifts:0,boosts:0,spins:0,drops:0,throws:0}; particles=[];
-  rivals = RIVAL_DEFS.map((d,i)=>({ ...d, totalDist:(i+1)*1600, speed:0, spinT:0, invulnT:0,
+  rivals = RIVAL_DEFS.map((d,i)=>({ ...d, totalDist:(i+1)*1600, speed:0, spinT:0, invulnT:0, goldT:0,
     dropT:6+i*3.5, lastTarget:0, baseTarget:d.base*MAX_SPEED, sway:Math.random()*6.28, sx:-999, sy:-999, sw:0 }));
   resetPickups();
 }
@@ -2019,13 +2176,85 @@ function onGoUp(){
   releaseDirSign   = seg.curve>=0?1:-1;
 }
 
+/* ================= JOB D: the tip-jump and tilt steering =================
+   Johnny's design (2026-11-25): tilt steers; tipping the TOP of
+   the phone toward yourself — the top edge leaning in toward
+   your face, like nodding the phone at yourself — is the JUMP.
+   Both read the same deviceorientation stream:
+   - Steering: the roll axis, measured against the neutral angle
+     captured while the countdown runs (your own holding angle —
+     never an absolute), ±16° for full lock, 3° dead zone.
+   - Jump: the pitch axis, as a FLICK — at least +13° from neutral
+     in the tip-toward-you direction AND arriving fast (≥130°/s).
+     Holding the tip does nothing; steering (the other axis) can
+     never fire it; it re-arms only back near neutral. Grounded
+     only, with a short cooldown after each landing, so a mid-air
+     flick is spent and gone.
+   Fallbacks in the game's own families: J key (Space is the
+   banana and Up is GO in this game — both taken), and a quick
+   flick UP of the right thumb — the left thumb's own flick
+   idiom, mirrored. Motion permission is asked on the START tap
+   where iOS requires a gesture; refusal simply leaves tilt off
+   and every other control untouched. */
+const TILT_JUMP_DIR=1;   /* the tip-toward-you sign on the pitch axis (calibration-relative; one constant if a handset reads it backwards) */
+function tryJump(){
+  if(state!=='racing'||paused||airborne||jumpCooldown>0||spinT>0) return false;
+  airborne=true;
+  airY=roadYAt(position + CAM_H*BASE_DEPTH);
+  airVY=JUMP_VY;
+  beep(300,0.1,'sawtooth',0.03);
+  return true;
+}
+function tiltAxes(e){
+  const a=(window.screen && screen.orientation && typeof screen.orientation.angle==='number')
+    ? screen.orientation.angle : (window.orientation||0);
+  const b=e.beta||0, g=e.gamma||0;
+  if(a===90)  return {steer:b,  pitch:-g};
+  if(a===-90||a===270) return {steer:-b, pitch:g};
+  if(a===180) return {steer:-g, pitch:-b};
+  return {steer:g, pitch:b};
+}
+let tiltCalib=[];
+function onTilt(e){
+  if(e.beta===null||e.gamma===null) return;
+  const ax=tiltAxes(e); tiltSeen=true; tiltPitch=ax.pitch;
+  if(state==='countdown' && tiltNeutral===null){
+    tiltCalib.push(ax);
+    if(tiltCalib.length>=8){ tiltNeutral={steer:tiltCalib.reduce((s,v)=>s+v.steer,0)/8, pitch:tiltCalib.reduce((s,v)=>s+v.pitch,0)/8}; tiltCalib=[]; }
+    return;
+  }
+  if(tiltNeutral===null){ tiltNeutral={steer:ax.steer, pitch:ax.pitch}; }
+  tiltSteer=clamp((ax.steer-tiltNeutral.steer)/16, -1, 1);
+  if(Math.abs(ax.steer-tiltNeutral.steer)<3) tiltSteer=0;
+  const now=performance.now();
+  const dPitch=(ax.pitch-tiltNeutral.pitch)*TILT_JUMP_DIR;
+  if(dPitch<5) tiltArm=true;   /* re-arms on a partial return — a real flick dips and tips again */
+  if(tiltPrev && tiltArm && state==='racing' && !paused){
+    const rate=(ax.pitch-tiltPrev.pitch)*TILT_JUMP_DIR/Math.max(1,(now-tiltPrevT))*1000;
+    /* SENSITIVITY (Johnny's device verdict, 2026-11-25 21:38: "jump
+       isnt sensitive enough"): the flick fires EASILY — 8° of tip
+       at 70°/s, a natural unforced nod. Steering can never false-
+       fire it: steering lives on the other axis, and the gate suite
+       proves a steering-only stream produces zero jumps. */
+    if(dPitch>=8 && rate>=70){ if(tryJump()) tiltArm=false; }
+  }
+  tiltPrev=ax; tiltPrevT=now;
+}
+window.addEventListener('deviceorientation', onTilt);
+function tkTiltPermission(){
+  try{
+    if(window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission==='function')
+      DeviceOrientationEvent.requestPermission().catch(()=>{});
+  }catch(err){}
+}
+
 /* ================= player update ================= */
 function updatePlayer(dt){
   const seg=segments[playerSegIndex()];
   const sp=speed/MAX_SPEED;
   /* --- lateral: auto-follow + slide + centrifugal push --- */
   slideCur += (slideTarget-slideCur)*Math.min(1,dt*11);
-  const airF = airborne? 0.3 : 1;                            /* in the air the machine barely answers: no tyre grip */
+  const airF = (flying||gliding)? 0.8 : airborne? 0.3 : 1;   /* a plain jump barely answers (no tyre grip); a glide or the wings BANK — tilt steering stays alive in the air */
   let push = seg.curve * sp*sp * 0.20 * airF;                /* corners push you wide */
   let centerPull = (1.15-0.45*sp);                           /* gentle auto-centre */
   const edgeFade = (slideCur!==0 && Math.sign(slideCur)===Math.sign(playerX) && Math.abs(playerX)>0.95)
@@ -2039,12 +2268,19 @@ function updatePlayer(dt){
   if(spinT>0){
     spinT-=dt; speed=Math.max(0,speed-15000*dt);
   } else if(goHeld){
-    const cap = boostT>0? BOOST_MAX : MAX_SPEED;
+    const cap = (boostT>0||goldT>0)? BOOST_MAX : MAX_SPEED;  /* gold runs at boost level — the same one boost */
     speed += ACCEL*(driftT>0?0.55:1)*dt;
-    if(boostT>0) speed += 2600*dt;                           /* boost shove */
+    if(boostT>0||goldT>0) speed += 2600*dt;                  /* boost shove */
     if(speed>cap) speed=Math.max(cap, speed-9000*dt);
+  } else if(gliding||flying){
+    speed=Math.max(0,speed-1200*dt);                         /* in the air, letting go barely slows the machine — flight holds its speed */
   } else {
     speed=Math.max(0,speed-BRAKE*dt);                        /* release = brake */
+  }
+  if(goldT>0) goldT=Math.max(0, goldT-dt);
+  if(flying){
+    wingsT-=dt;
+    if(wingsT<=0){ flying=false; airVY=Math.min(airVY,0); }  /* the wings fold: the gravity arc takes over and lands the machine */
   }
   if(driftT>0){ driftT-=dt; if(driftT<=0){ boostT=0.9; stats.boosts++; beep(980,0.14,'square',0.04); } }
   if(boostT>0) boostT-=dt;
@@ -2061,6 +2297,7 @@ function updatePlayer(dt){
       vx:-driftDir*(60+Math.random()*130), vy:-(40+Math.random()*90), life:0.32, t:0, size:3+Math.random()*3});
   }
   if(invulnT>0) invulnT-=dt;
+  if(jumpCooldown>0) jumpCooldown-=dt;
   /* --- advance --- */
   const prevIdx=playerSegIndex();   /* kart's segment before this frame's move (banana sweep) */
   const dz=speed*dt;
@@ -2081,14 +2318,42 @@ function updatePlayer(dt){
       }
     }
   }
+  /* --- glider entry: crossing a zone's start while AIRBORNE
+     deploys the glider. Grounded entry does nothing — the jump
+     timing is the skill. --- */
+  if(airborne && !flying && !gliding){
+    const zi=playerSegIndex();
+    for(const z of GLIDE_ZONES){ if(zi>=z.from && zi<=z.to){ gliding=true; airVY=0; beep(520,0.16,'sine',0.035); break; } }
+  }
   /* --- the airborne arc: gravity pulls the machine back to the road --- */
   if(airborne){
-    airVY -= GRAV*dt; airY += airVY*dt;
     const rY=roadYAt(position + CAM_H*BASE_DEPTH);
-    if(airY<=rY){
-      airY=rY; airborne=false; landT=0.22; shake=Math.max(shake,2.5);
-      for(let i=0;i<10;i++) spawnP({type:'dust', x:W/2+(Math.random()-0.5)*90, y:H-20, vx:(Math.random()-0.5)*90, vy:-24-Math.random()*46, life:0.5, t:0, size:8+Math.random()*12});
-      beep(140,0.09,'square',0.04);
+    if(flying){
+      /* wings: rise to cruise height, hold it, steering free */
+      const target=rY+FLY_H;
+      airY += clamp(target-airY, -3000*dt, 2100*dt);
+      airVY=0;
+    } else if(gliding){
+      const zi=playerSegIndex();
+      const inZone=GLIDE_ZONES.some(z=>zi>=z.from && zi<=z.to+30);   /* 30 segments of grace past the zone's end */
+      if(inZone){
+        const target=rY+GLIDE_H;
+        airY += clamp(target-airY, -1500*dt, 1500*dt);
+      } else {
+        airY -= GLIDE_SINK*dt;                               /* past the zone: a gentle descent to touchdown */
+        if(airY<=rY){
+          airY=rY; airborne=false; gliding=false; landT=0.22; jumpCooldown=JUMP_COOLDOWN; shake=Math.max(shake,2.5);
+          for(let i=0;i<10;i++) spawnP({type:'dust', x:W/2+(Math.random()-0.5)*90, y:H-20, vx:(Math.random()-0.5)*90, vy:-24-Math.random()*46, life:0.5, t:0, size:8+Math.random()*12});
+          beep(140,0.09,'square',0.04);
+        }
+      }
+    } else {
+      airVY -= GRAV*dt; airY += airVY*dt;
+      if(airY<=rY){
+        airY=rY; airborne=false; landT=0.22; jumpCooldown=JUMP_COOLDOWN; shake=Math.max(shake,2.5);
+        for(let i=0;i<10;i++) spawnP({type:'dust', x:W/2+(Math.random()-0.5)*90, y:H-20, vx:(Math.random()-0.5)*90, vy:-24-Math.random()*46, life:0.5, t:0, size:8+Math.random()*12});
+        beep(140,0.09,'square',0.04);
+      }
     }
   } else {
     airY=roadYAt(position + CAM_H*BASE_DEPTH);
@@ -2102,8 +2367,53 @@ function updatePlayer(dt){
       carry=1; pk.ready=false; pk.respawnT=6; beep(880,0.08,'square',0.04);
     }
   }
-  /* --- track banana collision --- */
-  if(!airborne && spinT<=0 && invulnT<=0 && speed>300){
+  /* --- JOB D: pads, coins, the winged ₿, the golden bump, lap respawns --- */
+  {
+    const lapNow=Math.floor(playerTotal/trackLength);
+    if(lapNow>playerLap){ playerLap=lapNow; for(const c of coins) c.ready=true; }   /* coins respawn each lap; the winged ₿ never does */
+    if(!airborne){
+      for(const pd of pads){
+        const dSeg=(pIdx-pd.seg+segments.length)%segments.length;
+        if(!pd.hot && dSeg>3 && dSeg<segments.length-3) pd.hot=true;                 /* re-arms once the kart has left the pad behind */
+        if(pd.hot && pIdx===pd.seg && Math.abs(pd.offset-playerX)<0.30){
+          pd.hot=false; boostT=Math.max(boostT, PAD_BOOST_T); stats.boosts++;
+          beep(1150,0.12,'square',0.04);
+          for(let i=0;i<6;i++) spawnP({type:'spark', x:W/2+(Math.random()-0.5)*80, y:H-18, vx:(Math.random()-0.5)*120, vy:-50-Math.random()*80, life:0.35, t:0, size:3+Math.random()*3});
+        }
+      }
+      if(spinT<=0){
+        for(const c of coins){
+          if(c.ready && pIdx===c.seg && Math.abs(c.offset-playerX)<0.42){
+            c.ready=false; goldT=GOLD_T;
+            beep(880,0.09,'square',0.04); beep(1174,0.1,'square',0.04,0.08); beep(1568,0.16,'square',0.04,0.17);
+            burstStars(W/2, H-80, 16);
+          }
+        }
+        if(wingCoin && wingCoin.ready && pIdx===wingCoin.seg && Math.abs(wingCoin.offset-playerX)<0.42){
+          wingCoin.ready=false; wingsT=WINGS_T; flying=true; gliding=false;
+          airborne=true; airY=roadYAt(position + CAM_H*BASE_DEPTH); airVY=0;
+          beep(1046,0.12,'sine',0.045); beep(1568,0.2,'sine',0.04,0.1);
+          burstStars(W/2, H-90, 20);
+        }
+      }
+    }
+    /* while gold, contact bumps the RIVAL (the game's first
+       player→rival touch — it exists only inside the golden
+       window, exactly as designed) */
+    if(goldT>0){
+      for(const r of rivals){
+        const ro=r.off+Math.sin(r.sway)*0.09;
+        if(Math.abs(r.totalDist-playerTotal)<280 && Math.abs(ro-playerX)<0.45 && r.spinT<=0 && !(r.goldT>0)){
+          r.spinT=1.0; r.invulnT=2.0;
+          if(r.sx>-100) burstStars(r.sx, r.sy-r.sw*0.3, 12);
+          beep(190,0.2,'sawtooth',0.045);
+        }
+      }
+    }
+  }
+  /* --- track banana collision (gold passes through harmless:
+     the banana stays on the road and never spins a golden kart) --- */
+  if(!airborne && goldT<=0 && spinT<=0 && invulnT<=0 && speed>300){
     /* swept test: every segment the kart crossed this frame, not only the one it
        landed in — at full speed one frame covers more than a whole segment, so a
        banana in a jumped-over segment was driven over without ever being tested */
@@ -2151,7 +2461,13 @@ function updateRivals(dt){
     const curveSlow = 1 - Math.min(0.24, Math.abs(rSeg.curve)*0.032);
     const vary = 1 + 0.028*Math.sin(raceTime*0.55 + r.phase);
     r.baseTarget = r.base*MAX_SPEED;
-    r.lastTarget = r.baseTarget * curveSlow * vary * (1+rubber);
+    if(r.goldT>0) r.goldT-=dt;
+    r.lastTarget = r.baseTarget * curveSlow * vary * (1+rubber) * (r.goldT>0? 1.10 : 1);   /* a golden rival runs 10% hotter */
+    /* a rival can win a ₿ coin too — first kart through collects */
+    if(r.goldT<=0 && r.spinT<=0){
+      const rci=Math.floor((((r.totalDist%trackLength)+trackLength)%trackLength)/SEG_LEN), rco=r.off+Math.sin(r.sway)*0.09;
+      for(const c of coins){ if(c.ready && c.seg===rci && Math.abs(c.offset-rco)<0.42){ c.ready=false; r.goldT=GOLD_T; break; } }
+    }
     if(r.spinT>0){ r.spinT-=dt; r.speed=Math.max(0,r.speed-15000*dt); }
     else {
       if(r.speed<r.lastTarget) r.speed=Math.min(r.lastTarget, r.speed+3800*dt);
@@ -2169,8 +2485,8 @@ function updateRivals(dt){
         if(trackBananas.length>24) trackBananas.shift();
       }
     }
-    /* rival meets a track banana */
-    if(r.spinT<=0 && r.invulnT<=0 && r.speed>300){
+    /* rival meets a track banana (a golden rival passes through, like the player) */
+    if(r.spinT<=0 && r.invulnT<=0 && r.speed>300 && r.goldT<=0){
       const ri=Math.floor((((r.totalDist%trackLength)+trackLength)%trackLength)/SEG_LEN), ro=r.off+Math.sin(r.sway)*0.09;
       for(let i=0;i<trackBananas.length;i++){
         if(trackBananas[i].seg===ri && Math.abs(trackBananas[i].offset-ro)<0.38){
@@ -2458,6 +2774,7 @@ function segPoint(seg, frac, offset){
   const s1=seg.p1.screen, s2=seg.p2.screen, sc=lerp(s1.scale,s2.scale,frac);
   return { x: lerp(s1.x,s2.x,frac) + sc*offset*ROAD_W*(W/2), y: lerp(s1.y,s2.y,frac), scale: sc };
 }
+let RS_FADE=1;   /* roadside appear-fade, set by the render loop: detail streams in invisibly, never pops */
 function drawRoadside(sp, seg){
   const pt=segPoint(seg, 0.5, sp.offset), sc=pt.scale;
   /* unit = screen px per world unit at this segment: ~3.5 beside the
@@ -2465,7 +2782,7 @@ function drawRoadside(sp, seg){
      at the far end — anything nearer must paint. (At 2, nothing beyond
      the kart's own segment ever painted: the city was backdrop-only.) */
   const unit=sc*(W/2); if(unit<0.02) return;
-  ctx.save(); if(seg.fog>0.03) ctx.globalAlpha=1-seg.fog*0.65;
+  ctx.save(); if(seg.fog>0.03 || RS_FADE<1) ctx.globalAlpha=(1-seg.fog*0.65)*RS_FADE;
   if(sp.type==='towerA'||sp.type==='spire'||sp.type==='ring'){
     let img=IMG[sp.type];
     if(sp.type!=='ring'){ if(!IMG_S[sp.type]) makeScaled(sp.type); img=IMG_S[sp.type]||img; }
@@ -2486,8 +2803,87 @@ function drawRoadside(sp, seg){
         if(sp.type==='ring'){ if(pt.y <= seg.clip + h*0.55) ctx.drawImage(img, sx0, sy0, sw, sh, vx0, vy0, vx1-vx0, vy1-vy0); }
         /* a tower whose base sits more than half its height above the
            nearer crest line is behind that hill: skip it */
-        else if(seg.clip - pt.y <= h*0.5) ctx.drawImage(img, sx0, sy0, sw, sh, vx0, vy0, vx1-vx0, vy1-vy0);
+        else if(seg.clip - pt.y <= h*0.5){ ctx.drawImage(img, sx0, sy0, sw, sh, vx0, vy0, vx1-vx0, vy1-vy0);
+          /* sky-garden caps (JOB D world pass): a third of the plain
+             towers carry a green terrace crown, so the skyline reads
+             alive from the air as well as the road */
+          if(sp.type==='towerA' && hashRand(seg.index*17+3)>0.62 && dy0>=-2 && w>26){
+            ctx.fillStyle='#1d4d2e'; ctx.fillRect(dx0, dy0, w, w*0.045);
+            ctx.fillStyle='#3fae5f';
+            for(let bI=0;bI<6;bI++){ ctx.beginPath(); ctx.arc(dx0+w*(0.10+bI*0.16), dy0-w*0.012, w*0.035, 0, 6.29); ctx.fill(); }
+          }
+        }
       }
+    }
+  }
+  else if(sp.type==='garden'){
+    /* a living tower: dark glass shaft, lit windows, and green
+       terraces with trees spilling over the edges — sustainable
+       abundance in the game's own neon-noir palette */
+    const w=unit*880*(sp.s||1), hgt=w*2.6;
+    if(w<30){ /* far away: a silhouette with a green crown reads
+                 the same and costs two fills — the full build only
+                 pays when the tower is big enough to read */
+      ctx.fillStyle='#131c28'; ctx.fillRect(pt.x-w/2, pt.y-hgt, w, hgt);
+      ctx.fillStyle='rgba(90,220,130,0.8)'; ctx.fillRect(pt.x-w/2, pt.y-hgt, w, Math.max(1.5, hgt*0.05));
+      ctx.restore(); return; }
+    if(seg.clip - pt.y <= hgt*0.5){
+      ctx.fillStyle='#131c28'; ctx.fillRect(pt.x-w/2, pt.y-hgt, w, hgt);
+      ctx.fillStyle='rgba(140,220,255,0.20)'; ctx.fillRect(pt.x-w/2, pt.y-hgt, w*0.16, hgt);
+      /* detail is size-gated: a far tower is a silhouette with
+         terraces; the window grid only pays when the tower is
+         big enough on screen for windows to read (frame budget) */
+      if(w>70){
+        const cols=5, rows=8;
+        for(let cx2=0;cx2<cols;cx2++) for(let ry=0;ry<rows;ry++){
+          if(hashRand(seg.index*131+cx2*17+ry*7)<0.45) continue;
+          ctx.fillStyle='rgba(255,214,130,0.75)';
+          ctx.fillRect(pt.x-w/2+w*(0.10+cx2*0.17), pt.y-hgt+hgt*(0.06+ry*0.105), w*0.09, hgt*0.05);
+        }
+      }
+      for(let tI=0;tI<3;tI++){
+        const ty=pt.y-hgt*(0.30+tI*0.30);
+        ctx.fillStyle='#1d4d2e'; ctx.fillRect(pt.x-w*0.58, ty-w*0.05, w*1.16, w*0.10);
+        ctx.fillStyle='#3fae5f';
+        for(let bI=0;bI<5;bI++){ const bx=pt.x-w*0.5+bI*w*0.22+hashRand(seg.index*31+tI*13+bI)*w*0.08;
+          ctx.beginPath(); ctx.arc(bx, ty-w*0.07, w*(0.055+hashRand(seg.index*7+bI*3+tI)*0.04), 0, 6.29); ctx.fill(); }
+      }
+      ctx.fillStyle='#baffd0'; ctx.fillRect(pt.x-w*0.30, pt.y-hgt-w*0.03, w*0.60, w*0.03);
+    }
+  }
+  else if(sp.type==='dome'){
+    /* a luminous dome on its drum, a garden ring at its base,
+       water-light shimmer at the foot */
+    const w=unit*1150*(sp.s||1), dh=w*0.52, drumH=w*0.30;
+    if(w<34){ ctx.fillStyle='rgba(150,255,215,0.55)';
+      ctx.beginPath(); ctx.ellipse(pt.x, pt.y-drumH, w/2, dh*0.8, 0, Math.PI, 6.29); ctx.fill(); ctx.restore(); return; }
+    if(seg.clip - pt.y <= (dh+drumH)*0.6){
+      ctx.fillStyle='#16222f'; ctx.fillRect(pt.x-w*0.42, pt.y-drumH, w*0.84, drumH);
+      ctx.fillStyle='rgba(120,255,190,0.85)';
+      for(let bI=0;bI<6;bI++){ ctx.beginPath(); ctx.arc(pt.x-w*0.36+bI*w*0.145, pt.y-drumH*0.92, w*0.045, 0, 6.29); ctx.fill(); }
+      const dg=ctx.createLinearGradient(pt.x, pt.y-drumH-dh, pt.x, pt.y-drumH);
+      dg.addColorStop(0,'rgba(165,243,252,0.95)'); dg.addColorStop(1,'rgba(46,140,160,0.55)');
+      ctx.fillStyle=dg;
+      ctx.beginPath(); ctx.ellipse(pt.x, pt.y-drumH, w/2, dh, 0, Math.PI, 6.29); ctx.fill();
+      if(w>80){ ctx.strokeStyle='rgba(220,255,255,0.5)'; ctx.lineWidth=Math.max(1,w*0.008);
+        for(let rI=1;rI<=3;rI++){ ctx.beginPath(); ctx.ellipse(pt.x, pt.y-drumH, w/2*(1-rI*0.22), dh*(1-rI*0.22), 0, Math.PI, 6.29); ctx.stroke(); } }
+      ctx.fillStyle='rgba(140,230,255,'+(0.35+0.2*Math.sin(raceTime*2+seg.index))+')';
+      ctx.beginPath(); ctx.ellipse(pt.x, pt.y+w*0.012, w*0.55, w*0.035, 0, 0, 6.29); ctx.fill();
+    }
+  }
+  else if(sp.type==='rail'){
+    /* a transit light-rail running beside the road: twin glowing
+       lines on slim posts, light-dashes streaming along it */
+    const w=unit*300, hgt=w*1.05;
+    ctx.fillStyle='#232d38'; ctx.fillRect(pt.x-w*0.05, pt.y-hgt, w*0.10, hgt);
+    const flow=(raceTime*0.9 + seg.index*0.37)%1;
+    for(const ly of [0.30, 0.52]){
+      const yy=pt.y-hgt*ly;
+      ctx.strokeStyle='rgba(34,211,238,0.55)'; ctx.lineWidth=Math.max(1.2, w*0.05);
+      ctx.beginPath(); ctx.moveTo(pt.x-w*2.6, yy); ctx.lineTo(pt.x+w*2.6, yy); ctx.stroke();
+      ctx.fillStyle='rgba(190,250,255,0.95)';
+      const dx2=(flow-0.5)*w*5.2;
+      ctx.fillRect(pt.x+dx2-w*0.30, yy-w*0.045, w*0.60, w*0.09);
     }
   }
   else if(sp.type==='sign'){
@@ -2566,6 +2962,72 @@ function drawTrackBanana(seg, b){
   shadowEllipse(pt.x, pt.y, w*0.4, w*0.1, 0.3);
   drawBananaShape(pt.x, pt.y-w*0.16, w, 0.35);
 }
+/* JOB D surface features. A boost pad is a bright chevron strip
+   laid across part of the road — cyan glass with two white
+   chevrons pointing the way you travel; it must read the instant
+   it appears, at speed, from the raised camera. */
+function drawPad(seg, pd){
+  const a1=segPoint(seg, 0.12, pd.offset-0.30), a2=segPoint(seg, 0.12, pd.offset+0.30);
+  const b1=segPoint(seg, 0.88, pd.offset-0.30), b2=segPoint(seg, 0.88, pd.offset+0.30);
+  const wdt=Math.abs(a2.x-a1.x); if(wdt<6 || wdt>W*0.9) return;
+  const pulse=0.78+0.22*Math.sin(raceTime*6+pd.seg);
+  ctx.save();
+  ctx.globalAlpha=(pd.hot? 0.92 : 0.30)*pulse*(1-Math.min(0.6, seg.fog*0.6));
+  ctx.fillStyle='#0e5a6d';
+  ctx.beginPath(); ctx.moveTo(a1.x,a1.y); ctx.lineTo(a2.x,a2.y); ctx.lineTo(b2.x,b2.y); ctx.lineTo(b1.x,b1.y); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#67e8f9'; ctx.lineWidth=Math.max(1.5, wdt*0.03); ctx.stroke();
+  ctx.strokeStyle='#eafcff'; ctx.lineWidth=Math.max(1.5, wdt*0.055); ctx.lineCap='round';
+  for(const f of [0.36, 0.62]){
+    const cx=lerp(lerp(a1.x,b1.x,f), lerp(a2.x,b2.x,f), 0.5), cy=lerp(a1.y,b1.y,f), cw=wdt*0.20, ch=(b1.y-a1.y)*0.20;
+    ctx.beginPath(); ctx.moveTo(cx-cw, cy+ch); ctx.lineTo(cx, cy-ch); ctx.lineTo(cx+cw, cy+ch); ctx.stroke();
+  }
+  ctx.restore();
+}
+/* The ₿ coins. The plain coin spins on the surface (its width
+   breathes with the spin); the winged one is the same coin with
+   wings out of its top, hovering with a slow bob and a brighter
+   halo — same family at a glance, instantly distinct. */
+function drawCoinDisc(x, y, w, spin){
+  const rw=w*Math.abs(spin), r=w/2;
+  ctx.save(); ctx.translate(x,y);
+  const g=ctx.createRadialGradient(0,0,r*0.1, 0,0,r*1.25);
+  g.addColorStop(0,'rgba(255,180,60,0.50)'); g.addColorStop(1,'rgba(255,180,60,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r*1.25,0,6.29); ctx.fill();
+  if(rw>r*0.16){
+    ctx.fillStyle='#f7931a'; ctx.beginPath(); ctx.ellipse(0,0,rw,r,0,0,6.29); ctx.fill();
+    ctx.strokeStyle='#ffd76a'; ctx.lineWidth=Math.max(1.2, w*0.05); ctx.stroke();
+    ctx.fillStyle='#fff7e0'; ctx.font='700 '+(w*0.62)+'px system-ui, sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('B', 0, w*0.03);
+    ctx.fillRect(-w*0.10, -w*0.30, w*0.045, w*0.60); ctx.fillRect(w*0.055, -w*0.30, w*0.045, w*0.60);
+  } else {
+    ctx.fillStyle='#ffd76a'; ctx.fillRect(-w*0.03, -r, w*0.06, w);
+  }
+  ctx.restore();
+}
+function drawCoin(seg, c, winged){
+  const pt=segPoint(seg, 0.5, c.offset), w=pt.scale*560*(W/2); if(w<6 || w>W*0.8) return;
+  const fogA=1-Math.min(0.6, seg.fog*0.6);
+  ctx.save(); ctx.globalAlpha=fogA;
+  if(winged){
+    const bobY=pt.y - w*0.55 - Math.sin(raceTime*2.2+c.seg)*w*0.07;
+    shadowEllipse(pt.x, pt.y, w*0.34, w*0.09, 0.30);
+    for(const sgn of [-1,1]){
+      ctx.save(); ctx.translate(pt.x, bobY-w*0.28); ctx.scale(sgn,1); ctx.rotate(-0.30+Math.sin(raceTime*3.1)*0.07);
+      ctx.fillStyle='rgba(255,240,200,0.95)';
+      ctx.beginPath(); ctx.moveTo(0,0);
+      ctx.quadraticCurveTo(w*0.30, -w*0.26, w*0.62, -w*0.20);
+      ctx.quadraticCurveTo(w*0.40, -w*0.05, w*0.30, w*0.03);
+      ctx.quadraticCurveTo(w*0.14, -w*0.05, 0, w*0.04);
+      ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    drawCoinDisc(pt.x, bobY, w*0.92, Math.cos(raceTime*2.6+c.seg));
+  } else {
+    shadowEllipse(pt.x, pt.y, w*0.34, w*0.09, 0.30);
+    drawCoinDisc(pt.x, pt.y-w*0.30, w*0.80, Math.cos(raceTime*3.2+c.seg));
+  }
+  ctx.restore();
+}
 
 /* ---------- main render ---------- */
 const proj=[];
@@ -2575,6 +3037,12 @@ function render(){
   const baseSeg=findSegment(position), basePct=(position%SEG_LEN)/SEG_LEN;
   const playSeg=findSegment(position+playerZ), playPct=((position+playerZ)%SEG_LEN)/SEG_LEN;
   const playerY=lerp(playSeg.p1.world.y, playSeg.p2.world.y, playPct);
+  /* flight lift: the camera rises with the machine (55% of its
+     height), so a jump, a glide or the wings keep the machine
+     framed low while the course falls away beneath it */
+  const airHNow = airborne? Math.max(0, airY-roadYAt(position + CAM_H*BASE_DEPTH)) : 0;
+  camLift += ((airHNow*0.55)-camLift)*0.10;
+  const camY = playerY+CAM_H+camLift;
   let maxY=H, x=0, dx=-(baseSeg.curve*basePct);
   proj.length=0;
   for(let n=0;n<DRAW_DIST;n++){
@@ -2583,8 +3051,8 @@ function render(){
     seg.fog=Math.pow(n/DRAW_DIST,2)*0.92;
     seg.clip=maxY;
     const camZ=position-(looped?trackLength:0);
-    project(seg.p1, playerX*ROAD_W - x,      playerY+CAM_H, camZ, camDepth);
-    project(seg.p2, playerX*ROAD_W - x - dx, playerY+CAM_H, camZ, camDepth);
+    project(seg.p1, playerX*ROAD_W - x,      camY, camZ, camDepth);
+    project(seg.p2, playerX*ROAD_W - x - dx, camY, camZ, camDepth);
     x+=dx; dx+=seg.curve;
     proj.push(seg);
     if(seg.p1.camera.z<=camDepth || seg.p2.screen.y>=seg.p1.screen.y || seg.p2.screen.y>=maxY) continue;
@@ -2597,11 +3065,14 @@ function render(){
      time on a phone GPU budget */
   for(let n=proj.length-1;n>=0;n--){
     const seg=proj[n];
-    if(n<170) for(const sp of seg.sprites) drawRoadside(sp, seg);
+    if(n<224){ RS_FADE = n<188? 1 : 1-(n-188)/36; for(const sp of seg.sprites) drawRoadside(sp, seg); RS_FADE=1; }
     if(seg.index===0) drawGantry(seg);
     if(seg.gate) drawGate(seg);
     if(seg.ringGate) drawRingGate(seg);
     for(const pk of pickups) if(pk.ready && pk.seg===seg.index) drawPickup(seg, pk);
+    for(const pd of pads) if(pd.seg===seg.index) drawPad(seg, pd);
+    for(const c of coins) if(c.ready && c.seg===seg.index) drawCoin(seg, c, false);
+    if(wingCoin && wingCoin.ready && wingCoin.seg===seg.index) drawCoin(seg, wingCoin, true);
     for(const b of trackBananas) if(b.seg===seg.index) drawTrackBanana(seg, b);
     if(thrown){
       const td=((thrown.total%trackLength)+trackLength)%trackLength;
@@ -2623,7 +3094,7 @@ function render(){
       if(pt.y > seg.clip + kw*0.35) continue;
       r.sx=pt.x; r.sy=pt.y; r.sw=kw;
       const spinRot = r.spinT>0? Math.sin(r.spinT*18)*0.85*r.spinT : 0;
-      drawMachine(pt.x, pt.y, kw, machineImgFor(r.color), r.color, r.shirt, Math.sin(r.sway)*0.04, spinRot, 1-Math.min(0.6, seg.fog*0.6), clamp(r.speed/MAX_SPEED,0,1));
+      drawMachine(pt.x, pt.y, kw, machineImgFor(r.color), r.goldT>0? '#f7b500' : r.color, r.shirt, Math.sin(r.sway)*0.04, spinRot, 1-Math.min(0.6, seg.fog*0.6), clamp(r.speed/MAX_SPEED,0,1));
     }
   }
   /* player machine — smaller and lower in the frame than the old kart:
@@ -2639,7 +3110,8 @@ function render(){
      receives the ground line as shadowBaseY). A landing settle dips the
      machine briefly below its ride line. */
   const airH = airborne? Math.max(0, airY-roadYAt(position + CAM_H*BASE_DEPTH)) : 0;
-  let pyDraw = py - airH * H * YSCALE / CAM_H;
+  let pyDraw = py - (airH - camLift) * H * YSCALE / CAM_H;   /* the camera carries 55% of the rise; the machine still lifts clear of its shadow */
+  const pyShadow = py + camLift * H * YSCALE / CAM_H;        /* the shadow rides the road, which the lifted camera drops */
   if(landT>0) pyDraw += Math.sin((0.22-landT)/0.22*Math.PI)*7;
   /* pitch: on the ground the machine tips with the road's slope (up the
      ramp face); in the air it follows the arc — nose up while climbing,
@@ -2659,7 +3131,41 @@ function render(){
   if(state==='racing' && spN>0.4 && !airborne){
     for(let i=0;i<2;i++) spawnP({type:'dust', x:px+(Math.random()-0.5)*kw*0.7, y:py+2, vx:(Math.random()-0.5)*46 - slideCur*30, vy:-14-Math.random()*26, life:0.55, t:0, size:6+Math.random()*9});
   }
-  drawMachine(px, pyDraw, kw, machineImgFor(null), '#1565c0', '#ffd94d', lean, spinRot, blink, spN, py);
+  /* the golden window: the machine turns gold, and the fading
+     gold IS the timer — the glow thins as the window runs out */
+  if(goldT>0){
+    const gg=ctx.createRadialGradient(px, pyDraw-kw*0.3, 0, px, pyDraw-kw*0.3, kw*1.15);
+    const ga=0.10+0.30*(goldT/GOLD_T);
+    gg.addColorStop(0,'rgba(255,190,40,'+ga+')'); gg.addColorStop(1,'rgba(255,190,40,0)');
+    ctx.fillStyle=gg; ctx.fillRect(px-kw*1.2, pyDraw-kw*1.5, kw*2.4, kw*1.9);
+  }
+  drawMachine(px, pyDraw, kw, machineImgFor(null), goldT>0? '#f7b500' : '#1565c0', goldT>0? '#fff3b0' : '#ffd94d', lean, spinRot, blink, spN, pyShadow);
+  /* the glider wing: a sleek bar over the machine while it glides */
+  if(gliding){
+    ctx.save(); ctx.translate(px, pyDraw-kw*0.52); ctx.rotate(lean*0.7);
+    ctx.fillStyle='rgba(190,240,255,0.92)';
+    ctx.beginPath(); ctx.moveTo(-kw*0.85, 0); ctx.quadraticCurveTo(0, -kw*0.16, kw*0.85, 0); ctx.quadraticCurveTo(0, kw*0.05, -kw*0.85, 0); ctx.fill();
+    ctx.fillStyle='rgba(34,211,238,0.85)'; ctx.fillRect(-kw*0.85, -kw*0.012, kw*1.7, kw*0.024);
+    ctx.restore();
+  }
+  /* the wings: two feathered wings out of the machine's top,
+     their glow fading with the flight clock */
+  if(flying || (airborne && wingsT>0)){
+    const wf=clamp(wingsT/WINGS_T, 0, 1), flap=Math.sin(raceTime*5.2)*0.10;
+    ctx.save(); ctx.translate(px, pyDraw-kw*0.46);
+    for(const sgn of [-1,1]){
+      ctx.save(); ctx.scale(sgn,1); ctx.rotate(-0.38-flap);
+      const wg=ctx.createLinearGradient(0,0,kw*0.95,0);
+      wg.addColorStop(0,'rgba(255,215,90,'+(0.35+0.55*wf)+')'); wg.addColorStop(1,'rgba(255,150,30,'+(0.10+0.30*wf)+')');
+      ctx.fillStyle=wg;
+      ctx.beginPath(); ctx.moveTo(0,0);
+      ctx.quadraticCurveTo(kw*0.45, -kw*0.34, kw*0.98, -kw*0.30);
+      ctx.quadraticCurveTo(kw*0.62, -kw*0.10, kw*0.55, kw*0.02);
+      ctx.quadraticCurveTo(kw*0.30, -kw*0.08, 0, kw*0.05);
+      ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    ctx.restore();
+  }
   /* particles */
   for(const p of particles){
     const a=1-(p.t/p.life);
@@ -2713,7 +3219,7 @@ function tkKeysLive(e){
   return tkEngaged;
 }
 
-let rPointer=null, rDownX=0, rWidth=1, keySlide=0;
+let rPointer=null, rDownX=0, rWidth=1, keySlide=0, rSlid=false;
 const keysDown={};
 function bindZone(zone, down, move, up){
   zone.addEventListener('pointerdown', e=>{ e.preventDefault(); try{zone.setPointerCapture(e.pointerId);}catch(err){} down(e); });
@@ -2723,15 +3229,22 @@ function bindZone(zone, down, move, up){
   zone.addEventListener('pointercancel', end);
   zone.addEventListener('contextmenu', e=>e.preventDefault());
 }
+let rDownY=0, rDownT=0;
 function rDown(e){
   if(e.pointerType==='mouse'){ mDown(e); return; }   /* desktop: the mouse scheme (mDown/mSteer/mUp, below) */
   if(state==='title') startRace();   /* a thumb on the GO pad starts the race; the same press keeps holding GO */
-  rPointer=e.pointerId; rDownX=e.clientX; rWidth=zoneR.getBoundingClientRect().width||1;
+  rPointer=e.pointerId; rDownX=e.clientX; rDownY=e.clientY; rDownT=performance.now(); rWidth=zoneR.getBoundingClientRect().width||1; rSlid=false;
   goHeld=true; zoneR.classList.add('on'); onGoDown();
 }
 function rMove(e){ if(e.pointerType==='mouse'){ mSteer(e); return; } if(e.pointerId!==rPointer) return;
-  slideTarget=clamp((e.clientX-rDownX)/(rWidth*0.40), -1, 1); }
+  /* the holding thumb steers only once it actually SLIDES —
+     a still thumb is just holding GO, and tilt (or keys) steer */
+  if(Math.abs(e.clientX-rDownX)>6) rSlid=true;
+  if(rSlid) slideTarget=clamp((e.clientX-rDownX)/(rWidth*0.40), -1, 1); }
 function rUp(e){ if(e.pointerType==='mouse'){ mUp(e); return; } if(e.pointerId!==rPointer) return;
+  /* JOB D touch fallback: a quick flick UP of the steering thumb
+     jumps — the banana thumb's flick idiom, mirrored */
+  if(rDownY-e.clientY>28 && performance.now()-rDownT<450) tryJump();
   rPointer=null; goHeld=false; slideTarget=0; zoneR.classList.remove('on'); onGoUp(); }
 bindZone(zoneR, rDown, rMove, rUp);
 
@@ -2959,6 +3472,7 @@ window.addEventListener('keydown', e=>{
   if(e.repeat) return; keysDown[e.code]=true;
   if(e.code==='ArrowUp'){ goHeld=true; zoneR.classList.add('on'); onGoDown(); }
   if(e.code==='Space'){ spaceBanana(); }   /* Space works the banana now — it is not a go key */
+  if(e.code==='KeyJ'){ tryJump(); }   /* JOB D: J jumps (Space = banana, Up = GO — both already spoken for) */
   if(e.code==='KeyB'){ leftHeld=true; zoneL.classList.add('on'); if(carry && state==='racing' && !paused) holding=true; }
   if(e.code==='KeyW'){ if(holding) throwBanana(); }
   keySlide=(keysDown['ArrowRight']||keysDown['KeyD']?1:0)-(keysDown['ArrowLeft']||keysDown['KeyA']?1:0);
@@ -3008,7 +3522,7 @@ function startRace(){
   if(AC && AC.state==='suspended') AC.resume();
   checkOrientation();
 }
-$('tk-startBtn').addEventListener('click', ()=>{ beep(660,0.06,'square',0.04); startRace(); });
+$('tk-startBtn').addEventListener('click', ()=>{ tkTiltPermission(); beep(660,0.06,'square',0.04); startRace(); });
 $('tk-againBtn').addEventListener('click', ()=>{ beep(660,0.06,'square',0.04); startRace(); });
 
 /* ================= HUD ================= */
@@ -3041,7 +3555,7 @@ function animate(ts){
   stepFrame(dt);
 }
 function stepFrame(dt){
-  if(rPointer===null && !DEMO) slideTarget = keySlide!==0 ? keySlide : (mouseSeen ? clamp((mouseSteer-playerX)*2, -1, 1) : 0);   /* slide keys win while held; otherwise the machine steers toward the mouse's position across the stage (desktop controls) */
+  if(!(rPointer!==null && rSlid) && !DEMO) slideTarget = keySlide!==0 ? keySlide : (tiltSeen && tiltNeutral ? tiltSteer : (mouseSeen ? clamp((mouseSteer-playerX)*2, -1, 1) : 0));   /* a SLIDING thumb wins; then slide keys; then tilt (JOB D — a still GO thumb must not block it: holding GO is what a tilt player does); then the mouse's position across the stage (desktop controls) */
   if(DEMO){
     if(state==='title') startRace();
     if(state==='countdown') countT=Math.min(countT, 0.5);
@@ -3355,9 +3869,16 @@ document.addEventListener('keydown', (e) => {
 /* ================= test / debug hooks ================= */
 window.__thumbKart={
   state(){ return { state:state, paused:paused, pauseReason:pauseReason, countT:countT, vis:document.visibilityState, speed:speed, playerX:playerX, carry:carry, holding:holding,
-    thrown:!!thrown, thrownTotal: thrown? thrown.total : null, bananaSegs: trackBananas.map(b=>b.seg), playerSeg: playerSegIndex(), playerTotal: playerTotal, segCount: segments.length,
+    thrown:!!thrown, thrownTotal: thrown? thrown.total : null, bananaSegs: trackBananas.map(b=>b.seg), bananaList: trackBananas.map(b=>({seg:b.seg, offset:b.offset})), playerSeg: playerSegIndex(), playerTotal: playerTotal, segCount: segments.length,
     trackBananas:trackBananas.length, stats:stats, raceTime:raceTime,
     airborne:airborne, airH: airborne? Math.round(airY-roadYAt(position + CAM_H*BASE_DEPTH)) : 0,
+    goldT:Math.round(goldT*100)/100, wingsT:Math.round(wingsT*100)/100, boostT:Math.round(boostT*100)/100, flying:flying, gliding:gliding,
+    jumpCooldown:Math.round(jumpCooldown*100)/100, camLift:Math.round(camLift),
+    pads:pads.map(p=>({seg:p.seg, offset:p.offset, hot:p.hot})),
+    coins:coins.map(c=>({seg:c.seg, offset:c.offset, ready:c.ready})),
+    wingCoin: wingCoin? {seg:wingCoin.seg, offset:wingCoin.offset, ready:wingCoin.ready} : null,
+    tilt:{seen:tiltSeen, steer:tiltSteer, neutral:tiltNeutral},
+    rivalGold:i=>rivals[i].goldT, rivalSpin:i=>rivals[i].spinT,
     rivalTarget:i=>rivals[i].lastTarget, rivalBase:i=>rivals[i].baseTarget, rivalRubber:i=>rivals[i].lastRubber||0 }; },
   debug:{
     giveBanana(){ carry=1; },
@@ -3365,8 +3886,23 @@ window.__thumbKart={
       position=(idx*SEG_LEN - CAM_H*BASE_DEPTH + SEG_LEN*1.5 + trackLength)%trackLength; speed=9500; },
     setRivalGap(i,gap){ rivals[i].totalDist = playerTotal + gap; },
     rampSegs(){ return segments.map((s,i)=>s.ramp?i:-1).filter(i=>i>=0); },
-    setPlayerSeg(idx){ position=((idx*SEG_LEN - CAM_H*BASE_DEPTH)%trackLength+trackLength)%trackLength; playerTotal=position; },
+    setPlayerSeg(idx){ position=((idx*SEG_LEN - CAM_H*BASE_DEPTH)%trackLength+trackLength)%trackLength; playerTotal=position; playerLap=Math.floor(playerTotal/trackLength); },
     setSpeed(v){ speed=v; },
+    /* JOB D test hooks */
+    tryJump(){ return tryJump(); },
+    setPlayerX(v){ playerX=v; },
+    placeBanana(seg, offset){ trackBananas.push({seg:seg, offset:offset}); },
+    clearBananas(){ trackBananas.length=0; },
+    clearSpin(){ spinT=0; invulnT=0; },
+    land(){ airborne=false; gliding=false; flying=false; airVY=0; },
+    startRace(){ startRace(); },
+    toTitle(){ resetRace(); state='title'; setPaused(false);
+      $('tk-titleScreen').classList.remove('tk-hidden'); stage.classList.add('tk-title-up');
+      $('tk-finishScreen').classList.add('tk-hidden'); $('tk-countOverlay').classList.add('tk-hidden'); },
+    setGo(h){ goHeld=h; },
+    step(dt){ stepFrame(dt); },
+    tiltEvent(beta, gamma){ onTilt({beta:beta, gamma:gamma}); },
+    setNeutral(){ tiltNeutral=null; tiltCalib=[]; },
   }
 };
 /* ================= scripted control checks (?test=1) ================= */
@@ -3765,31 +4301,61 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         // ---------- readouts + controls ----------
         var NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
         function fmt1(f) { return (Math.round(f * 10) / 10).toFixed(1); }
+        /* Readout writes are ATOMIC (Johnny, 2026-11-25, over his
+           recording: crossing into resonance showed two status
+           sentences and two note values rendered at once). syncUI
+           only computes strings; one flush point writes them, at
+           most once per frame, and only when the string actually
+           changed — so a node holds exactly one complete value at
+           every frame, never a blend of old and new. The note and
+           pattern lines are built from nowrap segments, so they
+           wrap between phrases, never inside one ("…Hz / away"). */
+        var readoutCache = {}, pendingText = null;
+        function writeText(el, key, str) {
+            if (readoutCache[key] !== str) { readoutCache[key] = str; el.textContent = str; }
+        }
+        function writeHTML(el, key, str) {
+            if (readoutCache[key] !== str) { readoutCache[key] = str; el.innerHTML = str; }
+        }
+        function flushReadouts() {
+            if (!pendingText) return;
+            var p = pendingText; pendingText = null;
+            writeHTML(noteEl, 'note', p.note);
+            writeText(waveEl, 'wave', p.wave);
+            writeHTML(modeEl, 'mode', p.mode);
+            writeText(statusEl, 'status', p.status);
+            statusEl.classList.toggle('fg-status-off', p.off);
+        }
         function syncUI() {
             if (document.activeElement !== freqInput) freqInput.value = fmt1(freq);
             if (document.activeElement !== slider) slider.value = freq;
             var midi = 69 + 12 * Math.log(freq / 440) / Math.LN2;
             var near = Math.round(midi), cents = Math.round((midi - near) * 100);
-            noteEl.textContent = NAMES[((near % 12) + 12) % 12] + (Math.floor(near / 12) - 1) +
-                ' · ' + (cents > 0 ? '+' + cents + ' cents sharp' : cents < 0 ? '−' + Math.abs(cents) + ' cents flat' : 'right on the note');
             var lam = 343 / freq;
-            waveEl.textContent = (lam >= 10 ? lam.toFixed(1) : lam >= 1 ? lam.toFixed(2) : lam.toFixed(3)) + ' m';
             var md = cur.mode;
-            modeEl.textContent = 'Pattern ' + md.m + ',' + md.n + ' · ' + fmt1(md.f) + ' Hz · ' +
-                (Math.abs(cur.df).toFixed(1) === '0.0' ? 'right on it' : Math.abs(cur.df).toFixed(1) + ' Hz away');
             var parts = [];
             parts.push(md.m > 0 ? md.m + ' still line' + (md.m > 1 ? 's' : '') + ' across' : 'no still lines across');
             parts.push(md.n > 0 ? md.n + ' still circle' + (md.n > 1 ? 's' : '') : 'no still circles');
+            var status, off;
             if (cur.s >= 0.55) {
-                statusEl.textContent = 'On resonance — ' + parts.join(', ') + '. The sand rests on the still lines.';
-                statusEl.classList.remove('fg-status-off');
+                status = 'On resonance — ' + parts.join(', ') + '. The sand rests on the still lines.';
+                off = false;
             } else if (cur.s >= 0.15) {
-                statusEl.textContent = 'Near pattern ' + md.m + ',' + md.n + ' — the figure is trying to form, but the sand won\'t quite settle.';
-                statusEl.classList.add('fg-status-off');
+                status = 'Near pattern ' + md.m + ',' + md.n + ' — the figure is trying to form, but the sand won\'t quite settle.';
+                off = true;
             } else {
-                statusEl.textContent = 'Between the plate\'s sweet spots — no steady pattern forms, so the sand can\'t settle. It just dances.';
-                statusEl.classList.add('fg-status-off');
+                status = 'Between the plate\'s sweet spots — no steady pattern forms, so the sand can\'t settle. It just dances.';
+                off = true;
             }
+            pendingText = {
+                note: '<span class="fg-nw">' + NAMES[((near % 12) + 12) % 12] + (Math.floor(near / 12) - 1) + '</span> · <span class="fg-nw">' +
+                    (cents > 0 ? '+' + cents + ' cents sharp' : cents < 0 ? '−' + Math.abs(cents) + ' cents flat' : 'right on the note') + '</span>',
+                wave: (lam >= 10 ? lam.toFixed(1) : lam >= 1 ? lam.toFixed(2) : lam.toFixed(3)) + ' m',
+                mode: '<span class="fg-nw">Pattern ' + md.m + ',' + md.n + '</span> · <span class="fg-nw">' + fmt1(md.f) + ' Hz</span> · <span class="fg-nw">' +
+                    (Math.abs(cur.df).toFixed(1) === '0.0' ? 'right on it' : Math.abs(cur.df).toFixed(1) + ' Hz away') + '</span>',
+                status: status, off: off
+            };
+            if (!active) flushReadouts();
             var chips = root.querySelectorAll('.fg-chip');
             for (var i = 0; i < chips.length; i++) {
                 var cf = parseFloat(chips[i].getAttribute('data-freq'));
@@ -4776,6 +5342,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             var ampTgt = 0.03 * (0.15 + 0.85 * Math.sqrt(cur.s));
             ampCur += (ampTgt - ampCur) * Math.min(1, dt * 4);
             stepTransition(dt);
+            flushReadouts();
             trackFound(now);
             if (three && renderer) {
                 // The plate is RIGID. Real steel at these
@@ -4798,11 +5365,15 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 sandU.uTime.value = tSec;
                 sandU.uAgit.value = reduce ? 0 : (1 - cur.s) * 0.95;
                 sandU.uSharp.value = cur.s;
+                /* The viewpoint NEVER moves on its own (Johnny,
+                   2026-11-25, over his recording of the live build):
+                   an idle sway used to rock the camera ±0.055 rad
+                   until the first drag — a continuous drift he could
+                   see frame to frame. The plate holds perfectly
+                   still unless the user drags it — the site's
+                   still-camera principle. az/pol change only in the
+                   drag handlers. */
                 var azE = az, polE = pol;
-                if (!interacted && !reduce) {
-                    azE += 0.055 * Math.sin(tSec * 0.3);
-                    polE += 0.02 * Math.sin(tSec * 0.23 + 1.0);
-                }
                 camera.position.set(
                     rad * Math.sin(polE) * Math.cos(azE),
                     rad * Math.cos(polE),
@@ -5223,6 +5794,34 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 }
             }
         }
+
+        /* Demo snapshot hook (the Demo pattern, 2026-11-25): the
+           demo plays the real controls, then everything it touched
+           — the dial, the tone, and above all the FOUND set, which
+           is persistent — is rolled back to the player's own. */
+        window.__fgDemoSnap = {
+            get: function () {
+                var f = {};
+                for (var k in foundSet) if (foundSet[k]) f[k] = true;
+                return { found: f, freq: freq, playing: playing };
+            },
+            set: function (s) {
+                for (var k in foundSet) delete foundSet[k];
+                for (var k2 in s.found) foundSet[k2] = true;
+                try {
+                    var arr = [];
+                    for (var k3 in foundSet) if (foundSet[k3]) arr.push(k3);
+                    localStorage.setItem(FOUND_KEY, JSON.stringify(arr));
+                } catch (e) {}
+                for (var key in slotEls) {
+                    drawMini(slotEls[key].cv, slotEls[key].mode, !!foundSet[key]);
+                    slotEls[key].btn.disabled = !foundSet[key];
+                }
+                dwellMode = null;
+                setFreq(s.freq);
+                setPlaying(s.playing);
+            }
+        };
 
         // ---------- go ----------
         allocSand(24000);
@@ -6840,11 +7439,17 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             if (now - lastHud < 100) return;
             lastHud = now;
             var d = distanceM();
-            elDist.textContent = d.toFixed(1) + ' m (' + (d * 3.28084).toFixed(1) + ' ft)';
+            /* write-on-change, like Thumb Kart's HUD cache — a
+               readout node is only touched when its string moves
+               (atomic-swap rule for rapid-update readouts) */
+            var dStr = d.toFixed(1) + ' m (' + (d * 3.28084).toFixed(1) + ' ft)';
+            if (dStr !== updateHUD._d) { updateHUD._d = dStr; elDist.textContent = dStr; }
             var spd = rider ? Math.hypot(rider.vx, rider.vy) / PX_PER_M : 0;  // stored speed is genuinely boosted now — no extra factor
-            elSpeed.textContent = spd.toFixed(1) + ' m/s (' + (spd * 2.23694).toFixed(1) + ' mph)';
+            var sStr = spd.toFixed(1) + ' m/s (' + (spd * 2.23694).toFixed(1) + ' mph)';
+            if (sStr !== updateHUD._s) { updateHUD._s = sStr; elSpeed.textContent = sStr; }
             if (d > best) { best = d; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
-            elBest.textContent = best.toFixed(1) + ' m (' + (best * 3.28084).toFixed(1) + ' ft)';
+            var bStr = best.toFixed(1) + ' m (' + (best * 3.28084).toFixed(1) + ' ft)';
+            if (bStr !== updateHUD._b) { updateHUD._b = bStr; elBest.textContent = bStr; }
             if (now < statusNoteUntil) {
                 elStatus.textContent = statusNote;
             } else if (mode === 'crashed') {
@@ -7271,6 +7876,35 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         fitTrack();   // open showing the whole track, so it is visible at once
         refreshSavesList();
         updateUI();
+        /* Demo snapshot hook (the Demo pattern, 2026-11-25): the
+           demo draws on the player's own canvas through the real
+           pointer path, then the world — lines, undo history,
+           camera, tool, best distance — is restored exactly. */
+        window.__lrDemoSnap = {
+            get: function () {
+                return {
+                    world: worldData(),
+                    undo: undoStack.slice(), redo: redoStack.slice(),
+                    cam: { x: cam.x, y: cam.y }, zoom: zoom,
+                    tool: tool, drawType: drawType, speedMul: speedMul,
+                    mode: mode, best: best,
+                    bestStored: (function () { try { return localStorage.getItem(BEST_KEY); } catch (e) { return null; } })(),
+                    rider: rider ? { x: rider.x, y: rider.y, vx: rider.vx, vy: rider.vy, angle: rider.angle, omega: rider.omega, state: rider.state, maxX: rider.maxX, startX: rider.startX, boostT: rider.boostT, glideT: rider.glideT } : null
+                };
+            },
+            set: function (s) {
+                applyWorldData(s.world);
+                undoStack.length = 0; Array.prototype.push.apply(undoStack, s.undo);
+                redoStack.length = 0; Array.prototype.push.apply(redoStack, s.redo);
+                cam.x = s.cam.x; cam.y = s.cam.y; zoom = s.zoom;
+                tool = s.tool; drawType = s.drawType; speedMul = s.speedMul;
+                best = s.best;
+                try { if (s.bestStored === null) localStorage.removeItem(BEST_KEY); else localStorage.setItem(BEST_KEY, s.bestStored); } catch (e) {}
+                if (s.mode === 'edit') { mode = 'edit'; resetRider(); }
+                else if (s.rider) { mode = 'ride'; rider = s.rider; }
+                updateUI();
+            }
+        };
         // Debug handle for automated checks (not part of the UI).
         window.__lr = {
             getState: function () {
@@ -7373,6 +8007,387 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
         });
     })();
+</script>
+<script>
+/* ================= THE DEMO PATTERN (Johnny, 2026-11-25) =================
+   Every game gets a Demo button with its controls. The demo plays
+   the REAL game through the REAL input path — synthetic events into
+   the same handlers a player uses — with one short caption per
+   beat. Press Demo again, or make ANY real input, and it ends THAT
+   INSTANT; the player's own state (track, collection, settings,
+   camera) is restored exactly, including persistent state. Each
+   demo auto-plays ONCE on that game's first visit (own flag),
+   never under prefers-reduced-motion. */
+(function () {
+    'use strict';
+    var reduceMotion = false;
+    try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    function $(s, r) { return (r || document).querySelector(s); }
+    function later(list, ms, fn) { list.push(setTimeout(fn, ms)); }
+    function every(list, ms, fn) { list.push(setInterval(fn, ms)); return list[list.length - 1]; }
+
+    function makeDemo(cfg) {
+        var btn = $(cfg.btn), cap = $(cfg.caption), root = $(cfg.root);
+        var running = false, timers = [], snap = null;
+        function caption(text) {
+            if (!cap) return;
+            if (text) { if (cap.textContent !== text) cap.textContent = text; cap.hidden = false; }
+            else cap.hidden = true;
+        }
+        function cleanup() {
+            timers.forEach(function (t) { clearTimeout(t); clearInterval(t); });
+            timers = [];
+            if (cfg.onCleanup) cfg.onCleanup();
+        }
+        function end() {
+            if (!running) return;
+            running = false;
+            cleanup();
+            caption(null);
+            btn.setAttribute('aria-pressed', 'false');
+            if (snap !== null && cfg.restore) { try { cfg.restore(snap); } catch (e) {} }
+            snap = null;
+        }
+        function start() {
+            if (running) { end(); return; }
+            if (cfg.canStart && !cfg.canStart()) return;
+            try { localStorage.setItem(cfg.flag, '1'); } catch (e) {}
+            snap = cfg.snapshot ? cfg.snapshot() : null;
+            running = true;
+            btn.setAttribute('aria-pressed', 'true');
+            cfg.play({ caption: caption, later: function (ms, fn) { later(timers, ms, fn); }, every: function (ms, fn) { return every(timers, ms, fn); }, end: end, isRunning: function () { return running; } });
+        }
+        btn.addEventListener('click', function () { start(); });
+        /* any REAL input anywhere in the game's region ends it now —
+           the demo's own synthetic events are not isTrusted, so the
+           demo never interrupts itself; the Demo button toggles
+           through its own click instead */
+        ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (type) {
+            root.addEventListener(type, function (e) {
+                if (!running) return;
+                if (e.isTrusted && !btn.contains(e.target)) end();
+            }, true);
+        });
+        /* autoplay once, on the game's first visit */
+        var seen = false;
+        try { seen = !!localStorage.getItem(cfg.flag); } catch (e) {}
+        if (!seen && !reduceMotion && 'IntersectionObserver' in window) {
+            var io = new IntersectionObserver(function (entries) {
+                if (entries[0].isIntersecting) {
+                    io.disconnect();
+                    setTimeout(function () { if (!running) start(); }, 900);
+                }
+            }, { threshold: 0.35 });
+            io.observe(root);
+        }
+        return { start: start, end: end };
+    }
+
+    /* ---------------- Frequency Generator — the hunt ---------------- */
+    (function () {
+        var slider = $('#fg-slider');
+        if (!slider || !$('#fg-demo-btn')) return;
+        function setSlider(v) {
+            slider.value = String(v);
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        function tween(api, from, to, dur, done) {
+            var t0 = performance.now();
+            var iv = api.every(40, function () {
+                var k = Math.min(1, (performance.now() - t0) / dur);
+                setSlider(from + (to - from) * (k * k * (3 - 2 * k)));
+                if (k >= 1) { clearInterval(iv); if (done) done(); }
+            });
+        }
+        makeDemo({
+            btn: '#fg-demo-btn', caption: '#fg-demo-caption', root: '#fg-shell', flag: 'demo-seen-frequency',
+            canStart: function () { return !!window.__fgDemoSnap; },
+            snapshot: function () { return window.__fgDemoSnap.get(); },
+            restore: function (s) { window.__fgDemoSnap.set(s); },
+            play: function (api) {
+                api.caption('Turn the dial — hunt for a pitch where the sand settles');
+                tween(api, parseFloat(slider.value) || 432.1, 700, 2400, function () {
+                    api.caption('Closing in — a resonance warms the plate…');
+                    tween(api, 700, 732.97, 900, function () {
+                        setSlider(732.97);
+                        api.caption('On resonance — the sand snaps into its figure');
+                        api.later(2800, function () {
+                            var chip = document.querySelector('.fg-chip[data-freq="432.1"]');
+                            if (chip) chip.click();
+                            api.caption('Star tones live on the chips — tap one any time');
+                            api.later(2400, function () { api.end(); });
+                        });
+                    });
+                });
+            }
+        });
+    })();
+
+    /* ---------------- Line Rider — draw and ride ---------------- */
+    (function () {
+        var canvas = $('#lr-canvas');
+        if (!canvas || !$('#lr-demo-btn')) return;
+        function pe(type, x, y) {
+            canvas.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 4242, pointerType: 'mouse', isPrimary: true, buttons: type === 'pointerup' ? 0 : 1 }));
+        }
+        makeDemo({
+            btn: '#lr-demo-btn', caption: '#lr-demo-caption', root: '.lr-stage', flag: 'demo-seen-linerider',
+            canStart: function () { return !!window.__lrDemoSnap && !!window.__lr; },
+            snapshot: function () { return window.__lrDemoSnap.get(); },
+            restore: function (s) { window.__lrDemoSnap.set(s); },
+            play: function (api) {
+                var st = window.__lr.getState();
+                if (st.mode !== 'edit') $('#lr-playpause').click();
+                /* Start from a clean canvas through the game's own
+                   Clear all button, so the demo's line is the line
+                   he starts on (he starts on the first line drawn).
+                   The player's own track is in the snapshot and
+                   comes back exactly when the demo ends. */
+                api.caption('Start fresh — Clear all');
+                api.later(650, function () {
+                    $('#lr-clear').click();
+                    api.caption('Draw a hill and a valley…');
+                    var rect = canvas.getBoundingClientRect();
+                    function toClient(wx, wy) {
+                        var s2 = window.__lr.getState();
+                        return { x: rect.left + (wx - s2.cam.x) * s2.zoom, y: rect.top + (wy - s2.cam.y) * s2.zoom };
+                    }
+                    /* one smooth stroke: a long descent easing into
+                       a valley, then a gentle rise — many small
+                       segments, so the sled stays on the line */
+                    var pts = [];
+                    for (var x = -40; x <= 900; x += 47) {
+                        var t = (x + 40) / 940;
+                        pts.push([x, 100 + 195 * t + 58 * Math.sin(t * Math.PI)]);
+                    }
+                    var p0 = toClient(pts[0][0], pts[0][1]);
+                    pe('pointerdown', p0.x, p0.y);
+                    pts.slice(1).forEach(function (p, i) {
+                        api.later(110 * (i + 1), function () { var c = toClient(p[0], p[1]); pe('pointermove', c.x, c.y); });
+                    });
+                    api.later(110 * pts.length + 200, function () {
+                        var pl = toClient(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+                        pe('pointerup', pl.x, pl.y);
+                        api.caption('Press Play — he rides your line');
+                        api.later(650, function () {
+                            $('#lr-playpause').click();
+                            api.later(4400, function () { api.end(); });
+                        });
+                    });
+                });
+            }
+        });
+    })();
+
+    /* ---------------- Universe — the tour ---------------- */
+    (function () {
+        var canvas = $('.uv-canvas');
+        if (!canvas || !$('#uv-demo-btn')) return;
+        function pe(type, x, y) {
+            canvas.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 777, pointerType: 'mouse', isPrimary: true, buttons: type === 'pointerup' ? 0 : 1 }));
+        }
+        var origCapture = null;
+        makeDemo({
+            btn: '#uv-demo-btn', caption: '#uv-demo-caption', root: '.uv-stage', flag: 'demo-seen-universe',
+            canStart: function () { return !!window.__uvLod; },
+            onCleanup: function () {
+                if (origCapture) { Element.prototype.setPointerCapture = origCapture; origCapture = null; }
+                window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyS', bubbles: true }));
+            },
+            snapshot: function () {
+                var s = window.__uvLod.state();
+                var near = '';
+                try { near = window.__uv.getState().nearest || ''; } catch (e) {}
+                return { pos: s.camPos.slice(), near: near };
+            },
+            restore: function (s) {
+                var target = [0, 0, 0];
+                try { var p = window.__uvLod.posOf(s.near); if (p) target = p; } catch (e) {}
+                window.__uvLod.teleport(s.pos, target);
+            },
+            play: function (api) {
+                /* The engine's pointerdown handler calls
+                   setPointerCapture first; a synthetic pointer has
+                   no active pointer in the browser's model, so the
+                   call throws and the handler aborts before it
+                   registers the drag. During the demo only, make
+                   capture fail soft — real players' pointers are
+                   always active, so their path is untouched. */
+                if (!origCapture) {
+                    origCapture = Element.prototype.setPointerCapture;
+                    Element.prototype.setPointerCapture = function (id) {
+                        try { return origCapture.call(this, id); } catch (e) { /* synthetic demo pointer */ }
+                    };
+                }
+                var rect = canvas.getBoundingClientRect();
+                var cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+                api.caption('Drag to look around');
+                pe('pointerdown', cx, cy);
+                for (var i = 1; i <= 10; i++) {
+                    (function (k) { api.later(70 * k, function () { pe('pointermove', cx + k * 13, cy - k * 2); }); })(i);
+                }
+                api.later(800, function () {
+                    pe('pointerup', cx + 130, cy - 20);
+                    api.later(500, function () {
+                        var label = null;
+                        document.querySelectorAll('.uv-label').forEach(function (el) { if (el.textContent.trim() === 'Earth') label = el; });
+                        if (label) {
+                            var r = label.getBoundingClientRect();
+                            var lx = r.left + r.width / 2, ly = r.top + r.height / 2;
+                            pe('pointerdown', lx, ly);
+                            api.later(120, function () { pe('pointerup', lx, ly); });
+                            api.caption('Tap a world — fly to it');
+                        } else {
+                            api.caption('Every label is a world — tap one to fly to it');
+                        }
+                        api.later(3600, function () {
+                            api.caption('Pull back — the whole system');
+                            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS', bubbles: true }));
+                            api.later(2100, function () {
+                                window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyS', bubbles: true }));
+                                api.later(500, function () { api.end(); });
+                            });
+                        });
+                    });
+                });
+            }
+        });
+    })();
+
+    /* ---------------- Thumb Kart — the ghost lap ---------------- */
+    (function () {
+        var stage = $('#tk-stage');
+        if (!stage || !$('#tk-demoBtn')) return;
+        var handset = $('#tk-handset'), handBody = handset ? handset.querySelector('.tk-handset-body') : null;
+        var goHeld = false;
+        /* Dispatch tilt in the device's OWN orientation frame: the
+           engine maps beta/gamma to (steer, pitch) by the current
+           screen orientation, so the demo computes the inverse —
+           steer/pitch deltas from the calibrated neutral (beta 45,
+           gamma 0) — and the kart steers identically in portrait
+           and landscape. */
+        function tiltSP(steerDelta, pitchDelta) {
+            var ang = 0;
+            try { ang = (screen.orientation && screen.orientation.angle) || 0; } catch (e) {}
+            var beta = 45, gamma = 0;
+            if (ang === 90) { beta = 45 + steerDelta; gamma = -pitchDelta; }
+            else if (ang === 270 || ang === -90) { beta = 45 - steerDelta; gamma = pitchDelta; }
+            else if (ang === 180) { beta = 45 - pitchDelta; gamma = -steerDelta; }
+            else { beta = 45 + pitchDelta; gamma = steerDelta; }
+            window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { beta: beta, gamma: gamma, alpha: 0 }));
+        }
+        function flick(api, steerNow) {
+            /* a natural, unforced tip — the same easy motion the
+               player makes (thresholds: 8 degrees at 70 deg/s) */
+            tiltSP(steerNow, 9); tiltSP(steerNow, 16);
+            api.later(120, function () { tiltSP(steerNow, 0); });
+        }
+        function setHand(steerDeg, tipDeg) {
+            if (handBody) handBody.style.transform = 'rotateZ(' + (-steerDeg * 0.9) + 'deg) rotateX(' + tipDeg + 'deg)';
+        }
+        function zonePoint(id) {
+            var z = document.getElementById(id), r = z.getBoundingClientRect();
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        }
+        function goDown() {
+            if (goHeld) return; goHeld = true;
+            var p = zonePoint('tk-zoneR');
+            document.getElementById('tk-zoneR').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y, pointerId: 909, pointerType: 'touch', isPrimary: true }));
+        }
+        function goUp() {
+            if (!goHeld) return; goHeld = false;
+            var p = zonePoint('tk-zoneR');
+            document.getElementById('tk-zoneR').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y, pointerId: 909, pointerType: 'touch', isPrimary: true }));
+        }
+        makeDemo({
+            btn: '#tk-demoBtn', caption: '#tk-demo-caption', root: '#tk-stage', flag: 'demo-seen-thumbkart',
+            canStart: function () {
+                var tk = window.__thumbKart;
+                return !!tk && tk.state().state === 'title';
+            },
+            snapshot: function () { return { atTitle: true }; },
+            restore: function () { window.__thumbKart.debug.toTitle(); },
+            onCleanup: function () {
+                goUp();
+                if (handset) handset.hidden = true;
+                setHand(0, 0);
+            },
+            play: function (api) {
+                var tk = window.__thumbKart, dbg = tk.debug, st = function () { return tk.state(); };
+                if (handset) handset.hidden = false;
+                api.caption('Tilt to steer');
+                $('#tk-startBtn').click();
+                /* calibrate the neutral hold during the countdown */
+                for (var c = 0; c < 9; c++) api.later(60 * c, function () { tiltSP(0, 0); });
+                var phase = 'pad', jumped = false, glided = false, glideDone = false, tipped = 0, padCheered = false;
+                var iv = api.every(90, function () {
+                    var s = st();
+                    if (s.state === 'finished' || s.state === 'title') { api.end(); return; }
+                    if (s.state !== 'racing') { setHand(Math.sin(performance.now() / 500) * 6, 0); return; }
+                    goDown();
+                    /* the pad beat cheers the first pad the lap
+                       actually hits, whichever pad that is */
+                    if (!padCheered && s.boostT > 0.2) {
+                        padCheered = true;
+                        api.caption('Hit a pad — burst of speed');
+                        if (phase === 'pad') phase = 'coin';
+                    }
+                    var target = 0;
+                    if (phase === 'pad') {
+                        target = -0.36;
+                        if (s.boostT > 0.2) { phase = 'coin'; api.caption('Hit a pad — burst of speed'); }
+                        else if (s.playerSeg > 55) phase = 'coin';
+                    } else if (phase === 'coin') {
+                        target = 0.36;
+                        if (s.goldT > 0) { phase = 'jump'; api.caption('₿ coin — five golden seconds'); }
+                        else if (s.playerSeg > 75) phase = 'jump';
+                    } else if (phase === 'jump') {
+                        var ahead = null;
+                        if (s.playerSeg < 112) {
+                            /* line up the far-right pad on the
+                               gentle right-hander first — a pad the
+                               kart can actually reach in time */
+                            target = 0.72;
+                        }
+                        (s.bananaList || []).forEach(function (b) {
+                            var d = b.seg - s.playerSeg; if (d > 0 && d < 22) ahead = b;
+                        });
+                        if (ahead) {
+                            target = ahead.offset;
+                            var dd = ahead.seg - s.playerSeg;
+                            if (dd <= 7 && !s.airborne) {
+                                api.caption('Tip the top toward you — jump');
+                                flick(api, 0);
+                                setHand(0, 38); tipped = performance.now();
+                                jumped = true; phase = 'glide';
+                            }
+                        } else if (s.playerSeg > 165 && !jumped) {
+                            api.caption('Tip the top toward you — jump');
+                            flick(api, 0);
+                            setHand(0, 38); tipped = performance.now();
+                            jumped = true; phase = 'glide';
+                        }
+                        if (s.playerSeg > 190) phase = 'glide';
+                    } else if (phase === 'glide') {
+                        target = 0.1;
+                        if (!glided && s.playerSeg >= 243 && !s.airborne) {
+                            api.caption('Jump into a glider zone — glide');
+                            flick(api, 0);
+                            setHand(0, 38); tipped = performance.now();
+                        }
+                        if (s.gliding) glided = true;
+                        if (glided && !s.gliding && !s.airborne) glideDone = true;
+                        if (glideDone) { clearInterval(iv); api.later(900, function () { api.end(); }); }
+                    }
+                    var g = Math.max(-16, Math.min(16, (target - s.playerX) * 22));
+                    tiltSP(g, 0);
+                    if (performance.now() - tipped > 450) setHand(g, 0); else setHand(g, 38);
+                });
+                api.later(42000, function () { api.end(); });
+            }
+        });
+    })();
+})();
 </script>
 </body>
 </html>
