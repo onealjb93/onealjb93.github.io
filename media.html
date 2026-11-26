@@ -470,6 +470,20 @@
     <header class="page-header">
         <h1>Books and Podcasts</h1>
         <p class="subtitle">A curated reading list and favorite podcast episodes.</p>
+        <!-- Top search (2026-11-25, magnifier form): the field
+             lives in this title bar — the magnifier at its right
+             end opens it in place; its script searches both lists
+             live from the first letter. -->
+        <div class="mag-cluster">
+            <div class="mag-field" id="mediaSearchField" hidden>
+                <div class="media-search-row">
+                    <input class="media-search-input" id="mediaSearchInput" type="text" autocomplete="off" spellcheck="false" placeholder="Search all of Books &amp; Podcasts" aria-label="Search all of Books &amp; Podcasts">
+                    <span class="media-search-count" id="mediaSearchCount" role="status"></span>
+                    <button type="button" class="media-search-clear" id="mediaSearchClear" aria-label="Clear the search" hidden>&#10005;</button>
+                </div>
+            </div>
+            <button type="button" class="mag-btn" id="mediaSearchBtn" aria-label="Search all of Books &amp; Podcasts" aria-expanded="false" aria-controls="mediaSearchField"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+        </div>
     </header>
 
     <div class="media-pillzone">
@@ -480,12 +494,24 @@
     </div>
 
     <style>
-    /* Top search (2026-11-25): the site pattern's third instance —
-       one quiet glass pill directly under the pill bar, in the bar's
-       own glass. Live from the first letter across BOTH lists; the
-       count rides inside the pill; the clear hands the page back
-       exactly as it was. */
-    .media-search { margin: 0.35rem 0 0.15rem; }
+    /* Top search (2026-11-25): the site pattern's third instance.
+       Live from the first letter across BOTH lists; the count rides
+       inside the pill; the clear hands the page back exactly as it
+       was. Magnifier form (same day): the search lives in the title
+       bar — a magnifier at its right end opens the field in place
+       inside the bar (an overlay on the bar's own glass, so the
+       bar's box measures the same in every state and the page never
+       jumps); the pill row below is the field's face when it stands
+       open. The old under-bar row is gone and its space is the
+       page's again; the empty line keeps its place under the pill
+       bar. */
+    .page-header { position: relative; }
+    .mag-cluster { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+    .mag-btn { position: absolute; top: 8px; right: 0; width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--subtext-color); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; pointer-events: auto; }
+    .mag-btn:hover { background: var(--hover-bg); color: var(--text-color); }
+    .mag-field { position: absolute; inset: 1px; display: flex; align-items: center; padding: 0 68px 0 18px; border-radius: 16px; background: var(--glass-bg-solid); pointer-events: auto; }
+    .mag-field[hidden] { display: none; }
+    .mag-field .media-search-row { flex: 1 1 auto; min-width: 0; }
     .media-search-row { display: flex; align-items: center; gap: 0.6rem;
         border: 1px solid var(--border-color); background: var(--glass-bg);
         -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
@@ -512,14 +538,7 @@
         backdrop-filter: blur(var(--glass-blur)) saturate(1.5); }
     .media-search-empty[hidden] { display: none; }
     </style>
-    <div class="media-search" id="mediaSearch">
-        <div class="media-search-row">
-            <input class="media-search-input" id="mediaSearchInput" type="text" autocomplete="off" spellcheck="false" placeholder="Search books and podcasts" aria-label="Search books and podcasts">
-            <span class="media-search-count" id="mediaSearchCount" role="status"></span>
-            <button type="button" class="media-search-clear" id="mediaSearchClear" aria-label="Clear the search" hidden>&#10005;</button>
-        </div>
-        <p class="media-search-empty" id="mediaSearchEmpty" hidden>No titles match. Clear the search to bring them all back.</p>
-    </div>
+    <p class="media-search-empty" id="mediaSearchEmpty" hidden>No titles match. Clear the search to bring them all back.</p>
 
     <div class="media-columns">
     <section class="media-col media-col-books" id="books">
@@ -1572,6 +1591,70 @@
             applyAll();
         });
         clearBtn.addEventListener('click', function () { clearSearch(); input.focus(); });
+    })();
+    </script>
+    <script>
+    /* Top search, magnifier wiring (2026-11-25): the button in the
+       title bar opens the field in place; the search layer above
+       does all the finding, exactly as before. This layer only owns
+       the fold: tapping the magnifier with a search standing,
+       tapping the ×, or pressing Esc clears through the search's
+       own clear path and folds the field back to the magnifier.
+       The bar's box never changes — the field is an overlay — and
+       clearing restores the page through the search layer's own
+       restore. */
+    (function () {
+        var btn = document.getElementById('mediaSearchBtn');
+        var field = document.getElementById('mediaSearchField');
+        var input = document.getElementById('mediaSearchInput');
+        var clearBtn = document.getElementById('mediaSearchClear');
+        if (!btn || !field || !input) return;
+        var cluster = btn.parentNode;
+        var open = false;
+        function expand() {
+            if (open) return;
+            open = true;
+            field.hidden = false;
+            btn.setAttribute('aria-expanded', 'true');
+            try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }
+        }
+        function collapse() {
+            if (!open) return;
+            open = false;
+            field.hidden = true;
+            btn.setAttribute('aria-expanded', 'false');
+            if (field.contains(document.activeElement)) btn.focus();
+        }
+        function clearViaSearch() {
+            if (clearBtn && !clearBtn.hidden) { clearBtn.click(); return; }
+            if (input.value) {
+                input.value = '';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+        btn.addEventListener('click', function () {
+            if (!open) { expand(); return; }
+            clearViaSearch();
+            collapse();
+        });
+        if (clearBtn) clearBtn.addEventListener('click', function () { collapse(); });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' || e.keyCode === 27) { clearViaSearch(); collapse(); }
+        });
+        btn.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' || e.keyCode === 27) { clearViaSearch(); collapse(); }
+        });
+        if (window.MutationObserver && clearBtn) {
+            new MutationObserver(function () {
+                if (open && !input.value && clearBtn.hidden && document.activeElement !== input) collapse();
+            }).observe(clearBtn, { attributes: true, attributeFilter: ['hidden'] });
+        }
+        document.addEventListener('click', function (e) {
+            if (!open || cluster.contains(e.target)) return;
+            window.setTimeout(function () {
+                if (open && !input.value && (!clearBtn || clearBtn.hidden)) collapse();
+            }, 0);
+        }, true);
     })();
     </script>
 </body>
