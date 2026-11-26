@@ -125,6 +125,18 @@
             flex-basis: 100%;
             display: flex;
             justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        /* The Demo button (2026-11-25): the seg family's own pill,
+           standing beside Build | Play. Toggling changes only its
+           colours — never its size or place. */
+        .thr-demo-btn {
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--glass-bg);
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            backdrop-filter: blur(var(--glass-blur));
         }
         .thr-seg-group {
             display: inline-flex;
@@ -722,6 +734,7 @@
         font-size: 0.82rem; cursor: pointer;
     }
         .cloth-btn:active { background: rgba(38,54,80,0.9); }
+        .cloth-btn[aria-pressed="true"] { background: rgba(38,54,80,0.95); border-color: rgba(255,255,255,0.5); }
         .cloth-start {
         position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center;
         background: rgba(2,4,8,0.55);
@@ -1102,6 +1115,7 @@
                         <button class="thr-seg-btn" id="thrModeBuild" type="button" aria-pressed="true">Build</button>
                         <button class="thr-seg-btn" id="thrModePlay" type="button" aria-pressed="false">Play</button>
                     </div>
+                    <button class="thr-seg-btn thr-demo-btn" id="thrDemoBtn" type="button" aria-pressed="false">Demo</button>
                 </div>
                 <div class="thr-controls-row">
                     <button class="thr-btn" id="thrUndo" type="button" disabled>↩ Undo</button>
@@ -1187,6 +1201,7 @@
             <div class="cloth-controls" id="clothControls" hidden>
                 <button class="cloth-btn" id="clothReset" type="button">Reset cloth</button>
                 <button class="cloth-btn" id="clothEdgeBtn" type="button">Table edge</button>
+                <button class="cloth-btn" id="clothDemoBtn" type="button" aria-pressed="false">Demo</button>
             </div>
             <div class="cloth-start" id="clothStart">
                 <div class="cloth-start-panel">
@@ -1222,6 +1237,7 @@
             </div>
             <div class="art-panel" id="artPanel" hidden>
                 <div class="art-row" role="group" aria-label="Brush">
+                    <button class="art-chip" id="artDemoBtn" type="button" aria-pressed="false">Demo</button>
                     <button class="art-chip art-brush art-on" type="button" data-brush="paint">Paint</button>
                     <button class="art-chip art-brush" type="button" data-brush="light">Light</button>
                     <button class="art-chip art-brush" type="button" data-brush="ribbon">Ribbon</button>
@@ -1397,6 +1413,11 @@
         var STILL_LINE = 'Prop your phone still — a steady camera keeps everything exactly where you put it, and frees both hands.';
         var buildBtn = document.getElementById('thrModeBuild');
         var playBtn = document.getElementById('thrModePlay');
+        var demoBtn = document.getElementById('thrDemoBtn');
+        // Demo state (engine at the bottom of this script, beside
+        // the verification hooks). Declared here so the frame loop
+        // can read it from the very first frame.
+        var thrDemo = { active: false };
         // ---- delete-by-hold (Build only): pinch or press a string
         // and hold it STILL — the string thins as the hold builds
         // and dissolves at DELETE_MS; any real movement cancels.
@@ -2563,6 +2584,7 @@
             } else if (mode === 'touch' && touchGesture === 'pull' && pull) {
                 drawCursor(toPx(pull), SIG.glow, 2);
             }
+            if (thrDemo.active) drawDemoGhost();
         }
         function startLoop() {
             if (shellOff || running) return;
@@ -2587,6 +2609,7 @@
             return false;
         }
         function updateHint() {
+            if (thrDemo.active) return;   // the demo's captions teach; the hint (and the controls row it sizes) stays put
             if (mode === 'idle') return;
             var t;
             if (mode === 'camera') {
@@ -3794,6 +3817,7 @@
             }).catch(function () { if (!shellOff) enterTouchMode('denied'); });
         }
         function suspendThreads() {
+            if (thrDemo.active) endDemo();
             if (shellOff) return;
             shellOff = true;
             shellResumeMode = mode;
@@ -3817,6 +3841,7 @@
             if (shellLoopWas && loopBuffer && !loopPlaying) playLoop();
             shellResumeMode = null;
             shellLoopWas = false;
+            maybeAutoDemo();
         }
 
         // ================= THE PERFORMANCE LOOPER (2026-11-24) =================
@@ -4139,6 +4164,231 @@
         loadSetup();
 
         // Read-only state for verification.
+        // ================= THE DEMO (Johnny, 2026-11-25) =================
+        // Instructions alone don't teach this game — so a ghost
+        // hand plays it, through the real input path: synthetic
+        // landmarks land in the same pinch recogniser the camera
+        // feeds, and the strings it makes are real strings, made
+        // the real way (pinch, drag, open). They are also
+        // throwaway: the whole run lives under the engine's own
+        // `restoring` switch, so it writes no autosave and no undo
+        // history, and ending the demo — by the button, by any real
+        // input, by leaving the game — removes exactly what it
+        // added and puts the player's web back precisely as it
+        // was. It plays once by itself on the first visit (never
+        // under reduced motion); after that, only when called.
+        thrDemo.label = 'Right';
+        thrDemo.raf = 0; thrDemo.t0 = 0; thrDemo.beat = -1; thrDemo.plucked = 0;
+        thrDemo.tipPx = null; thrDemo.thumbPx = null; thrDemo.grip = 0;
+        thrDemo.keys = null; thrDemo.autoTried = false;
+        var DEMO_SEEN_KEY = 'thrDemoSeen';
+        function demoPose(t) {
+            var ks = thrDemo.keys;
+            if (t <= ks[0][0]) return { x: ks[0][1], y: ks[0][2], d: ks[0][3] };
+            for (var i = 1; i < ks.length; i++) {
+                if (t <= ks[i][0]) {
+                    var a = ks[i - 1], b = ks[i];
+                    var u = (t - a[0]) / (b[0] - a[0]);
+                    u = u * u * (3 - 2 * u);
+                    return { x: a[1] + (b[1] - a[1]) * u, y: a[2] + (b[2] - a[2]) * u, d: a[3] + (b[3] - a[3]) * u };
+                }
+            }
+            var last = ks[ks.length - 1];
+            return { x: last[1], y: last[2], d: last[3] };
+        }
+        function demoLandmarks(px, py, d) {
+            var vw = video.videoWidth || 640, vh = video.videoHeight || 480;
+            var cv = cover || { ox: 0, oy: 0, dw: W, dh: H };
+            var hv = vh * 0.17;   // hand scale: wrist to middle knuckle, video px
+            var tipV = { x: (px - cv.ox) / cv.dw * vw, y: (py - cv.oy) / cv.dh * vh };
+            var thumbV = { x: tipV.x + d * hv * 0.94, y: tipV.y + d * hv * 0.34 };
+            var wristV = { x: tipV.x + hv * 0.30, y: tipV.y + hv * 1.30 };
+            var midV = { x: wristV.x - hv * 0.08, y: wristV.y - hv };
+            function lm(v) { return { x: 1 - v.x / vw, y: v.y / vh, z: 0 }; }
+            function between(a, b, u) { return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u }; }
+            var L = [];
+            for (var i = 0; i < 21; i++) L.push(lm(between(wristV, tipV, i / 20)));
+            L[0] = lm(wristV); L[9] = lm(midV); L[8] = lm(tipV); L[4] = lm(thumbV);
+            L[5] = lm({ x: tipV.x + hv * 0.06, y: tipV.y + hv * 0.52 });
+            L[6] = lm({ x: tipV.x + hv * 0.03, y: tipV.y + hv * 0.30 });
+            L[7] = lm({ x: tipV.x + hv * 0.01, y: tipV.y + hv * 0.14 });
+            L[1] = lm({ x: wristV.x - hv * 0.28, y: wristV.y - hv * 0.30 });
+            L[2] = lm({ x: thumbV.x + hv * 0.10, y: thumbV.y + hv * 0.22 });
+            L[3] = lm({ x: thumbV.x + hv * 0.04, y: thumbV.y + hv * 0.10 });
+            thrDemo.thumbPx = { x: cv.ox + thumbV.x / vw * cv.dw, y: cv.oy + thumbV.y / vh * cv.dh };
+            return L;
+        }
+        function feedDemoHand(t) {
+            var pose = demoPose(t);
+            var px = pose.x * W, py = pose.y * H;
+            thrDemo.tipPx = { x: px, y: py };
+            thrDemo.grip = pose.d <= 0.22 ? 2 : (pose.d < 0.6 ? 1 : 0);
+            var L = demoLandmarks(px, py, pose.d);
+            onResults({ multiHandLandmarks: [L], multiHandedness: [{ label: thrDemo.label, score: 1 }] });
+        }
+        function drawDemoGhost() {
+            if (!thrDemo.tipPx || !thrDemo.thumbPx) return;
+            var col = HAND_COLORS[thrDemo.label] || '#fff';
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+            ctx.strokeStyle = col;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(thrDemo.thumbPx.x, thrDemo.thumbPx.y);
+            ctx.lineTo(thrDemo.tipPx.x, thrDemo.tipPx.y);
+            ctx.stroke();
+            ctx.restore();
+            drawCursor(thrDemo.thumbPx, col, 0);
+            if (mode !== 'camera') drawCursor(thrDemo.tipPx, col, thrDemo.grip || 0);
+        }
+        var DEMO_CAPTIONS = [
+            [0.90, 'Pinch to start a string'],
+            [1.45, 'Drag to stretch it'],
+            [3.10, 'Open your hand to let it go'],
+            [4.60, 'Pinch, drag, open — again'],
+            [7.30, 'Sweep through to play']
+        ];
+        function demoTick(now) {
+            if (!thrDemo.active) return;
+            thrDemo.raf = requestAnimationFrame(demoTick);
+            var t = (now - thrDemo.t0) / 1000;
+            if (t >= 11.2) { endDemo(); return; }
+            // A real hand in the camera ends the demo on the spot:
+            // the player always wins.
+            if (mode === 'camera') {
+                for (var k in prevHands) {
+                    if (k === thrDemo.label) continue;
+                    var ph = prevHands[k];
+                    if (ph && ph.tipPx && performance.now() - ph.t < 350) { endDemo(); return; }
+                }
+                var mine = prevHands[thrDemo.label];
+                if (mine && mine.tipPx && thrDemo.tipPx && dist(mine.tipPx, thrDemo.tipPx) > 80) { endDemo(); return; }
+            }
+            for (var ci = 0; ci < DEMO_CAPTIONS.length; ci++) {
+                if (t >= DEMO_CAPTIONS[ci][0] && thrDemo.beat < ci) {
+                    thrDemo.beat = ci;
+                    showNote(DEMO_CAPTIONS[ci][1], 2400);
+                    if (ci === DEMO_CAPTIONS.length - 1) setActMode('play');
+                }
+            }
+            feedDemoHand(t);
+            // A string the demo just pinned rings once, softly —
+            // the pin landing is the beat.
+            if (strings.length > thrDemo.stringsSnap.length + thrDemo.plucked) {
+                var ns = strings[strings.length - 1];
+                if (thrDemo.stringsSnap.indexOf(ns) < 0) { pluck(ns, 0.5); thrDemo.plucked++; }
+            }
+        }
+        function pickDemoLayout() {
+            var cand = [
+                { ax: .30, ay: .34, bx: .68, by: .30, cx: .33, cy: .68, dx: .70, dy: .74 },
+                { ax: .70, ay: .34, bx: .32, by: .30, cx: .67, cy: .68, dx: .30, dy: .74 }
+            ];
+            for (var i = 0; i < cand.length; i++) {
+                var L = cand[i];
+                if (!stringNear({ x: L.ax * W, y: L.ay * H }) && !stringNear({ x: L.cx * W, y: L.cy * H })
+                    && !drumAt({ x: L.ax, y: L.ay }) && !drumAt({ x: L.cx, y: L.cy })) return L;
+            }
+            return cand[0];
+        }
+        function startDemo(auto) {
+            if (thrDemo.active || shellOff) return;
+            if (armedDrum) {
+                if (!auto) showNote('Finish placing the drum first — then the demo can play.');
+                return;
+            }
+            var L = pickDemoLayout();
+            var m1x = (L.ax + L.bx) / 2, m1y = (L.ay + L.by) / 2;
+            var m2x = (L.cx + L.dx) / 2, m2y = (L.cy + L.dy) / 2;
+            thrDemo.keys = [
+                [0.00, L.ax - 0.14, L.ay + 0.18, 0.95],
+                [0.90, L.ax, L.ay, 0.95],
+                [1.30, L.ax, L.ay, 0.15],
+                [3.10, L.bx, L.by, 0.15],
+                [3.70, L.bx, L.by, 0.92],
+                [4.60, L.cx, L.cy, 0.92],
+                [5.00, L.cx, L.cy, 0.15],
+                [6.60, L.dx, L.dy, 0.15],
+                [7.20, L.dx, L.dy, 0.92],
+                [7.75, m1x, m1y, 0.92],
+                [8.05, m1x, m1y, 0.15],
+                [8.85, (m1x + m2x) / 2 + 0.06, (m1y + m2y) / 2, 0.15],
+                [9.15, (m1x + m2x) / 2 + 0.06, (m1y + m2y) / 2, 0.92],
+                [9.45, m2x, m2y, 0.92],
+                [9.70, m2x, m2y, 0.15],
+                [10.20, m2x + 0.06, m2y + 0.02, 0.15],
+                [10.50, m2x + 0.06, m2y + 0.02, 0.92],
+                [11.10, m2x + 0.14, m2y + 0.10, 0.95]
+            ];
+            thrDemo.dotsSnap = dots.slice();
+            thrDemo.stringsSnap = strings.slice();
+            thrDemo.actSnap = actMode;
+            thrDemo.coverSnap = cover;
+            thrDemo.wasRunning = running;
+            thrDemo.beat = -1;
+            thrDemo.plucked = 0;
+            thrDemo.tipPx = null; thrDemo.thumbPx = null;
+            thrDemo.active = true;
+            thrDemo.t0 = performance.now();
+            restoring = true;   // the engine's own switch: no autosave, no undo history for demo geometry
+            if (!cover) cover = { ox: 0, oy: 0, dw: W, dh: H };
+            if (mode === 'idle') { startOverlay.hidden = true; startLoop(); }
+            demoBtn.setAttribute('aria-pressed', 'true');
+            thrDemo.raf = requestAnimationFrame(demoTick);
+        }
+        function endDemo() {
+            if (!thrDemo.active) return;
+            thrDemo.active = false;
+            cancelAnimationFrame(thrDemo.raf);
+            // Retire the ghost hand through the recogniser itself:
+            // empty results — a vanished hand releases anything it
+            // held and never pins a dot.
+            for (var i = 0; i < GRACE_FRAMES + 2; i++) onResults({ multiHandLandmarks: [], multiHandedness: [] });
+            strings.slice().forEach(function (s) {
+                if (thrDemo.stringsSnap.indexOf(s) < 0) removeStringObj(s);
+            });
+            dots = dots.filter(function (d) { return thrDemo.dotsSnap.indexOf(d) >= 0; });
+            pull = null; pullFrom = null;
+            if (actMode !== thrDemo.actSnap) setActMode(thrDemo.actSnap);
+            cover = thrDemo.coverSnap;
+            restoring = false;
+            scheduleAutosave();
+            if (mode === 'idle') {
+                startOverlay.hidden = false;
+                if (!thrDemo.wasRunning) stopLoop();
+            }
+            demoBtn.setAttribute('aria-pressed', 'false');
+            noteEl.classList.remove('show');
+            updateCount();
+            updateHint();
+        }
+        demoBtn.addEventListener('click', function () {
+            if (thrDemo.active) { endDemo(); return; }
+            ensureAudio();
+            startDemo(false);
+        });
+        // Any real touch on the stage ends the demo that instant
+        // (the Demo button itself is the one exception — it is the
+        // toggle). The tap still lands wherever it was going.
+        stage.addEventListener('pointerdown', function (e) {
+            if (thrDemo.active && e.target !== demoBtn) endDemo();
+        }, true);
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden && thrDemo.active) endDemo();
+        });
+        function maybeAutoDemo() {
+            if (thrDemo.active || thrDemo.autoTried || mode !== 'idle' || reduceMotion) return;
+            if (window.ARWorldShell && ARWorldShell.mode() !== 'threads') return;
+            try { if (window.localStorage.getItem(DEMO_SEEN_KEY)) return; } catch (e) { return; }
+            thrDemo.autoTried = true;
+            setTimeout(function () {
+                if (thrDemo.active || mode !== 'idle' || shellOff) return;
+                try { window.localStorage.setItem(DEMO_SEEN_KEY, '1'); } catch (e) {}
+                startDemo(true);
+            }, 700);
+        }
+        maybeAutoDemo();
+
         window.ThreadsGame = {
             mode: function () { return mode; },
             dots: function () { return dots.map(function (d) { return { x: d.x, y: d.y }; }); },
@@ -5123,7 +5373,10 @@
     function stopLoop() { running = false; cancelAnimationFrame(rafId); }
 
     function updateCursor() {
-        var c = contacts.pointer || contacts.hand;
+        // The active contact wins: a pointer contact left over from
+        // an earlier touch must not hide the hand's cursor (the demo's
+        // ghost hand included).
+        var c = (contacts.pointer && contacts.pointer.active) ? contacts.pointer : contacts.hand;
         if (c && c.active) {
             var p = project(c.x, c.y, 0);
             cursorEl.style.left = p.x + 'px';
@@ -5525,6 +5778,7 @@
         }).catch(function () { if (!shellOff) enterTouchMode('denied'); });
     }
     function suspendCloth() {
+        endClothDemo();
         if (shellOff) return;
         shellOff = true;
         shellResumeMode = mode;
@@ -5540,6 +5794,7 @@
         if (shellResumeMode === 'camera') resumeCamera();
         else if (shellResumeMode === 'touch') startLoop();
         shellResumeMode = null;
+        maybeAutoClothDemo();
     }
 
     // ---------------- fullscreen (native where offered, ARFs
@@ -5596,6 +5851,189 @@
             return (performance.now() - t) / n;
         }
     };
+    // ================= THE DEMO (Johnny, 2026-11-25) =================
+    // The same contract as Threads' demo, in Cloth's own hand: a
+    // ghost hand drives synthetic landmarks into the real pinch
+    // recogniser — it grabs a handful of cloth, pulls it, holds
+    // still until the engine pins it, then sets the table edge and
+    // drapes the cloth over it. The cloth itself is the snapshot:
+    // positions, previous positions, pins and the edge are copied
+    // before the first frame and written back on end, so the
+    // player's cloth returns exactly as it was. Any real input —
+    // a touch, a real tracked hand, the button again — ends it
+    // that instant. It plays once by itself on the first visit
+    // (never under reduced motion).
+    var clothDemoBtn = document.getElementById('clothDemoBtn');
+    var clothReduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var clothDemo = { active: false, raf: 0, t0: 0, actIdx: -1, keys: null, snap: null, wasRunning: false, autoTried: false, label: 'Right', tipPx: null };
+    var CLOTH_DEMO_SEEN = 'clothDemoSeen';
+    function clothDemoPose(t) {
+        var ks = clothDemo.keys;
+        if (t <= ks[0][0]) return { x: ks[0][1], y: ks[0][2], d: ks[0][3] };
+        for (var i = 1; i < ks.length; i++) {
+            if (t <= ks[i][0]) {
+                var a = ks[i - 1], b = ks[i];
+                var u = (t - a[0]) / (b[0] - a[0]);
+                u = u * u * (3 - 2 * u);
+                return { x: a[1] + (b[1] - a[1]) * u, y: a[2] + (b[2] - a[2]) * u, d: a[3] + (b[3] - a[3]) * u };
+            }
+        }
+        var last = ks[ks.length - 1];
+        return { x: last[1], y: last[2], d: last[3] };
+    }
+    function clothDemoLandmarks(px, py, d) {
+        var vw = video.videoWidth || 640, vh = video.videoHeight || 480;
+        // The same cover the recogniser computes for itself in
+        // onResults — the demo inverts through it so the ghost
+        // hand lands where the choreography says.
+        var cs = Math.max(W / vw, H / vh);
+        var cv = { ox: (W - vw * cs) / 2, oy: (H - vh * cs) / 2, dw: vw * cs, dh: vh * cs };
+        var hv = vh * 0.17;
+        var tipV = { x: (px - cv.ox) / cv.dw * vw, y: (py - cv.oy) / cv.dh * vh };
+        var thumbV = { x: tipV.x + d * hv * 0.94, y: tipV.y + d * hv * 0.34 };
+        var wristV = { x: tipV.x + hv * 0.30, y: tipV.y + hv * 1.30 };
+        var midV = { x: wristV.x - hv * 0.08, y: wristV.y - hv };
+        function lm(v) { return { x: 1 - v.x / vw, y: v.y / vh, z: 0 }; }
+        function between(a, b, u) { return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u }; }
+        var L = [];
+        for (var i = 0; i < 21; i++) L.push(lm(between(wristV, tipV, i / 20)));
+        L[0] = lm(wristV); L[9] = lm(midV); L[8] = lm(tipV); L[4] = lm(thumbV);
+        L[5] = lm({ x: tipV.x + hv * 0.06, y: tipV.y + hv * 0.52 });
+        L[6] = lm({ x: tipV.x + hv * 0.03, y: tipV.y + hv * 0.30 });
+        L[7] = lm({ x: tipV.x + hv * 0.01, y: tipV.y + hv * 0.14 });
+        L[1] = lm({ x: wristV.x - hv * 0.28, y: wristV.y - hv * 0.30 });
+        L[2] = lm({ x: thumbV.x + hv * 0.10, y: thumbV.y + hv * 0.22 });
+        L[3] = lm({ x: thumbV.x + hv * 0.04, y: thumbV.y + hv * 0.10 });
+        return L;
+    }
+    function clothPointNear(fx, fy) {
+        var tx = fx * W, ty = fy * H, best = null, bd = 1e18;
+        for (var k = 0; k < N; k++) {
+            var p = project(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]);
+            var dd = (p.x - tx) * (p.x - tx) + (p.y - ty) * (p.y - ty);
+            if (dd < bd) { bd = dd; best = { k: k, x: p.x, y: p.y }; }
+        }
+        return best;
+    }
+    var clothDemoActions = [];
+    function clothDemoTick(now) {
+        if (!clothDemo.active) return;
+        clothDemo.raf = requestAnimationFrame(clothDemoTick);
+        var t = (now - clothDemo.t0) / 1000;
+        if (t >= 11.2) { endClothDemo(); return; }
+        if (mode === 'camera') {
+            for (var k in prevHands) {
+                if (k === clothDemo.label) continue;
+                var ph = prevHands[k];
+                if (ph && ph.tipPx && performance.now() - ph.t < 350) { endClothDemo(); return; }
+            }
+            var mine = prevHands[clothDemo.label];
+            if (mine && mine.tipPx && clothDemo.tipPx && Math.hypot(mine.tipPx.x - clothDemo.tipPx.x, mine.tipPx.y - clothDemo.tipPx.y) > 80) { endClothDemo(); return; }
+        }
+        for (var ai = 0; ai < clothDemoActions.length; ai++) {
+            if (t >= clothDemoActions[ai][0] && clothDemo.actIdx < ai) {
+                clothDemo.actIdx = ai;
+                clothDemoActions[ai][1]();
+            }
+        }
+        var pose = clothDemoPose(t);
+        clothDemo.tipPx = { x: pose.x * W, y: pose.y * H };
+        onResults({ multiHandLandmarks: [clothDemoLandmarks(clothDemo.tipPx.x, clothDemo.tipPx.y, pose.d)], multiHandedness: [{ label: clothDemo.label, score: 1 }] });
+    }
+    function startClothDemo(auto) {
+        if (clothDemo.active || shellOff || !glOK) return;
+        var g = clothPointNear(0.5, 0.58);
+        if (!g) return;
+        var gx = g.x / W, gy = g.y / H;
+        var px2 = Math.max(0.06, gx - 0.05), py2 = Math.max(0.08, gy - 0.26);
+        clothDemo.snap = { pos: pos.slice(), prev: prev.slice(), pinned: pinned.slice(), pinPos: pinPos.slice(), edgeY: edgeY };
+        clothDemo.keys = [
+            [0.00, gx - 0.16, gy + 0.14, 0.95],
+            [1.00, gx, gy, 0.95],
+            [1.40, gx, gy, 0.15],
+            [3.20, px2, py2, 0.15],
+            [4.40, px2, py2, 0.15],
+            [5.00, px2, py2, 0.92],
+            [5.60, 0.50, 0.62, 0.92],
+            [6.40, 0.50, 0.62, 0.92]
+        ];
+        clothDemoActions = [
+            [0.95, function () { showNote('Pinch to grab the cloth', 2400); }],
+            [3.20, function () { showNote('Hold still to pin it', 2400); }],
+            [5.00, function () { if (!edgePlacing) edgeBtn.click(); showNote('Set a table edge and it drapes', 2600); }],
+            [6.20, function () {
+                if (edgePlacing) edgeBtn.click();
+                // Second half, aimed at the cloth as it now lies and
+                // the edge line as it now sits.
+                var g2 = clothPointNear(0.5, 0.42) || g;
+                var g2x = g2.x / W, g2y = g2.y / H;
+                var er = edgeEl.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+                var lineF = H ? ((er.top - sr.top + er.height / 2) / H) : 0.62;
+                var dy = Math.min(0.94, lineF + 0.17);
+                clothDemo.keys.push(
+                    [7.00, g2x, g2y, 0.92],
+                    [7.40, g2x, g2y, 0.15],
+                    [9.20, g2x, dy, 0.15],
+                    [9.80, g2x, dy, 0.92],
+                    [10.60, Math.min(0.94, g2x + 0.12), Math.min(0.95, dy + 0.07), 0.95]
+                );
+            }]
+        ];
+        clothDemo.actIdx = -1;
+        clothDemo.wasRunning = running;
+        clothDemo.active = true;
+        clothDemo.t0 = performance.now();
+        if (mode === 'idle') { startOverlay.hidden = true; startLoop(); }
+        clothDemoBtn.setAttribute('aria-pressed', 'true');
+        clothDemo.raf = requestAnimationFrame(clothDemoTick);
+    }
+    function endClothDemo() {
+        if (!clothDemo.active) return;
+        clothDemo.active = false;
+        cancelAnimationFrame(clothDemo.raf);
+        for (var i = 0; i < 6; i++) onResults({ multiHandLandmarks: [], multiHandedness: [] });
+        var s = clothDemo.snap;
+        if (s) {
+            pos.set(s.pos); prev.set(s.prev); pinned.set(s.pinned); pinPos.set(s.pinPos);
+            edgeY = s.edgeY;
+        }
+        edgePlacing = false;
+        syncEdgeBtn();
+        for (var id in contacts) { contacts[id].active = false; endGrab(contacts[id]); }
+        if (handContact) { handContact.holdBlock = false; }
+        lastPrimary = null;
+        refreshPinAttr();
+        refreshGripAttr();
+        updateCursor();
+        if (mode === 'idle') {
+            startOverlay.hidden = false;
+            if (!clothDemo.wasRunning) stopLoop();
+        }
+        clothDemoBtn.setAttribute('aria-pressed', 'false');
+        noteEl.classList.remove('show');
+    }
+    clothDemoBtn.addEventListener('click', function () {
+        if (clothDemo.active) { endClothDemo(); return; }
+        startClothDemo(false);
+    });
+    stage.addEventListener('pointerdown', function (e) {
+        if (clothDemo.active && e.target !== clothDemoBtn) endClothDemo();
+    }, true);
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden && clothDemo.active) endClothDemo();
+    });
+    function maybeAutoClothDemo() {
+        if (clothDemo.active || clothDemo.autoTried || mode !== 'idle' || clothReduceMotion) return;
+        if (window.ARWorldShell && ARWorldShell.mode() !== 'cloth') return;
+        try { if (window.localStorage.getItem(CLOTH_DEMO_SEEN)) return; } catch (e) { return; }
+        clothDemo.autoTried = true;
+        setTimeout(function () {
+            if (clothDemo.active || mode !== 'idle' || shellOff) return;
+            try { window.localStorage.setItem(CLOTH_DEMO_SEEN, '1'); } catch (e) {}
+            startClothDemo(true);
+        }, 700);
+    }
+
     window.__cloth = {
         ready: function () { return glOK && mode !== 'idle'; },
         mode: function () { return mode; },
@@ -6641,8 +7079,65 @@
             stage.classList.remove('cam-on');
             handsNow = {}; prevHands = {};
         }
+        // ---- start-chain hardening (2026-11-25): every step of
+        // starting Art can fail or stall — a library that never
+        // arrives, a camera that never answers, a picture that
+        // never comes. Each step now has a deadline, and each
+        // failure lands on the start panel's own status line in
+        // plain words, with the way forward still on the panel
+        // (tap Start camera to retry, or paint with touch).
+        // Nothing fails silently into a black stage any more. ----
+        function withTimeout(p, ms) {
+            return new Promise(function (resolve, reject) {
+                var done = false;
+                var t = setTimeout(function () {
+                    if (done) return; done = true;
+                    var e = new Error('timeout'); e.name = 'TimeoutError'; reject(e);
+                }, ms);
+                Promise.resolve(p).then(
+                    function (v) { if (!done) { done = true; clearTimeout(t); resolve(v); } },
+                    function (e) { if (!done) { done = true; clearTimeout(t); reject(e); } });
+            });
+        }
+        function ensureBoot() {
+            if (artBooted) return Promise.resolve(true);
+            if (bootGlFailed) return Promise.resolve(false);
+            if (bootArt()) return Promise.resolve(true);
+            if (window.ARWorldShell && ARWorldShell.threeRetry) ARWorldShell.threeRetry();
+            return new Promise(function (resolve) {
+                var tries = 0;
+                (function poll() {
+                    if (artBooted) { resolve(true); return; }
+                    if (bootGlFailed) { resolve(false); return; }
+                    if (bootArt()) { resolve(true); return; }
+                    if (++tries > 125) { resolve(false); return; }   // ~15 s
+                    setTimeout(poll, 120);
+                })();
+            });
+        }
+        function waitFirstFrame(ms) {
+            return new Promise(function (resolve, reject) {
+                var t0 = performance.now();
+                (function chk() {
+                    if (video.readyState >= 2 && video.videoWidth) { resolve(); return; }
+                    if (performance.now() - t0 > ms) {
+                        var e = new Error('no frame'); e.name = 'TimeoutError'; reject(e); return;
+                    }
+                    setTimeout(chk, 90);
+                })();
+            });
+        }
         function enterTouchMode(reason) {
-            if (!bootArt()) { showNote('Art is still loading its drawing library — give it a moment, then try again.'); return; }
+            if (!artBooted) {
+                // Touch paints through the same drawing library —
+                // wait for it (with a retry) instead of dead-ending.
+                ensureBoot().then(function (ok) {
+                    if (ok) enterTouchMode(reason);
+                    else if (bootGlFailed) showNote('WebGL is unavailable in this browser — Art cannot render.');
+                    else showNote("Art's drawing library couldn't load — check your connection, then try again.");
+                });
+                return;
+            }
             stopCamera();
             mode = 'touch';
             startOverlay.hidden = true;
@@ -6653,34 +7148,77 @@
             else if (reason === 'chosen') showNote('Touch mode — drag to paint. Drag with two fingers to look around your strokes.');
             updateCount();
         }
+        var starting = false;
         function startCamera() {
-            if (!bootArt()) { showNote('Art is still loading its drawing library — give it a moment, then try again.'); return; }
+            if (starting) return;
+            starting = true;
             startBtn.disabled = true;
-            startStatus.textContent = 'Starting camera…';
-            var fail = function () { enterTouchMode('denied'); };
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { fail(); return; }
-            gumEnv().then(function (st) {
-                stream = st;
-                video.srcObject = st;
-                return video.play();
-            }).then(function () {
-                return loadScript(MP_BASE + 'hands.js');
-            }).then(function () {
-                if (typeof window.Hands !== 'function') throw new Error('Hands unavailable');
-                mpHands = new window.Hands({ locateFile: function (f) { return MP_BASE + f; } });
-                mpHands.setOptions({ maxNumHands: 2, modelComplexity: 0, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-                mpHands.onResults(onResults);
-                mode = 'camera';
-                stage.classList.add('cam-on');
-                computeCover();
-                startOverlay.hidden = true;
-                panelEl.hidden = false;
+            startStatus.textContent = artBooted ? 'Starting camera…' : 'Loading the drawing library…';
+            var land = function (msg) {
+                // Back on the start panel, in plain words, with the
+                // way forward still on it: retry, or paint with
+                // touch. The camera is put away cleanly first.
+                starting = false;
+                stopCamera();
+                mode = 'idle';
+                startOverlay.hidden = false;
+                panelEl.hidden = true;
                 syncFrameBtn();
-                pumpOn = true;
-                pump();
-                startLoop();
-                updateCount();
-            }).catch(fail);
+                startBtn.disabled = false;
+                startStatus.textContent = msg;
+            };
+            ensureBoot().then(function (ok) {
+                if (!ok) {
+                    starting = false;
+                    startBtn.disabled = false;
+                    startStatus.textContent = bootGlFailed
+                        ? "WebGL isn't available in this browser, so Art can't draw here."
+                        : "Art's drawing library couldn't load — check your connection, then tap Start camera to try again.";
+                    return;
+                }
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    land('This browser has no camera to give — you can paint with touch instead.');
+                    return;
+                }
+                startStatus.textContent = 'Starting camera…';
+                withTimeout(gumEnv(), 12000).then(function (st) {
+                    stream = st;
+                    video.srcObject = st;
+                    return withTimeout(video.play(), 8000).then(function () { return waitFirstFrame(8000); });
+                }).then(function () {
+                    startStatus.textContent = 'Loading hand tracking…';
+                    return withTimeout(loadScript(MP_BASE + 'hands.js'), 15000);
+                }).then(function () {
+                    if (typeof window.Hands !== 'function') throw new Error('Hands unavailable');
+                    mpHands = new window.Hands({ locateFile: function (f) { return MP_BASE + f; } });
+                    mpHands.setOptions({ maxNumHands: 2, modelComplexity: 0, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+                    mpHands.onResults(onResults);
+                    starting = false;
+                    mode = 'camera';
+                    stage.classList.add('cam-on');
+                    computeCover();
+                    startOverlay.hidden = true;
+                    panelEl.hidden = false;
+                    syncFrameBtn();
+                    pumpOn = true;
+                    pump();
+                    startLoop();
+                    updateCount();
+                }).catch(function (err) {
+                    var name = err && err.name;
+                    if (name === 'NotAllowedError' || name === 'SecurityError') {
+                        land('Camera permission is off for this site — allow the camera in your browser settings, or paint with touch instead.');
+                    } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+                        land('No camera could be found — you can paint with touch instead.');
+                    } else if (name === 'TimeoutError') {
+                        land('That took too long to answer — check your connection, then tap Start camera to try again, or paint with touch instead.');
+                    } else if (err && (err.message === 'Hands unavailable' || (typeof err.message === 'string' && err.message.indexOf('load failed') === 0))) {
+                        land("Hand tracking couldn't load — check your connection, then tap Start camera to try again, or paint with touch instead.");
+                    } else {
+                        land("The camera couldn't start — tap Start camera to try again, or paint with touch instead.");
+                    }
+                });
+            });
         }
         startBtn.addEventListener('click', startCamera);
         touchBtn.addEventListener('click', function () { enterTouchMode('chosen'); });
@@ -6749,10 +7287,14 @@
         // failing. Leaving the mode stops its camera and frame loop;
         // the strokes are scene state and wait exactly as left.
         var artBooted = false;
+        // Demo state (engine near the bottom of this script).
+        // Declared here so the frame loop can read it any time.
+        var artDemo = { active: false };
+        var bootGlFailed = false;   // THREE arrived but WebGL itself refused
         function bootArt() {
             if (artBooted) return true;
             if (typeof window.THREE === 'undefined' || !window.THREE.WebGLRenderer) return false;
-            try { initGL(); } catch (e) { showNote('WebGL is unavailable in this browser — Art cannot render.'); return false; }
+            try { initGL(); } catch (e) { bootGlFailed = true; showNote('WebGL is unavailable in this browser — Art cannot render.'); return false; }
             resize();
             updateCount();
             artBooted = true;
@@ -6778,6 +7320,7 @@
             }).catch(function () { if (!shellOff) enterTouchMode('denied'); });
         }
         function suspendArt() {
+            endArtDemo();
             if (shellOff) return;
             shellOff = true;
             shellResumeMode = mode;
@@ -6794,9 +7337,265 @@
             if (shellResumeMode === 'camera') resumeCamera();
             else if (shellResumeMode === 'touch') startLoop();
             shellResumeMode = null;
+            maybeAutoArtDemo();
         }
 
         // Read-only state + scripted drawing for verification.
+        // ================= THE DEMO (Johnny, 2026-11-25) =================
+        // The same contract as the other two modes, in Art's own
+        // hand: a ghost hand pinch-paints a stroke, opens to lift,
+        // places the wall frame (through the frame button's own
+        // click path) and paints inside it. It drives whichever
+        // input path the mode is on — synthetic landmarks into the
+        // pinch recogniser on camera, synthetic pointer events on
+        // the canvas in touch mode, the stroke functions directly
+        // before the camera starts — so it always paints the real
+        // way. The player's strokes and frame are snapshotted and
+        // restored exactly on end; any real input ends it that
+        // instant. It plays once by itself on the first visit —
+        // and only once Art itself has booted (Job 1's chain): a
+        // failed boot means no auto-demo and no flag spent. Never
+        // under reduced motion.
+        var artDemoBtn = document.getElementById('artDemoBtn');
+        var artReduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        artDemo.raf = 0; artDemo.t0 = 0; artDemo.actIdx = -1; artDemo.keys = null;
+        artDemo.label = 'Right'; artDemo.tipPx = null; artDemo.ptrDown = false;
+        artDemo.wasRunning = false; artDemo.autoTried = false;
+        var ART_DEMO_SEEN = 'artDemoSeen';
+        function artDemoPose(t) {
+            var ks = artDemo.keys;
+            if (t <= ks[0][0]) return { x: ks[0][1], y: ks[0][2], d: ks[0][3] };
+            for (var i = 1; i < ks.length; i++) {
+                if (t <= ks[i][0]) {
+                    var a = ks[i - 1], b = ks[i];
+                    var u = (t - a[0]) / (b[0] - a[0]);
+                    u = u * u * (3 - 2 * u);
+                    return { x: a[1] + (b[1] - a[1]) * u, y: a[2] + (b[2] - a[2]) * u, d: a[3] + (b[3] - a[3]) * u };
+                }
+            }
+            var last = ks[ks.length - 1];
+            return { x: last[1], y: last[2], d: last[3] };
+        }
+        function artDemoLandmarks(px, py, d) {
+            var vw = video.videoWidth || 640, vh = video.videoHeight || 480;
+            var cv = cover || { ox: 0, oy: 0, dw: W, dh: H };
+            var hv = vh * 0.17;
+            var tipV = { x: (px - cv.ox) / cv.dw * vw, y: (py - cv.oy) / cv.dh * vh };
+            var thumbV = { x: tipV.x + d * hv * 0.94, y: tipV.y + d * hv * 0.34 };
+            var wristV = { x: tipV.x + hv * 0.30, y: tipV.y + hv * 1.30 };
+            var midV = { x: wristV.x - hv * 0.08, y: wristV.y - hv };
+            function lm(v) { return { x: 1 - v.x / vw, y: v.y / vh, z: 0 }; }
+            function between(a, b, u) { return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u }; }
+            var L = [];
+            for (var i = 0; i < 21; i++) L.push(lm(between(wristV, tipV, i / 20)));
+            L[0] = lm(wristV); L[9] = lm(midV); L[8] = lm(tipV); L[4] = lm(thumbV);
+            L[5] = lm({ x: tipV.x + hv * 0.06, y: tipV.y + hv * 0.52 });
+            L[6] = lm({ x: tipV.x + hv * 0.03, y: tipV.y + hv * 0.30 });
+            L[7] = lm({ x: tipV.x + hv * 0.01, y: tipV.y + hv * 0.14 });
+            L[1] = lm({ x: wristV.x - hv * 0.28, y: wristV.y - hv * 0.30 });
+            L[2] = lm({ x: thumbV.x + hv * 0.10, y: thumbV.y + hv * 0.22 });
+            L[3] = lm({ x: thumbV.x + hv * 0.04, y: thumbV.y + hv * 0.10 });
+            return L;
+        }
+        function drawArtDemoGhost() {
+            // The thumb half of the ghost pinch (the fingertip half
+            // is the game's own cursor, drawn by the real path).
+            if (!artDemo.tipPx) return;
+            var pose = artDemoPose((performance.now() - artDemo.t0) / 1000);
+            var tx = artDemo.tipPx.x + pose.d * 30, ty = artDemo.tipPx.y + pose.d * 12;
+            octx.save();
+            octx.globalAlpha = 0.55;
+            octx.strokeStyle = 'rgba(255,255,255,0.8)';
+            octx.lineWidth = 2;
+            octx.beginPath();
+            octx.moveTo(artDemo.tipPx.x, artDemo.tipPx.y);
+            octx.lineTo(tx, ty);
+            octx.stroke();
+            octx.beginPath();
+            octx.arc(tx, ty, 5, 0, Math.PI * 2);
+            octx.fillStyle = 'rgba(255,255,255,0.85)';
+            octx.fill();
+            octx.restore();
+        }
+        function artDemoPtr(type, x, y) {
+            var r = glCanvas.getBoundingClientRect();
+            var ev = new PointerEvent(type, {
+                pointerId: 991, pointerType: 'touch', isPrimary: true, bubbles: true,
+                clientX: r.left + x, clientY: r.top + y
+            });
+            // The demo's own synthetic touch must not read as real
+            // input — the stage's real-input listener (which ends
+            // the demo on any genuine tap) ignores flagged events.
+            ev.__demoSynthetic = true;
+            glCanvas.dispatchEvent(ev);
+        }
+        function driveArtDemo(t) {
+            var pose = artDemoPose(t);
+            var px = pose.x * W, py = pose.y * H;
+            artDemo.tipPx = { x: px, y: py };
+            if (mode === 'camera') {
+                onResults({ multiHandLandmarks: [artDemoLandmarks(px, py, pose.d)], multiHandedness: [{ label: artDemo.label, score: 1 }] });
+            } else if (mode === 'touch') {
+                if (!artDemo.ptrDown && pose.d <= 0.22) { artDemoPtr('pointerdown', px, py); artDemo.ptrDown = true; }
+                else if (artDemo.ptrDown && pose.d >= 0.72) { artDemoPtr('pointerup', px, py); artDemo.ptrDown = false; }
+                else if (artDemo.ptrDown) artDemoPtr('pointermove', px, py);
+            } else {
+                var pt = pxToPlane(px, py);
+                if (!artDemo.ptrDown && pose.d <= 0.22) {
+                    if (pt && beginStroke('pointer', pt)) artDemo.ptrDown = true;
+                } else if (artDemo.ptrDown && pose.d >= 0.72) {
+                    endStroke('pointer'); artDemo.ptrDown = false;
+                } else if (artDemo.ptrDown && pt) {
+                    addPoint('pointer', pt);
+                }
+            }
+        }
+        var artDemoActions = [];
+        function artDemoTick(now) {
+            if (!artDemo.active) return;
+            artDemo.raf = requestAnimationFrame(artDemoTick);
+            var t = (now - artDemo.t0) / 1000;
+            if (t >= 10.4) { endArtDemo(); return; }
+            if (mode === 'camera') {
+                for (var k in prevHands) {
+                    if (k === artDemo.label) continue;
+                    var ph = prevHands[k];
+                    if (ph && ph.tipPx && performance.now() - ph.t < 350) { endArtDemo(); return; }
+                }
+                var mine = prevHands[artDemo.label];
+                if (mine && mine.tipPx && artDemo.tipPx && Math.hypot(mine.tipPx.x - artDemo.tipPx.x, mine.tipPx.y - artDemo.tipPx.y) > 80) { endArtDemo(); return; }
+            }
+            for (var ai = 0; ai < artDemoActions.length; ai++) {
+                if (t >= artDemoActions[ai][0] && artDemo.actIdx < ai) {
+                    artDemo.actIdx = ai;
+                    artDemoActions[ai][1]();
+                }
+            }
+            driveArtDemo(t);
+        }
+        function startArtDemo(auto) {
+            if (artDemo.active || shellOff || !artBooted) return;
+            artDemo.snapStrokes = strokes.slice();
+            artDemo.snapFrame = wallFrame ? { c: wallFrame.c.clone(), u: wallFrame.u.clone(), v: wallFrame.v.clone() } : null;
+            artDemo.keys = [
+                [0.00, 0.16, 0.52, 0.95],
+                [0.90, 0.30, 0.36, 0.95],
+                [1.30, 0.30, 0.36, 0.15],
+                [3.20, 0.66, 0.32, 0.15],
+                [3.80, 0.68, 0.30, 0.92],
+                [4.40, 0.70, 0.24, 0.92],
+                [6.00, 0.70, 0.24, 0.92]
+            ];
+            artDemoActions = [
+                [0.90, function () { showNote('Pinch to paint', 2400); }],
+                [3.30, function () { showNote('Open your hand to lift', 2400); }],
+                [4.60, function () {
+                    if (!wallFrame) frameBtn.click();
+                    showNote('Place a wall frame and paint lives in it', 2800);
+                }],
+                [5.40, function () { if (frameEdit) frameBtn.click(); }],
+                [6.00, function () {
+                    // Aim the second stroke inside the frame as it
+                    // now stands on the wall.
+                    var cs = frameCorners();
+                    var sp = cs.map(function (c) {
+                        var pr = c.clone().project(camera);
+                        return { x: (pr.x + 1) / 2, y: (1 - pr.y) / 2 };
+                    });
+                    var midL = { x: (sp[0].x + sp[3].x) / 2, y: (sp[0].y + sp[3].y) / 2 };
+                    var midR = { x: (sp[1].x + sp[2].x) / 2, y: (sp[1].y + sp[2].y) / 2 };
+                    var x0 = midL.x + (midR.x - midL.x) * 0.22, y0 = midL.y + (midR.y - midL.y) * 0.22;
+                    var x1 = midL.x + (midR.x - midL.x) * 0.78, y1 = midL.y + (midR.y - midL.y) * 0.78;
+                    artDemo.keys.push(
+                        [6.40, x0, y0, 0.92],
+                        [6.80, x0, y0, 0.15],
+                        [8.40, x1, y1, 0.15],
+                        [8.90, x1, y1, 0.92],
+                        [9.70, Math.min(0.95, x1 + 0.10), Math.max(0.05, y1 - 0.08), 0.95]
+                    );
+                }]
+            ];
+            artDemo.actIdx = -1;
+            artDemo.ptrDown = false;
+            artDemo.tipPx = null;
+            artDemo.wasRunning = running;
+            artDemo.active = true;
+            artDemo.t0 = performance.now();
+            if (mode === 'idle') { startOverlay.hidden = true; startLoop(); }
+            artDemoBtn.setAttribute('aria-pressed', 'true');
+            artDemoBtn.classList.add('art-on');
+            artDemo.raf = requestAnimationFrame(artDemoTick);
+        }
+        function endArtDemo() {
+            if (!artDemo.active) return;
+            artDemo.active = false;
+            cancelAnimationFrame(artDemo.raf);
+            if (artDemo.ptrDown) {
+                if (mode === 'touch') artDemoPtr('pointerup', artDemo.tipPx ? artDemo.tipPx.x : 0, artDemo.tipPx ? artDemo.tipPx.y : 0);
+                else if (mode === 'idle') endStroke('pointer');
+                artDemo.ptrDown = false;
+            }
+            if (mode === 'camera') {
+                for (var i = 0; i < 6; i++) onResults({ multiHandLandmarks: [], multiHandedness: [] });
+            }
+            if (artDemo.snapStrokes) {
+                strokes.slice().forEach(function (s) {
+                    if (artDemo.snapStrokes.indexOf(s) < 0) {
+                        removeStrokeMeshes(s);
+                        var ix = strokes.indexOf(s);
+                        if (ix >= 0) strokes.splice(ix, 1);
+                    }
+                });
+            }
+            for (var k in liveByHand) delete liveByHand[k];
+            wallFrame = artDemo.snapFrame || null;
+            frameEdit = false;
+            frameDrag = null;
+            syncFrameMeshes();
+            syncFrameBtn();
+            markDirty();
+            updateCount();
+            if (mode === 'idle') {
+                startOverlay.hidden = false;
+                if (!artDemo.wasRunning) stopLoop();
+            }
+            artDemoBtn.setAttribute('aria-pressed', 'false');
+            artDemoBtn.classList.remove('art-on');
+            noteEl.classList.remove('show');
+        }
+        artDemoBtn.addEventListener('click', function () {
+            if (artDemo.active) { endArtDemo(); return; }
+            if (!artBooted) {
+                ensureBoot().then(function (ok) {
+                    if (ok) startArtDemo(false);
+                    else if (bootGlFailed) startStatus.textContent = "WebGL isn't available in this browser, so Art can't draw here.";
+                    else startStatus.textContent = 'Art\'s drawing library couldn\'t load — check your connection, then try again.';
+                });
+                return;
+            }
+            startArtDemo(false);
+        });
+        stage.addEventListener('pointerdown', function (e) {
+            if (artDemo.active && e.target !== artDemoBtn && !e.__demoSynthetic) endArtDemo();
+        }, true);
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden && artDemo.active) endArtDemo();
+        });
+        function maybeAutoArtDemo() {
+            if (artDemo.active || artDemo.autoTried || mode !== 'idle' || artReduceMotion) return;
+            if (window.ARWorldShell && ARWorldShell.mode() !== 'art') return;
+            try { if (window.localStorage.getItem(ART_DEMO_SEEN)) return; } catch (e) { return; }
+            artDemo.autoTried = true;
+            // The auto-demo rides Job 1's fixed boot chain: no
+            // boot, no demo — and the once-only flag is spent only
+            // when a demo truly starts.
+            ensureBoot().then(function (ok) {
+                if (!ok || artDemo.active || mode !== 'idle' || shellOff) return;
+                try { window.localStorage.setItem(ART_DEMO_SEEN, '1'); } catch (e) {}
+                startArtDemo(true);
+            });
+        }
+
         window.ArtWorld = {
             mode: function () { return mode; },
             tool: function () { return { brush: tool.brush, color: tool.color, size: tool.size }; },
@@ -7083,7 +7882,14 @@
         window.ARWorldShell = {
             mode: function () { return current; },
             setMode: setMode,
-            three: function () { return threeState; }
+            three: function () { return threeState; },
+            // A failed library import is not a life sentence: Art
+            // asks for a fresh attempt instead of dead-ending on a
+            // "still loading" note (2026-11-25).
+            threeRetry: function () {
+                if (threeState === 'failed') { threeState = 'idle'; loadThree(); }
+                return threeState;
+            }
         };
     })();
     </script>
