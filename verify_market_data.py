@@ -65,6 +65,17 @@ Checks (each failure prints one plain line and fails the run):
              Any other source that cannot be reached after
              retries fails its leg loudly — an unchecked
              night is not a silent night.
+  HOLIDAY    (Johnny, 2026-11-26): when the run date is not
+             an NYSE session day, the intraday file and the
+             BTC/VIX fine rungs may sit exactly one calendar
+             day ahead of the daily through — BTC trades
+             through the holiday and the VIX rung stamps
+             follow the intraday build, while the daily file
+             correctly ends at the last session. Every other
+             bound is unchanged: on session days the equality
+             is exact, a lead of two days fails, a lag fails,
+             and any other series ahead of the daily through
+             fails.
 
 Usage (workflow):  python verify_market_data.py
 Local/tests:       --dir DIR (artifact directory; default cwd)
@@ -485,11 +496,37 @@ def check_btc(suite, doc, now_utc):
 
 
 # ------------------------------------------------------------- intraday + rungs
-def check_intraday(suite, doc, through):
+# ------------------------------------------------------- holiday lead
+# BTC trades 24/7 and the VIX rungs' stamps follow the intraday
+# build, so on a non-session run day (a holiday) those series
+# legitimately carry the run date — exactly one calendar day
+# past the daily file's last session — while the daily file
+# correctly ends at that session. Johnny approved accepting
+# exactly that shape (2026-11-26); every other lead still fails.
+_ALWAYS_ON_KEYS = {"BTC", "VIX"}
+
+
+def _holiday_lead(day, through, run_day):
+    """True only for the approved holiday shape: the run date
+    is not an NYSE session day (this module's own calendar,
+    is_session) and `day` is exactly one calendar day past the
+    daily through."""
+    return (not is_session(run_day)
+            and day == through + timedelta(days=1))
+
+
+def check_intraday(suite, doc, through, run_day):
     f = "finance-intraday.json"
-    if d(doc.get("through") or "1970-01-01") != through:
-        suite.fail("%s: through is %s, daily through is %s"
-                   % (f, doc.get("through"), through))
+    iday = d(doc.get("through") or "1970-01-01")
+    if iday != through:
+        if _holiday_lead(iday, through, run_day):
+            suite.note("%s: through %s is one day past daily "
+                       "through %s — the accepted holiday lead "
+                       "(non-session run day %s)"
+                       % (f, iday, through, run_day))
+        else:
+            suite.fail("%s: through is %s, daily through is %s"
+                       % (f, doc.get("through"), through))
     for key, entry in sorted((doc.get("series") or {}).items()):
         sess = entry.get("sessions") or []
         if not sess:
@@ -497,8 +534,15 @@ def check_intraday(suite, doc, through):
             continue
         last = d(sess[-1].get("date") or "1970-01-01")
         if key in HEADLINE_KEYS and last != through:
-            suite.fail("%s: headline series %s last session is "
-                       "%s, not %s" % (f, key, last, through))
+            if key in _ALWAYS_ON_KEYS and _holiday_lead(
+                    last, through, run_day):
+                suite.note("%s: headline series %s last session "
+                           "%s is the accepted holiday lead "
+                           "over daily through %s"
+                           % (f, key, last, through))
+            else:
+                suite.fail("%s: headline series %s last session is "
+                           "%s, not %s" % (f, key, last, through))
         elif sessions_between(last, through) > 3:
             suite.fail("%s: series %s last session %s lags "
                        "through %s by more than 3 sessions"
@@ -506,7 +550,7 @@ def check_intraday(suite, doc, through):
 
 
 def check_rungs(suite, base_dir, daily_keys, through, allow_partial,
-                now_utc):
+                now_utc, run_day):
     for rung in ("fine5", "fine15", "fine30", "fine60"):
         rdir = os.path.join(base_dir, rung)
         if not os.path.isdir(rdir):
@@ -554,10 +598,17 @@ def check_rungs(suite, base_dir, daily_keys, through, allow_partial,
             fday = d(fthrough)
             if key in HEADLINE_KEYS or key in _JOHNNY19:
                 if fday != through:
-                    suite.fail("%s/%s.json: through_et is %s, "
-                               "daily through is %s — this rung "
-                               "did not refresh tonight"
-                               % (rung, key, fday, through))
+                    if key in _ALWAYS_ON_KEYS and _holiday_lead(
+                            fday, through, run_day):
+                        suite.note("%s/%s.json: through_et %s is "
+                                   "the accepted holiday lead "
+                                   "over daily through %s"
+                                   % (rung, key, fday, through))
+                    else:
+                        suite.fail("%s/%s.json: through_et is %s, "
+                                   "daily through is %s — this rung "
+                                   "did not refresh tonight"
+                                   % (rung, key, fday, through))
             elif sessions_between(fday, through) > 1:
                 suite.fail("%s/%s.json: through_et %s lags daily "
                            "through %s by more than one session"
@@ -874,6 +925,7 @@ def main():
     suite = Suite()
     now_utc = datetime.now(timezone.utc)
     now_et = now_utc.astimezone(ET)
+    run_day = now_et.date()
     expected_through = last_completed_session(now_et)
 
     # The builder module is the reference implementation for the
@@ -932,14 +984,15 @@ def main():
 
     intra_path = os.path.join(base_dir, "finance-intraday.json")
     try:
-        check_intraday(suite, load_json(intra_path), through)
+        check_intraday(suite, load_json(intra_path), through,
+                       run_day)
     except Exception as exc:
         suite.fail("finance-intraday.json: does not parse (%s)"
                    % exc)
 
     if series:
         check_rungs(suite, base_dir, set(series.keys()), through,
-                    allow_partial, now_utc)
+                    allow_partial, now_utc, run_day)
         if not skip_cross:
             check_crosscheck(suite, series, through)
 
