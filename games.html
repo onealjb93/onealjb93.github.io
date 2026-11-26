@@ -436,6 +436,16 @@
             color: var(--text-color); font-size: 0.72rem; font-weight: 600;
             letter-spacing: 0.02em; white-space: nowrap;
         }
+        /* Phase 2 (2026-11-26): the labels are drawn on this canvas
+           inside the render pass (universe.js) — the typography here
+           is the old .uv-label pills' own, read by the canvas code
+           via getComputedStyle; the pill colours come from the same
+           CSS variables the pills used. */
+        .uv-labelcv {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            pointer-events: none; font-size: 0.72rem; font-weight: 600;
+            letter-spacing: 0.02em;
+        }
         /* The stage is a window into space: dark in both themes. The HUD
            and caption sit on that darkness, so they keep light glass in
            both themes; the controls below the stage follow the theme. */
@@ -8248,11 +8258,10 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 api.later(800, function () {
                     pe('pointerup', cx + 130, cy - 20);
                     api.later(500, function () {
-                        var label = null;
-                        document.querySelectorAll('.uv-label').forEach(function (el) { if (el.textContent.trim() === 'Earth') label = el; });
-                        if (label) {
-                            var r = label.getBoundingClientRect();
-                            var lx = r.left + r.width / 2, ly = r.top + r.height / 2;
+                        var lp = null;
+                        try { lp = window.__uvLabelAt ? window.__uvLabelAt('Earth') : null; } catch (e) {}
+                        if (lp) {
+                            var lx = lp.x, ly = lp.y;
                             pe('pointerdown', lx, ly);
                             api.later(120, function () { pe('pointerup', lx, ly); });
                             api.caption('Tap a world — fly to it');

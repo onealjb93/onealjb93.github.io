@@ -808,22 +808,32 @@ export function initUniverse(stage) {
     var mouseBtn = $('.uv-mouse-btn'), resetBtn = $('.uv-reset-btn');
 
     /* EARTH FIRST (Johnny, 2026-11-26): the opening view is aimed at
-       Earth, so her maps are the critical path — start fetching them
-       now, at init, ahead of the catalog and every beauty asset.
-       Plain Image() preloads warm the HTTP cache; the TextureLoader
-       calls that actually build her (buildSolarSystem for the plain
-       map, startEarthStack for the stack) then complete from cache
+       Earth, so her maps are the critical path — ahead of every
+       other body's maps and every beauty asset. Plain Image()
+       preloads warm the HTTP cache; the TextureLoader calls that
+       actually build her (buildSolarSystem for the plain map,
+       startEarthStack for the stack) then complete from cache
        instead of queueing behind the other planets' maps in one
        burst. The array is kept so the browser cannot collect the
        preloads mid-flight. A failed preload costs nothing: the
-       TextureLoader path still makes its own attempt. */
+       TextureLoader path still makes its own attempt.
+       Phase 2 sequencing: the preloads start the moment the star
+       catalog lands, not at init — on a throttled link the 8 MB
+       burst otherwise queues AHEAD of the 1.8 MB catalog the first
+       frame is actually waiting on, and the catalog's arrival (and
+       with it the first frame) pays for bytes it does not need.
+       Her maps still start before buildScene's own fetches and
+       long before any other planet's. */
     var earthPreload = [];
-    ['earth.jpg', 'earth-day.jpg', 'earth-night.jpg', 'earth-clouds.jpg', 'earth-spec.jpg', 'earth-normal.jpg']
-        .forEach(function (f) {
-            var im = new Image();
-            im.src = new URL('./planets/' + f, import.meta.url).href;
-            earthPreload.push(im);
-        });
+    function startEarthPreloads() {
+        if (earthPreload.length) return;
+        ['earth.jpg', 'earth-day.jpg', 'earth-night.jpg', 'earth-clouds.jpg', 'earth-spec.jpg', 'earth-normal.jpg']
+            .forEach(function (f) {
+                var im = new Image();
+                im.src = new URL('./planets/' + f, import.meta.url).href;
+                earthPreload.push(im);
+            });
+    }
 
     var ctrl = {
         ready: false, active: false, mode: 'free',
@@ -858,8 +868,9 @@ export function initUniverse(stage) {
     /* quality pass (2026-11-21): the near-home photographic sky
        layer, the hero-galaxy manifest + named-cloud attributes,
        and the camera-velocity state behind the star streaks */
-    var panoSky = null, panoTex = null;
+    var panoSky = null, panoTex = null, panoMat = null, panoStarted = false;
     var heroesManifest = null, heroAttrs = null, heroTex = null;
+    var heroPending = false, heroStarted = false;
     var prevCamPos = null, velViewSm = new THREE.Vector3();
     var solarGroup = null, solarBodies = null;
     var earthSys = null;   /* Earth texture-stack refs (set in buildSolarSystem) */
@@ -890,7 +901,7 @@ export function initUniverse(stage) {
        spin is the drag's release momentum (rad/s); gesture tracks the
        one-pointer press from landing to lift (drag vs tap, and the
        flick velocity); labelHits holds the boxes of the labels
-       actually on screen, rebuilt by updateLabels every frame. */
+       actually on screen, rebuilt by drawLabels every frame. */
     var spin = { yaw: 0, pitch: 0 };
     var gesture = null;
     var labelHits = [];
@@ -904,7 +915,58 @@ export function initUniverse(stage) {
     var dprLevel = 0;          /* index into DPR_STEPS */
     var frameAcc = 0, frameN = 0;
     var DPR_STEPS = [1, 0.92, 0.84, 0.76, 0.7];   /* fidelity pass, 2026-11-25: floor raised from 0.4 — see the ladder comment in frame() */
-    var labelPool = [];
+    /* LABEL LAYER (perf overhaul Phase 2, 2026-11-26): the labels
+       live on ONE 2D canvas composited over the WebGL canvas and
+       drawn inside the same frame callback as the scene — zero
+       .uv-label DOM nodes, zero per-frame layout reads. The old
+       14-div pool (textContent rewrites + offsetWidth/offsetHeight
+       forced layouts per label per frame) was the game's #1 JS
+       cost in the Phase 1 CPU profile, ~7x the next function, and
+       its independent compositing was the label-ghosting class
+       Johnny's recording showed. Same content, same placement
+       maths, same HD marks, same tap geometry (labelHits). */
+    var labelCanvas = null, labelCtx = null, labelScale = 1;
+    var labelStyle = { fontPx: 12, weight: '600', family: 'sans-serif', fg: '#dbe7f5', bg: 'rgba(10,14,22,0.72)', bd: 'rgba(255,255,255,0.2)' };
+    var labelObstacles = [];   /* caption + HUD boxes in label-box coords, refreshed on the 15-frame cadence — never per frame */
+    var labelDrawn = [];       /* {n, base, x, y} of the labels drawn last frame, label-box CSS px — the demo and the gates read this */
+    var stageW = 0, stageH = 0;   /* stage CSS size, owned by resize() — frame() never measures the DOM */
+    /* UPLOAD BUDGET (Phase 2): every GPU texture upload in the
+       game — streamed tiles, planet maps, the Earth stack, the
+       panorama, the hero atlas — is applied through one queue,
+       spent per frame in frame(): at most 2 budget units a frame,
+       a tile texture costing 1 and a large texture 2 (so a frame
+       carries <= 2 tiles or <= 1 large texture, the committed
+       target). Three lanes, spent in order: lane 0 = streamed
+       tiles (the ground the player is looking at right now —
+       never stuck behind a planet map), lane 1 = the Earth stack
+       and anything the player is flying at, lane 2 = background
+       (prefetch applications, beauty layers), which spends only
+       when the previous frame cost < 50 ms, so refinement can
+       never hitch the flight it refines. */
+    var upLanes = [[], [], []], upKeys = {}, upApplied = 0;
+    var readyAt = 0;         /* when ctrl.ready flipped — paces the background planet prefetch */
+    var lastFrameMs = 16;    /* previous frame's real cost — background uploads yield to it */
+    function enqueueUpload(key, cost, lane, run) {
+        if (upKeys[key]) return;
+        upKeys[key] = 1;
+        upLanes[lane].push({ key: key, cost: cost, run: run });
+    }
+    function processUploads() {
+        var budget = 2, guard = 0;
+        while (guard++ < 10 && budget > 0) {
+            var it = null, lane = -1;
+            if (upLanes[0].length) { it = upLanes[0][0]; lane = 0; }
+            else if (upLanes[1].length) { it = upLanes[1][0]; lane = 1; }
+            else if (upLanes[2].length && lastFrameMs < 50) { it = upLanes[2][0]; lane = 2; }
+            else break;
+            if (it.cost > budget) break;   /* a large texture waits for a fresh frame rather than sharing one */
+            upLanes[lane].shift();
+            delete upKeys[it.key];
+            budget -= it.cost; upApplied++;
+            try { it.run(); } catch (e) { /* an upload must never break the frame */ }
+        }
+    }
+    function uploadsQueued() { return upLanes[0].length + upLanes[1].length + upLanes[2].length; }
     var tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpM = new THREE.Matrix4();
 
     function speedPc() {
@@ -1091,14 +1153,26 @@ export function initUniverse(stage) {
         if (!filled) return;
         heroAttrs.hero.needsUpdate = true;
         heroAttrs.rot.needsUpdate = true;
+        heroPending = true;   /* the atlas fetch itself waits for the first frame — startHeroLoad() */
+    }
+
+    /* The hero-galaxy atlas (2.8 MB) is an enhancement layer
+       (Phase 2): galaxies render procedurally until it lands, as
+       they always did when the atlas failed. Fetch starts after
+       the first frame; the upload is budgeted as background. */
+    function startHeroLoad() {
+        if (!heroPending || heroStarted) return;
+        heroStarted = true;
         heroTex = new THREE.TextureLoader().load(
             new URL('./universe-heroes.jpg', import.meta.url).href,
             function () {
-                galNamedPoints.material.uniforms.tHeroes.value = heroTex;
-                galNamedPoints.material.uniforms.uHeroW.value = 1;
-                if (galCloudPoints) {
-                    galCloudPoints.material.uniforms.tHeroes.value = heroTex;
-                }
+                enqueueUpload('heroes', 2, 2, function () {
+                    galNamedPoints.material.uniforms.tHeroes.value = heroTex;
+                    galNamedPoints.material.uniforms.uHeroW.value = 1;
+                    if (galCloudPoints) {
+                        galCloudPoints.material.uniforms.tHeroes.value = heroTex;
+                    }
+                });
             },
             undefined,
             function () { /* atlas failed — galaxies stay procedural */ });
@@ -1461,11 +1535,24 @@ export function initUniverse(stage) {
         mesh.quaternion.setFromRotationMatrix(m);
         mesh.quaternion.premultiply(new THREE.Quaternion()
             .setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2));
+        panoMat = mat;   /* the texture itself streams in after the first frame — startPanoLoad() */
+        return mesh;
+    }
+
+    /* The panorama is a beauty layer (Phase 2): its 5.5 MB fetch
+       starts only once the first frame exists, and its GPU upload
+       is budgeted as background. The catalog backdrop is the floor
+       under the opening view meanwhile — the same floor the pano
+       fades back to away from home. */
+    function startPanoLoad() {
+        if (panoStarted || !panoSky) return;
+        panoStarted = true;
         panoTex = new THREE.TextureLoader().load(
             new URL('./milkyway-pano.jpg', import.meta.url).href,
             function () {
-                mat.map = panoTex;
-                mat.needsUpdate = true;
+                enqueueUpload('pano', 2, 2, function () {
+                    if (panoMat) { panoMat.map = panoTex; panoMat.needsUpdate = true; }
+                });
             },
             undefined,
             function () { panoTex = null; /* layer stays out */ });
@@ -1476,7 +1563,6 @@ export function initUniverse(stage) {
            l=0 at the texture seam the sphere expects */
         panoTex.wrapS = THREE.RepeatWrapping;
         panoTex.repeat.x = -1;
-        return mesh;
     }
 
     /* ---------------- the solar system ----------------
@@ -1734,7 +1820,7 @@ export function initUniverse(stage) {
         return {
             cfg: cfg, grp: null, sysPos: null, R: 0, cache: new Map(), queue: [], inflight: 0,
             meshes: new Map(), key: '', lastCheck: 0, dirty: false,
-            dead: false, errRun: 0, wantN: 0, z: -1, lastH: -1, lastLat: 0, lastLon: 0,
+            dead: false, errRun: 0, wantN: 0, z: -1, lastH: -1, prevH: -1, lastLat: 0, lastLon: 0,
             MAXC: 168, MAXSET: 96, MAXFLY: 12, SEG: 10
         };
     }
@@ -1869,12 +1955,23 @@ export function initUniverse(stage) {
                 var img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = function () {
-                    L.inflight--; en.state = 'ready'; L.errRun = 0;
-                    var tex = new THREE.Texture(img);
-                    tex.colorSpace = THREE.SRGBColorSpace;
-                    tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-                    tex.needsUpdate = true;
-                    en.tex = tex; L.dirty = true; etPump(L); etEvict(L);
+                    L.inflight--; en.state = 'decoded'; L.errRun = 0;
+                    /* the image is decoded, but the GPU upload is
+                       BUDGETED (Phase 2): the texture is created
+                       and the entry turns 'ready' only when the
+                       frame's upload budget spends on it — the old
+                       code turned every landed tile into a texture
+                       at once, so a burst of arrivals hit one frame
+                       with a dozen uploads and the mesh rebuild */
+                    enqueueUpload('tile:' + L.cfg.grpName + ':' + en.key, 1, 0, function () {
+                        if (en.state !== 'decoded') return;   /* evicted while it waited */
+                        var tex = new THREE.Texture(img);
+                        tex.colorSpace = THREE.SRGBColorSpace;
+                        tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+                        tex.needsUpdate = true;
+                        en.tex = tex; en.state = 'ready'; L.dirty = true; etEvict(L);
+                    });
+                    etPump(L);
                 };
                 img.onerror = function () {
                     L.inflight--; en.state = 'failed';
@@ -1892,11 +1989,12 @@ export function initUniverse(stage) {
     }
     function etEvict(L) {
         if (L.cache.size <= L.MAXC) return;
-        var arr = Array.from(L.cache.values()).filter(function (e) { return e.state === 'ready' || e.state === 'failed' || e.state === 'idle'; });
+        var arr = Array.from(L.cache.values()).filter(function (e) { return e.state === 'ready' || e.state === 'failed' || e.state === 'idle' || e.state === 'decoded'; });
         arr.sort(function (a, b) { return a.used - b.used; });
         for (var i = 0; i < arr.length && L.cache.size > L.MAXC; i++) {
             var e = arr[i];
             if (L.meshes.has(e.key)) continue;   /* never evict what is on screen */
+            if (e.state === 'decoded') e.state = 'evicted';   /* its queued upload becomes a no-op */
             if (e.tex) e.tex.dispose();
             if (e.geom) e.geom.dispose();
             if (e.mat) e.mat.dispose();
@@ -1967,7 +2065,16 @@ export function initUniverse(stage) {
             var mLa2 = Math.max((laMax - laMin) * 0.25, tSpan * 0.35), mLo2 = Math.max((loMax - loMin) * 0.25, tSpan * 0.35);
             x0 = Math.floor((loMin - mLo2 + Math.PI) / (2 * Math.PI) * nx2);
             x1 = Math.floor((loMax + mLo2 + Math.PI) / (2 * Math.PI) * nx2);
-            y0 = tileY(laMax + mLa2, z); y1 = tileY(laMin - mLa2, z);
+            /* the margined latitudes are clamped to the pole:
+               past it the Mercator row function takes log of a
+               negative (tan + sec change sign together) and
+               returns NaN, which silently emptied the whole tile
+               set — no tiles, no parents — for any view whose
+               frustum box plus margin crossed a pole (found by
+               the Phase 2 probes; the 'eq' row function is linear
+               and never NaNs, and the clamp is a no-op wherever
+               the old code produced a real row) */
+            y0 = tileY(Math.min(laMax + mLa2, 1.5707), z); y1 = tileY(Math.max(laMin - mLa2, -1.5707), z);
             if ((x1 - x0 + 1) * (y1 - y0 + 1) > L.MAXSET) {
                 /* an oblique, horizon-grazing view unprojects to a
                    box no bounded set can cover. Keep the zoom the
@@ -2050,6 +2157,33 @@ export function initUniverse(stage) {
             etEvict(L);
             etRebuild(L, w);
         }
+        /* descent prefetch (Phase 2): while engaged, warm the next
+           zoom's centre 3x3 every check, and the zoom beyond it
+           while actually descending — a zoom escalation then finds
+           its set already decoded instead of starting its fetch at
+           the moment of need (the baseline descent's wanted set was
+           never satisfied at all). Queueing is state-deduped, so a
+           warm tile is never asked for twice. */
+        if (!L.dead && w.z < L.cfg.zMax) {
+            var pz1 = w.z + 1, pn1 = Math.pow(2, pz1), pnx1 = L.cfg.proj === 'eq' ? 2 * pn1 : pn1;
+            var pcx1 = Math.floor((L.lastLon + Math.PI) / (2 * Math.PI) * pnx1);
+            var pcy1 = L.cfg.proj === 'eq' ? etTileYEq(L.lastLat, pz1) : etTileY(L.lastLat, pz1);
+            for (var bx = -1; bx <= 1; bx++) for (var by = -1; by <= 1; by++) {
+                var wy3 = pcy1 + by; if (wy3 < 0 || wy3 >= pn1) continue;
+                etQueue(L, pz1, ((pcx1 + bx) % pnx1 + pnx1) % pnx1, wy3, 60);
+            }
+            if (L.prevH > 0 && L.lastH < L.prevH && pz1 < L.cfg.zMax) {
+                var pz2 = pz1 + 1, pn2 = Math.pow(2, pz2), pnx2 = L.cfg.proj === 'eq' ? 2 * pn2 : pn2;
+                var pcx2 = Math.floor((L.lastLon + Math.PI) / (2 * Math.PI) * pnx2);
+                var pcy2 = L.cfg.proj === 'eq' ? etTileYEq(L.lastLat, pz2) : etTileY(L.lastLat, pz2);
+                for (var bx2 = -1; bx2 <= 1; bx2++) for (var by2 = -1; by2 <= 1; by2++) {
+                    var wy4 = pcy2 + by2; if (wy4 < 0 || wy4 >= pn2) continue;
+                    etQueue(L, pz2, ((pcx2 + bx2) % pnx2 + pnx2) % pnx2, wy4, 70);
+                }
+            }
+            etPump(L);
+        }
+        L.prevH = L.lastH;
     }
     function tileFrameAll(now) {
         for (var i = 0; i < tileLayers.length; i++) etFrame(tileLayers[i], now);
@@ -2084,20 +2218,33 @@ export function initUniverse(stage) {
                 earthSys.cloudMesh.visible = true;
             }
         }
-        function grab(file, srgb, isDay, flag) {
+        /* Phase 2: the maps are FETCHED together (they were
+           preloaded at init, so this mostly settles from cache) but
+           APPLIED through the upload budget — one large map per
+           frame at most, day first — instead of five textures
+           uploading in whichever frame they happened to land. A map
+           counts as settled when it is applied, so the blend still
+           waits for the complete, day-bearing stack, exactly as
+           before. */
+        function grab(file, srgb, isDay, flag, cost, uniforms, uniform) {
             var t = loader.load(new URL('./planets/' + file, import.meta.url).href,
-                function () { if (flag) earthSys.uniforms[flag].value = 1; settle(true, isDay); },
+                function () {
+                    enqueueUpload('es:' + file, cost, 1, function () {
+                        uniforms[uniform].value = t;
+                        if (flag) earthSys.uniforms[flag].value = 1;
+                        settle(true, isDay);
+                    });
+                },
                 undefined,
                 function () { settle(false, isDay); });
             if (srgb) t.colorSpace = THREE.SRGBColorSpace;
             t.anisotropy = maxAniso;
-            return t;
         }
-        earthSys.uniforms.tDay.value = grab('earth-day.jpg', true, true);
-        earthSys.uniforms.tNight.value = grab('earth-night.jpg', true, false);
-        earthSys.cloudUniforms.tCov.value = grab('earth-clouds.jpg', false, false);
-        earthSys.uniforms.tSpec.value = grab('earth-spec.jpg', false, false, 'uHasSpec');
-        earthSys.uniforms.tNrm.value = grab('earth-normal.jpg', false, false, 'uHasNrm');
+        grab('earth-day.jpg', true, true, null, 2, earthSys.uniforms, 'tDay');
+        grab('earth-night.jpg', true, false, null, 2, earthSys.uniforms, 'tNight');
+        grab('earth-clouds.jpg', false, false, null, 2, earthSys.cloudUniforms, 'tCov');
+        grab('earth-spec.jpg', false, false, 'uHasSpec', 1, earthSys.uniforms, 'tSpec');
+        grab('earth-normal.jpg', false, false, 'uHasNrm', 1, earthSys.uniforms, 'tNrm');
     }
 
     function buildSolarSystem() {
@@ -2123,6 +2270,7 @@ export function initUniverse(stage) {
                silhouette and the terminator stay smooth at the
                closest approaches the approach governor allows */
             var geo = new THREE.SphereGeometry(b.r, 64, 48);
+            var bodyMat = null, bodyRingMat = null;   /* the deferred-texture handles (Phase 2) */
             if (b.atmo) {
                 /* Earth: the custom shader (see EARTH_FRAG above).
                    The sun's view-space position is one shared
@@ -2141,7 +2289,11 @@ export function initUniverse(stage) {
                     defines: { HDR_LINEAR: fxOK ? 1 : 0 }
                 });
                 var etex = loader.load(new URL('./planets/' + b.tex, import.meta.url).href,
-                    function () { emat.uniforms.tLow.value = etex; emat.uniforms.uHasLow.value = 1; });
+                    function () {
+                        enqueueUpload('body:Earth', 2, 1, function () {
+                            emat.uniforms.tLow.value = etex; emat.uniforms.uHasLow.value = 1;
+                        });
+                    });
                 etex.colorSpace = THREE.SRGBColorSpace;
                 etex.anisotropy = maxAniso;
                 grp.add(new THREE.Mesh(geo, emat));
@@ -2166,10 +2318,17 @@ export function initUniverse(stage) {
                 var mat = b.sun
                     ? new THREE.MeshBasicMaterial({ color: 0xffdd88 })
                     : new THREE.MeshLambertMaterial({ color: 0x888888 });
-                var tex = loader.load(new URL('./planets/' + b.tex, import.meta.url).href,
-                    function () { mat.map = tex; mat.color.set(0xffffff); mat.needsUpdate = true; });
-                tex.colorSpace = THREE.SRGBColorSpace;
-                tex.anisotropy = maxAniso;
+                /* DEFERRED (Phase 2): no texture fetch at build.
+                   The body opens on its plain colour — the very
+                   placeholder the old on-load swap started from —
+                   and requestBodyTexture() streams the real map in
+                   on approach, on a jump to the body, or in the
+                   background prefetch, its GPU upload budgeted like
+                   every other upload in the game. The old build
+                   fired ~65 MB of planet maps in this one loop,
+                   ahead of the first frame, for bodies the player
+                   might never visit. */
+                bodyMat = mat;
                 grp.add(new THREE.Mesh(geo, mat));
             }
             if (b.ring) {
@@ -2185,9 +2344,7 @@ export function initUniverse(stage) {
                 var rmat = new THREE.MeshBasicMaterial({
                     color: 0xcfc4ae, transparent: true, side: THREE.DoubleSide, depthWrite: false
                 });
-                var rtex = loader.load(new URL('./planets/saturn-ring.png', import.meta.url).href,
-                    function () { rmat.map = rtex; rmat.color.set(0xffffff); rmat.needsUpdate = true; });
-                rtex.colorSpace = THREE.SRGBColorSpace;
+                bodyRingMat = rmat;   /* its strip texture streams in with Saturn's map (requestBodyTexture) */
                 var ring = new THREE.Mesh(rg, rmat);
                 ring.rotation.x = Math.PI / 2;   /* into the group's equatorial plane */
                 grp.add(ring);
@@ -2207,7 +2364,7 @@ export function initUniverse(stage) {
                 grp.add(atmoMesh);
             }
             solarGroup.add(grp);
-            solarBodies.push({ n: b.n, pos: pos, r: b.r, grp: grp });
+            solarBodies.push({ n: b.n, pos: pos, r: b.r, grp: grp, texMat: bodyMat, ringMat: bodyRingMat, texFile: b.tex, texState: b.atmo ? 'done' : 'idle' });
         });
         /* the Moon's, Mars's and Mercury's streamed survey tiles
            ride in their own pole frames, exactly as Earth's do */
@@ -2217,6 +2374,73 @@ export function initUniverse(stage) {
             else if (sb.n === 'Mercury') tileInit(tileMercury, sb.grp, sb.r, sb.pos);
         });
         scene.add(solarGroup);
+    }
+
+    /* ---------------- deferred planet textures (Phase 2) ----------------
+       One texture in flight at a time per body; three triggers —
+       approach (inside 4,000 drawn radii of the surface, the range
+       where a map starts to matter on screen), a jump to the body
+       (flyToSolar asks urgently, the 3.2 s flight is the head
+       start), and a background prefetch that walks the system
+       nearest-first once the opening view has had a few seconds to
+       itself and no tile layer is working. Downloads are plain
+       fetches; the GPU application goes through the upload budget,
+       urgently for approach/jump, as background otherwise. */
+    var bodyTexLoader = new THREE.TextureLoader();
+    function requestBodyTexture(sb, urgent) {
+        if (!sb || !sb.texMat || sb.texState !== 'idle') return;
+        sb.texState = 'loading';
+        var maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        bodyTexLoader.load(new URL('./planets/' + sb.texFile, import.meta.url).href,
+            function (tex) {
+                tex.colorSpace = THREE.SRGBColorSpace;
+                tex.anisotropy = maxAniso;
+                enqueueUpload('body:' + sb.n, 2, urgent ? 1 : 2, function () {
+                    sb.texMat.map = tex; sb.texMat.color.set(0xffffff); sb.texMat.needsUpdate = true;
+                    sb.texState = 'done';
+                });
+            },
+            undefined,
+            function () { sb.texState = 'failed';   /* the body keeps its plain colour — the old failure mode too */ });
+        if (sb.ringMat) {
+            bodyTexLoader.load(new URL('./planets/saturn-ring.png', import.meta.url).href,
+                function (rtex) {
+                    rtex.colorSpace = THREE.SRGBColorSpace;
+                    enqueueUpload('ring:' + sb.n, 1, urgent ? 1 : 2, function () {
+                        sb.ringMat.map = rtex; sb.ringMat.color.set(0xffffff); sb.ringMat.needsUpdate = true;
+                    });
+                },
+                undefined,
+                function () { /* the ring keeps its plain colour, as it does today when the strip 404s */ });
+        }
+    }
+    function bodyTexService(now) {
+        if (!solarBodies) return;
+        var i, sb, anyLoading = false, tilesBusy = false;
+        for (i = 0; i < tileLayers.length; i++) {
+            var L = tileLayers[i];
+            if (L.queue.length || L.inflight || L.meshes.size) { tilesBusy = true; break; }
+        }
+        for (i = 0; i < solarBodies.length; i++) if (solarBodies[i].texState === 'loading') { anyLoading = true; break; }
+        /* approach: a body you are closing on gets its map now */
+        for (i = 0; i < solarBodies.length; i++) {
+            sb = solarBodies[i];
+            if (sb.texState !== 'idle') continue;
+            if (camPos.distanceTo(sb.pos) - sb.r < 4000 * sb.r) requestBodyTexture(sb, true);
+        }
+        /* background prefetch: nearest first, one download at a
+           time, never while a tile layer is fetching or showing,
+           never in the opening seconds */
+        if (!anyLoading && !tilesBusy && readyAt && now - readyAt > 4000) {
+            var best = null, bd = Infinity;
+            for (i = 0; i < solarBodies.length; i++) {
+                sb = solarBodies[i];
+                if (sb.texState !== 'idle') continue;
+                var d = camPos.distanceTo(sb.pos);
+                if (d < bd) { bd = d; best = sb; }
+            }
+            if (best) requestBodyTexture(best, false);
+        }
     }
 
     /* ================= SHIP — third-person craft (Johnny's pick, 2026-11-26) ====
@@ -3645,14 +3869,19 @@ export function initUniverse(stage) {
            frame() trigger stays as a guarded backstop. */
         startEarthStack();
 
-        /* label pool */
-        for (var i = 0; i < 14; i++) {
-            var d = document.createElement('div');
-            d.className = 'uv-label';
-            d.style.display = 'none';
-            labelsEl.appendChild(d);
-            labelPool.push(d);
-        }
+        /* label layer (Phase 2): ONE canvas, drawn by drawLabels()
+           inside the frame callback — no per-label DOM nodes, no
+           per-frame layout reads. The old 14-div pool's textContent
+           rewrites + offsetWidth/offsetHeight reads were the game's
+           #1 JS cost (Phase 1 CPU profile) and its independent
+           compositing was the label-ghosting mechanism; a canvas
+           presented in the same frame as the scene can neither lag
+           a frame behind the view nor show a label twice. */
+        labelCanvas = document.createElement('canvas');
+        labelCanvas.className = 'uv-labelcv';
+        labelsEl.appendChild(labelCanvas);
+        labelCtx = labelCanvas.getContext('2d');
+        refreshObstacles();   /* prime the obstacle cache so even the first frames de-collide against the caption + HUD */
         /* search list */
         var frag = document.createDocumentFragment();
         data.named.forEach(function (e) {
@@ -4114,7 +4343,15 @@ export function initUniverse(stage) {
     function flyToSolar(b) {
         lockSet(false);   /* a jump releases the lock rather than fighting it */
         startEarthStack();   /* any jump into the system starts Earth's maps loading — the 3.2 s flight is the head start */
-        var target = new THREE.Vector3(b.p[0], b.p[1], b.p[2]);
+        for (var fi = 0; fi < (solarBodies || []).length; fi++)
+            if (solarBodies[fi].n === b.n) requestBodyTexture(solarBodies[fi], true);   /* the jump target's own map, urgently — same head start */
+        /* b arrives in two shapes: the search path passes a
+           SOLAR_BODIES config entry (p: [x,y,z]); a label tap
+           passes the live solarBodies entry (pos: Vector3). The
+           tap path used to throw on b.p here and die silently —
+           a solar label tap never flew anywhere (found by the
+           Phase 2 exercise; the search path was unaffected). */
+        var target = b.p ? new THREE.Vector3(b.p[0], b.p[1], b.p[2]) : b.pos.clone();
         var standoff = b.r * 4.5;
         var away = camPos.clone().sub(target);
         if (away.lengthSq() < 1e-12) away.set(1, 0.3, 0.2);
@@ -4189,10 +4426,61 @@ export function initUniverse(stage) {
         hudNearStr = nStr;   /* composed here, written only by frame()'s single gated HUD block */
     }
     var labelTick = 0;
-    function updateLabels(w, h) {
-        if (!labelsOn) { labelHits = []; labelPool.forEach(function (d) { d.style.display = 'none'; }); return; }
-        var cands = [];
+    /* The label style is read from the page's own CSS variables —
+       the same ones the old .uv-label pills used (--card-bg,
+       --text-color, --border-color) — plus the canvas element's
+       computed font, which the .uv-labelcv rule sets to the old
+       pills' typography. Refreshed on resize and on the 15-frame
+       cadence (a theme flip lands within a quarter second); never
+       measured per label, never per frame. */
+    function readLabelStyle() {
+        if (!labelCanvas || !labelsEl) return;
+        var cs = getComputedStyle(labelCanvas);
+        labelStyle.fontPx = parseFloat(cs.fontSize) || 12;
+        labelStyle.weight = cs.fontWeight || '600';
+        labelStyle.family = cs.fontFamily || 'sans-serif';
+        var vs = getComputedStyle(labelsEl);
+        var fg = vs.getPropertyValue('--text-color').trim();
+        var bg = vs.getPropertyValue('--card-bg').trim();
+        var bd = vs.getPropertyValue('--border-color').trim();
+        if (fg) labelStyle.fg = fg;
+        if (bg) labelStyle.bg = bg;
+        if (bd) labelStyle.bd = bd;
+    }
+    /* Obstacles (the caption card, the HUD) measured on the same
+       cadence — three rect reads per 15 frames instead of three
+       per frame plus one per label. */
+    function refreshObstacles() {
+        labelObstacles = [];
+        if (!labelsEl) return;
+        var boxR = labelsEl.getBoundingClientRect();
+        [captionEl, hudEl].forEach(function (o) {
+            if (!o || !o.offsetWidth) return;
+            var r = o.getBoundingClientRect();
+            labelObstacles.push({
+                x0: r.left - boxR.left - 4, y0: r.top - boxR.top - 4,
+                x1: r.right - boxR.left + 4, y1: r.bottom - boxR.top + 4
+            });
+        });
+    }
+    function pillPath(x, y, w, h) {
+        var r = h / 2;
+        labelCtx.beginPath();
+        labelCtx.moveTo(x + r, y);
+        labelCtx.lineTo(x + w - r, y);
+        labelCtx.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
+        labelCtx.lineTo(x + r, y + h);
+        labelCtx.arc(x + r, y + r, r, Math.PI / 2, Math.PI * 1.5);
+        labelCtx.closePath();
+    }
+    function drawLabels(w, h) {
+        if (!labelCtx || !labelCanvas) { labelHits = []; labelDrawn = []; return; }
+        labelCtx.setTransform(1, 0, 0, 1, 0, 0);
+        labelCtx.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
         labelHits = [];
+        labelDrawn = [];
+        if (!labelsOn || !(w > 0) || !(h > 0)) return;
+        var cands = [];
         /* project() mirrors points behind the camera back into the
            frame with plausible-looking NDC — cull by the view
            direction itself, or a body behind you labels the planet
@@ -4243,43 +4531,52 @@ export function initUniverse(stage) {
         /* Greedy de-collision in rank order: a label that would overlap
            one already placed (or slide under the caption) is hidden
            instead — a missing label beats two unreadable ones. */
-        var placed = [];
-        /* Obstacles measured with getBoundingClientRect: the caption is
-           centered with a transform, which offsetLeft does not see. */
-        var boxR = labelsEl.getBoundingClientRect();
-        [captionEl, hudEl].forEach(function (o) {
-            if (!o || !o.offsetWidth) return;
-            var r = o.getBoundingClientRect();
-            placed.push({
-                x0: r.left - boxR.left - 4, y0: r.top - boxR.top - 4,
-                x1: r.right - boxR.left + 4, y1: r.bottom - boxR.top + 4
-            });
-        });
-        var maxLabels = Math.min(12, labelPool.length), used = 0;
+        var placed = labelObstacles.slice();
+        /* Text is measured on the canvas (measureText — no layout,
+           no reflow) and the pill box is derived from the font size:
+           the old DOM pill was the text plus 8 px of padding a side
+           and ~20 px tall at this font size. Same anchor maths as
+           the pool's translate(-50%,-140%): the box's top-left is
+           (sx - lw/2, sy - lh*1.4). */
+        var ctx = labelCtx;
+        ctx.setTransform(labelScale, 0, 0, labelScale, 0, 0);
+        ctx.font = labelStyle.weight + ' ' + labelStyle.fontPx + 'px ' + labelStyle.family;
+        try { ctx.letterSpacing = (labelStyle.fontPx * 0.02) + 'px'; } catch (e) { /* older engines: spacing is cosmetic */ }
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        var lh = Math.round(labelStyle.fontPx * 1.5) + 6, maxLabels = 12, used = 0;
         for (var j = 0; j < cands.length && used < maxLabels && j < 48; j++) {
             var c = cands[j];
-            var el = labelPool[used];
-            el.textContent = c.e.n + (c.b && bodyHasHD(c.b.n) ? ' HD' : '');
-            el.style.display = 'block';
-            var lw = el.offsetWidth, lh = el.offsetHeight;
+            var text = c.e.n + (c.b && bodyHasHD(c.b.n) ? ' HD' : '');
+            var lw = Math.ceil(ctx.measureText(text).width) + 18;
             var x0 = c.sx - lw / 2, y0 = c.sy - lh * 1.4, x1 = x0 + lw, y1 = y0 + lh;
             var hit = false;
             for (var k = 0; k < placed.length; k++) {
                 var r = placed[k];
                 if (x0 < r.x1 && x1 > r.x0 && y0 < r.y1 && y1 > r.y0) { hit = true; break; }
             }
-            if (hit) { el.style.display = 'none'; continue; }
+            if (hit) continue;
             placed.push({ x0: x0 - 3, y0: y0 - 3, x1: x1 + 3, y1: y1 + 3 });
             /* the tap-to-fly hit box: the label's own box, padded a
                few px for a fingertip, in the same labels-box
                coordinates — rank order, so a tap picks the most
                prominent label where padded boxes overlap */
             labelHits.push({ x0: x0 - 6, y0: y0 - 6, x1: x1 + 6, y1: y1 + 6, e: c.e, b: c.b || null });
-            el.style.transform = 'translate(-50%,-140%) translate(' + c.sx.toFixed(1) + 'px,' + c.sy.toFixed(1) + 'px)';
-            el.style.opacity = used < 4 ? '0.95' : '0.75';
+            labelDrawn.push({ n: text, base: c.e.n, x: c.sx, y: y0 + lh / 2 });
+            ctx.globalAlpha = used < 4 ? 0.95 : 0.75;
+            pillPath(x0, y0, lw, lh);
+            ctx.fillStyle = labelStyle.bg;
+            ctx.fill();
+            ctx.globalAlpha *= 0.9;
+            ctx.strokeStyle = labelStyle.bd;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.globalAlpha = used < 4 ? 0.95 : 0.75;
+            ctx.fillStyle = labelStyle.fg;
+            ctx.fillText(text, c.sx, y0 + lh / 2 + 0.5);
             used++;
         }
-        for (var m = used; m < labelPool.length; m++) labelPool[m].style.display = 'none';
+        ctx.globalAlpha = 1;
     }
 
     /* ---------------- main loop ---------------- */
@@ -4307,6 +4604,7 @@ export function initUniverse(stage) {
            increasing with the slider, at 120 Hz, 60 Hz, or a
            struggling 20 Hz alike. */
         var dt = Math.min(dtRaw, 0.5);
+        lastFrameMs = dtRaw * 1000;   /* the upload budget's yield signal for background items */
         /* nearest solar-body surface — feeds the near plane and the
            system-zone speed cap (one frame of lag is fine) */
         sysSurf = Infinity; sysRad = 0;
@@ -4449,6 +4747,7 @@ export function initUniverse(stage) {
         }
         try { lodFrame(dt, tSec); } catch (e) { /* LOD is an enhancement layer */ }
         updateShipRig(dt, tSec);
+        processUploads();   /* spend this frame's upload budget before the render that consumes it */
         camera.updateProjectionMatrix();
         if (fxOK && fxTarget) renderWithBloom();
         else renderer.render(scene, camera);
@@ -4483,9 +4782,8 @@ export function initUniverse(stage) {
             lockBtnSync();   /* the Lock button's face (incl. the HD mark) follows the nearest body on the same gated cadence */
         }
         labelTick++;
-        if (labelTick % 15 === 0) { updateNearest(); syncCaption(); }
-        var rect = canvas.getBoundingClientRect();
-        updateLabels(rect.width, rect.height);
+        if (labelTick % 15 === 0) { updateNearest(); syncCaption(); refreshObstacles(); readLabelStyle(); bodyTexService(now); }
+        drawLabels(stageW, stageH);
     }
     function applyDpr() {
         /* The floor is the last DPR_STEPS entry — 0.7 of the device's
@@ -4503,6 +4801,13 @@ export function initUniverse(stage) {
         var box = canvas.parentElement;   /* .uv-stage-box */
         var w = box.clientWidth, h = box.clientHeight;
         if (w < 2 || h < 2) return;
+        stageW = w; stageH = h;   /* frame() draws labels from this cache — it never measures the DOM */
+        if (labelCanvas) {
+            labelScale = Math.min(window.devicePixelRatio || 1, 3);
+            var lcw = Math.max(2, Math.round(w * labelScale)), lch = Math.max(2, Math.round(h * labelScale));
+            if (labelCanvas.width !== lcw || labelCanvas.height !== lch) { labelCanvas.width = lcw; labelCanvas.height = lch; }
+            readLabelStyle();
+        }
         renderer.setSize(w, h, false);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
@@ -4655,7 +4960,7 @@ export function initUniverse(stage) {
         /* A tap on a visible name label flies to that object through
            the existing flight machinery (flyAnim and its standoff
            distances — the search jumps' own), never a second system.
-           labelHits is rebuilt by updateLabels every frame from the
+           labelHits is rebuilt by drawLabels every frame from the
            labels actually on screen, in rank order, in labels-box
            coordinates. Labels toggled off means no hits, so no
            invisible tap targets. */
@@ -5101,6 +5406,9 @@ export function initUniverse(stage) {
                         +(lod.frameMs.reduce(function (a, b) { return a + b; }, 0) / lod.frameMs.length).toFixed(2) : 0,
                     stats: lod.stats,
                     effSpeed: proxSpeed(),
+                    labels: labelDrawn.map(function (d) { return d.n; }),
+                    uploads: { queued: uploadsQueued(), applied: upApplied },
+                    bodyTex: solarBodies ? solarBodies.map(function (s) { return s.n + ':' + s.texState; }) : [],
                     earthTiles: etState(et),
                     moonTiles: etState(tileMoon),
                     marsTiles: etState(tileMars),
@@ -5647,8 +5955,10 @@ export function initUniverse(stage) {
     loadMsg.textContent = 'Loading the real universe\u2026';
     loadData().then(function (d) {
         data = d;
+        startEarthPreloads();   /* the catalog has the link to itself until it lands; Earth's maps start now */
         return Promise.all([loadNebulae(), loadHeroes()]);
     }).then(function () {
+        loadMsg.textContent = 'Building the sky\u2026';
         try {
             buildScene();
         } catch (err) {
@@ -5661,11 +5971,29 @@ export function initUniverse(stage) {
         applyDpr();
         loadingEl.hidden = true;
         ctrl.ready = true;
+        readyAt = performance.now();
+        /* beauty layers stream in behind the first frame (Phase 2):
+           the panorama and the hero atlas start fetching only now,
+           so the bytes that land before the first frame are the
+           critical path alone (catalog + code + Earth's maps) */
+        setTimeout(function () { startPanoLoad(); startHeroLoad(); }, 0);
         lastInputT = performance.now();
         setCaption(EARTH_CAP);
         captionClaim = { kind: 'earth' };
         updateNearest();
         if (ctrl.active) { lastT = performance.now(); rafId = requestAnimationFrame(frame); }
+        /* the demo (games.html) finds a drawn label's screen
+           position here — the canvas successor to its old .uv-label
+           DOM query */
+        window.__uvLabelAt = function (name) {
+            for (var li = 0; li < labelDrawn.length; li++) {
+                if (labelDrawn[li].base === name || labelDrawn[li].n === name) {
+                    var lr = labelsEl.getBoundingClientRect();
+                    return { x: lr.left + labelDrawn[li].x, y: lr.top + labelDrawn[li].y };
+                }
+            }
+            return null;
+        };
         if (window) window.__uv = ctrl;
     }).catch(function (err) {
         loadingEl.hidden = true;
