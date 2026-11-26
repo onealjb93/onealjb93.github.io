@@ -2201,6 +2201,54 @@
         <h1>Finance</h1>
     </header>
 
+    <!-- Finance top search (2026-11-25): the site pattern — one
+         glass pill under the page header. This page's findables are
+         names: the Investor Committee's members and the backtest's
+         Names (instruments and comparisons). While a search stands,
+         the sections step aside and the matches present under the
+         pill, each under its home's label; a tap stands the search
+         down exactly, then travels. -->
+    <style>
+    .fin-search { margin-top: 2px; }
+    .fin-search-pill { display: flex; align-items: center; gap: 10px; background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25); backdrop-filter: blur(var(--glass-blur)) saturate(1.25); border: 1px solid var(--border-color); border-radius: 999px; box-shadow: var(--glass-shadow); padding: 5px 6px 5px 18px; }
+    .fin-search-pill input { flex: 1 1 auto; min-width: 0; background: none; border: none; outline: none; color: var(--text-color); font: inherit; font-size: 16px; line-height: 1.5; padding: 6px 0; }
+    .fin-search-pill input::placeholder { color: var(--subtext-color); opacity: 1; }
+    .fin-search-count { flex: none; color: var(--subtext-color); font-size: 0.85rem; white-space: nowrap; }
+    .fin-search-clear { flex: none; min-width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--glass-bg-solid); color: var(--text-color); font-size: 1.15rem; line-height: 1; cursor: pointer; }
+    .fin-search-clear[hidden] { display: none; }
+    .fin-search-results { margin-top: 14px; }
+    .fin-search-results[hidden], .fin-search-group[hidden], .fin-search-empty[hidden] { display: none; }
+    .fin-search-group { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 6px 0; margin-bottom: 14px; }
+    .fin-search-group-label { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--subtext-color); padding: 6px 16px 4px; }
+    .fin-search-result { display: flex; align-items: baseline; gap: 10px; width: 100%; min-height: 48px; padding: 10px 16px; background: none; border: none; border-top: 1px solid var(--border-color); color: var(--text-color); font: inherit; text-align: left; cursor: pointer; }
+    .fin-search-list .fin-search-result:first-child { border-top: none; }
+    .fin-search-result:hover { background: var(--hover-bg); }
+    .fin-search-result-name { font-weight: 600; flex: none; }
+    .fin-search-result-sub { color: var(--subtext-color); font-size: 0.85rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fin-search-empty { color: var(--subtext-color); padding: 4px 2px 8px; }
+    body.fin-searching .collapsible-section { display: none; }
+    .fin-search-flash { animation: finSearchFlash 1.7s ease-out; }
+    @keyframes finSearchFlash { 0%, 55% { background-color: color-mix(in srgb, var(--link-color) 22%, transparent); } 100% { background-color: transparent; } }
+    </style>
+    <div class="fin-search" id="finSearch">
+        <div class="fin-search-pill">
+            <input type="text" id="finSearchInput" placeholder="Search investors and names" aria-label="Search investors and names" autocomplete="off">
+            <span class="fin-search-count" id="finSearchCount" aria-live="polite"></span>
+            <button type="button" class="fin-search-clear" id="finSearchClear" aria-label="Clear search" hidden>&times;</button>
+        </div>
+        <div class="fin-search-results" id="finSearchResults" hidden>
+            <div class="fin-search-group" id="finSearchGroupInv" hidden>
+                <p class="fin-search-group-label">Investor Committee</p>
+                <div class="fin-search-list" id="finSearchInvList"></div>
+            </div>
+            <div class="fin-search-group" id="finSearchGroupNames" hidden>
+                <p class="fin-search-group-label">Backtest names</p>
+                <div class="fin-search-list" id="finSearchNameList"></div>
+            </div>
+            <p class="fin-search-empty" id="finSearchEmpty" hidden>No names match. Clear the search to bring them all back.</p>
+        </div>
+    </div>
+
     <!-- The Chart opens the page: the five "Start here" door boxes
          that stood here are removed (2026-11-22) — every one of them
          duplicated a section that appears in full further down the
@@ -14151,6 +14199,260 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         setInterval(function () { if (!document.hidden) { tick(); } }, 5000);
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) { tick(); }
+        });
+    })();
+    </script>
+
+    <script>
+    /* Finance top search (2026-11-25): the site pattern's fourth
+       instance. Haystacks are read from the page's own DOM — nothing
+       is indexed that the page doesn't show: each committee member's
+       name, glance-row cells, and the lead paragraph of their card
+       (where the page states their firm); each backtest name's
+       ticker and displayed company name, read from the Names sheet's
+       rendered rows; and the comparisons' displayed labels. Match
+       rule, as on the other pages: normalized (case and diacritics
+       folded), every query word a substring of the haystack. While
+       a search stands the sections step aside (their open/closed
+       state is never touched); clear restores the page exactly,
+       scroll included. A result tap stands the search down first,
+       then travels by the page's own controls. */
+    (function () {
+        "use strict";
+        var input = document.getElementById("finSearchInput");
+        var countEl = document.getElementById("finSearchCount");
+        var clearBtn = document.getElementById("finSearchClear");
+        var resultsEl = document.getElementById("finSearchResults");
+        var groupInv = document.getElementById("finSearchGroupInv");
+        var groupNames = document.getElementById("finSearchGroupNames");
+        var invList = document.getElementById("finSearchInvList");
+        var nameList = document.getElementById("finSearchNameList");
+        var emptyEl = document.getElementById("finSearchEmpty");
+        if (!input || !countEl || !clearBtn || !resultsEl || !groupInv || !groupNames || !invList || !nameList || !emptyEl) return;
+
+        function norm(s) {
+            return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+        }
+        function match(hay, q) {
+            var words = norm(q).split(" ").filter(Boolean);
+            if (!words.length) return false;
+            return words.every(function (w) { return hay.indexOf(w) !== -1; });
+        }
+        function esc(s) {
+            return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        /* ---------- Indexes, read from the page's own DOM ---------- */
+        var investors = [];
+        document.querySelectorAll("#committee-body .glance-row").forEach(function (row) {
+            var strong = row.querySelector(".glance-toggle strong");
+            var name = strong ? strong.textContent.trim() : "";
+            var tds = row.querySelectorAll("td");
+            var cells = Array.prototype.map.call(tds, function (td) { return td.textContent; }).join(" ");
+            var detail = row.nextElementSibling;
+            var lead = "";
+            if (detail && detail.classList.contains("glance-detail")) {
+                var card = detail.querySelector(".explainer-card");
+                var p = card ? card.querySelector("p") : null;
+                if (p) lead = p.textContent;
+            }
+            investors.push({
+                rowId: row.id, name: name,
+                sub: tds.length > 1 ? tds[1].textContent.trim() : "",
+                hay: norm(name + " " + cells + " " + lead)
+            });
+        });
+
+        var benches = [
+            { sym: "SPX", label: "S&P 500" },
+            { sym: "IXIC", label: "Nasdaq-100" },
+            { sym: "CASH", label: "Cash" }
+        ].map(function (b) {
+            return { sym: b.sym, label: b.label, hay: norm(b.sym + " " + b.label) };
+        });
+
+        var names = [];
+        function buildNames() {
+            var out = [];
+            document.querySelectorAll("#sigNames .sig-name-row").forEach(function (row) {
+                var cb = row.querySelector("input[data-sig-name]");
+                if (!cb) return;
+                var sym = cb.getAttribute("data-sig-name");
+                var sub = row.querySelector(".sig-name-sub");
+                var disp = sub ? sub.textContent.replace(/\s*·\s*(\d+ dots|no dots yet)\s*$/, "").trim() : "";
+                out.push({ sym: sym, disp: disp, hay: norm(sym + " " + disp) });
+            });
+            if (out.length) names = out;
+        }
+        buildNames();
+
+        /* ---------- Search state ---------- */
+        var standing = false, snapshotY = 0;
+
+        function render() {
+            var q = input.value;
+            var inv = investors.filter(function (i) { return match(i.hay, q); });
+            var nm = names.filter(function (n) { return match(n.hay, q); });
+            var bn = benches.filter(function (b) { return match(b.hay, q); });
+            invList.innerHTML = inv.map(function (i) {
+                return '<button type="button" class="fin-search-result" data-kind="investor" data-target="' + esc(i.rowId) + '">'
+                    + '<span class="fin-search-result-name">' + esc(i.name) + '</span>'
+                    + (i.sub ? '<span class="fin-search-result-sub">' + esc(i.sub) + '</span>' : '')
+                    + '</button>';
+            }).join("");
+            nameList.innerHTML = nm.map(function (n) {
+                return '<button type="button" class="fin-search-result" data-kind="name" data-target="' + esc(n.sym) + '">'
+                    + '<span class="fin-search-result-name">' + esc(n.sym) + '</span>'
+                    + (n.disp ? '<span class="fin-search-result-sub">' + esc(n.disp) + '</span>' : '')
+                    + '</button>';
+            }).join("") + bn.map(function (b) {
+                return '<button type="button" class="fin-search-result" data-kind="bench" data-target="' + esc(b.sym) + '">'
+                    + '<span class="fin-search-result-name">' + esc(b.label) + '</span>'
+                    + '<span class="fin-search-result-sub">Compare against</span>'
+                    + '</button>';
+            }).join("");
+            var total = inv.length + nm.length + bn.length;
+            countEl.textContent = total ? total + (total === 1 ? " result" : " results") : "";
+            groupInv.hidden = !inv.length;
+            groupNames.hidden = !(nm.length + bn.length);
+            emptyEl.hidden = total !== 0;
+            resultsEl.hidden = false;
+            clearBtn.hidden = false;
+        }
+
+        function applySearch() {
+            if (!norm(input.value)) { standDown(true); return; }
+            if (!standing) {
+                standing = true;
+                snapshotY = window.scrollY || 0;
+                document.body.classList.add("fin-searching");
+            }
+            render();
+        }
+
+        function standDown(restoreScroll) {
+            var was = standing;
+            standing = false;
+            document.body.classList.remove("fin-searching");
+            resultsEl.hidden = true;
+            countEl.textContent = "";
+            clearBtn.hidden = true;
+            if (was && restoreScroll) {
+                var y = snapshotY;
+                window.scrollTo(0, y);
+                requestAnimationFrame(function () { window.scrollTo(0, y); });
+                setTimeout(function () { window.scrollTo(0, y); }, 120);
+                setTimeout(function () { window.scrollTo(0, y); }, 300);
+            }
+        }
+
+        function clearSearch() {
+            input.value = "";
+            standDown(true);
+        }
+
+        /* The backtest engine lazy-loads by design: it initializes
+           only when its section first opens. A name search from the
+           top of the page is the same intent, so the first focus or
+           keystroke starts the engine through its own entry point
+           (window.sigRender, the call the section toggle makes);
+           the observer above picks the rows up when they render and
+           re-renders a standing search. The section itself is never
+           opened by this. */
+        var bootedNames = false;
+        function bootNames() {
+            if (bootedNames) return;
+            bootedNames = true;
+            if (!names.length && typeof window.sigRender === "function") {
+                try { window.sigRender(); } catch (e) { /* data still loading */ }
+            }
+        }
+        input.addEventListener("focus", bootNames);
+        input.addEventListener("input", function () { bootNames(); applySearch(); });
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") input.blur();
+        });
+        clearBtn.addEventListener("click", function () {
+            clearSearch();
+            input.focus({ preventScroll: true });
+        });
+
+        var namesEl = document.getElementById("sigNames");
+        if (namesEl && window.MutationObserver) {
+            new MutationObserver(function () {
+                buildNames();
+                if (standing && norm(input.value)) render();
+            }).observe(namesEl, { childList: true });
+        }
+
+        /* ---------- Travel: stand down, then the page's own way ---------- */
+        function flash(el) {
+            if (!el) return;
+            el.classList.remove("fin-search-flash");
+            void el.offsetWidth;
+            el.classList.add("fin-search-flash");
+            setTimeout(function () { el.classList.remove("fin-search-flash"); }, 1800);
+        }
+        function expandSection(id) {
+            var body = document.getElementById(id + "-body");
+            var btn = document.querySelector('.section-toggle[data-section="' + id + '"]');
+            if (body && body.hidden && btn) btn.click();
+        }
+
+        function goInvestor(rowId) {
+            var row = document.getElementById(rowId);
+            standDown(false);
+            if (!row) return;
+            if (row.style.display === "none") {
+                var all = document.querySelector('#investorFilter .filter-pill[data-theme="all"]');
+                if (all) all.click();
+            }
+            expandSection("committee");
+            var detail = row.nextElementSibling;
+            if (detail && detail.classList.contains("glance-detail") && detail.hidden) {
+                var t = row.querySelector(".glance-toggle");
+                if (t) t.click();
+            }
+            row.scrollIntoView({ block: "start" });
+            flash(row);
+        }
+
+        function goName(sym) {
+            standDown(false);
+            expandSection("backtest");
+            var sec = document.getElementById("backtest");
+            if (sec) sec.scrollIntoView({ block: "start" });
+            var namesBtn = document.getElementById("sigNamesBtn");
+            if (namesBtn) namesBtn.click();
+            setTimeout(function () {
+                var cb = document.querySelector('#sigNames input[data-sig-name="' + sym + '"]');
+                var row = cb && cb.closest ? cb.closest(".sig-name-row") : null;
+                if (row) {
+                    row.scrollIntoView({ block: "center" });
+                    flash(row);
+                }
+            }, 90);
+        }
+
+        function goBench(sym) {
+            standDown(false);
+            expandSection("backtest");
+            var pill = document.querySelector('#backtest button[data-bench="' + sym + '"]');
+            if (pill) {
+                pill.scrollIntoView({ block: "center" });
+                flash(pill);
+            }
+        }
+
+        resultsEl.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest(".fin-search-result") : null;
+            if (!btn) return;
+            var kind = btn.getAttribute("data-kind");
+            var target = btn.getAttribute("data-target");
+            input.value = "";
+            if (kind === "investor") goInvestor(target);
+            else if (kind === "name") goName(target);
+            else if (kind === "bench") goBench(target);
         });
     })();
     </script>
