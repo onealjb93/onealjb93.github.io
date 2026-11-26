@@ -1419,8 +1419,12 @@
     // Top search (2026-11-25): the site pattern — one field over BOTH
     // lists, live from the first letter. A row matches when every word
     // of the term appears in what the page shows for it: the title,
-    // the author (books) or show (podcasts) line, and for a book its
-    // genre as the page's own filter names it. The search composes
+    // the author (books) or show (podcasts) line, and each side's
+    // category as the page's own filter names it — a book's genre,
+    // and for an episode the topic of its show (showTopic below: the
+    // shows are the podcasts' categories, the way genres are the
+    // books', so a topic word finds episodes the way a genre word
+    // finds books). The search composes
     // with each section's own controls the way the sections already
     // compose search with filter (a row shows only if it passes
     // both): the two filter functions are wrapped — outside the pair
@@ -1448,6 +1452,26 @@
         document.querySelectorAll('#genre-filter option').forEach(function (opt) {
             genreLabel[opt.value] = opt.textContent;
         });
+        // A show's topic, in the page's own genre vocabulary — one
+        // topic per show, mirroring the books' one-genre filing, each
+        // read off what the page displays for that show: its name and
+        // its episodes' titles. The money shows (the Fed and banking,
+        // the fiat standard, Bitcoin and stocks, an investor network)
+        // carry Business, whose filter label is "Business & Finance";
+        // the page files its own Google business story ("What Would
+        // Google Do?") under that same genre, which is where the
+        // Google episode's show belongs. BG2's displayed episode is
+        // NVIDIA, OpenAI and the future of compute — Technology.
+        var showTopic = {
+            'ben gilbert and david rosenthal': 'Business',
+            'tucker carlson network': 'Business',
+            'dr. saifedean ammous': 'Business',
+            "the investor's podcast network": 'Business',
+            'bg2pod': 'Tech',
+            'anthony pompliano': 'Business',
+            'btc inc': 'Business',
+            'natalie brunell': 'Business'
+        };
         function haystack(row, isBook) {
             var main = row.querySelector('.bk-main');
             if (!main) return '';
@@ -1458,6 +1482,9 @@
             if (isBook) {
                 var g = row.getAttribute('data-genre') || '';
                 hay += ' ' + g + ' ' + (genreLabel[g] || '');
+            } else {
+                var t = showTopic[row.getAttribute('data-show') || ''] || '';
+                if (t) hay += ' ' + t + ' ' + (genreLabel[t] || '');
             }
             return norm(hay);
         }
