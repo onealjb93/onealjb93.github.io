@@ -2199,24 +2199,40 @@
 
     <header class="page-header">
         <h1>Finance</h1>
+
+        <!-- Finance top search (2026-11-25): a magnifier at the right
+             end of the title bar, expanding in place inside the bar.
+             The bar's box never changes in any state. -->
+        <div class="fin-search" id="finSearch">
+            <div class="fin-search-field" id="finSearchField" hidden>
+                <input type="text" id="finSearchInput" placeholder="Search all of Finance" aria-label="Search all of Finance" autocomplete="off">
+                <span class="fin-search-count" id="finSearchCount" aria-live="polite"></span>
+                <button type="button" class="fin-search-clear" id="finSearchClear" aria-label="Clear search" hidden>&times;</button>
+            </div>
+            <button type="button" class="fin-search-toggle" id="finSearchToggle" aria-label="Search all of Finance" aria-expanded="false" aria-controls="finSearchField"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+        </div>
     </header>
 
-    <!-- Finance top search (2026-11-25): the site pattern — one
-         glass pill under the page header. This page's findables are
-         names: the Investor Committee's members and the backtest's
-         Names (instruments and comparisons). While a search stands,
-         the sections step aside and the matches present under the
-         pill, each under its home's label; a tap stands the search
-         down exactly, then travels. -->
+    <!-- Finance top search results (2026-11-25): while a search
+         stands, the sections step aside and the matches present
+         here, each under its home's label. -->
     <style>
-    .fin-search { margin-top: 2px; }
-    .fin-search-pill { display: flex; align-items: center; gap: 10px; background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25); backdrop-filter: blur(var(--glass-blur)) saturate(1.25); border: 1px solid var(--border-color); border-radius: 999px; box-shadow: var(--glass-shadow); padding: 5px 6px 5px 18px; }
-    .fin-search-pill input { flex: 1 1 auto; min-width: 0; background: none; border: none; outline: none; color: var(--text-color); font: inherit; font-size: 16px; line-height: 1.5; padding: 6px 0; }
-    .fin-search-pill input::placeholder { color: var(--subtext-color); opacity: 1; }
+    .page-header { display: flex; align-items: center; }
+    .page-header h1 { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fin-search { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
+    .fin-search-toggle { flex: none; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 999px; border: 1px solid var(--border-color); background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25); backdrop-filter: blur(var(--glass-blur)) saturate(1.25); box-shadow: var(--glass-shadow); color: var(--text-color); cursor: pointer; }
+    .fin-search-toggle svg { width: 20px; height: 20px; display: block; }
+    .fin-search-field { display: flex; align-items: center; gap: 10px; background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25); backdrop-filter: blur(var(--glass-blur)) saturate(1.25); border: 1px solid var(--border-color); border-radius: 999px; box-shadow: var(--glass-shadow); padding: 2px 6px 2px 16px; flex: 0 1 auto; min-width: 0; }
+    .fin-search-field[hidden] { display: none; }
+    .fin-search-field input { flex: 1 1 auto; min-width: 0; width: 210px; background: none; border: none; outline: none; color: var(--text-color); font: inherit; font-size: 16px; line-height: 1.5; padding: 6px 0; }
+    .fin-search-field input::placeholder { color: var(--subtext-color); opacity: 1; }
     .fin-search-count { flex: none; color: var(--subtext-color); font-size: 0.85rem; white-space: nowrap; }
     .fin-search-clear { flex: none; min-width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--glass-bg-solid); color: var(--text-color); font-size: 1.15rem; line-height: 1; cursor: pointer; }
     .fin-search-clear[hidden] { display: none; }
-    .fin-search-results { margin-top: 14px; }
+    @media (max-width: 640px) {
+        .page-header.fin-search-open h1 { flex: 0 0 0; opacity: 0; }
+        .fin-search-field input { width: 120px; }
+    }
     .fin-search-results[hidden], .fin-search-group[hidden], .fin-search-empty[hidden] { display: none; }
     .fin-search-group { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 6px 0; margin-bottom: 14px; }
     .fin-search-group-label { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--subtext-color); padding: 6px 16px 4px; }
@@ -2230,23 +2246,16 @@
     .fin-search-flash { animation: finSearchFlash 1.7s ease-out; }
     @keyframes finSearchFlash { 0%, 55% { background-color: color-mix(in srgb, var(--link-color) 22%, transparent); } 100% { background-color: transparent; } }
     </style>
-    <div class="fin-search" id="finSearch">
-        <div class="fin-search-pill">
-            <input type="text" id="finSearchInput" placeholder="Search investors and names" aria-label="Search investors and names" autocomplete="off">
-            <span class="fin-search-count" id="finSearchCount" aria-live="polite"></span>
-            <button type="button" class="fin-search-clear" id="finSearchClear" aria-label="Clear search" hidden>&times;</button>
+    <div class="fin-search-results" id="finSearchResults" hidden>
+        <div class="fin-search-group" id="finSearchGroupInv" hidden>
+            <p class="fin-search-group-label">Investor Committee</p>
+            <div class="fin-search-list" id="finSearchInvList"></div>
         </div>
-        <div class="fin-search-results" id="finSearchResults" hidden>
-            <div class="fin-search-group" id="finSearchGroupInv" hidden>
-                <p class="fin-search-group-label">Investor Committee</p>
-                <div class="fin-search-list" id="finSearchInvList"></div>
-            </div>
-            <div class="fin-search-group" id="finSearchGroupNames" hidden>
-                <p class="fin-search-group-label">Backtest names</p>
-                <div class="fin-search-list" id="finSearchNameList"></div>
-            </div>
-            <p class="fin-search-empty" id="finSearchEmpty" hidden>No names match. Clear the search to bring them all back.</p>
+        <div class="fin-search-group" id="finSearchGroupNames" hidden>
+            <p class="fin-search-group-label">Backtest names</p>
+            <div class="fin-search-list" id="finSearchNameList"></div>
         </div>
+        <p class="fin-search-empty" id="finSearchEmpty" hidden>No names match. Clear the search to bring them all back.</p>
     </div>
 
     <!-- The Chart opens the page: the five "Start here" door boxes
@@ -14204,21 +14213,23 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
     </script>
 
     <script>
-    /* Finance top search (2026-11-25): the site pattern's fourth
-       instance. Haystacks are read from the page's own DOM — nothing
-       is indexed that the page doesn't show: each committee member's
+    /* Finance top search (2026-11-25): the site pattern, in its
+       title-bar home — a magnifier at the right end of the bar
+       expands the field in place; the bar's box never changes.
+       Haystacks are read from the page's own DOM — nothing is
+       indexed that the page doesn't show: each committee member's
        name, glance-row cells, and their card's full displayed text
        (the lead states their firm; the holdings name it again — a
        firm the card displays anywhere must find its investor);
-       each backtest name's
-       ticker and displayed company name, read from the Names sheet's
-       rendered rows; and the comparisons' displayed labels. Match
-       rule, as on the other pages: normalized (case and diacritics
-       folded), every query word a substring of the haystack. While
-       a search stands the sections step aside (their open/closed
-       state is never touched); clear restores the page exactly,
-       scroll included. A result tap stands the search down first,
-       then travels by the page's own controls. */
+       each backtest name's ticker and displayed company name, read
+       from the Names sheet's rendered rows; and the comparisons'
+       displayed labels. Match rule, as on the other pages:
+       normalized (case and diacritics folded), every query word a
+       substring of the haystack. While a search stands the sections
+       step aside (their open/closed state is never touched);
+       collapsing the field restores the page exactly, scroll
+       included. A result tap stands the search down first, then
+       travels by the page's own controls. */
     (function () {
         "use strict";
         var input = document.getElementById("finSearchInput");
@@ -14230,10 +14241,13 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         var invList = document.getElementById("finSearchInvList");
         var nameList = document.getElementById("finSearchNameList");
         var emptyEl = document.getElementById("finSearchEmpty");
-        if (!input || !countEl || !clearBtn || !resultsEl || !groupInv || !groupNames || !invList || !nameList || !emptyEl) return;
+        var toggleBtn = document.getElementById("finSearchToggle");
+        var fieldEl = document.getElementById("finSearchField");
+        var headerEl = document.querySelector(".page-header");
+        if (!input || !countEl || !clearBtn || !resultsEl || !groupInv || !groupNames || !invList || !nameList || !emptyEl || !toggleBtn || !fieldEl || !headerEl) return;
 
         function norm(s) {
-            return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+            return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
         }
         function match(hay, q) {
             var words = norm(q).split(" ").filter(Boolean);
@@ -14347,17 +14361,42 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             }
         }
 
-        function clearSearch() {
+        /* ---------- The field in the bar: expand / collapse ---------- */
+        var expanded = false;
+        function expandSearch() {
+            if (expanded) return;
+            expanded = true;
+            fieldEl.hidden = false;
+            headerEl.classList.add("fin-search-open");
+            toggleBtn.setAttribute("aria-expanded", "true");
+            input.focus({ preventScroll: true });
+        }
+        function collapseUi() {
+            expanded = false;
+            fieldEl.hidden = true;
+            headerEl.classList.remove("fin-search-open");
+            toggleBtn.setAttribute("aria-expanded", "false");
+        }
+        function collapseSearch() {
             input.value = "";
             standDown(true);
+            collapseUi();
+            input.blur();
         }
+        toggleBtn.addEventListener("click", function () {
+            if (expanded) { collapseSearch(); toggleBtn.focus({ preventScroll: true }); }
+            else expandSearch();
+        });
+        toggleBtn.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && expanded) { collapseSearch(); toggleBtn.focus({ preventScroll: true }); }
+        });
 
         /* The backtest engine lazy-loads by design: it initializes
            only when its section first opens. A name search from the
            top of the page is the same intent, so the first focus or
            keystroke starts the engine through its own entry point
            (window.sigRender, the call the section toggle makes);
-           the observer above picks the rows up when they render and
+           the observer below picks the rows up when they render and
            re-renders a standing search. The section itself is never
            opened by this. */
         var bootedNames = false;
@@ -14371,11 +14410,11 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         input.addEventListener("focus", bootNames);
         input.addEventListener("input", function () { bootNames(); applySearch(); });
         input.addEventListener("keydown", function (e) {
-            if (e.key === "Escape") input.blur();
+            if (e.key === "Escape") { collapseSearch(); toggleBtn.focus({ preventScroll: true }); }
         });
         clearBtn.addEventListener("click", function () {
-            clearSearch();
-            input.focus({ preventScroll: true });
+            collapseSearch();
+            toggleBtn.focus({ preventScroll: true });
         });
 
         var namesEl = document.getElementById("sigNames");
@@ -14454,6 +14493,8 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (kind === "investor") goInvestor(target);
             else if (kind === "name") goName(target);
             else if (kind === "bench") goBench(target);
+            collapseUi();
+            input.blur();
         });
     })();
     </script>
