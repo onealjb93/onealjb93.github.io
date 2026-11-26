@@ -13,9 +13,10 @@
 // Concourse and The Fjord Farms — and by two batch-4 scenes he
 // approved the same evening, The Valley Habitat and The Forest
 // Crossing, and by two batch-5 scenes he approved later that
-// evening, The Cantilever Terraces and The Cloud Gate City.
-// Thirteen entries. Entries carry no credit field: the page shows
-// no credit line for this pool.
+// evening, The Cantilever Terraces and The Cloud Gate City, and by
+// two batch-6 scenes he approved later still, The Needle Crown and
+// The Crown Deck. Fifteen entries. Entries carry no credit field:
+// the page shows no credit line for this pool.
 window.SCIFI_DATA = [
   {
     "id": "glass-dam",
@@ -198,5 +199,33 @@ window.SCIFI_DATA = [
     "img": "https://johnny-oneal.com/scifi-cloud-gate-city.webp",
     "source": "https://johnny-oneal.com/scifi-cloud-gate-city.webp",
     "deep": "<p>Why does the future here wear Rome's clothes? Because the classical orders are a technology of reassurance: columns, domes and arches are the shapes a civilisation uses when it means to stay. At ordinary scale they would be nostalgia; at this scale — an arch that frames the sunrise, a city terraced across the clouds — they become a claim that permanence and ambition can share a skyline. The waterfalls keep the claim honest. A city that pours its water off its edges in daylight is a city whose systems work in the open: supply, garden, drain and spectacle in one gesture. And the lone figure on the rocks is every arrival's first morning — the gate ahead, the sun coming through it, and a whole white city already awake below.</p>"
+  },
+  {
+    "id": "needle-crown",
+    "name": "The Needle Crown",
+    "sub": "An immaculate needle of stacked, glowing sections over a terraced fjord town — market quays below, two walkers and a dog",
+    "overview": "The tower is a stack of lit neighbourhoods pretending to be a needle. Section rises on section of polished glass and pale metal from a terraced town on the fjord shore — a glass-domed hall on the waterfront, red-and-white market canopies along the promenade, crowds on every level — and the whole impossible height of it is doubled in the still water, while two people walk a dog along the near quay as if it were any morning anywhere.",
+    "details": [
+      "A tower this tall cannot run on one lift system, so it is stacked: each glowing band is a district with its own sky lobby, where residents change lifts the way they would change trains. Supertall towers already work this way — the needle just draws the trick out until the districts read as separate lit storeys of one impossible spire.",
+      "The town at its feet is load-bearing. A needle housing thousands needs a ground city to feed it — market, quays, the domed arrival hall — and the terraces step down the shore so every level keeps its sun and its view of the water. Fjord towns have always grown in steps; the slope leaves them no flat choice.",
+      "The dog is the design review. A promenade comfortable enough for an ordinary morning dog-walk, at the foot of the most extreme structure on the coast, is the proof the place was designed for the people who live under it — not for the photograph."
+    ],
+    "img": "https://johnny-oneal.com/scifi-needle-crown.webp",
+    "source": "https://johnny-oneal.com/scifi-needle-crown.webp",
+    "deep": "<p>Every impossible tower makes the same promise and most break it: height as spectacle, with the ground left empty around the monument. The Needle Crown keeps the promise the other way round. Its base is a working town — market, quays, a domed hall, terraces full of people — and the needle rises out of that life rather than replacing it. That is why the two walkers matter. Awe is easy at this scale; ordinariness is the achievement. The future here is not a tower you visit. It is a tower you live under, walk your dog beneath, and glance up at on the way to buy bread — the extraordinary, kept in perfect condition, treated as local weather.</p>"
+  },
+  {
+    "id": "crown-deck",
+    "name": "The Crown Deck",
+    "sub": "A founded hull two kilometres long, its glass bands glowing with garden districts, over a city of circular plaza decks",
+    "overview": "It does not fly, and it is not leaving. A habitat hull two kilometres long rests on piers against a forested mountain flank, founded like a building and lit like one — long glass bands glowing amber with whole garden districts growing inside — while below it a city of circular plaza decks stacks toward the river, crowded with tiny people, market canopies and reflecting pools in the flat grey light.",
+    "details": [
+      "Founded, not landed: the hull sits on piers and is plumbed into the plaza city beneath it, so water, power and people move between ship and decks. A vessel that chooses an address stops being transport and becomes the largest building in the valley, with the valley as its ground floor.",
+      "The gardens are districts, not decoration. Behind the glass bands, whole neighbourhoods of growing green get the hull's shelter and the valley's light at once — food and forest carried inside the structure itself, so the building's longest faces are its farms.",
+      "The circular decks sort the city's public life by ring: markets and arrival crowds on the broad lowest discs, pools and quieter decks stacked above. A circle has no back streets — every point on the ring is the same walk from the centre — which is why plazas have been round since long before anyone could build one this size."
+    ],
+    "img": "https://johnny-oneal.com/scifi-crown-deck.webp",
+    "source": "https://johnny-oneal.com/scifi-crown-deck.webp",
+    "deep": "<p>The oldest argument about the future is whether it will be built or grown. The Crown Deck refuses to choose: a machine the size of a town, founded in a forest valley, with gardens behind its glass and a plaza city spreading from its feet. The light in the frame is doing quiet work, too — the day outside is flat and grey, and every warm thing in the picture is indoors, lit from within by the life inside the hull. That is the habitat's real claim. Not that it can hover, or travel, or shine — but that on a dull morning in a misty valley it is already home to thousands of people, and the decks below it are full.</p>"
   }
 ];
