@@ -1145,871 +1145,97 @@ body.light-mode .explainer-wrapper[id]:has(> .door-photo) > .info-toggle.entry-t
     <h3 id="three-ees">The Three E's: Environment, Economy, and Equity</h3>
     <div class="loop-figure">
         <style>
-    /* Three E's — TRUE 3D Venn (mock v4, 2026-11-22): three glass spheres
-       rendered in WebGL (Three.js) in the same .ees-venn slot (480px cap,
-       centred — the live rule applies to the wrapper). The rendering is
-       v3's: Beer–Lambert absorption (pairwise lenses deeper than single
-       glass, the triple centre deepest) plus real depth cues — a key
-       light with a bright-to-dark gradient across every face, a tight
-       specular spot from that same light, a fresnel rim that defines
-       each silhouette, per-pixel occlusion shading (glass behind glass
-       dims, so the front sphere visibly sits in front), a dim back wall
-       inside each ball, staggered sphere depths, a soft contact shadow
-       under the cluster, and drag inertia so the parallax shows in
-       motion. The shader is the iOS-safe form (individual uniforms, no
-       loops, no uniform-array indexing). Label sizes are
-       container-relative (cqw = 1% of the figure's own width), set from
-       the flat SVG's unit sizes (names 36.54/720, definitions 29.95/720,
-       centre word 34/720) so the type renders at the flat figure's sizes
-       at every width.
-       V4 changes the ARCHITECTURE, not the picture — content first,
-       enhancement second. The flat SVG below is ordinary inline markup,
-       visible with no JavaScript at all, and it is what the page opens
-       on. The WebGL figure boots separately: it builds its canvas
-       off-DOM, renders a test frame there, verifies the frame is
-       non-blank and every program linked, and ONLY THEN swaps the SVG
-       out for the live stage. Any failure at any step — module load,
-       context, compile, link, blank frame, exception, context lost —
-       leaves the flat Venn standing. There is no code path in which
-       the figure area is empty. */
-    .ees3d-wrap { position: relative; width: 100%; container-type: inline-size; --ees-halo: #12161c; }
-    body.light-mode .ees3d-wrap { --ees-halo: #FBF6EA; }
-    .ees3d-stage { position: relative; width: 100%; aspect-ratio: 720 / 643; touch-action: pan-y; cursor: grab; }
-    .ees3d-stage:active { cursor: grabbing; }
-    .ees3d-stage canvas { display: block; width: 100%; height: 100%; }
-    .ees3d-label {
+    /* Three E's — soap-bubble Venn (V5, 2026-11-26): three clear-film
+       bubbles rendered live in WebGL (Three.js) in the same .ees-venn
+       slot (480px cap, centred — the live rule applies to the wrapper).
+       The film itself carries no colour: only light — a broad window
+       reflection, a tight sun glint, and a rim of bent light in each
+       E's colour. Labels are DOM text in screen space, always facing
+       the reader; the centre word kindles when all three overlap and
+       dims when one is pulled away. Drag to turn, hold a bubble to
+       preview it, tap to select it. */
+    /* ===== V3 soap-bubble figure ===== */
+    .venn-wrap { position: relative; width: 100%; container-type: inline-size; }
+    .venn-wrap { --ees-halo: #12161c; }
+    body.light-mode .venn-wrap { --ees-halo: #FBF6EA; }
+    .venn-stage {
+        position: relative; width: 100%; aspect-ratio: 720 / 643;
+        touch-action: pan-y; cursor: grab;
+        overflow-anchor: none;
+    }
+    .venn-stage:active { cursor: grabbing; }
+    .venn-stage canvas { display: block; width: 100%; height: 100%; }
+
+    /* Labels are DOM text in SCREEN SPACE — unchanged law from V1:
+       never rotated, never facing-faded. Names ride at opacity 1;
+       the centre word's brightness is the emergence readout (it
+       kindles in the true Venn, dims when an E is pulled away,
+       and follows the settled open-state rule to 0 while open). */
+    .venn-label {
         position: absolute; left: 0; top: 0; pointer-events: none;
-        color: var(--text-color); white-space: nowrap; will-change: transform, opacity;
-    }
-    .ees3d-center {
-        font-size: 4.72cqw; font-weight: 700; letter-spacing: 0.13em;
-        transform: translate(-50%, -50%);
-        text-shadow: 0 0 7px var(--ees-halo), 0 0 7px var(--ees-halo), 0 0 15px var(--ees-halo);
-    }
-    /* Locked label blocks (2026-11-22): a sphere's name and its
-       definition live in ONE element and are only ever positioned
-       together — by the block's transform in placeLabels(). The first
-       build placed them separately (names projected onto their
-       spheres, definitions standing in fixed CSS positions), so a
-       turn slid each moving name across its own standing definition:
-       Johnny's catch, with a screenshot — "Environment" struck
-       through by its text, "Economy" half-buried. Inside the block
-       the layout is fixed: the name's centre rides on the block's
-       origin (margin-top −4.572cqw = half its line box, 1.8 ×
-       5.08cqw — the body's unitless line-height factor, so the box
-       is the same on every platform), the name is shifted sideways
-       by a fixed offset, and the definition follows at a fixed gap.
-       The offsets and gaps are the at-rest measurements of the
-       separate layout they replace, so the resting figure reads
-       exactly as before. The block's opacity follows its sphere's
-       facing (placeLabels), and a block also yields as its box
-       closes on another block or on the centre word, so a turned
-       figure never stacks text. */
-    .ees3d-block {
-        position: absolute; left: 0; top: 0; pointer-events: none;
-        color: var(--text-color); will-change: transform, opacity;
-    }
-    .ees3d-block-name {
-        margin-top: -4.572cqw; font-size: 5.08cqw; font-weight: 650;
-        white-space: nowrap; text-align: center;
+        color: var(--text-color); white-space: nowrap; z-index: 3;
+        font-size: 5.08cqw; font-weight: 650; text-align: center;
         text-shadow: 0 0 5px var(--ees-halo), 0 0 10px var(--ees-halo);
+        will-change: transform;
     }
-    .ees3d-block-def {
-        font-size: 4.16cqw; line-height: 1.3; text-align: center;
-        text-shadow: 0 0 5px var(--ees-halo), 0 0 9px var(--ees-halo);
+    .venn-center {
+        font-size: 4.72cqw; font-weight: 700; letter-spacing: 0.13em; z-index: 3;
     }
-    .ees3d-block-env { width: 45%; }
-    .ees3d-block-eco { width: 45%; }
-    /* Equity runs 47%, not 50%: at 50% its box reached exactly to
-       the "Drag to turn" chip's left edge at phone width and sat on
-       the definition's last line; at 47% the box clears the chip and
-       the definition keeps its four lines. */
-    .ees3d-block-eq { width: 47%; }
-    .ees3d-block-env .ees3d-block-name { transform: translateX(1.42cqw); }
-    .ees3d-block-eco .ees3d-block-name { transform: translateX(-0.73cqw); }
-    .ees3d-block-env .ees3d-block-def { margin-top: 1.71cqw; }
-    .ees3d-block-eco .ees3d-block-def { margin-top: 1.25cqw; }
-    .ees3d-block-eq .ees3d-block-def { margin-top: -3.91cqw; }
-    .ees3d-hint {
-        position: absolute; right: 2.5%; bottom: 2%; pointer-events: none;
+    .venn-hint {
+        position: absolute; right: 2.5%; bottom: 2%; pointer-events: none; z-index: 3;
         font-size: 0.68rem; color: var(--subtext-color);
         background: var(--card-bg); border: 1px solid var(--border-color);
         padding: 0.14rem 0.55rem; border-radius: 999px;
     }
-
-    /* V1A (landed 2026-11-25): the spheres are the control. At rest
-       they carry names only; a tap grows the sphere in place and its
-       definition + "what counts" open as face text INSIDE the
-       expanded bubble (the .ees-face, positioned by the gesture
-       controller and faded in only after the growth settles and the
-       canvas has re-rendered sharp). The .ees-hit buttons are the
-       keyboard/touch targets that ride their spheres. */
-    .ees-face { position: absolute; left: 0; top: 0; z-index: 4;
-        transform: translate(-50%, -50%); text-align: center;
-        pointer-events: none; opacity: 0; color: var(--text-color);
-        text-shadow: 0 0 6px var(--ees-halo), 0 0 14px var(--ees-halo);
-        transition: opacity 0.25s ease; }
+    /* Face text inside the expanded bubble — same type as live,
+       plus the opaque halo disc (the ghost guard, unchanged). */
+    .ees-face {
+        position: absolute; left: 0; top: 0; z-index: 4;
+        transform: translate(-50%, -50%);
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 50%; pointer-events: none; opacity: 0;
+        color: var(--text-color);
+        background: radial-gradient(circle, var(--ees-halo) 52%, rgba(0,0,0,0) 71%);
+        transition: opacity 0.25s ease;
+    }
+    .ees-face-inner { text-align: center; }
     .ees-face-name { font-family: Georgia, "Times New Roman", serif;
         font-size: 1.06rem; font-weight: 650; margin-bottom: 0.3rem; }
     .ees-face p { margin: 0 0 0.45rem; font-size: 0.94rem; line-height: 1.42; }
     .ees-face p.counts { font-size: 0.87rem; color: var(--subtext-color); }
     .ees-face p:last-child { margin-bottom: 0; }
-    .ees-hit { position: absolute; z-index: 5; border-radius: 50%;
+    .venn-hit { position: absolute; z-index: 5; border-radius: 50%;
+        left: 0; top: 0; width: 100px; height: 100px;
+        transform-origin: 0 0; will-change: transform;
         background: transparent; border: none; padding: 0; margin: 0;
         pointer-events: none; cursor: pointer;
         -webkit-tap-highlight-color: transparent; }
-    .ees-hit:focus-visible { outline: 2px solid var(--text-color); outline-offset: 2px; }
-
-    /* V1A: the choreography anchors the stage's top edge itself, so
-       the browser's own scroll anchoring must not "help" — it would
-       move the stage to keep the caption still, the exact opposite
-       of the design. Scoped to this figure. Canvas motion is
-       transform-only during flight. */
-    .overview-band .loop-figure, .ees3d-wrap, .ees3d-stage { overflow-anchor: none; }
-    .ees3d-stage canvas { will-change: transform; }
+    .venn-hit:focus-visible { outline: 2px solid var(--text-color); outline-offset: 2px; }
+    .overview-band .loop-figure, .venn-wrap, .venn-stage { overflow-anchor: none; }
 </style>
-<div class="ees3d-wrap ees-venn" id="ees3dWrap">
-    <div class="ees3d-stage" id="ees3dStage" role="group" aria-label="The Three E's Venn — three overlapping glass spheres: Environment, Economy, and Equity. Where all three overlap, in the middle, is Sustainability." hidden>
-        <div class="ees3d-block ees3d-block-env" id="ees3dBlockEnv">
-            <div class="ees3d-block-name">Environment</div>
-        </div>
-        <div class="ees3d-block ees3d-block-eco" id="ees3dBlockEco">
-            <div class="ees3d-block-name">Economy</div>
-        </div>
-        <div class="ees3d-block ees3d-block-eq" id="ees3dBlockEq">
-            <div class="ees3d-block-name">Equity</div>
-        </div>
-        <div class="ees3d-label ees3d-center" id="ees3dCenter">SUSTAINABILITY</div>
-        <div class="ees3d-hint" aria-hidden="true">Drag to turn · Hold to preview · Tap to select</div>
-        <div class="ees-face" id="eesFace" aria-hidden="true"></div>
-        <button type="button" class="ees-hit" id="eesHit0" data-e="0" aria-pressed="false" aria-label="Environment sphere — tap to select, hold to preview"></button>
-        <button type="button" class="ees-hit" id="eesHit1" data-e="1" aria-pressed="false" aria-label="Economy sphere — tap to select, hold to preview"></button>
-        <button type="button" class="ees-hit" id="eesHit2" data-e="2" aria-pressed="false" aria-label="Equity sphere — tap to select, hold to preview"></button>
-    </div>
-    <div class="ees-fallback" id="ees3dFallback">
-        <svg class="loop-svg ees-venn" viewBox="0 0 720 643" role="img" aria-label="Three overlapping circles — Environment, Economy, and Equity. A plan passes only where all three overlap.">
-            <g fill="var(--accent-color)" fill-opacity="0.10" stroke="var(--accent-color)" stroke-width="3">
-                <circle cx="210" cy="209" r="205"/>
-                <circle cx="510" cy="209" r="205"/>
-                <circle cx="360" cy="429" r="210"/>
-            </g>
-            <defs>
-                <radialGradient id="vennDish" cx="50%" cy="50%" r="50%">
-                    <stop offset="78%" stop-color="#000" stop-opacity="0"/>
-                    <stop offset="100%" stop-color="#000" stop-opacity="0.10"/>
-                </radialGradient>
-                <linearGradient id="vennLensLight" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="#fff" stop-opacity="0.30"/>
-                    <stop offset="0.55" stop-color="#fff" stop-opacity="0.05"/>
-                    <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-                </linearGradient>
-                <filter id="vennLensShadow" x="-60%" y="-60%" width="220%" height="220%">
-                    <feGaussianBlur stdDeviation="9"/>
-                </filter>
-            </defs>
-            <g fill="url(#vennDish)">
-                <circle cx="210" cy="209" r="205"/>
-                <circle cx="510" cy="209" r="205"/>
-                <circle cx="360" cy="429" r="210"/>
-            </g>
-            <path d="M305.7 226.1 A210 210 0 0 0 414.3 226.1 A205 205 0 0 1 360 348.7 A205 205 0 0 1 305.7 226.1 Z" fill="#000" opacity="0.32" filter="url(#vennLensShadow)" transform="translate(0 9)"/>
-            <path d="M305.7 226.1 A210 210 0 0 0 414.3 226.1 A205 205 0 0 1 360 348.7 A205 205 0 0 1 305.7 226.1 Z" fill="var(--accent-color)" fill-opacity="0.05"/>
-            <path d="M305.7 226.1 A210 210 0 0 0 414.3 226.1 A205 205 0 0 1 360 348.7 A205 205 0 0 1 305.7 226.1 Z" fill="url(#vennLensLight)"/>
-            <circle cx="360" cy="282.3" r="25" fill="var(--accent-color)"/>
-            <g font-size="36.54" font-weight="650" text-anchor="middle" fill="var(--text-color)">
-                <text x="206.5" y="73">Environment</text>
-                <text x="560" y="88">Economy</text>
-                <text x="360" y="429">Equity</text>
-            </g>
-        </svg>
-    </div>
-</div>
+                <div class="venn-wrap ees-venn" id="vennWrap">
+                    <div class="venn-stage" id="vennStage" role="group" aria-label="The Three E's Venn — three overlapping soap bubbles: Environment, Economy, and Equity. Where all three overlap, in the middle, is Sustainability.">
+                        <canvas id="vennCanvas"></canvas>
+                        <div class="venn-label" id="lbl0">Environment</div>
+                        <div class="venn-label" id="lbl1">Economy</div>
+                        <div class="venn-label" id="lbl2">Equity</div>
+                        <div class="venn-label venn-center" id="vennCenter">SUSTAINABILITY</div>
+                        <div class="venn-hint" aria-hidden="true">Drag to turn · Hold to preview · Tap to select</div>
+                        <div class="ees-face" id="vennFace" aria-hidden="true"><div class="ees-face-inner" id="vennFaceInner"></div></div>
+                        <button type="button" class="venn-hit" id="hit0" data-e="0" aria-pressed="false" aria-label="Environment bubble — tap to select, hold to preview"></button>
+                        <button type="button" class="venn-hit" id="hit1" data-e="1" aria-pressed="false" aria-label="Economy bubble — tap to select, hold to preview"></button>
+                        <button type="button" class="venn-hit" id="hit2" data-e="2" aria-pressed="false" aria-label="Equity bubble — tap to select, hold to preview"></button>
+                    </div>
+                </div>
+<script src="three.min.js"></script>
 <script>
 (function () {
-    // V4: the flat SVG is the page's opening state — it is visible in
-    // the markup already, and the WebGL stage starts hidden. fallback()
-    // therefore only has to RESTORE that opening state; it runs on any
-    // failure and can never empty the figure area, because the SVG is
-    // only ever hidden by the module's verified swap (see below).
-    function fallback() {
-        var s = document.getElementById('ees3dStage');
-        var f = document.getElementById('ees3dFallback');
-        if (s) s.hidden = true;
-        if (f) f.hidden = false;
-    }
-    window.__ees3dFallback = fallback;
-    var ok = false;
-    try {
-        var c = document.createElement('canvas');
-        ok = !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
-    } catch (e) { ok = false; }
-    if (!ok) { fallback(); return; }
-    window.__ees3dTimer = setTimeout(function () {
-        if (!window.__ees3dBooted) fallback();
-    }, 6000);
-})();
-</script>
-<script type="importmap">
-{ "imports": { "three": "./three.module.min.js" } }
-</script>
-<script type="module">
-import * as THREE from 'three';
-
-try { boot(); } catch (e) { if (window.__ees3dFallback) window.__ees3dFallback(); }
-
-function boot() {
-    THREE.ColorManagement.enabled = false; // shader outputs raw sRGB = the CSS accent, exactly
-    var wrap = document.getElementById('ees3dWrap');
-    var stage = document.getElementById('ees3dStage');
-    var flatEl = document.getElementById('ees3dFallback');
-    // V4: the canvas is built OFF-DOM. The stage stays hidden and the
-    // flat SVG stays on the page until a test frame drawn on this
-    // canvas has been verified non-blank (see the pre-flight below);
-    // only then is the canvas moved into the stage and the swap made.
-    var canvas = document.createElement('canvas');
-    canvas.id = 'ees3dCanvas';
-    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setClearColor(0x000000, 0);
-
-    var scene = new THREE.Scene();
-    var group = new THREE.Group();
-    group.position.y = 0.395; // centre the cluster's extents on the view
-    scene.add(group);
-
-    var FOV = 36;
-    var camera = new THREE.PerspectiveCamera(FOV, 720 / 643, 0.1, 100);
-
-    // The flat figure's geometry, carried into space (SVG units / 100):
-    // centres rel. the triple point (360, 282.3), radii 205 / 205 / 210.
-    // V2: the centres also stagger in depth (Environment front-left,
-    // Economy back-right, Equity a touch front) so the cluster has a
-    // real front and back before it ever turns — rotation then trades
-    // genuine parallax instead of spinning three discs in one plane.
-    var DEFS = [
-        { c: new THREE.Vector3(-1.50,  0.733,  0.26), r: 2.05, key: 'env', col: new THREE.Color('#3fb950'), meshes: [] },
-        { c: new THREE.Vector3( 1.50,  0.733, -0.26), r: 2.05, key: 'eco', col: new THREE.Color('#e8a13a'), meshes: [] },
-        { c: new THREE.Vector3( 0.00, -1.467,  0.05), r: 2.10, key: 'eq',  col: new THREE.Color('#4da6ff'), meshes: [] }
-    ];
-    var LIGHT = new THREE.Vector3(-0.55, 0.80, 0.55).normalize();
-
-    var vert = [
-        'varying vec3 vN; varying vec3 vW;',
-        'void main() {',
-        '  vN = normalize(mat3(modelMatrix) * normal);',
-        '  vec4 w = modelMatrix * vec4(position, 1.0);',
-        '  vW = w.xyz;',
-        '  gl_Position = projectionMatrix * viewMatrix * w;',
-        '}'
-    ].join('\n');
-    // One shader, two passes per sphere: the front wall (uBack 0) fully
-    // lit, and the far wall seen through the ball (uBack 1) dimmed — a
-    // glass ball has an inside, and the eye reads that as volume.
-    var frag = [
-        'uniform vec3 uColor; uniform float uDensity; uniform float uRadius; uniform vec3 uLight; uniform float uEmph; uniform float uDim;',
-        'uniform vec4 uOtherA; uniform vec4 uOtherB; uniform float uBack; uniform float uBright; uniform float uSpecAmt;',
-        'varying vec3 vN; varying vec3 vW;',
-        '',
-        '// How much front glass the view ray crosses before this fragment:',
-        '// 0 = clear view, 1 = through the thick of a sphere in front.',
-        '// Written per sphere, unrolled — no uniform arrays, no loops:',
-        '// strict WebGL compilers (iOS Safari is the known case) can',
-        '// refuse to link a fragment shader that indexes a uniform',
-        '// array by a loop variable, and the failure is silent: the',
-        '// context lives, nothing draws. The maths is unchanged.',
-        'float glassOne(vec3 ro, vec3 rd, float tFrag, vec4 s) {',
-        '  vec3 oc = ro - s.xyz;',
-        '  float b = dot(oc, rd);',
-        '  float c = dot(oc, oc) - s.w * s.w;',
-        '  float h = b * b - c;',
-        '  float occ = 0.0;',
-        '  if (h > 0.0) {',
-        '    float tN = -b - sqrt(h);',
-        '    if (tN > 0.0 && tN < tFrag - 0.03) {',
-        '      occ = clamp(2.0 * sqrt(h) / (2.0 * s.w), 0.0, 1.0);',
-        '    }',
-        '  }',
-        '  return occ;',
-        '}',
-        'float frontGlass(vec3 ro, vec3 rd, float tFrag) {',
-        '  return max(glassOne(ro, rd, tFrag, uOtherA), glassOne(ro, rd, tFrag, uOtherB));',
-        '}',
-        '',
-        'void main() {',
-        '  vec3 N = normalize(vN);',
-        '  if (uBack > 0.5) N = -N;',
-        '  vec3 V = normalize(cameraPosition - vW);',
-        '  float facing = clamp(dot(N, V), 0.0, 1.0);',
-        '  float chord = 2.0 * uRadius * facing;',              // glass the ray crosses
-        '  float absorb = 1.0 - exp(-uDensity * chord);',       // Beer-Lambert: overlaps deepen
-        '',
-        '  // Occlusion: glass behind glass dims, so in every overlap the',
-        '  // front sphere visibly sits in front of the one behind it.',
-        '  vec3 rd = normalize(vW - cameraPosition);',
-        '  float occ = frontGlass(cameraPosition, rd, length(vW - cameraPosition));',
-        '  float shade = 1.0 - 0.45 * occ;',
-        '',
-        '  // Key light, upper left: wrap diffuse keeps the terminator soft',
-        '  // but the bright-to-dark gradient across the face is unmistakable',
-        '  // (brightness runs ~0.34 in shadow to ~1.3 at the lit pole).',
-        '  float ndl = dot(N, uLight);',
-        '  float wrap = clamp((ndl + 0.45) / 1.45, 0.0, 1.0);',
-        '  float bright = mix(0.34, 1.22, wrap * wrap * (3.0 - 2.0 * wrap));',
-        '  bright += 0.10 * (N.y * 0.5 + 0.5);',                 // hemisphere fill, so undersides are not dead
-        '  vec3 col = uColor * bright * uBright * shade;',
-        '  col *= (1.0 + 0.38 * uEmph) * (1.0 - 0.62 * uDim);',
-        '',
-        '  // Fresnel rim: the silhouette edge catches the light and',
-        '  // defines the sphere as a volume against the page.',
-        '  float fres = pow(1.0 - facing, 3.0);',
-        '  float rimLight = 0.45 + 0.55 * clamp(ndl * 0.5 + 0.5, 0.0, 1.0);',
-        '  col = mix(col, vec3(1.0), fres * 0.42 * rimLight * uBright);',
-        '',
-        '  // Specular: one tight glossy spot from the key light, plus a',
-        '  // broad faint sheen. The spot sits where the light puts it and',
-        '  // belongs to the front glass only (occlusion kills it behind).',
-        '  vec3 H = normalize(uLight + V);',
-        '  float ndh = clamp(dot(N, H), 0.0, 1.0);',
-        '  float spec = (pow(ndh, 160.0) * 0.95 + pow(ndh, 20.0) * 0.10) * uSpecAmt;',
-        '  spec *= (1.0 - occ);',
-        '  col += vec3(1.0) * spec * shade;',
-        '',
-        '  float alpha = clamp((absorb + fres * (0.30 + 0.25 * rimLight) + spec * 0.5 + occ * 0.07) * (1.0 + 0.25 * uEmph) * (1.0 - 0.90 * uDim), 0.0, 0.96);',
-        '  gl_FragColor = vec4(col, alpha);',
-        '}'
-    ].join('\n');
-
-    function accentColor() {
-        var hex = getComputedStyle(document.body).getPropertyValue('--accent-color').trim();
-        return new THREE.Color(hex || '#4da6ff');
-    }
-
-    // Grounding shadow: a soft radial-gradient pool on an implied floor
-    // just under the cluster, drawn first (renderOrder 0), behind the
-    // glass. It stays with the floor while the cluster turns above it —
-    // the counter-shift and breathing in the loop sell the separation.
-    function shadowTexture() {
-        var cv = document.createElement('canvas');
-        cv.width = 256; cv.height = 256;
-        var ctx = cv.getContext('2d');
-        var g = ctx.createRadialGradient(128, 128, 8, 128, 128, 126);
-        g.addColorStop(0.0, 'rgba(0,0,0,0.88)');
-        g.addColorStop(0.55, 'rgba(0,0,0,0.42)');
-        g.addColorStop(1.0, 'rgba(0,0,0,0)');
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, 256, 256);
-        return new THREE.CanvasTexture(cv);
-    }
-    var shadowMat = new THREE.MeshBasicMaterial({
-        map: shadowTexture(), transparent: true, depthWrite: false, opacity: 0.40
-    });
-    var shadow = new THREE.Mesh(new THREE.PlaneGeometry(6.6, 1.35), shadowMat);
-    shadow.position.set(0, -3.42, -0.55);
-    shadow.renderOrder = 0;
-    scene.add(shadow);
-    var shadowBase = 0.40;
-    function themeShadow() {
-        shadowBase = document.body.classList.contains('light-mode') ? 0.27 : 0.40;
-        shadowMat.opacity = shadowBase;
-    }
-    themeShadow();
-
-    // Per sphere: shared uniforms (colour, light, the other spheres'
-    // world centres — the occlusion shader's input) plus a front and a
-    // back material that differ only in their pass constants.
-    var units = [];
-    var glassMats = [];
-    var sphereMeshes = [];
-    DEFS.forEach(function (d, i) {
-        var shared = {
-            uColor: { value: accentColor() },
-            uRadius: { value: d.r },
-            uLight: { value: LIGHT },
-            uOtherA: { value: new THREE.Vector4() },
-            uOtherB: { value: new THREE.Vector4() },
-            uEmph: { value: 0 },
-            uDim: { value: 0 }
-        };
-        function passMat(side, back, density, bright, specAmt, order) {
-            var uniforms = Object.assign({}, shared, {
-                uDensity: { value: density },
-                uBack: { value: back },
-                uBright: { value: bright },
-                uSpecAmt: { value: specAmt }
-            });
-            var mat = new THREE.ShaderMaterial({
-                vertexShader: vert, fragmentShader: frag, uniforms: uniforms,
-                transparent: true, depthWrite: false, side: side
-            });
-            var m = new THREE.Mesh(new THREE.SphereGeometry(d.r, 96, 64), mat);
-            m.position.copy(d.c);
-            d.meshes.push(m);
-            m.renderOrder = order;
-            group.add(m);
-            return mat;
-        }
-        glassMats.push(passMat(THREE.BackSide, 1, 0.055, 0.45, 0.12, 1));   // the dim far wall
-        glassMats.push(passMat(THREE.FrontSide, 0, 0.085, 1.00, 1.00, 2));  // the lit front
-        units.push(shared);
-        sphereMeshes.push(d.meshes);
-    });
-    new MutationObserver(function () {
-        var c = accentColor();
-        accentCache.copy(c);
-        units.forEach(function (u) { u.uColor.value.copy(c); });
-        themeShadow();
-    }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-
-    // Feed each sphere's shader the other two spheres' world centres
-    // (xyz) and radii (w), every frame — the occlusion test is pure
-    // ray geometry, so the front/back shading stays true at any angle.
-    var _c = new THREE.Vector3();
-    function updateOthers() {
-        group.updateMatrixWorld();
-        for (var i = 0; i < 3; i++) {
-            var pair = [units[i].uOtherA.value, units[i].uOtherB.value], k = 0;
-            for (var j = 0; j < 3; j++) {
-                if (j === i) continue;
-                _c.copy(DEFS[j].c).applyMatrix4(group.matrixWorld);
-                pair[k].set(_c.x, _c.y, _c.z, DEFS[j].r);
-                k++;
-            }
-        }
-    }
-
-    // Label blocks ride their spheres: each block is anchored on its
-    // sphere's surface point. The block's box is placed at the anchor
-    // plus a fixed sideways offset (offX, a fraction of the stage
-    // width) chosen so the box lands where the at-rest definition
-    // stood; inside the block, the name sits centred on the anchor
-    // itself (see the .ees3d-block CSS). The whole block — name and
-    // definition together, never separately — takes its sphere's
-    // facing as its opacity: full facing the viewer, fading as the
-    // sphere turns away, gone when behind. Facing alone cannot keep
-    // turned states clean, though: at moderate turns two blocks can
-    // converge while both still face the viewer, and a tipped block
-    // can sink onto the centre word at full facing. So a block also
-    // YIELDS on approach: each frame, the blocks' boxes (measured
-    // from the live DOM once per fit — a block is rigid, so its
-    // edges relative to its own origin never change) are compared
-    // pairwise and against the centre word's box, and as a box
-    // closes within the yield band the block with the lower facing
-    // — the one turning away — melts out, reaching zero at contact;
-    // a block always yields to the centre word, which never fades.
-    // Two visible blocks can therefore never stack. The yield is
-    // gated by the group's turn on each axis, though (see
-    // placeLabels):
-    // the idle drift's combined path carries Economy's box to
-    // within ~1–4px of Environment's box and the centre word, so
-    // an ungated yield melts Economy out while the figure idles —
-    // a first-time visitor met a bare sphere. Inside the gate's
-    // dead-zone the yield is held at 1 and nothing ever fades.
-    var blocks = [
-        { el: document.getElementById('ees3dBlockEnv'), c: DEFS[0].c, r: DEFS[0].r, dir: new THREE.Vector3(-0.05, 0.60, 0.80).normalize(), offX: -0.23917 },
-        { el: document.getElementById('ees3dBlockEco'), c: DEFS[1].c, r: DEFS[1].r, dir: new THREE.Vector3(0.12, 0.58, 0.80).normalize(), offX: -0.21771 },
-        { el: document.getElementById('ees3dBlockEq'),  c: DEFS[2].c, r: DEFS[2].r, dir: new THREE.Vector3(0.00, 0.05, 1.00).normalize(), offX: -0.25000 }
-    ];
-    var centerEl = document.getElementById('ees3dCenter');
-    var _v = new THREE.Vector3(), _w = new THREE.Vector3(), _d = new THREE.Vector3();
-    function projectToStage(v3, w, h) {
-        _w.copy(v3);
-        group.localToWorld(_w);
-        var p = _w.clone().project(camera);
-        return { x: (p.x * 0.5 + 0.5) * w, y: (-p.y * 0.5 + 0.5) * h };
-    }
-    var boxesMeasured = false, centerBox = null;
-    var YIELD_BAND = 6 / 480; // fraction of the stage width
-    function measureBoxes(w) {
-        var sr = stage.getBoundingClientRect();
-        blocks.forEach(function (B) {
-            var range = document.createRange();
-            range.selectNodeContents(B.el.querySelector('.ees3d-block-name'));
-            var nr = range.getBoundingClientRect(), dr = nr; // V1A: names only — the box is the name's box
-            B.relL = (Math.min(nr.left, dr.left) - sr.left - B._bx) / w;
-            B.relT = (Math.min(nr.top, dr.top) - sr.top - B._by) / w;
-            B.relR = (Math.max(nr.right, dr.right) - sr.left - B._bx) / w;
-            B.relB = (Math.max(nr.bottom, dr.bottom) - sr.top - B._by) / w;
-        });
-        var cr = centerEl.getBoundingClientRect();
-        centerBox = { l: (cr.left - sr.left) / w, t: (cr.top - sr.top) / w, r: (cr.right - sr.left) / w, b: (cr.bottom - sr.top) / w };
-        boxesMeasured = true;
-    }
-    function boxGap(a, b) {
-        var ox = Math.min(a.r, b.r) - Math.max(a.l, b.l);
-        var oy = Math.min(a.b, b.b) - Math.max(a.t, b.t);
-        return (ox > 0 && oy > 0) ? -Math.min(ox, oy) : Math.max(-ox, -oy);
-    }
-    function placeLabels() {
-        var w = stage.clientWidth || wrap.clientWidth, h = stage.clientHeight || Math.round(w * 643 / 720);
-        group.updateMatrixWorld();
-        blocks.forEach(function (B) {
-            _v.copy(B.c).addScaledVector(B.dir, B.r * 0.98);
-            var a = projectToStage(_v, w, h);
-            B._bx = a.x + B.offX * w; B._by = a.y;
-            B.el.style.transform = 'translate(' + B._bx.toFixed(1) + 'px,' + B._by.toFixed(1) + 'px)';
-            _d.copy(B.dir).applyQuaternion(group.quaternion);
-            B._facing = _d.dot(_v.copy(camera.position).sub(_w).normalize());
-            B._yield = 1;
-        });
-        var c0 = projectToStage(_v.set(0, 0, 0), w, h);
-        centerEl.style.transform = 'translate(-50%, -50%) translate(' + c0.x.toFixed(1) + 'px,' + c0.y.toFixed(1) + 'px)';
-        if (!boxesMeasured && stage.clientWidth) measureBoxes(w);
-        if (boxesMeasured) {
-            var band = YIELD_BAND * w;
-            var boxes = blocks.map(function (B) {
-                return { l: B._bx + B.relL * w, t: B._by + B.relT * w, r: B._bx + B.relR * w, b: B._by + B.relB * w };
-            });
-            var cBox = { l: centerBox.l * w, t: centerBox.t * w, r: centerBox.r * w, b: centerBox.b * w };
-            blocks.forEach(function (B, i) {
-                var g = boxGap(boxes[i], cBox);
-                if (g < band) B._yield = Math.min(B._yield, THREE.MathUtils.clamp(g / band, 0, 1));
-            });
-            for (var i = 0; i < blocks.length; i++) for (var j = i + 1; j < blocks.length; j++) {
-                var g2 = boxGap(boxes[i], boxes[j]);
-                if (g2 >= band) continue;
-                var f = THREE.MathUtils.clamp(g2 / band, 0, 1), dF = blocks[i]._facing - blocks[j]._facing;
-                if (dF > 0.02) blocks[j]._yield = Math.min(blocks[j]._yield, f);
-                else if (dF < -0.02) blocks[i]._yield = Math.min(blocks[i]._yield, f);
-                else { blocks[i]._yield = Math.min(blocks[i]._yield, f); blocks[j]._yield = Math.min(blocks[j]._yield, f); }
-            }
-        }
-        // Turn gate: the yield's authority scales with the group's
-        // turn on EACH axis, measured against the drift's own reach
-        // on that axis — rotY ±0.37 rad, rotX ±0.11 rad. Inside a
-        // dead-zone just past the drift (rotY 0.39, rotX 0.13) the
-        // yield is held at 1, so no fade can engage at rest, in the
-        // drift, or on a settling drag's last degrees, on any
-        // device, whatever its text metrics do to the boxes. Past
-        // the dead-zone the gate opens over ~0.05 rad and reaches
-        // full authority (rotY 0.44, rotX 0.19) just before the
-        // boxes first touch, so a genuinely turned figure melts
-        // its converging block out across the contact, as before.
-        // The axis angles come out of the group's own matrix:
-        // for the (rotX, rotY, 0) pose, e[8] is sin(rotY) and
-        // atan2(−e[9], e[10]) is rotX.
-        var me = group.matrix.elements;
-        var rotY = Math.asin(THREE.MathUtils.clamp(me[8], -1, 1));
-        var rotX = Math.atan2(-me[9], me[10]);
-        var gate = Math.max(
-            THREE.MathUtils.clamp((Math.abs(rotY) - 0.39) / 0.05, 0, 1),
-            THREE.MathUtils.clamp((Math.abs(rotX) - 0.13) / 0.06, 0, 1));
-        if (gate < 1) blocks.forEach(function (B) { B._yield = 1 - gate * (1 - B._yield); });
-        blocks.forEach(function (B, bi) {
-            var o = THREE.MathUtils.clamp((B._facing + 0.10) / 0.45, 0, 1) * B._yield;
-            // Label cleanup (2026-11-25): while a sphere is open or
-            // previewed, the other spheres' names are fully hidden,
-            // not dimmed to ghosts — the open bubble is a clean
-            // reading surface with no text behind the face. (The
-            // heart word is already at 0 in an open frame; the
-            // choreography owns it.) labelFade is the turn fade:
-            // 1 at rest, eased to 0 by the loop while the figure
-            // is turning under the visitor's hand.
-            if (selOpen >= 0) o *= (bi === selOpen ? 0 : 0);
-            B.el.style.opacity = (o * labelFade).toFixed(2);
-        });
-    }
-
-    // V1A: selection state + per-sphere pose animation. The gesture
-    // controller sets pose targets through window.__eesAPI; the
-    // render loop eases each sphere's scale, offset, colour and dim
-    // toward them and drives the shader uniforms + mesh transforms
-    // from the eased values. Occlusion uniforms still use the
-    // resting centres, so shading between spheres is approximate
-    // while one is expanded.
-    var selOpen = -1;
-    var flightSquash = 1; // V1A: inverse of the canvas's flight stretch
-    var centerTarget = 1, centerCur = 1;
-    var accentCache = accentColor();
-    var anim = [];
-    for (var ai0 = 0; ai0 < 3; ai0++) {
-        anim.push({
-            s: 1, x: 0, y: 0, z: 0, e: 0, d: 0,
-            t: { s: 1, x: 0, y: 0, z: 0, e: 0, d: 0 },
-            col: accentColor()
-        });
-    }
-    var _pv = new THREE.Vector3();
-    function stepAnim() {
-        for (var i = 0; i < 3; i++) {
-            var A = anim[i], T = A.t, k = 0.13;
-            A.s += (T.s - A.s) * k; A.x += (T.x - A.x) * k;
-            A.y += (T.y - A.y) * k; A.z += (T.z - A.z) * k;
-            A.e += (T.e - A.e) * k; A.d += (T.d - A.d) * k;
-            var ms = sphereMeshes[i];
-            for (var mi = 0; mi < ms.length; mi++) {
-                ms[mi].position.set(DEFS[i].c.x + A.x, DEFS[i].c.y + A.y, DEFS[i].c.z + A.z);
-                // V1A: while the canvas is transform-stretched during
-                // a stage flight, each sphere's local Y scale carries
-                // the inverse factor, so the drawn spheres stay
-                // circular at every instant of the flight.
-                ms[mi].scale.set(A.s, A.s * flightSquash, A.s);
-            }
-            units[i].uEmph.value = A.e;
-            units[i].uDim.value = A.d;
-            A.col.lerp(T.e > 0.01 ? DEFS[i].col : accentCache, 0.13);
-            units[i].uColor.value.copy(A.col);
-        }
-        centerCur += (centerTarget - centerCur) * 0.13;
-        centerEl.style.opacity = (centerCur * labelFade).toFixed(2);
-    }
-    window.__eesAPI = {
-        setPose: function (i, pose) {
-            var T = anim[i].t;
-            if (pose.scale !== undefined) T.s = pose.scale;
-            if (pose.off) { T.x = pose.off[0]; T.y = pose.off[1]; T.z = pose.off[2]; }
-            if (pose.emph !== undefined) T.e = pose.emph;
-            if (pose.dim !== undefined) T.d = pose.dim;
-        },
-        setOpen: function (i) { selOpen = i; },
-        setCenter: function (v) { centerTarget = v; },
-        poseSettled: function () {
-            for (var i = 0; i < 3; i++) {
-                var A = anim[i], T = A.t;
-                if (Math.abs(A.s - T.s) > 0.01 || Math.abs(A.z - T.z) > 0.02 ||
-                    Math.abs(A.x - T.x) > 0.02 || Math.abs(A.y - T.y) > 0.02) return false;
-            }
-            return true;
-        },
-        project: function (i) {
-            var A = anim[i];
-            _pv.copy(DEFS[i].c); _pv.x += A.x; _pv.y += A.y; _pv.z += A.z;
-            group.localToWorld(_pv);
-            var p = _pv.clone().project(camera);
-            var w = stage.clientWidth || 1, h = stage.clientHeight || 1;
-            var cx = (p.x * 0.5 + 0.5) * w, cy = (-p.y * 0.5 + 0.5) * h;
-            var right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
-            var rp = _pv.clone().addScaledVector(right, DEFS[i].r * A.s).project(camera);
-            var rx = (rp.x * 0.5 + 0.5) * w, ry = (-rp.y * 0.5 + 0.5) * h;
-            return { x: cx, y: cy, r: Math.sqrt((rx - cx) * (rx - cx) + (ry - cy) * (ry - cy)) };
-        },
-        stageSize: function () { return { w: stage.clientWidth, h: stage.clientHeight }; },
-        // V1A: exact pose writes (current = target, no easing lag)
-        // so the choreography clock is the only source of motion,
-        // plus the settle-time sharp refit to the grown stage size.
-        setPoseExact: function (i, pose) {
-            var A = anim[i];
-            if (pose.scale !== undefined) { A.s = pose.scale; A.t.s = pose.scale; }
-            if (pose.off) { A.x = pose.off[0]; A.y = pose.off[1]; A.z = pose.off[2]; A.t.x = pose.off[0]; A.t.y = pose.off[1]; A.t.z = pose.off[2]; }
-            if (pose.emph !== undefined) { A.e = pose.emph; A.t.e = pose.emph; }
-            if (pose.dim !== undefined) { A.d = pose.dim; A.t.d = pose.dim; }
-            A.col.copy(A.t.e > 0.01 ? DEFS[i].col : accentCache);
-        },
-        setCenterExact: function (v) { centerTarget = v; centerCur = v; centerEl.style.opacity = (v * labelFade).toFixed(2); },
-        setFlightSquash: function (f) { flightSquash = f; },
-        refitSharp: function (hPx) {
-            var w = wrap.clientWidth;
-            renderer.setSize(w, hPx, false);
-            camera.aspect = w / hPx;
-            camera.updateProjectionMatrix();
-        },
-        restoreFit: function () { fit(); },
-        getDistance: function () { return camera.position.z; },
-        setDistance: function (d) { camera.position.set(0, 0, d); camera.lookAt(0, 0, 0); },
-        sphereR: function (i) { return DEFS[i].r * anim[i].s; }
-    };
-
-    function fit() {
-        if (window.__eesHoldFit) return; // V1A: the choreography owns the stage size while a sphere is open or in flight
-        // Sized from the WRAPPER, which is on the page from the first
-        // paint (it holds the flat SVG), so the off-DOM canvas gets its
-        // true size while the stage is still hidden. The stage's own
-        // box is this same width at the same 720 / 643 aspect.
-        var w = wrap.clientWidth, h = Math.round(w * 643 / 720);
-        if (!w || !h) return;
-        renderer.setSize(w, h, false);
-        boxesMeasured = false; // label boxes are re-measured at the new size
-        camera.aspect = w / h;
-        var t = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
-        var d = Math.max(3.25 / t, 3.62 / (t * camera.aspect)) * 1.03;
-        camera.position.set(0, 0, d);
-        camera.lookAt(0, 0, 0);
-        camera.updateProjectionMatrix();
-    }
-    new ResizeObserver(fit).observe(wrap);
-    fit();
-
-    // Pre-flight: prove the glass actually draws — on the off-DOM
-    // canvas, before anything on the page changes. A shader can fail
-    // to compile or link on a strict driver (iOS Safari is the known
-    // case) while the context itself is perfectly healthy — Three then
-    // draws nothing and throws nothing. So render one frame now, check
-    // every glass program's link and compile status where Three
-    // exposes it, and read pixels back from the middle of the frame
-    // with the shadow hidden, so only glass can register. Any failure
-    // leaves the flat SVG standing and the animation loop never
-    // starts. A context lost later reverts the swap the same way.
-    var gl = renderer.getContext();
-    var dead = false;
-    function revert() {
-        dead = true;
-        if (window.__ees3dFallback) window.__ees3dFallback();
-    }
-    canvas.addEventListener('webglcontextlost', function () { revert(); });
-    function programsOK() {
-        try {
-            for (var i = 0; i < glassMats.length; i++) {
-                var props = renderer.properties.get(glassMats[i]);
-                var prog = props && (props.currentProgram || props.__webglProgram);
-                var native = prog && prog.program ? prog.program : prog;
-                if (!native || !gl.isProgram(native)) continue; // shape not recognised — the pixel test decides
-                if (!gl.getProgramParameter(native, gl.LINK_STATUS)) return false;
-                var shaders = gl.getAttachedShaders(native) || [];
-                for (var s = 0; s < shaders.length; s++) {
-                    if (!gl.getShaderParameter(shaders[s], gl.COMPILE_STATUS)) return false;
-                }
-            }
-        } catch (e) { /* internals differ by build — the pixel test decides */ }
-        return true;
-    }
-    function frameDraws() {
-        shadow.visible = false;
-        var threw = false;
-        try { renderer.render(scene, camera); } catch (e) { threw = true; }
-        shadow.visible = true;
-        if (threw) return false;
-        if (!programsOK()) return false;
-        var gw = gl.drawingBufferWidth, gh = gl.drawingBufferHeight;
-        if (!gw || !gh) return true; // no buffer to sample — the status checks above stand
-        var px = new Uint8Array(4);
-        for (var gy = 0.38; gy <= 0.63; gy += 0.05) {
-            for (var gx = 0.32; gx <= 0.69; gx += 0.05) {
-                gl.readPixels(Math.floor(gx * gw), Math.floor(gy * gh), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-                if (px[3] > 0) return true;
-            }
-        }
-        return false;
-    }
-    updateOthers(); // feed the occlusion uniforms, so the test frame is the real frame
-    if (!frameDraws()) {
-        if (window.__ees3dFallback) window.__ees3dFallback();
-        return;
-    }
-
-    // VERIFIED — this is the only place the figure changes state. The
-    // tested canvas moves into the stage, the stage is unhidden, and
-    // the flat SVG is hidden. Everything before this line left the
-    // page exactly as it opened: flat Venn, fully usable.
-    stage.insertBefore(canvas, stage.firstChild);
-    stage.hidden = false;
-    flatEl.hidden = true;
-
-    // Rotation: drag to turn, with inertia — a flick keeps turning and
-    // glides to a stop, so the staggered depths sweep past each other
-    // and the parallax is felt, not just seen. A slow idle drift resumes
-    // after 3 s untouched. Reduced motion = no drift, no inertia, no
-    // glide: the front view, still.
-    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    var params = new URLSearchParams(location.search);
-    var targetRX = 0, targetRY = 0, rotX = 0, rotY = 0;
-    if (params.has('spin')) { targetRY = rotY = THREE.MathUtils.degToRad(parseFloat(params.get('spin')) || 0); }
-    if (params.has('spinx')) { targetRX = rotX = THREE.MathUtils.degToRad(parseFloat(params.get('spinx')) || 0); }
-    var fixed = params.has('spin') || params.has('spinx');
-    var dragging = false, lastX = 0, lastY = 0, lastTouch = 0;
-    var velRX = 0, velRY = 0;
-    // Label cleanup (2026-11-25): labelFade multiplies every label
-    // opacity the figure writes — the name blocks in placeLabels and
-    // the centre word in stepAnim / setCenterExact. It is 1 at rest
-    // (so the resting figure is exactly the approved one) and is
-    // eased to 0 by the loop while a hand-driven turn is live.
-    var labelFade = 1, turnHoldUntil = 0, labelFadeT = 0;
-    // V1A: the stage's drag is driven through this handle — the
-    // gesture controller classifies each press (drag / hold / tap)
-    // and calls grab/move/end only for true drags, so a hold or a
-    // tap never turns the figure. The step maths, velocity
-    // smoothing, clamps and endDrag are the figure's own.
-    function endDrag() {
-        dragging = false; lastTouch = performance.now();
-        if (reduced) { velRX = 0; velRY = 0; }
-    }
-    window.__eesDrag = {
-        grab: function () {
-            dragging = true; velRX = 0; velRY = 0; // a grab kills the spin
-            lastTouch = performance.now();
-        },
-        move: function (dx, dy, isTouch) {
-            var stepY = dx * 0.0055;
-            targetRY += stepY;
-            velRY = velRY * 0.65 + stepY * 0.35;
-            if (!isTouch) { // touch: vertical stays page scroll
-                var stepX = dy * 0.0055;
-                targetRX += stepX;
-                velRX = velRX * 0.65 + stepX * 0.35;
-            }
-            targetRX = THREE.MathUtils.clamp(targetRX, -1.15, 1.15);
-            lastTouch = performance.now();
-        },
-        end: function () { endDrag(); },
-        turn: function () { return { x: rotX, y: rotY }; }
-    };
-
-    var visible = true;
-    new IntersectionObserver(function (en) { visible = en[0].isIntersecting; }, { threshold: 0.02 }).observe(stage);
-
-    window.__ees3dBooted = true;
-    if (window.__ees3dTimer) clearTimeout(window.__ees3dTimer);
-
-    (function loop(now) {
-        if (dead) return; // context lost after the swap — the flat Venn is back; stop
-        requestAnimationFrame(loop);
-        if (!visible) return;
-        if (!fixed && !reduced) {
-            if (!dragging && (Math.abs(velRY) > 0.00004 || Math.abs(velRX) > 0.00004)) {
-                // inertia: the flick runs on, decaying, until it is spent
-                targetRY += velRY;
-                targetRX = THREE.MathUtils.clamp(targetRX + velRX, -1.15, 1.15);
-                velRY *= 0.94; velRX *= 0.94;
-                lastTouch = now;
-            } else if (!dragging && now - lastTouch > 3000) {
-                // idle drift: two slow sines, so the cluster never quite
-                // repeats its path and the depth keeps quietly showing
-                targetRY = 0.32 * Math.sin(now * 0.00033) + 0.05 * Math.sin(now * 0.00011 + 2.1);
-                targetRX = 0.11 * Math.sin(now * 0.00026 + 1.3);
-            }
-        }
-        // Label cleanup (2026-11-25): while the figure is turning
-        // under the visitor's hand — a drag in progress, or the
-        // inertia glide it leaves behind, plus a short tail while
-        // the last degrees settle — the labels fade out, so no
-        // mid-turn frame can show a doubled or smeared name; they
-        // fade back in as the figure comes to rest. The idle drift
-        // is not a turn: it sets neither the drag flag nor the
-        // velocities, so the resting figure keeps its names.
-        if (dragging || (!fixed && !reduced && (Math.abs(velRY) > 0.00004 || Math.abs(velRX) > 0.00004))) turnHoldUntil = now + 350;
-        var fadeTarget = now < turnHoldUntil ? 0 : 1;
-        var fadeDt = Math.min(100, now - labelFadeT); labelFadeT = now;
-        labelFade += (fadeTarget - labelFade) * (1 - Math.exp(-fadeDt / 40));
-        if (Math.abs(labelFade - fadeTarget) < 0.02) labelFade = fadeTarget;
-        var k = reduced ? 1 : 0.085;
-        rotY += (targetRY - rotY) * k;
-        rotX += (targetRX - rotX) * k;
-        group.rotation.set(rotX, rotY, 0);
-        stepAnim();
-        updateOthers();
-        // The shadow stays with the floor: it counter-shifts a little
-        // against the turn and breathes wider as the cluster swings.
-        var sway = Math.abs(Math.sin(rotY));
-        shadow.position.x = -Math.sin(rotY) * 0.45;
-        shadow.scale.set(1 + 0.10 * sway + 0.08 * Math.max(0, rotX), 1, 1);
-        shadowMat.opacity = shadowBase * (1 - 0.12 * sway);
-        placeLabels();
-        renderer.render(scene, camera);
-    })(performance.now());
-}
-</script>
-<script>
-// =====================================================================
-// The Three E's Venn — gesture controller (V1A, landed 2026-11-25):
-// drag = turn · hold = preview · tap = lock. One rAF choreography
-// clock grows the tapped sphere in place and breathes the stage
-// taller by exactly the room its text needs; the words fade in only
-// once the growth has settled and the canvas has re-rendered sharp.
-// Ported from Johnny's approved mockup (variant V1A) without
-// redesign; V3 remains the fallback if the feel fails on his phone.
-// =====================================================================
-(function () {
-    var KEYS = ['env', 'eco', 'eq'];
+    'use strict';
+    /* ===== Content, verbatim from the live figure (unchanged) ===== */
     var NAMES = ['Environment', 'Economy', 'Equity'];
+    var KEYS = ['env', 'eco', 'eq'];
     var COLORS = ['#3fb950', '#e8a13a', '#4da6ff'];
+    var COLRGB = [[63, 185, 80], [232, 161, 58], [77, 166, 255]];
     var FACE = {
         env: { def: 'Actively preserving and enhancing ecological systems.',
                counts: ['Ecological restoration, biodiversity, water, energy, and resource conservation.'] },
@@ -2019,16 +1245,6 @@ function boot() {
                counts: ['<strong>Equity is not charity:</strong> it means fair access to opportunities, fair compensation, participation in decisions, and sharing the benefits and costs of progress.',
                         'Opportunity, accessibility, worker welfare, affordability, and community benefits.'] }
     };
-    var HOMES = [[-1.50, 0.733, 0.26], [1.50, 0.733, -0.26], [0.00, -1.467, 0.05]];
-    var HOLD_MS = 250, MOVE_T = 9; // ms to preview · px of travel that makes a drag
-
-    var locked = -1, preview = -1, lastOpen = -1;
-    var API = null, DRAG = null;
-    var stage, face, hits = [];
-    var fitTimer = null;
-
-    function openIdx() { return preview >= 0 ? preview : locked; }
-
     function faceHTML(i) {
         var f = FACE[KEYS[i]];
         return '<div class="ees-face-name" style="color:' + COLORS[i] + '">' + NAMES[i] + '</div>' +
@@ -2036,325 +1252,753 @@ function boot() {
             f.counts.map(function (c) { return '<p class="counts">' + c + '</p>'; }).join('');
     }
 
-    function hideFace() {
-        face.dataset.open = '0';
-        face.style.opacity = '0';
-        clearInterval(fitTimer);
+    /* ===== Geometry: the flat figure's own numbers (unchanged) ===== */
+    var CX = 360, CY = 282.3, SQUASH0 = 0.82;
+    var HOME = [{ x: 210, y: 209, r: 205 }, { x: 510, y: 209, r: 205 }, { x: 360, y: 429, r: 210 }];
+    var POL = HOME.map(function (h) {
+        var dx = h.x - CX, dz = (h.y - CY) / SQUASH0;
+        return { dx: dx, dz: dz, R: Math.hypot(dx, dz) };
+    });
+    var NAME_OFF = [{ x: -0.02, y: -0.66 }, { x: 0.24, y: -0.59 }, { x: 0.0, y: 0.0 }];
+
+    var HOLD_MS = 250, MOVE_T = 9; // the live gesture timings
+
+    /* ===== Each E its own physical character =====
+       env: buoyant — soft spring, low damping, lazy drift, deep breath
+       eco: weighty — stiff spring, more damping, strong elongation
+       eq:  warm/calm — mid spring, the most damping, settles smooth */
+    var PHYS = [
+        { k: 80,  z: 0.30, sk: 52, sz: 0.38, drift: 1.3, breath: 0.017, elong: 0.8 },
+        { k: 118, z: 0.44, sk: 82, sz: 0.50, drift: 0.8, breath: 0.009, elong: 1.35 },
+        { k: 95,  z: 0.54, sk: 70, sz: 0.56, drift: 0.9, breath: 0.011, elong: 1.0 }
+    ];
+
+    var stage = document.getElementById('vennStage');
+    var wrap = document.getElementById('vennWrap');
+    var canvas = document.getElementById('vennCanvas');
+    var face = document.getElementById('vennFace');
+    var faceInner = document.getElementById('vennFaceInner');
+    var centerEl = document.getElementById('vennCenter');
+    var hintEl = stage.querySelector('.venn-hint');
+    var labels = [0, 1, 2].map(function (i) { return document.getElementById('lbl' + i); });
+    var hits = [0, 1, 2].map(function (i) { return document.getElementById('hit' + i); });
+
+    var REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    var W = 0, H0 = 0, Hcur = 0, DPR = 1;
+    var theta = 0, thetaVel = 0, pitch = 0;
+    var locked = -1, preview = -1, lastOpen = -1;
+    var openE = 0, openTargets = null;
+    var pull = { i: -1, tx: 0, ty: 0, ox: 0, oy: 0 };
+    var timeS = 0, lastT = 0, inView = true;
+    var fpsFrames = 0, fpsStart = 0, fpsVal = 0;
+    var kindle = 1, kindleTarget = 1;
+
+    var bubbles = HOME.map(function (h, i) {
+        return { x: 0, y: 0, vx: 0, vy: 0, s: 1, sv: 0, alpha: 1,
+                 wz: 0, ds: 1, phase: i * 2.13, rotX: 0, rotY: 0, dX: 0, dY: 0 };
+    });
+
+    function u2px() { return W / 720; }
+    function openIdx() { return preview >= 0 ? preview : locked; }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+    function smooth(a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
+
+    function turnedHome(i) {
+        var p = POL[i], ct = Math.cos(theta), st = Math.sin(theta);
+        var wx = p.dx * ct - p.dz * st, wz = p.dx * st + p.dz * ct;
+        var squash = SQUASH0 + pitch * 0.35;
+        return { x: (CX + wx) * u2px(), y: (CY + wz * squash) * u2px(), wz: wz };
+    }
+    function rNow(i) {
+        var b = bubbles[i];
+        return HOME[i].r * u2px() * b.s * b.ds;
     }
 
-    // ----- V1A · Grow in place + animated stage -----
-    // One rAF clock drives the whole choreography: every visual value
-    // (sphere poses, stage height, canvas scale, hint, centre word) is
-    // a pure function of the clock's eased progress between a snapshot
-    // frame and a target frame. Any gesture mid-flight snapshots the
-    // current frame and starts a new segment from it, so interrupts
-    // and spam can never strand a half-state. The WebGL canvas is
-    // never resized during flight — it stretches by transform and is
-    // re-rendered sharp once, at settle, at the grown size.
-    var v1a = { ready: false, H0: 0, W: 0, targets: null, cur: null,
-                seg: null, raf: 0, bufferH: 0, settledOpen: -1, segments: [] };
-    var OPEN_MS = 320; // open and close share the duration family
+    /* ===== Physics: one spring per bubble, each in its own register,
+       plus the emergence readout (kept from V1's model, extended) ===== */
+    function step(dt) {
+        timeS += dt;
+        if (!g || g.mode !== 'turn') {
+            theta += thetaVel * dt * 60;
+            thetaVel *= Math.pow(0.94, dt * 60);
+            if (Math.abs(thetaVel) < 1e-5) thetaVel = 0;
+            pitch *= Math.pow(0.95, dt * 60);
+        }
+        var open = openIdx();
+        var oT = open >= 0 ? 1 : 0;
+        var kE = 1 - Math.exp(-dt * 9);
+        openE += (oT - openE) * kE;
+        if (Math.abs(oT - openE) < 0.002) openE = oT;
+        if (open >= 0) lastOpen = open;
+        var H1 = (openTargets && lastOpen >= 0) ? openTargets[lastOpen].H1 : H0;
+        Hcur = H0 + (H1 - H0) * openE;
+        if (openE > 0 || Math.abs(Hcur - H0) > 0.5) stage.style.height = Hcur + 'px';
+        else if (stage.style.height) stage.style.height = '';
 
-    function easeIO(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
-
-    function v1aComputeTargets() {
-        // Measure each sphere's text block across widths and take the
-        // width whose corner bound is smallest; the bubble diameter
-        // then guarantees >= 13px of rim clearance at that width.
-        var tan = Math.tan(18 * Math.PI / 180), d0 = API.getDistance();
-        var out = [];
-        face.dataset.open = '0';
+        var oth = open >= 0 ? turnedHome(open) : null;
+        var worst = 0;
         for (var i = 0; i < 3; i++) {
-            face.innerHTML = faceHTML(i);
-            face.style.visibility = 'hidden'; face.style.opacity = '0';
+            var b = bubbles[i], P = PHYS[i], th = turnedHome(i);
+            b.wz = th.wz;
+            b.ds = 1 + clamp(th.wz / POL[i].R, -1, 1) * 0.025;
+            var tx = th.x, ty = th.y, ts = 1, ta = 1;
+            if (open >= 0 && openTargets) {
+                var T = openTargets[open];
+                if (i === open) {
+                    tx = lerp(th.x, W / 2, openE);
+                    ty = lerp(th.y, Hcur / 2, openE);
+                    ts = lerp(1, T.scale, openE);
+                } else {
+                    var dx = th.x - oth.x, dy = th.y - oth.y, m = Math.hypot(dx, dy) || 1;
+                    tx = th.x + (dx / m) * 85 * u2px() * openE;
+                    ty = th.y + (dy / m) * 85 * u2px() * openE;
+                    ts = lerp(1, 0.5, openE);
+                    ta = lerp(1, 0.30, openE);
+                }
+            }
+            if (pull.i === i) { tx = pull.tx; ty = pull.ty; }
+            var breath = 1;
+            if (!REDUCED && open < 0 && pull.i !== i) {
+                breath = 1 + P.breath * Math.sin(timeS * 0.85 + b.phase * 2.3);
+                tx += Math.sin(timeS * 0.50 + b.phase) * 3.2 * P.drift;
+                ty += Math.cos(timeS * 0.43 + b.phase * 1.7) * 2.6 * P.drift;
+            }
+            ts *= breath;
+            var pulled = pull.i === i;
+            var stiff = pulled ? P.k * 2.2 : P.k;
+            var zeta = REDUCED ? 1.0 : (pulled ? Math.min(0.9, P.z * 1.7) : P.z);
+            var c = 2 * Math.sqrt(stiff) * zeta;
+            b.vx += ((tx - b.x) * stiff - b.vx * c) * dt;
+            b.vy += ((ty - b.y) * stiff - b.vy * c) * dt;
+            b.x += b.vx * dt; b.y += b.vy * dt;
+            var sc = 2 * Math.sqrt(P.sk) * (REDUCED ? 1 : P.sz);
+            b.sv += ((ts - b.s) * P.sk - b.sv * sc) * dt;
+            b.s += b.sv * dt;
+            b.alpha += (ta - b.alpha) * Math.min(1, dt * 10);
+            // orientation: the film turns with the figure and leans
+            // with velocity — as a soap film's sheen rides its
+            // surface, the reflections lean with the motion.
+            var par = REDUCED ? 0.3 : 1;
+            var tRotY = (Math.sin(theta) * 0.38 + clamp(b.vx * 0.00045, -0.35, 0.35)) * par;
+            var tRotX = (pitch * 0.7 - clamp(b.vy * 0.00045, -0.4, 0.4)) * par;
+            var rk = 1 - Math.exp(-dt * 7);
+            b.rotY += (tRotY - b.rotY) * rk;
+            b.rotX += (tRotX - b.rotX) * rk;
+            var dk = 1 - Math.exp(-dt * 5);
+            b.dX += (clamp(-b.vx * 0.00006, -0.05, 0.05) * par - b.dX) * dk;
+            b.dY += (clamp(b.vy * 0.00006, -0.05, 0.05) * par - b.dY) * dk;
+            // emergence: distance from the true Venn, in radii —
+            // the worst-separated E governs (remove one, all dims)
+            if (open < 0) {
+                var sep = Math.hypot(b.x - th.x, b.y - th.y) / Math.max(1, rNow(i));
+                if (sep > worst) worst = sep;
+            }
+        }
+        kindleTarget = open >= 0 ? kindleTarget : 1 - smooth(0.10, 0.68, worst);
+        kindle += (kindleTarget - kindle) * (1 - Math.exp(-dt * (REDUCED ? 2.5 : 5)));
+    }
+
+    /* ===== The clear film: WebGL bubbles with nothing inside
+       them, and no colour in the film. Each bubble is two shells
+       of one shader — the far film (dimmer) and the near film.
+       The film computes no hue at all: face-on it is present
+       only as light — a sky-lit luminance veil and the painted
+       sky's broad window patch reflected in it, one tight sun
+       point inside a soft halo, and a fresnel rim that goes
+       luminous at grazing angles. Identity
+       rides as tint, not colour: each bubble's film holds a
+       subtle even wash of its E colour, like coloured glass
+       catching light, and the rim light carries the colour,
+       softened toward white. The only surface variation is a brightness sheen
+       (a scalar — it can brighten or dim, never tint). Where two
+       shells cross, a bright filament ring is drawn on the true
+       intersection circle — the Plateau border where real joined
+       bubbles meet — so the cluster reads fused, and the ring
+       dies when the join breaks. A perspective camera puts the
+       cluster in front of the page plane: near bubbles loom,
+       reflections sweep per-fragment as it turns. ===== */
+    var renderer = null, scene = null, camera = null;
+    var ballRoot = [], ballSquash = [], ballUnit = [], ballTilt = [];
+    var filmMatF = [], filmMatB = [];
+    var seamMesh = [], seamCur = [0, 0, 0], seamState = [{ vis: false, op: 0 }, { vis: false, op: 0 }, { vis: false, op: 0 }];
+    var SEAM_PAIRS = [[0, 1], [0, 2], [1, 2]];
+    var glowHalo = null, glowCore = null, shadowPlane = null;
+    var glowCool = null, glowWarm = null, glowCol = null;
+    var rendererW = 0, rendererH = 0, glOK = false;
+    var filmTime = 0;
+
+    var FILM_VERT =
+        'varying vec3 vN; varying vec3 vNv; varying vec3 vWp; varying vec3 vObj;' +
+        'void main(){ vObj = position;' +
+        ' vN = normalize(mat3(modelMatrix) * normal);' +
+        ' vNv = normalize(normalMatrix * normal);' +
+        ' vec4 wp = modelMatrix * vec4(position, 1.0); vWp = wp.xyz;' +
+        ' gl_Position = projectionMatrix * viewMatrix * wp; }';
+    var FILM_FRAG =
+        'uniform sampler2D uEnv; uniform vec3 uTint; uniform float uTime;' +
+        'uniform float uSeed; uniform float uBack; uniform float uLight;' +
+        'uniform float uAlphaMul; uniform float uKindle;' +
+        'varying vec3 vN; varying vec3 vNv; varying vec3 vWp; varying vec3 vObj;' +
+        'void main(){ vec3 N = normalize(vN);' +
+        ' vec3 V = normalize(cameraPosition - vWp);' +
+        ' float cosI = abs(dot(N, V));' +
+        // a clear film: no colour is computed anywhere. V5 gives
+        // the film presence face-on — a raised reflection floor,
+        // a sky-light gradient and a luminance veil — so a surface
+        // reads as a surface even looking straight through it; at
+        // grazing angles the fresnel term takes over and the rim
+        // goes luminous.
+        ' float fres = pow(1.0 - cosI, 3.0);' +
+        ' float F = 0.14 + 0.86 * pow(1.0 - cosI, 5.0);' +
+        // brightness only, never hue: a broad soft sheen that sits
+        // a little lower on the bubble, as the film drains, and
+        // drifts slowly with time — a scalar multiplier, so it can
+        // brighten or dim the reflections but never colour them.
+        // It is the least variation that keeps the surface readable
+        // while the bubble turns.
+        ' float sheen = 0.93 + 0.12 * smoothstep(0.55, -0.9, vObj.y)' +
+        '   + 0.05 * sin(vObj.x * 2.2 + vObj.y * 1.6 + uSeed * 7.0 + uTime * 0.05)' +
+        '          * sin(vObj.z * 1.9 - uSeed * 3.0);' +
+        // environment reflection (a matcap of the painted sky: the
+        // window patch rides the view-space normal, so it sweeps
+        // across the film as the bubble turns) + the sun point
+        ' vec3 env = texture2D(uEnv, normalize(vNv).xy * 0.5 + 0.5).rgb;' +
+        ' float envLum = dot(env, vec3(0.3333));' +
+        // sky light on the film: a broad brightness gradient from
+        // the world normal, lit from above — monochromatic, so
+        // the surface reads present face-on without any colour
+        ' float sky = 0.74 + 0.52 * (N.y * 0.5 + 0.5);' +
+        ' vec3 L = normalize(vec3(-0.45, 0.75, 0.65));' +
+        ' vec3 Hv = normalize(L + V);' +
+        ' float ndh = max(dot(N, Hv), 0.0);' +
+        // the sun is a tight point now, wrapped in a soft halo;
+        // the big soft window patch in the matcap does the rest
+        ' float spec = pow(ndh, 1100.0) * 2.3;' +
+        ' float halo = pow(ndh, 90.0) * 0.16;' +
+        ' float gain = mix(0.95, 1.24, uLight);' +
+        // identity, without colour in the film: a whisper of even
+        // tint through the whole bubble, like coloured glass
+        // catching light, and a clearer note of the same colour
+        // in the rim
+        // film presence: the faintest reflected-environment
+        // luminance laid over the whole surface, graded by the
+        // sky light and carrying only a whisper of the bubble's
+        // own tint — brightness, never hue
+        ' vec3 veil = vec3(envLum) * (0.13 + 0.05 * uKindle) * sky * gain' +
+        '   * mix(1.0, 0.5, uLight)' +
+        '   * mix(vec3(1.0), uTint + vec3(0.45), 0.22);' +
+        // the rim: the E colour softened toward white — light
+        // bending at the edge, the colour as its note, not a
+        // glowing outline; a touch deeper on the cream theme,
+        // where the rim and the shadow carry the definition
+        ' vec3 rimCol = mix(uTint, vec3(1.0), 0.38);' +
+        ' vec3 col = env * F * (2.4 + 0.6 * uKindle) * sheen * gain' +
+        '   + veil' +
+        '   + vec3(1.0) * (spec + halo)' +
+        '   + uTint * 0.07 * (0.62 + 0.18 * uLight)' +
+        '   + rimCol * fres * 0.88 * (0.62 + 0.30 * uLight);' +
+        ' float a = clamp(0.015 + fres * 0.72 + F * 0.7 + spec + halo * 0.5' +
+        '   + envLum * 0.08 * sky * mix(1.0, 0.6, uLight)' +
+        '   + dot(uTint, vec3(0.3333)) * 0.05, 0.0, 1.0);' +
+        ' a *= mix(1.0, 1.18, uLight);' +
+        ' if (uBack > 0.5) { col *= 0.5; a *= 0.42; }' +
+        ' gl_FragColor = vec4(col, clamp(a, 0.0, 1.0) * uAlphaMul); }';
+
+    function radialTexture(stops, size) {
+        var cv = document.createElement('canvas'); cv.width = cv.height = size || 256;
+        var c2 = cv.getContext('2d');
+        var gr = c2.createRadialGradient(128, 128, 0, 128, 128, 128);
+        stops.forEach(function (s) { gr.addColorStop(s[0], s[1]); });
+        c2.fillStyle = gr; c2.fillRect(0, 0, cv.width, cv.height);
+        return new THREE.CanvasTexture(cv);
+    }
+    function envTexture() {
+        // A small painted sky as a MATCAP (the view a mirror ball
+        // would show): bright sky above, a broad soft window patch
+        // upper left, a warm horizon band, dark floor below — enough
+        // structure for a film to reflect.
+        var cv = document.createElement('canvas'); cv.width = 1024; cv.height = 512;
+        var c2 = cv.getContext('2d');
+        var gr = c2.createLinearGradient(0, 0, 0, 512);
+        gr.addColorStop(0, '#e9f4fd'); gr.addColorStop(0.42, '#a9c4da');
+        gr.addColorStop(0.58, '#f4dfae'); gr.addColorStop(0.74, '#6f6a58');
+        gr.addColorStop(1, '#2e3134');
+        c2.fillStyle = gr; c2.fillRect(0, 0, 1024, 512);
+        function blob(x, y, r, col, a) {
+            var g2 = c2.createRadialGradient(x, y, 0, x, y, r);
+            g2.addColorStop(0, 'rgba(' + col + ',' + a + ')');
+            g2.addColorStop(1, 'rgba(' + col + ',0)');
+            c2.fillStyle = g2; c2.fillRect(x - r, y - r, r * 2, r * 2);
+        }
+        blob(290, 115, 215, '255,255,255', 0.8);
+        blob(290, 115, 85, '255,255,255', 0.5);
+        blob(810, 250, 175, '255,214,150', 0.7);
+        blob(810, 250, 75, '255,226,170', 0.55);
+        blob(560, 70, 110, '210,235,255', 0.7);
+        blob(100, 300, 90, '255,255,255', 0.55);
+        blob(950, 150, 80, '255,255,255', 0.5);
+        var t = new THREE.CanvasTexture(cv);
+        return t;
+    }
+    function filmMaterial(col, back, envTex) {
+        return new THREE.ShaderMaterial({
+            uniforms: { uEnv: { value: envTex }, uTint: { value: col },
+                uTime: { value: 0 }, uSeed: { value: 0 }, uBack: { value: back },
+                uLight: { value: 0 }, uAlphaMul: { value: 1 }, uKindle: { value: 1 } },
+            vertexShader: FILM_VERT, fragmentShader: FILM_FRAG,
+            transparent: true, depthWrite: false,
+            side: back ? THREE.BackSide : THREE.FrontSide });
+    }
+    function buildGL() {
+        try {
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true,
+                powerPreference: 'high-performance' });
+        } catch (e) { return; }
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(40.6, 1, 1, 5000);
+        camera.position.set(0, 0, 600);
+        var envTex = envTexture();
+
+        var glowTex = radialTexture([[0, 'rgba(255,255,255,1)'], [0.35, 'rgba(255,255,255,0.42)'],
+            [1, 'rgba(255,255,255,0)']]);
+        var shadowTex = radialTexture([[0, 'rgba(0,0,0,0.85)'], [0.6, 'rgba(0,0,0,0.4)'],
+            [1, 'rgba(0,0,0,0)']]);
+
+        for (var i = 0; i < 3; i++) {
+            (function (i) {
+                var col = new THREE.Color(COLORS[i]);
+                var root = new THREE.Group(), squash = new THREE.Group(),
+                    unit = new THREE.Group(), tilt = new THREE.Group();
+                root.add(squash); squash.add(unit); unit.add(tilt);
+                filmMatB[i] = filmMaterial(col, 1, envTex);
+                filmMatB[i].uniforms.uSeed.value = i * 3.7 + 1.3;
+                var back = new THREE.Mesh(new THREE.SphereGeometry(0.995, 44, 30), filmMatB[i]);
+                tilt.add(back);
+                filmMatF[i] = filmMaterial(col, 0, envTex);
+                filmMatF[i].uniforms.uSeed.value = i * 3.7 + 1.3;
+                var front = new THREE.Mesh(new THREE.SphereGeometry(1, 44, 30), filmMatF[i]);
+                tilt.add(front);
+                scene.add(root);
+                ballRoot.push(root); ballSquash.push(squash); ballUnit.push(unit);
+                ballTilt.push(tilt);
+                root.userData.parts = { back: back, front: front };
+            })(i);
+        }
+        // the joins: one filament ring per pair, seated each frame
+        // on the true circle where the two shells intersect. The
+        // ring's far arc is dimmed in its shader — a real Plateau
+        // border shines on the near side and only ghosts through
+        // the films from behind.
+        for (var s = 0; s < 3; s++) {
+            var ca = new THREE.Color(COLORS[SEAM_PAIRS[s][0]]);
+            var cb = new THREE.Color(COLORS[SEAM_PAIRS[s][1]]);
+            ca.lerp(cb, 0.5).lerp(new THREE.Color(0xffffff), 0.38);
+            var ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.016, 8, 100),
+                new THREE.ShaderMaterial({
+                    uniforms: { uColor: { value: ca }, uOpacity: { value: 0 },
+                        uMidZ: { value: 0 }, uFadeR: { value: 100 } },
+                    vertexShader:
+                        'varying vec3 vWp;' +
+                        'void main(){ vec4 wp = modelMatrix * vec4(position, 1.0);' +
+                        ' vWp = wp.xyz;' +
+                        ' gl_Position = projectionMatrix * viewMatrix * wp; }',
+                    fragmentShader:
+                        'uniform vec3 uColor; uniform float uOpacity;' +
+                        'uniform float uMidZ; uniform float uFadeR;' +
+                        'varying vec3 vWp;' +
+                        'void main(){ float f = mix(0.20, 1.0,' +
+                        '   smoothstep(-uFadeR, uFadeR, vWp.z - uMidZ));' +
+                        ' gl_FragColor = vec4(uColor, uOpacity * f); }',
+                    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+            ring.renderOrder = 45;
+            ring.visible = false;
+            scene.add(ring);
+            seamMesh.push(ring);
+        }
+        shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1),
+            new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, opacity: 0.3, depthWrite: false }));
+        shadowPlane.renderOrder = 1;
+        scene.add(shadowPlane);
+        glowCool = new THREE.Color(0.42, 0.50, 0.64);
+        glowWarm = new THREE.Color(1.0, 0.79, 0.47);
+        glowCol = new THREE.Color();
+        function mkGlow() {
+            var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex,
+                transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+                depthTest: false, depthWrite: false }));
+            scene.add(sp); return sp;
+        }
+        glowHalo = mkGlow(); glowHalo.renderOrder = 60;
+        glowCore = mkGlow(); glowCore.renderOrder = 61;
+        glOK = true;
+    }
+
+    function render3D(dt) {
+        if (!glOK) return;
+        filmTime += dt * (REDUCED ? 0.12 : 1);
+        var bh = Math.round(Hcur);
+        if (rendererW !== W || rendererH !== bh) {
+            rendererW = W; rendererH = bh;
+            renderer.setSize(W, bh, false);
+            // perspective, framed so the page plane (z = 0) maps 1:1
+            // to CSS pixels — the cluster floats in front of it
+            var D = bh * 1.35;
+            camera.aspect = W / bh;
+            camera.position.set(W / 2, -bh / 2, D);
+            camera.lookAt(W / 2, -bh / 2, 0);
+            camera.updateProjectionMatrix();
+        }
+        var light = document.body.classList.contains('light-mode');
+        // soft contact shadow under the cluster (V1's bounds, kept)
+        var minX = 1e9, maxX = -1e9, maxY = -1e9, sumR = 0;
+        for (var i = 0; i < 3; i++) {
+            var r = rNow(i); sumR += r;
+            minX = Math.min(minX, bubbles[i].x - r);
+            maxX = Math.max(maxX, bubbles[i].x + r);
+            maxY = Math.max(maxY, bubbles[i].y + r);
+        }
+        var avgR = sumR / 3;
+        shadowPlane.position.set((minX + maxX) / 2, -(maxY + 10), -40);
+        shadowPlane.scale.set((maxX - minX) * 1.02, (maxX - minX) * 0.20, 1);
+        shadowPlane.material.opacity = light ? 0.24 : 0.30;
+        // the emergence light: gathers in the triple lens, warm when
+        // kindled, cool and thin when an E is pulled away
+        var cx = (bubbles[0].x + bubbles[1].x + bubbles[2].x) / 3;
+        var cy = (bubbles[0].y + bubbles[1].y + bubbles[2].y) / 3;
+        glowCol.lerpColors(glowCool, glowWarm, kindle);
+        var gVis = 1 - openE;
+        glowHalo.position.set(cx, -cy, 40);
+        glowHalo.scale.set(avgR * (2.2 + 0.4 * kindle), avgR * (2.2 + 0.4 * kindle), 1);
+        glowHalo.material.color.copy(glowCol);
+        glowHalo.material.opacity = (0.02 + 0.20 * Math.pow(kindle, 1.4)) * gVis;
+        glowCore.position.set(cx, -cy, 41);
+        glowCore.scale.set(avgR * 0.95, avgR * 0.95, 1);
+        glowCore.material.color.copy(glowCol);
+        glowCore.material.opacity = (0.02 + 0.22 * Math.pow(kindle, 2.0)) * gVis;
+        // far bubbles painted first, near bubbles last (V1's order)
+        var order = [0, 1, 2].sort(function (a, b2) { return bubbles[a].wz - bubbles[b2].wz; });
+        var worldC = [];
+        for (var j = 0; j < 3; j++) {
+            var i2 = order[j], b = bubbles[i2], root = ballRoot[i2], P = PHYS[i2];
+            var base = 10 + j * 10, parts = root.userData.parts;
+            parts.back.renderOrder = base;
+            parts.front.renderOrder = base + 4;
+            root.position.set(b.x, -b.y, b.wz * 0.22);
+            root.visible = b.alpha > 0.01;
+            var sp = Math.hypot(b.vx, b.vy);
+            var el = Math.min(0.15, sp * 0.00012 * P.elong);
+            if (el > 0.01) {
+                ballSquash[i2].rotation.z = Math.atan2(-b.vy, b.vx);
+                ballSquash[i2].scale.set(1 + el, 1 - el * 0.55, 1);
+            } else { ballSquash[i2].scale.set(1, 1, 1); }
+            ballUnit[i2].scale.setScalar(Math.max(1, rNow(i2)));
+            ballTilt[i2].rotation.y = b.rotY;
+            ballTilt[i2].rotation.x = b.rotX;
+            var am = 0.35 + 0.65 * b.alpha;
+            filmMatF[i2].uniforms.uTime.value = filmTime;
+            filmMatF[i2].uniforms.uAlphaMul.value = am;
+            filmMatF[i2].uniforms.uLight.value = light ? 1 : 0;
+            filmMatF[i2].uniforms.uKindle.value = kindle;
+            filmMatB[i2].uniforms.uTime.value = filmTime;
+            filmMatB[i2].uniforms.uAlphaMul.value = am;
+            filmMatB[i2].uniforms.uLight.value = light ? 1 : 0;
+            filmMatB[i2].uniforms.uKindle.value = kindle;
+            worldC[i2] = { x: b.x, y: -b.y, z: b.wz * 0.22, r: rNow(i2), a: b.alpha };
+        }
+        // seat the join rings on the true intersection circles; a
+        // ring fades in as the shells meet and dies as the join breaks
+        var ZAXIS = new THREE.Vector3(0, 0, 1);
+        for (var s2 = 0; s2 < 3; s2++) {
+            var A = worldC[SEAM_PAIRS[s2][0]], B = worldC[SEAM_PAIRS[s2][1]];
+            var dvx = B.x - A.x, dvy = B.y - A.y, dvz = B.z - A.z;
+            var d = Math.hypot(dvx, dvy, dvz);
+            var target = 0;
+            if (d < A.r + B.r - 1 && d > Math.abs(A.r - B.r) + 1 && d > 0.001) {
+                var a2 = (A.r * A.r - B.r * B.r + d * d) / (2 * d);
+                var h = Math.sqrt(Math.max(A.r * A.r - a2 * a2, 0.01));
+                var ring = seamMesh[s2];
+                ring.position.set(A.x + dvx * (a2 / d), A.y + dvy * (a2 / d), A.z + dvz * (a2 / d));
+                ring.quaternion.setFromUnitVectors(ZAXIS,
+                    new THREE.Vector3(dvx / d, dvy / d, dvz / d));
+                ring.scale.set(h, h, h);
+                var jf = clamp((A.r + B.r - d) / (0.25 * Math.min(A.r, B.r)), 0, 1);
+                target = jf * (0.24 + 0.40 * kindle) * Math.min(A.a, B.a) * (1 - openE);
+                seamMesh[s2].material.uniforms.uMidZ.value = (A.z + B.z) / 2;
+                seamMesh[s2].material.uniforms.uFadeR.value = Math.min(A.r, B.r) * 0.9;
+            }
+            seamCur[s2] += (target - seamCur[s2]) * Math.min(1, dt * 7);
+            if (seamCur[s2] < 0.004 && target === 0) seamCur[s2] = 0;
+            seamMesh[s2].material.uniforms.uOpacity.value = seamCur[s2];
+            seamMesh[s2].visible = seamCur[s2] > 0.004;
+            seamState[s2] = { vis: seamMesh[s2].visible, op: Math.round(seamCur[s2] * 1000) / 1000 };
+        }
+        renderer.render(scene, camera);
+    }
+
+    /* ===== Labels: screen-space riders + slide-avoidance (V1,
+       unchanged) — plus the centre word as the emergence readout:
+       it kindles at full strength in the true Venn and dims, but
+       never vanishes, as an E is pulled away. ===== */
+    var labelSize = [{ w: 0, h: 0 }, { w: 0, h: 0 }, { w: 0, h: 0 }], centerSize = { w: 0, h: 0 };
+    function measureText() {
+        for (var i = 0; i < 3; i++) labelSize[i] = { w: labels[i].offsetWidth, h: labels[i].offsetHeight };
+        centerSize = { w: centerEl.offsetWidth, h: centerEl.offsetHeight };
+    }
+    function placeLabels() {
+        var open = openIdx();
+        var cx = (bubbles[0].x + bubbles[1].x + bubbles[2].x) / 3;
+        var cy = (bubbles[0].y + bubbles[1].y + bubbles[2].y) / 3;
+        centerEl.style.transform = 'translate(-50%, -50%) translate(' + cx.toFixed(1) + 'px,' + cy.toFixed(1) + 'px)';
+        centerEl.style.opacity = ((1 - openE) * (0.30 + 0.70 * kindle)).toFixed(3);
+        centerEl.style.textShadow = '0 0 5px var(--ees-halo), 0 0 10px var(--ees-halo), 0 0 ' +
+            (Math.round((12 + 30 * kindle) / 4) * 4) + 'px rgba(255,196,96,' +
+            (Math.round(0.6 * kindle * (1 - openE) * 50) / 50).toFixed(2) + ')';
+        hintEl.style.opacity = (1 - openE).toFixed(3);
+        hintEl.style.visibility = openE > 0.98 ? 'hidden' : 'visible';
+        var pos = [];
+        for (var i = 0; i < 3; i++) {
+            var r0 = rNow(i);
+            pos.push({ x: bubbles[i].x + NAME_OFF[i].x * r0, y: bubbles[i].y + NAME_OFF[i].y * r0 });
+        }
+        if (openE < 0.05) {
+            var obs = [{ x: cx, y: cy, w: centerSize.w, h: centerSize.h }];
+            for (var pass = 0; pass < 3; pass++) {
+                for (var a = 0; a < 3; a++) {
+                    var all = obs.slice();
+                    for (var j2 = 0; j2 < 3; j2++) {
+                        if (j2 !== a) all.push({ x: pos[j2].x, y: pos[j2].y, w: labelSize[j2].w, h: labelSize[j2].h });
+                    }
+                    for (var o = 0; o < all.length; o++) {
+                        var ob = all[o];
+                        var ox = (labelSize[a].w + ob.w) / 2 - Math.abs(pos[a].x - ob.x);
+                        var oy = (labelSize[a].h + ob.h) / 2 - Math.abs(pos[a].y - ob.y);
+                        if (ox > 0 && oy > 0) {
+                            if (ox < oy) pos[a].x += pos[a].x >= ob.x ? ox + 0.5 : -(ox + 0.5);
+                            else pos[a].y += pos[a].y >= ob.y ? oy + 0.5 : -(oy + 0.5);
+                        }
+                    }
+                    var bb = bubbles[a], rr = rNow(a) * 0.95;
+                    var dx = pos[a].x - bb.x, dy = pos[a].y - bb.y, dd = Math.hypot(dx, dy);
+                    if (dd > rr) { pos[a].x = bb.x + dx / dd * rr; pos[a].y = bb.y + dy / dd * rr; }
+                }
+            }
+        }
+        for (var j = 0; j < 3; j++) {
+            labels[j].style.transform = 'translate(-50%, -50%) translate(' + pos[j].x.toFixed(1) + 'px,' + pos[j].y.toFixed(1) + 'px)';
+            labels[j].style.opacity = (1 - openE).toFixed(3);
+            var bj = bubbles[j], rj = rNow(j), btn = hits[j];
+            btn.style.transform = 'translate(' + (bj.x - rj).toFixed(1) + 'px,' +
+                (bj.y - rj).toFixed(1) + 'px) scale(' + (rj / 50).toFixed(3) + ')';
+        }
+        if (open >= 0 && openTargets) {
+            var bo = bubbles[open], T = openTargets[open];
+            face.style.left = bo.x + 'px';
+            face.style.top = bo.y + 'px';
+            face.style.width = T.D + 'px';
+            face.style.height = T.D + 'px';
+            faceInner.style.width = T.w + 'px';
+            face.style.opacity = openE > 0.85 ? '1' : '0';
+        } else {
+            face.style.opacity = '0';
+        }
+    }
+
+    /* ===== Expansion targets: the live measure, ported (V1) ===== */
+    function computeTargets() {
+        var out = [];
+        face.style.visibility = 'hidden';
+        face.style.opacity = '0';
+        face.style.width = 'auto'; face.style.height = 'auto';
+        face.style.left = '-9999px'; face.style.top = '0';
+        for (var i = 0; i < 3; i++) {
+            faceInner.innerHTML = faceHTML(i);
             var best = null;
             for (var w = 230; w <= 320; w += 5) {
-                face.style.width = w + 'px';
-                var h = face.scrollHeight;
+                faceInner.style.width = w + 'px';
+                var h = faceInner.scrollHeight;
                 var bound = Math.sqrt((w / 2) * (w / 2) + (h / 2) * (h / 2));
                 if (!best || bound < best.bound) best = { w: w, h: h, bound: bound };
             }
             var D = Math.ceil(2 * (best.bound + 13));
-            var z = HOMES[i][2] + 1.5;
-            var scale = (D / 2) * tan * (d0 - z) / ((v1a.H0 / 2) * (i === 2 ? 2.10 : 2.05));
-            out.push({ D: D, w: best.w, h: best.h, bound: Math.round(best.bound * 10) / 10,
-                       H1: D + 48, scale: Math.round(scale * 1000) / 1000,
-                       off: [-HOMES[i][0] * 0.92, -HOMES[i][1] * 0.92, 1.5] });
+            out.push({ D: D, w: best.w, h: best.h,
+                       scale: Math.round((D / 2) / (HOME[i].r * u2px()) * 1000) / 1000,
+                       H1: D + 48 });
         }
-        face.innerHTML = '';
-        return out;
-    }
-    function v1aInit() {
-        v1a.W = stage.clientWidth; v1a.H0 = stage.clientHeight;
-        v1a.bufferH = v1a.H0;
-        v1a.targets = v1aComputeTargets();
-        v1a.cur = v1aRestFrame();
-        v1a.ready = true;
-    }
-    function v1aRestFrame() {
-        return { sphere: -1, e: 0, stageH: v1a.H0, center: 1, hint: 1,
-                 poses: [0, 1, 2].map(function () { return { scale: 1, off: [0, 0, 0], emph: 0, dim: 0 }; }) };
-    }
-    function v1aOpenFrame(s) {
-        var T = v1a.targets[s], poses = [];
-        for (var j = 0; j < 3; j++) {
-            if (j === s) poses.push({ scale: T.scale, off: T.off.slice(), emph: 1, dim: 0 });
-            else {
-                var dx = HOMES[j][0] - HOMES[s][0], dy = HOMES[j][1] - HOMES[s][1];
-                var m = Math.hypot(dx, dy) || 1;
-                poses.push({ scale: 0.5, off: [dx / m * 0.85, dy / m * 0.85, -0.9], emph: 0, dim: 0.78 });
-            }
-        }
-        return { sphere: s, e: 1, stageH: T.H1, center: 0, hint: 0, poses: poses };
-    }
-    function v1aLerpFrame(a, b, t) {
-        var f = { sphere: t >= 1 ? b.sphere : (a.sphere >= 0 ? a.sphere : b.sphere),
-                  e: a.e + (b.e - a.e) * t,
-                  stageH: a.stageH + (b.stageH - a.stageH) * t,
-                  center: a.center + (b.center - a.center) * t,
-                  hint: a.hint + (b.hint - a.hint) * t, poses: [] };
-        for (var i = 0; i < 3; i++) {
-            var pa = a.poses[i], pb = b.poses[i];
-            f.poses.push({ scale: pa.scale + (pb.scale - pa.scale) * t,
-                off: [pa.off[0] + (pb.off[0] - pa.off[0]) * t,
-                      pa.off[1] + (pb.off[1] - pa.off[1]) * t,
-                      pa.off[2] + (pb.off[2] - pa.off[2]) * t],
-                emph: pa.emph + (pb.emph - pa.emph) * t,
-                dim: pa.dim + (pb.dim - pa.dim) * t });
-        }
-        return f;
-    }
-    function v1aApplyFrame(f) {
-        for (var i = 0; i < 3; i++) API.setPoseExact(i, f.poses[i]);
-        API.setFlightSquash(v1a.bufferH / f.stageH); // cancel the canvas stretch per-sphere: circles stay circles
-        API.setCenterExact(f.center);
-        API.setOpen(f.sphere >= 0 && f.e > 0.03 ? f.sphere : -1);
-        stage.style.height = f.stageH + 'px';
-        var cv = document.getElementById('ees3dCanvas');
-        if (cv) {
-            cv.style.height = v1a.bufferH + 'px';
-            cv.style.transformOrigin = '50% 0';
-            cv.style.transform = 'scaleY(' + (f.stageH / v1a.bufferH) + ')';
-        }
-        var hint = stage.querySelector('.ees3d-hint');
-        hint.style.opacity = f.hint.toFixed(3);
-        hint.style.visibility = f.hint <= 0.02 ? 'hidden' : 'visible';
-        v1a.cur = f;
-    }
-    function v1aSettle(f) {
-        v1a.cur = f;
-        API.setFlightSquash(1);
-        var cv = document.getElementById('ees3dCanvas');
-        if (f.sphere >= 0 && f.e === 1) {
-            var s = f.sphere, T = v1a.targets[s], k, pr;
-            API.refitSharp(T.H1); // one sharp re-render at the grown size
-            for (k = 0; k < 6; k++) { // solve camera distance for the exact diameter
-                pr = API.project(s);
-                if (Math.abs(pr.r * 2 - T.D) < 1) break;
-                API.setDistance(API.getDistance() * (pr.r / (T.D / 2)));
-            }
-            for (k = 0; k < 4; k++) { // centre the sphere in the grown stage
-                pr = API.project(s);
-                var dx = v1a.W / 2 - pr.x, dy = T.H1 / 2 - pr.y;
-                if (Math.abs(dx) < 2 && Math.abs(dy) < 2) break;
-                var wpp = API.sphereR(s) / pr.r;
-                var off = f.poses[s].off.slice();
-                off[0] += dx * wpp; off[1] -= dy * wpp;
-                f.poses[s].off = off;
-                API.setPoseExact(s, f.poses[s]);
-            }
-            for (k = 0; k < 2; k++) {
-                pr = API.project(s);
-                if (Math.abs(pr.r * 2 - T.D) < 1) break;
-                API.setDistance(API.getDistance() * (pr.r / (T.D / 2)));
-            }
-            pr = API.project(s);
-            v1a.bufferH = T.H1;
-            if (cv) { cv.style.transform = ''; cv.style.height = ''; }
-            // text fades in only now — growth first, words at full size
-            face.innerHTML = faceHTML(s);
-            face.dataset.open = 'v1a';
-            face.style.width = T.w + 'px';
-            face.style.left = pr.x + 'px';
-            face.style.top = pr.y + 'px';
-            face.style.visibility = 'visible';
-            var h = face.scrollHeight;
-            var bound = Math.sqrt((T.w / 2) * (T.w / 2) + (h / 2) * (h / 2));
-            var clearance = pr.r - bound;
-            window.__eesFit = { variant: 'v1a', e: KEYS[s], bubbleDiameterPx: Math.round(pr.r * 2),
-                textWidthPx: T.w, textHeightPx: h,
-                cornerOverflowPx: Math.max(0, Math.round(-clearance * 10) / 10),
-                clearancePx: Math.round(clearance * 10) / 10, stageHeightPx: T.H1,
-                defFont: '0.94rem (15.0px)', countsFont: '0.87rem (13.9px)' };
-            face.style.opacity = '1';
-            v1a.settledOpen = s;
-        } else {
-            window.__eesHoldFit = false;
-            API.restoreFit(); // rest framing, sharp at the rest size
-            stage.style.height = '';
-            if (cv) { cv.style.transform = ''; cv.style.height = ''; }
-            v1a.bufferH = v1a.H0;
-            v1a.settledOpen = -1;
-        }
-    }
-    function v1aChoreoTo(target) {
-        var from = v1a.cur || v1aRestFrame();
-        var morph = (from.sphere >= 0 && target.sphere >= 0 && from.sphere !== target.sphere) ? 1 : 0;
-        var dist = Math.max(Math.abs(target.e - from.e),
-                            Math.abs(target.stageH - from.stageH) / 90, morph);
-        if (dist < 0.02) { v1aSettle(target); return; }
-        var dur = Math.max(90, OPEN_MS * Math.min(1, dist));
-        window.__eesHoldFit = true;
-        hideFace();
-        v1a.settledOpen = -1;
-        if (v1a.raf) cancelAnimationFrame(v1a.raf);
-        var seg = { from: from, to: target, t0: 0, dur: dur,
-                    kind: morph ? 'morph' : (target.e === 1 ? 'open' : 'close'),
-                    frames: [], last: 0 };
-        v1a.seg = seg;
-        var step = function (now) {
-            if (v1a.seg !== seg) return; // superseded by a newer segment
-            if (!seg.t0) { seg.t0 = now; seg.last = now; }
-            else { seg.frames.push(now - seg.last); seg.last = now; }
-            var q = Math.min(1, (now - seg.t0) / seg.dur);
-            v1aApplyFrame(v1aLerpFrame(seg.from, seg.to, easeIO(q)));
-            if (q < 1) v1a.raf = requestAnimationFrame(step);
-            else {
-                v1a.seg = null;
-                v1a.segments.push({ kind: seg.kind, durMs: Math.round(seg.dur), frames: seg.frames });
-                v1aSettle(seg.to);
-            }
-        };
-        v1a.raf = requestAnimationFrame(step);
-    }
-    window.__eesV1A = {
-        targets: function () { return v1a.targets; },
-        frame: function () { return v1a.cur ? { sphere: v1a.cur.sphere, e: Math.round(v1a.cur.e * 1000) / 1000, stageH: Math.round(v1a.cur.stageH * 10) / 10 } : null; },
-        settled: function () { return !v1a.seg; },
-        segments: function () { return v1a.segments; },
-        resetSegments: function () { v1a.segments = []; }
-    };
-
-    // ----- state application -----
-    function applyState() {
-        var open = openIdx();
-        if (!v1a.ready) v1aInit();
-        hideFace();
-        v1aChoreoTo(open >= 0 ? v1aOpenFrame(open) : v1aRestFrame());
-        if (open >= 0) lastOpen = open;
-        hits.forEach(function (btn, i) { btn.setAttribute('aria-pressed', locked === i ? 'true' : 'false'); });
-        window.__eesState = { locked: locked, preview: preview, open: open, variant: 'v1a' };
+        faceInner.innerHTML = '';
+        face.style.visibility = '';
+        openTargets = out;
+        var openNow = openIdx();
+        if (openNow >= 0) faceInner.innerHTML = faceHTML(openNow);
     }
 
-    // ----- hit testing + per-frame followers -----
+    /* ===== The gesture state machine (the live model, ported from
+       V1 unchanged): drag empty space = turn · drag a bubble =
+       pull it · hold 250ms = preview · tap = lock ===== */
+    var g = null;
     function hitTest(x, y) {
         var best = -1, bestScore = 1e9;
         for (var i = 0; i < 3; i++) {
-            var p = API.project(i);
-            var d = Math.hypot(x - p.x, y - p.y);
-            if (d <= p.r && d / p.r < bestScore) { bestScore = d / p.r; best = i; }
+            var r = rNow(i), d = Math.hypot(x - bubbles[i].x, y - bubbles[i].y);
+            if (d <= r && d / r < bestScore) { bestScore = d / r; best = i; }
         }
         return best;
     }
-    function tick() {
-        if (API && stage && !stage.hidden) {
-            for (var i = 0; i < 3; i++) {
-                var p = API.project(i), btn = hits[i];
-                btn.style.left = (p.x - p.r) + 'px';
-                btn.style.top = (p.y - p.r) + 'px';
-                btn.style.width = (p.r * 2) + 'px';
-                btn.style.height = (p.r * 2) + 'px';
-            }
-            if (v1a.settledOpen >= 0 && face.dataset.open === 'v1a') {
-                var pv = API.project(v1a.settledOpen);
-                face.style.left = pv.x + 'px';
-                face.style.top = pv.y + 'px';
-            }
-        }
-        requestAnimationFrame(tick);
+    function syncOpen() {
+        hits.forEach(function (btn, i) { btn.setAttribute('aria-pressed', locked === i ? 'true' : 'false'); });
+        var open = openIdx();
+        if (open >= 0 && openTargets) faceInner.innerHTML = faceHTML(open);
     }
-
-    // ----- the gesture state machine -----
-    var g = null;
     function onDown(e) {
-        if (g || !API) return;
+        if (g) return;
         var rect = stage.getBoundingClientRect();
         var cand = hitTest(e.clientX - rect.left, e.clientY - rect.top);
         g = { id: e.pointerId, cand: cand, sx: e.clientX, sy: e.clientY,
-              lx: e.clientX, ly: e.clientY, mode: 'pending', touch: e.pointerType === 'touch', timer: null };
+              lx: e.clientX, ly: e.clientY, mode: 'pending',
+              touch: e.pointerType === 'touch', timer: null };
         g.timer = setTimeout(function () {
             if (g && g.mode === 'pending') {
                 g.mode = 'preview';
-                if (g.cand >= 0) { preview = g.cand; applyState(); }
+                if (g.cand >= 0) { preview = g.cand; syncOpen(); }
             }
         }, HOLD_MS);
     }
+    function grabPull(x, y) {
+        var b = bubbles[g.cand];
+        pull.i = g.cand;
+        pull.ox = b.x - x; pull.oy = b.y - y;
+        pull.tx = b.x; pull.ty = b.y;
+    }
     function onMove(e) {
         if (!g || e.pointerId !== g.id) return;
+        var rect = stage.getBoundingClientRect();
+        var x = e.clientX - rect.left, y = e.clientY - rect.top;
         var dx = e.clientX - g.lx, dy = e.clientY - g.ly;
         var tdx = e.clientX - g.sx, tdy = e.clientY - g.sy;
         g.lx = e.clientX; g.ly = e.clientY;
         if (g.mode === 'pending' && Math.hypot(tdx, tdy) >= MOVE_T) {
             clearTimeout(g.timer);
-            g.mode = 'drag';
-            DRAG.grab(); DRAG.move(tdx, tdy, g.touch);
+            if (g.cand >= 0) { g.mode = 'pull'; grabPull(x, y); }
+            else g.mode = 'turn';
         } else if (g.mode === 'preview' && Math.hypot(tdx, tdy) >= MOVE_T) {
-            preview = -1; applyState();
-            g.mode = 'drag';
-            DRAG.grab(); DRAG.move(tdx, tdy, g.touch);
-        } else if (g.mode === 'drag') {
-            DRAG.move(dx, dy, g.touch);
+            preview = -1; syncOpen();
+            if (g.cand >= 0) { g.mode = 'pull'; grabPull(x, y); }
+            else g.mode = 'turn';
+        } else if (g.mode === 'pull') {
+            pull.tx = clamp(x + pull.ox, -50, W + 50);
+            pull.ty = clamp(y + pull.oy, -50, Hcur + 50);
+        } else if (g.mode === 'turn') {
+            var dth = dx * 0.0075;
+            theta += dth;
+            thetaVel = thetaVel * 0.6 + dth * 0.4;
+            pitch = clamp(pitch + dy * 0.0016, -0.3, 0.3);
         }
     }
-    function endGesture(commitTap) {
+    function endGesture(commit) {
         if (!g) return;
         clearTimeout(g.timer);
-        if (g.mode === 'drag') DRAG.end();
-        else if (g.mode === 'preview') { preview = -1; applyState(); }
-        else if (g.mode === 'pending' && commitTap && g.cand >= 0) {
-            locked = (locked === g.cand) ? -1 : g.cand;
-            applyState();
+        if (g.mode === 'preview') { preview = -1; syncOpen(); }
+        else if (g.mode === 'pending' && commit && g.cand >= 0) {
+            locked = locked === g.cand ? -1 : g.cand;
+            syncOpen();
         }
+        if (g.mode === 'pull') pull.i = -1;
         g = null;
     }
-
-    function init() {
-        stage = document.getElementById('ees3dStage');
-        face = document.getElementById('eesFace');
-        hits = [0, 1, 2].map(function (i) { return document.getElementById('eesHit' + i); });
-        stage.addEventListener('pointerdown', onDown);
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', function (e) { if (g && e.pointerId === g.id) endGesture(true); });
-        window.addEventListener('pointercancel', function (e) { if (g && e.pointerId === g.id) endGesture(false); });
-        hits.forEach(function (btn, i) {
-            btn.addEventListener('click', function () {
-                locked = (locked === i) ? -1 : i;
-                applyState();
-            });
+    stage.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', function (e) { if (g && e.pointerId === g.id) endGesture(true); });
+    window.addEventListener('pointercancel', function (e) { if (g && e.pointerId === g.id) endGesture(false); });
+    hits.forEach(function (btn, i) {
+        btn.addEventListener('click', function () {
+            locked = locked === i ? -1 : i;
+            syncOpen();
         });
-        applyState();
-        requestAnimationFrame(tick);
-    }
+    });
 
-    // Read-only diagnostics, in the module's own window.__ees3d*
-    // tradition: state, last fit, current turn.
-    window.__eesCtl = {
-        state: function () { return window.__eesState || null; },
-        fit: function () { return window.__eesFit || null; },
-        turn: function () { return DRAG ? DRAG.turn() : null; }
-    };
-
-    var tries = 0;
-    (function boot() {
-        if (window.__eesAPI && window.__eesDrag) {
-            API = window.__eesAPI; DRAG = window.__eesDrag;
-            init();
-        } else if (tries++ < 100) {
-            setTimeout(boot, 100);
+    /* ===== Sizing, loop, test hooks ===== */
+    function resize() {
+        var w = wrap.clientWidth;
+        if (!w || w === W) return;
+        W = w;
+        H0 = Math.round(W * 643 / 720);
+        if (openE === 0) Hcur = H0;
+        DPR = Math.min(window.devicePixelRatio || 1, 2);
+        if (!bubbles[0].x && !bubbles[0].y) {
+            for (var i = 0; i < 3; i++) {
+                var th = turnedHome(i);
+                bubbles[i].x = th.x; bubbles[i].y = th.y;
+            }
         }
-        // Otherwise WebGL is unavailable: the flat Venn stands and
-        // there is nothing to control.
-    })();
+        computeTargets();
+        measureText();
+    }
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(wrap);
+    window.addEventListener('resize', resize);
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(function () { computeTargets(); measureText(); });
+    }
+    if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (en) { inView = en[0].isIntersecting; }).observe(stage);
+    }
+    function frame(now) {
+        requestAnimationFrame(frame);
+        if (!lastT) lastT = now;
+        var dt = Math.min(0.033, (now - lastT) / 1000 || 0.016);
+        lastT = now;
+        if (!fpsStart) fpsStart = now;
+        fpsFrames++;
+        if (now - fpsStart >= 1000) {
+            fpsVal = Math.round(fpsFrames * 1000 / (now - fpsStart));
+            fpsFrames = 0; fpsStart = now;
+        }
+        if (!inView || !W) return;
+        step(dt); render3D(dt); placeLabels();
+    }
+    buildGL();
+    resize();
+    requestAnimationFrame(frame);
+
+    function relRect(el) {
+        var r = el.getBoundingClientRect(), s = stage.getBoundingClientRect();
+        return { l: r.left - s.left, t: r.top - s.top, r: r.right - s.left, b: r.bottom - s.top, w: r.width, h: r.height };
+    }
+    window.__venn = {
+        state: function () {
+            return { theta: Math.round(theta * 1000) / 1000, pitch: Math.round(pitch * 1000) / 1000,
+                open: openIdx(), locked: locked, preview: preview,
+                openE: Math.round(openE * 1000) / 1000,
+                kindle: Math.round(kindle * 1000) / 1000,
+                kindleTarget: Math.round(kindleTarget * 1000) / 1000,
+                glOK: glOK, filmReady: [glOK, glOK, glOK],
+                seams: seamState.map(function (s) { return { vis: s.vis, op: s.op }; }),
+                stageH: stage.clientHeight, restH: H0, reduced: REDUCED,
+                centers: bubbles.map(function (b, i) {
+                    return { x: Math.round(b.x * 10) / 10, y: Math.round(b.y * 10) / 10,
+                             r: Math.round(rNow(i) * 10) / 10,
+                             rotY: Math.round(b.rotY * 1000) / 1000 };
+                }) };
+        },
+        textState: function () {
+            return { labels: labels.map(function (el) {
+                    return { text: el.textContent, rect: relRect(el), opacity: parseFloat(getComputedStyle(el).opacity) };
+                }),
+                center: { text: centerEl.textContent, rect: relRect(centerEl), opacity: parseFloat(getComputedStyle(centerEl).opacity) },
+                face: { opacity: parseFloat(getComputedStyle(face).opacity), text: faceInner.innerText || '' } };
+        },
+        fps: function () { return fpsVal; },
+        setTheta: function (t) { theta = t; thetaVel = 0; },
+        pullTo: function (i, x, y) { pull.i = i; pull.ox = 0; pull.oy = 0; pull.tx = x; pull.ty = y; },
+        releasePull: function () { pull.i = -1; },
+        targets: function () { return openTargets; },
+        settled: function () {
+            if (Math.abs(openE - (openIdx() >= 0 ? 1 : 0)) > 0.01) return false;
+            for (var i = 0; i < 3; i++) if (Math.hypot(bubbles[i].vx, bubbles[i].vy) > 14) return false;
+            return true;
+        }
+    };
 })();
 </script>
         <p class="loop-caption">A plan passes only in the middle, where all three overlap.</p>
@@ -3328,10 +2972,7 @@ function boot() {
 
     <section id="chap-eco">
     <div class="chapter-head"><h2>Ecological abundance</h2><p class="section-line">Chapter 4 of 5 &middot; Restore nature. Strengthen ecosystems. Build resilience.</p></div>
-    <div class="chapter-note">
-        <p class="hook-line">Restore nature. Strengthen ecosystems. Build resilience.</p>
-        <p>This chapter holds two frameworks. Ecological Restoration: a Singapore river dug out of its concrete, mangrove coasts replanted by the villages that fish among them, and an American river set free from its dams. Permaculture: whole farms designed like ecosystems — a desert greened in Jordan, springs returned to Zimbabwe&rsquo;s hills, fruit ripening at altitude in Austria, and a Normandy market garden measured by France&rsquo;s farm researchers. Two of this page&rsquo;s best-known restorations live in the Food chapter — the Loess Plateau&rsquo;s terraced hills and Costa Rica&rsquo;s returning forest — and more is on the way: wetlands rebuilt inside cities are next.</p>
-    </div>
+
     <div class="explainer-wrapper gframework" id="ecological-restoration">
 <div class="gchap-cards"><div class="gcard">
 <span class="photofit" aria-hidden="true"><img class="sharp" src="door-ecological-restoration-1.jpg" alt="The Kallang River at Bishan–Ang Mo Kio Park in Singapore: a natural river winding between grassy banks, with the housing towers of Bishan behind" width="1024" height="768" loading="eager" decoding="async"></span>
