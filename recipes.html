@@ -1933,10 +1933,11 @@
          section first. The row is the in-section search row's own
          markup and glass, standing alone above the doors; its script
          (placed after the grid's own layers) filters the grid live
-         from the first letter, with the cook picker's matching rule. -->
+         from the first letter, with the page's one shared matching
+         rule: name or ingredients, combined with the active pill. -->
     <div class="recipe-search-row top-search-row">
         <span class="search-field">
-            <input type="search" id="top-search" placeholder="Search recipes" aria-label="Search recipes" autocomplete="off">
+            <input type="search" id="top-search" placeholder="Search recipes or ingredients" aria-label="Search recipes or ingredients" autocomplete="off">
             <button type="button" class="jbo-search-clear" id="top-search-clear" aria-label="Clear search" hidden>&times;</button>
         </span>
         <span class="recipe-search-count" id="top-search-count" role="status" hidden></span>
@@ -9117,12 +9118,15 @@
     /* Top-of-page search (2026-11-25): the search row above the
        doors. Live from the first letter — every keystroke filters
        the recipe grid in place, no submit, no button. The matching
-       rule is the cook picker's, verbatim: the normalized term must
-       appear in the recipe's name, and the active category pill
-       must claim the card through its data-tags — the two combine
-       with AND, exactly as the picker's chips and search combine.
-       (The in-section field keeps its own richer name + ingredients
-       rule; the two fields hand the grid to each other — typing in
+       rule is the page's one shared rule (window.__jboRecipeHaystack
+       + window.__jboSearchMatch, the same rule the in-section field
+       and the combiner use): the term must match the recipe's name
+       or any of its ingredient lines, word-start, and the active
+       category pill must claim the card through its data-tags —
+       the two combine with AND, exactly as the cook picker's chips
+       and search combine. (Extended to ingredients 2026-11-25 at
+       Johnny's call; before that this layer matched names only.)
+       The two grid fields hand the grid to each other — typing in
        one stands the other down, so the grid always has exactly one
        search driving it.)
        While a search stands, the recipes are what the page
@@ -9154,9 +9158,16 @@
             var a = document.querySelector('.recipe-filters .filter-pill.active');
             return a ? a.getAttribute('data-filter') : 'all';
         }
-        function nameOf(w) {
-            var t = w.querySelector('.recipe-card-title');
-            return (t ? t.textContent : '').replace(/\s+/g, ' ').trim().toLowerCase();
+        /* The shared haystack for a card: its title plus the words
+           of its own ingredient lists, built once by the page's
+           shared builder and cached on the wrapper — the in-section
+           search caches the identical text under the same key. */
+        function haystackOf(w) {
+            if (w.__jboHay) return w.__jboHay;
+            var title = w.querySelector('.recipe-card-title');
+            var text = window.__jboRecipeHaystack(w.querySelector('.recipe-content'), title ? title.textContent : '');
+            w.__jboHay = text;
+            return text;
         }
         function matches(w) {
             var f = activeFilter();
@@ -9164,7 +9175,7 @@
                 var tags = (w.getAttribute('data-tags') || '').split(/\s+/);
                 if (tags.indexOf(f) === -1) return false;
             }
-            return !query || nameOf(w).indexOf(query) !== -1;
+            return !query || window.__jboSearchMatch(haystackOf(w), query);
         }
         /* Hand the grid back to the base layers and let them
            settle: an input event on the in-section field with an
@@ -13063,7 +13074,7 @@
         <div id="cookAddPop" class="glass-scrim" hidden>
             <div class="cook-add-bubble glass-bubble" role="dialog" aria-modal="true" aria-label="Add a recipe">
                 <div class="cook-add-bubble-head"><span>Add a recipe</span><button type="button" id="cookAddClose" aria-label="Close recipe list">&times;</button></div>
-                <div class="cook-add-tools"><input type="search" id="cookAddSearch" placeholder="Search recipes" aria-label="Search recipes" autocomplete="off"></div>
+                <div class="cook-add-tools"><input type="search" id="cookAddSearch" placeholder="Search recipes or ingredients" aria-label="Search recipes or ingredients" autocomplete="off"></div>
                 <div class="cook-add-filters" id="cookAddFilters" role="group" aria-label="Filter recipes by category"></div>
                 <p class="cook-add-note" id="cookAddNote" hidden>Cook mode holds up to 10 recipes — clear one to add another.</p>
                 <div class="cook-add-list" id="cookAddList"></div>
@@ -14867,6 +14878,7 @@
                 var wrapper = btn.closest('.recipe-wrapper');
                 var name = '';
                 var cat = '';
+                var hay = '';
                 if (wrapper) {
                     var t = wrapper.querySelector('.recipe-card-title');
                     if (t) {
@@ -14876,6 +14888,11 @@
                         name = name.replace(/\s+/g, ' ').trim();
                     }
                     cat = cookCategoryFor(wrapper);
+                    /* The row's shared search text: the recipe's name
+                       plus the words of its own ingredient lists, by
+                       the page's one rule — so this picker answers a
+                       search exactly as the grid's fields do. */
+                    hay = window.__jboRecipeHaystack(wrapper.querySelector('.recipe-content'), t ? t.textContent : '');
                 }
                 var row = document.createElement('button');
                 row.type = 'button';
@@ -14885,6 +14902,7 @@
                    chips test membership exactly as the grid's pills
                    do (a tag match, never the one displayed label). */
                 row.setAttribute('data-add-tags', wrapper ? (wrapper.getAttribute('data-tags') || '') : '');
+                row._chay = hay || name;
                 row.innerHTML = '<span class="cook-add-name"></span><span class="cook-add-cat"></span><span class="cook-add-state">✓ Cooking</span>';
                 row.querySelector('.cook-add-name').textContent = name;
                 row.querySelector('.cook-add-cat').textContent = cat;
@@ -14941,7 +14959,7 @@
             Array.prototype.forEach.call(cookAddList.children, function (row) {
                 var tags = (row.getAttribute('data-add-tags') || '').split(/\s+/);
                 var inCat = addFilter === 'all' || tags.indexOf(addFilter) !== -1;
-                var show = inCat && (!q || row.textContent.toLowerCase().indexOf(q) !== -1);
+                var show = inCat && (!q || window.__jboSearchMatch(row._chay || row.querySelector('.cook-add-name').textContent, q));
                 row.hidden = !show;
                 if (show) any = true;
             });
