@@ -10,8 +10,10 @@
 // Pool (2026-11-25): the four survivors are joined by five batch-2
 // scenes Johnny approved in his verdict loop — The Aqueduct
 // Boulevard, The Gorge Commons, The Harbour Terraces, The Grand
-// Concourse and The Fjord Farms. Nine entries. Entries carry no
-// credit field: the page shows no credit line for this pool.
+// Concourse and The Fjord Farms — and by two batch-4 scenes he
+// approved the same evening, The Valley Habitat and The Forest
+// Crossing. Eleven entries. Entries carry no credit field: the
+// page shows no credit line for this pool.
 window.SCIFI_DATA = [
   {
     "id": "glass-dam",
@@ -138,5 +140,33 @@ window.SCIFI_DATA = [
     "img": "https://johnny-oneal.com/scifi-fjord-farms.webp",
     "source": "https://johnny-oneal.com/scifi-fjord-farms.webp",
     "deep": "<p>Fjords are generous with everything except flat land. The water is deep and sheltered, the sun strikes the south-facing rock all day, and there is nowhere to put a field — so this settlement put its fields on the cliff itself, in glass. Terrace by terrace the farm climbs: greens in the cool levels near the water, warmth-loving crops higher in the sun trap, meltwater led down through all of it in white threads. It reads from the water as a green staircase hung on the rock, worked by people on balconies like a vineyard that went vertical. Abundance here is not imported; it is grown on the one surface the fjord had spare — the wall.</p>"
+  },
+  {
+    "id": "valley-habitat",
+    "name": "The Valley Habitat",
+    "sub": "A vast glass-banded habitat resting in a forested mountain flank, its gardens glowing inside the glass",
+    "overview": "The habitat is a building the size of a hill. A long hull of weathered panels and glass rests against the forested flank, its window bands burning amber with whole garden terraces growing inside the glass — and below it, stacked circular plazas carry the morning crowd around still reflecting pools, above a river winding away through the mist.",
+    "details": [
+      "The gardens are inside the structure, not on it: the glass bands wrap whole terraces of trees and planting, sheltered from the mountain weather and lit from within — at dawn the hull glows with its own gardens before the sun reaches the valley floor.",
+      "The plazas step down the slope in stacked discs, each one a public room at ground level: every deck meets the hillside behind it, so the crowd spreads across the levels the way it would across a terraced town square, with no stairs-only floors.",
+      "Resting the hull in the flank is the engineering: the slope carries the structure's weight and shelters its back, the glass face takes the sun and the view, and the river below — the valley's oldest road — runs past the front steps."
+    ],
+    "img": "https://johnny-oneal.com/scifi-valley-habitat.webp",
+    "source": "https://johnny-oneal.com/scifi-valley-habitat.webp",
+    "deep": "<p>It has the outline of a ship and the job of a village. The hull form is not nostalgia: a long curved shell is simply a strong, weather-shedding shape, and here it flies nowhere — it is founded in the mountainside, plumbed into the valley, and occupied like any other building, with gardens behind its glass and a town's worth of people on its plaza decks. Settlements have always taken the shape of their transport when the shape worked — railway towns are linear, harbour towns are arcs. This valley's town is hull-shaped for the same reason: the form carries the loads, sheds the weather, and gives every interior level a window on the river. What makes it a place rather than a vehicle is everything that has been allowed to accumulate: trees in the glass, crowds on the decks, mist in the morning doing what it does in every inhabited valley.</p>"
+  },
+  {
+    "id": "forest-crossing",
+    "name": "The Forest Crossing",
+    "sub": "Arched megastructure decks across a rainforest gorge — a meadow with deer on top, a lit train below",
+    "overview": "The bridge is a meadow with a railway under it. Colossal arched decks stride across a rainforest gorge in golden morning light, deer grazing the grass deck on top and ferns spilling over its edges, while far below a lit train curves along the gorge floor and two walkers stop on the wet path to take it all in.",
+    "details": [
+      "The meadow deck is a wildlife crossing grown to city scale: real land bridges — Banff's overpasses, the Netherlands' ecoducts — already carry deer and forest over highways; here the crossing is not over the road but is the bridge's own roof, wide enough to hold trees, grass and a herd.",
+      "The levels stack the traffic by weight and noise: the train runs in the structure's sheltered belly along the gorge floor, walkers and wildlife take the sunlit top, and the arches between carry the loads down to the gorge walls — each kind of traveller gets the storey built for it.",
+      "The forest is not decoration planted afterward: trees root in the deck's soil beds and ferns colonise its wet edges, so the structure weathers into the gorge — the mist, the runoff and the planting are the gorge's own climate, let in rather than sealed out."
+    ],
+    "img": "https://johnny-oneal.com/scifi-forest-crossing.webp",
+    "source": "https://johnny-oneal.com/scifi-forest-crossing.webp",
+    "deep": "<p>Every bridge decides who may cross. This one was designed for three populations at once: the herd that migrates along the ridge and now crosses on grass without ever meeting a road, the passengers whose train threads the gorge in the structure's sheltered lower level, and the forest itself, which was given soil on the decks and has taken the offer — roots in the beds, ferns on the edges, saplings where the light falls. The arches are the old technology, Roman in principle, scaled by modern materials; what is new is the tenancy. Infrastructure usually evicts the living world and then mitigates the damage. The crossing instead drew up its plans with the deer, the railway and the rainforest as co-tenants, and the golden hour shows the result: a piece of transport engineering that reads, from the path where the two walkers stand, as a piece of the valley.</p>"
   }
 ];
