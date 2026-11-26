@@ -2,7 +2,9 @@
 // stays lean): cinematic science-fiction scenes made for this page.
 // Every picture is an original image created for this pool in
 // November 2026; no picture is taken from any other artist or
-// archive, and the pool's disclosure lives on the credits page.
+// archive — except The Pillar Arch and The Cloud-Sea Habitat,
+// which are composites built on real photographs, credited on
+// the credits page, where the pool's disclosure lives.
 // Loaded lazily by ensureSciFi() in random.html the first time the
 // Sci-Fi tab, a #scifi link, or a Loved gallery holding loved sci-fi
 // entries needs it; window.SCIFI_DATA mirrors the shape of the other
@@ -15,8 +17,10 @@
 // Crossing, and by two batch-5 scenes he approved later that
 // evening, The Cantilever Terraces and The Cloud Gate City, and by
 // two batch-6 scenes he approved later still, The Needle Crown and
-// The Crown Deck. Fifteen entries. Entries carry no credit field:
-// the page shows no credit line for this pool.
+// The Crown Deck, and by two batch-11 scenes he approved later
+// still, The Pillar Arch and The Cloud-Sea Habitat. Seventeen
+// entries. Entries carry no credit field: the page shows no
+// credit line for this pool.
 window.SCIFI_DATA = [
   {
     "id": "glass-dam",
@@ -227,5 +231,33 @@ window.SCIFI_DATA = [
     "img": "https://johnny-oneal.com/scifi-crown-deck.webp",
     "source": "https://johnny-oneal.com/scifi-crown-deck.webp",
     "deep": "<p>The oldest argument about the future is whether it will be built or grown. The Crown Deck refuses to choose: a machine the size of a town, founded in a forest valley, with gardens behind its glass and a plaza city spreading from its feet. The light in the frame is doing quiet work, too — the day outside is flat and grey, and every warm thing in the picture is indoors, lit from within by the life inside the hull. That is the habitat's real claim. Not that it can hover, or travel, or shine — but that on a dull morning in a misty valley it is already home to thousands of people, and the decks below it are full.</p>"
+  },
+  {
+    "id": "pillar-arch",
+    "name": "The Pillar Arch",
+    "sub": "An inhabited twin arch of pale stone spanning the pillar tops of Zhangjiajie at dawn, two rows of windows lit, mist pouring through",
+    "overview": "The pillars were already impossible — thousands of stone towers rising out of the dawn mist in Zhangjiajie, forest clinging to every ledge. The arch simply believes them. A twin-arched building of pale stone spans from pillar top to pillar top high above the gorge, trees planted along its crown, two rows of windows glowing amber in the first light, and the morning mist pours through both arches as if the building were just another piece of the weather.",
+    "details": [
+      "The pillars do the heavy lifting. Zhangjiajie's towers are quartzite sandstone, left standing as the softer rock around them weathered away — so a structure founded on their tops inherits foundations that have already held for millions of years. The arch does not fight the landscape for height; it borrows the landscape's.",
+      "Two rows of windows means two inhabited floors — galleries, rooms, a crossing that is also an address. Lit at dawn, they say the arch is not a monument you look at but a neighbourhood you wake up in, with the whole misty gorge as its ground floor.",
+      "The mist is not decoration; it is the climate the building lives in. At this height the pillars stand in cloud for much of the year, so the arch is built the way gorge buildings have always been built — stone that shrugs off the wet, gardens on the crown that drink the fog, and openings shaped to let the weather through rather than dam it."
+    ],
+    "img": "https://johnny-oneal.com/scifi-pillar-arch.webp",
+    "source": "https://johnny-oneal.com/scifi-pillar-arch.webp",
+    "deep": "<p>Stand far enough back and the arch almost disappears into the geology — one horizontal line in a landscape of verticals, its windows lit where the mist is lit. That is its real audacity. Not the span, though the span is enormous, and not the height, though nothing built by people has any business standing up there. It is the decision to treat the most theatrical landscape on Earth as a building site with good bones, and to answer thousands of stone towers not with a taller tower but with a connection — a place where the pillars, for the first time in their long weather, hold something up together.</p>"
+  },
+  {
+    "id": "cloud-sea-habitat",
+    "name": "The Cloud-Sea Habitat",
+    "sub": "White terraced decks and glowing green domes founded on the one ridge that pierces a sea of cloud",
+    "overview": "From the air, the world ends at the clouds — an unbroken white sea from horizon to horizon, and one dark ridge of rock standing out of it like an island. On the ridge sits the habitat: white terraced decks stepping down the rock, green glass domes glowing with the gardens inside, cloud drifting around its feet. Everything else — the sun's hard glare, the whole vast blue sky — is just the morning it happens to be.",
+    "details": [
+      "A cloud sea is a temperature inversion made visible: cold air pools in the valleys and cloud forms on top of it, so the high ridges stand in sunshine above a white ocean that is really the valley's weather seen from its roof. The habitat is founded on the one kind of ground guaranteed to stay above the flood.",
+      "The domes are greenhouses, and up here they earn their glass. Above the inversion the air is thin, cold and bright — sunlight like a high desert, nights near freezing — so the gardens grow under cover, glowing green-gold against the blue, farming the one crop the ridge has in abundance: light.",
+      "The decks step down the ridge the way terraces step down a hillside, each level keeping its own edge over the cloud. From the lowest deck the white sea begins at your feet and runs unbroken to the horizon — the building's front garden is the top of the weather itself."
+    ],
+    "img": "https://johnny-oneal.com/scifi-cloud-sea-habitat.webp",
+    "source": "https://johnny-oneal.com/scifi-cloud-sea-habitat.webp",
+    "deep": "<p>Most buildings defend themselves against the sky. This one moved in above it. The Cloud-Sea Habitat is a small, bright, terraced town founded on the only dry land in a drowned world — a ridge that was never an island until the clouds rose and made it one, every morning, on schedule. Its people wake to an ocean that burns off by noon and returns by night, tend gardens under green glass at the top of the weather, and watch the sun come up over water that is not water. The future, at its best, is not louder than this. It is a good building, in the right place, taking the view seriously.</p>"
   }
 ];
