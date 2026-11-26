@@ -1083,6 +1083,15 @@
        the card from the band). */
     .sig-thermo-label { font-size: 0.9rem; }
     .sig-thermo-state { font-size: 0.85rem; color: var(--subtext-color); }
+    /* The state line absorbs the switch row's free space, so the
+       Dividends group sits at the row's right end — the seat the
+       phone layout already gives it — and the line's text getting
+       longer or shorter can never push it (the toggle-anchor
+       rule, measured at desktop width 2026-11-25: a content-sized
+       state span shifted the Dividends switch ~22px between the
+       thermostat's two states). The phone rules below override
+       the flex with their own full-width seat under the switch. */
+    .sig-controls-layer .sig-thermo-state { flex: 1 1 auto; min-width: 0; }
     .sig-switch { position: relative; width: 58px; height: 44px; flex: none; background: none; border: none; padding: 0; cursor: pointer; }
     .sig-switch::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 58px; height: 32px; border-radius: 999px; background: var(--badge-bg); border: 1px solid var(--border-color); transition: background var(--dur-2) var(--ease-inout), border-color var(--dur-2) var(--ease-inout); }
     .sig-switch::after { content: ""; position: absolute; left: 4px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; background: var(--subtext-color); transition: left var(--dur-2) var(--ease-inout), background var(--dur-2) var(--ease-inout); }
@@ -6943,15 +6952,25 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             });
             t.innerHTML = h;
             // The thermostat's state line rides at its switch in
-            // the inputs, as before — the engine writes it there
-            // directly now that the band carries no card for it.
+            // the inputs, and states in plain words what the
+            // thermostat is doing, in numbers (Johnny, 2026-11-25):
+            // the latest VIX in the data and the split at that VIX,
+            // read from the engine's own curve — r.thermo.tau IS
+            // vcCashFor at r.thermo.vix, so the line can never
+            // disagree with the run. Off, it says so plainly. The
+            // line stands in both states, one line tall either
+            // way, so flipping the switch moves nothing.
             if (thermoState) {
                 if (r.thermo) {
-                    thermoState.textContent = "Cash held " + fmtMoney(r.cash) + " · thermostat target " + r.thermo.tau.toFixed(1) + "% at VIX " + r.thermo.vix.toFixed(1);
+                    var cashPct = Math.round(r.thermo.tau);
+                    thermoState.textContent = "VIX " + r.thermo.vix.toFixed(1) + " — buys invest " + (100 - cashPct) + "%, hold " + cashPct + "% as cash";
                     thermoState.hidden = false;
-                } else {
+                } else if (state.vix) {
                     thermoState.hidden = true;
                     thermoState.textContent = "";
+                } else {
+                    thermoState.textContent = "Thermostat off — every buy spends the full amount.";
+                    thermoState.hidden = false;
                 }
             }
             if (r.firstDot) {
