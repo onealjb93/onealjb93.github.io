@@ -796,6 +796,8 @@ export function initUniverse(stage) {
     var hudGate = { t: 0, d: '', s: '', n: '' };   /* atomic-swap gate for the HUD readouts (see frame()) */
     var hudNearStr = '';   /* the nearest-object string, composed by updateNearest, written ONLY by frame()'s gated block */
     var captionEl = $('.uv-caption');
+    var captionTextEl = $('.uv-caption-text');
+    var captionCloseBtn = $('.uv-caption-close');
     var labelsEl = $('.uv-labels');
     var tourBtn = $('.uv-tour-btn'), flyBtn = $('.uv-fly-btn');
     var speedInput = $('.uv-speed');
@@ -943,8 +945,42 @@ export function initUniverse(stage) {
         var spNear = Math.max(best, br * 1e-4) * Math.pow(10, -1.6 + 2.4 * speedT);
         return Math.exp((1 - w) * Math.log(sp) + w * Math.log(Math.max(spNear, 1e-12)));
     }
-    function setCaption(text) {
-        if (captionEl.textContent !== text) captionEl.textContent = text;
+    /* The caption card is a brief transient explanation, never a
+       fixture (Johnny, 2026-11-26: the boot card sat on the stage
+       covering its bottom third, with no way off it — the old
+       setCaption only ever swapped the words). A presented card
+       dismisses three ways: its own timer (~6 s), the player's
+       first real input, and its close button. setCaption presents
+       by default; the silent form (present = false) only swaps the
+       words — the reconciler's fallback and the grab-the-view path
+       use it, because a grab is itself a dismissal, never a reason
+       to raise a new card. While the tour or a jump flight owns the
+       screen the timer waits: those paths set their own cards as
+       their events unfold, and the arrival card at the end of a
+       jump gets its own full read. */
+    var capTimer = null;
+    function presentCaption() {
+        captionEl.classList.remove('uv-cap-off');
+        if (capTimer) clearTimeout(capTimer);
+        capTimer = setTimeout(capTimerFire, 6000);
+    }
+    function capTimerFire() {
+        capTimer = null;
+        if (tour.on || flyAnim) { capTimer = setTimeout(capTimerFire, 1000); return; }
+        dismissCaption();
+    }
+    function dismissCaption() {
+        if (capTimer) { clearTimeout(capTimer); capTimer = null; }
+        captionEl.classList.add('uv-cap-off');
+    }
+    function setCaption(text, present) {
+        /* every call is an event, so a presenting call presents even
+           when the words repeat the card already showing — arriving
+           at a second marked object carries the same sentence as the
+           first, and it must still raise the card (the text-equality
+           shortcut here once swallowed exactly that re-presentation) */
+        if (captionTextEl.textContent !== text) captionTextEl.textContent = text;
+        if (present !== false) presentCaption();
     }
     var EARTH_CAP = 'You are at Earth \u2014 home. Every light around you is a real star at its true position. Drag to look \u00B7 hold Fly (or press W) to fly anywhere \u00B7 scroll for speed. The tour is there when you want it.';
     var CONTROLS_CAP = 'You have the controls. Drag to look around; hold Fly \u2014 or press W \u2014 to move.';
@@ -962,13 +998,13 @@ export function initUniverse(stage) {
     function syncCaption() {
         if (tour.on || flyAnim) return;
         if (captionClaim && captionClaim.kind === 'earth' && nearestName !== 'Earth') {
-            captionClaim = null; setCaption(CONTROLS_CAP);
+            captionClaim = null; setCaption(CONTROLS_CAP, false);
         } else if (captionClaim && captionClaim.kind === 'object' &&
                    (nearestName !== captionClaim.name || nearestDist > captionClaim.dist * 2.5)) {
             /* flown to another object's neighbourhood, or flown
                away again — the arrival card has expired either way */
-            captionClaim = null; setCaption(CONTROLS_CAP);
-        } else if (!captionClaim && nearestName === 'Earth' && captionEl.textContent === CONTROLS_CAP) {
+            captionClaim = null; setCaption(CONTROLS_CAP, false);
+        } else if (!captionClaim && nearestName === 'Earth' && captionTextEl.textContent === CONTROLS_CAP) {
             captionClaim = { kind: 'earth' }; setCaption(EARTH_CAP);
         }
     }
@@ -3794,15 +3830,19 @@ export function initUniverse(stage) {
     function interruptTour() {
         lastInputT = performance.now();
         spin.yaw = 0; spin.pitch = 0;
+        /* a grab is the player's first real input: whatever card is
+           up comes down (its words are swapped silently below, so
+           the grab never raises a fresh card in its place) */
+        dismissCaption();
         if (tour.on) {
             stopTour(false);
             captionClaim = null;
-            setCaption(CONTROLS_CAP);
+            setCaption(CONTROLS_CAP, false);
         } else if (flyAnim) {
             /* grabbing the view mid-jump cancels the flight — its
                "Flying to ..." card must not outlive the flight */
             captionClaim = null;
-            setCaption(CONTROLS_CAP);
+            setCaption(CONTROLS_CAP, false);
         }
         flyAnim = null;
     }
@@ -4035,7 +4075,7 @@ export function initUniverse(stage) {
         lockBtn.textContent = 'Lock';
         lockBtn.setAttribute('aria-pressed', 'false');
         lockBtn.setAttribute('aria-label', 'Lock on to the nearest object');
-        lockBtn.addEventListener('click', function () { lockToggle(); });
+        lockBtn.addEventListener('click', function () { dismissCaption(); lockToggle(); });
         var more = controls.querySelector('.uv-more-btn');
         if (more) controls.insertBefore(lockBtn, more); else controls.appendChild(lockBtn);
         window.__uvHD = { table: TILE_COVERAGE, has: bodyHasHD };
@@ -4651,6 +4691,7 @@ export function initUniverse(stage) {
         });
         document.addEventListener('keyup', function (ev) { keys[ev.code] = false; });
 
+        captionCloseBtn.addEventListener('click', function () { dismissCaption(); captionCloseBtn.blur(); });
         tourBtn.addEventListener('click', function () {
             lastInputT = performance.now();
             if (tour.on) { stopTour(false); captionClaim = null; setCaption('Tour stopped. You have the controls.'); }
