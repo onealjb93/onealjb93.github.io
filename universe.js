@@ -334,18 +334,28 @@ var GLOW_VERT = [
     '    vec4 mv = modelViewMatrix * vec4(position, 1.0);',
     '    float dist = max(1.0, -mv.z);',
     '    float px = aDiam * uScaleH / dist;',
-    '    gl_PointSize = clamp(px, 4.0, 420.0) * uDpr;',
+    '    gl_PointSize = clamp(px, 4.0, 320.0) * uDpr;',   /* cap 420 -> 320 (2026-11-25): a single haze sprite may not fill the frame */
     '    vCol = ciColor(aCiW);',
     /* A cell you are inside, or right beside, must not white out the
-       view — the haze belongs to the distance. */
-    '    float close = smoothstep(0.06, 0.70, dist / aDiam);',
+       view — the haze belongs to the distance. DEEP-FIELD PASS
+       (2026-11-25): the fade now spans 0.45–1.5 diameters — cells
+       within a diameter and a half of the camera contribute almost
+       nothing. The old 0.06–0.70 span let the cells beside the
+       camera paint the giant soft blobs that filled Johnny's
+       deep-field recording with brown murk at every range. */
+    '    float close = smoothstep(0.45, 1.50, dist / aDiam);',
     /* From far out the whole layer stacks into a small patch of sky;
-       dim it so the island glows instead of blowing out. */
-    '    float far = clamp(700.0 / dist, 0.12, 1.0);',
+       dim it so the island glows instead of blowing out. DEEP-FIELD
+       PASS (2026-11-25): the falloff now bites much sooner and
+       deeper (380 pc scale, 0.05 floor) — at intergalactic range
+       thousands of these warm sprites stacked along the sightline
+       into the muddy brown murk of Johnny's recording. The haze
+       thins with distance; the galaxies carry the far field. */
+    '    float far = clamp(380.0 / dist, 0.05, 1.0);',
     /* The fabric breathes: a slow undulation travelling across the
        field, phased by each cell's real position. */
     '    float und = 0.84 + 0.16 * sin(uTime * 0.12 + dot(position, vec3(0.011, 0.0073, 0.0091)));',
-    '    vAlpha = uAlpha * (0.22 + 0.78 * aW) * close * far * und;',
+    '    vAlpha = uAlpha * (0.06 + 0.94 * aW) * close * far * und;',   /* floor 0.22 -> 0.06 (2026-11-25): every cell used to glow at a fifth strength even with almost no summed light in it — the murk's base coat */
     '    gl_Position = projectionMatrix * mv;',
     '}'
 ].join('\n');
@@ -433,7 +443,16 @@ var GAL_VERT = [
        old smoothstep(0.10, 0.55, dist / aDiam) term erased a
        galaxy from inside half its own diameter outward: at
        0.19x Centaurus A's diameter it had already vanished. */
-    '    a *= clamp(px / 2.5, mix(0.48, 0.35, uHalo), 1.0);',  /* far specks stay faint — the deep cloud's floor sits a touch higher, so its real walls and filaments survive full-catalog distance */
+    /* DEEP-FIELD PASS (Johnny, 2026-11-25, over his phone
+       recording): at intergalactic range the old floor (0.35–0.48
+       of authored brightness) sank every distant galaxy into the
+       glow haze and the field collapsed to muddy brown blur. A
+       real deep field is dense and luminous: distant galaxies now
+       keep most of their authored brightness (floor 0.85 named /
+       0.70 cloud, reached sooner), so the far field reads as
+       distinct galaxies, not smears. Same catalog, same positions
+       — only the fade is lifted. */
+    '    a *= clamp(px / 1.6, mix(0.85, 0.70, uHalo), 1.0);',
     '    vAlpha = a;',
     '    gl_Position = projectionMatrix * mv;',
     '}'
@@ -461,6 +480,13 @@ var GAL_FRAG = [
     '    vec2 r = p;',
     '    r.y /= max(0.10, vAxis);',              /* undo the tilt squeeze */
     '    float d = length(r) * 2.0;',            /* 1.0 = catalogued edge */
+    /* DEEP-FIELD PROFILE (2026-11-25): while a galaxy is a far
+       speck, its light is drawn through a compressed profile
+       (dP = d x 1.5) — a tight, bright-cored disc like a galaxy
+       on a deep-field plate — relaxing to the true profile as
+       the galaxy resolves (vDetail -> 1). The feather, the halo
+       and the hero photo keep the true d. */
+    '    float dP = d * mix(1.5, 1.0, vDetail);',
     '    if (d > 1.52) discard;',                /* outside the feather — keeps the padded quad cheap */
     '    float ang = atan(r.y, r.x);',
     '    vec3 col = vCol;',
@@ -468,7 +494,8 @@ var GAL_FRAG = [
     '    if (vTint < 0.5) {',
     /* Elliptical: smooth and centrally concentrated (a de Vaucouleurs-
        like fall), warm throughout, whiter at the heart. */
-    '        lum = exp(-pow(d, 0.65) * 3.4) * 0.75 + exp(-d * d * 20.0) * 0.85;',
+    '        float lumFarE = exp(-pow(dP, 0.65) * 3.4) * 0.75 + exp(-dP * dP * 20.0) * 0.85;',
+    '        lum = lumFarE * lumFarE * 1.35;',
     '        col = mix(vCol, vec3(1.0, 0.96, 0.90), exp(-d * d * 14.0) * 0.55);',
     '    } else if (vTint < 1.5) {',
     /* Spiral: a warm core, then two logarithmic arms winding out;
@@ -476,9 +503,10 @@ var GAL_FRAG = [
        young disk stars vs old core stars, not catalogued colour. */
     '        float armPh = 2.0 * (ang - 2.6 * log(d + 0.06) + vSeed * 6.2831);',
     '        float arms = pow(0.5 + 0.5 * cos(armPh), 3.0);',
-    '        float diskL = exp(-d * d * 3.2) * (0.35 + 0.85 * arms * smoothstep(0.03, 0.30, d));',
-    '        float coreL = exp(-d * d * 18.0) * 1.1;',
-    '        lum = mix(exp(-d * d * 4.5) * 0.6 + coreL, diskL + coreL, vDetail);',
+    '        float diskL = exp(-dP * dP * 3.2) * (0.35 + 0.85 * arms * smoothstep(0.03, 0.30, dP));',
+    '        float coreL = exp(-dP * dP * 18.0) * 1.1;',
+    '        float lumFarS = exp(-dP * dP * 4.5) * 0.6 + coreL;',
+    '        lum = mix(lumFarS * lumFarS * 0.55, diskL + coreL, vDetail);',
     '        col = mix(vec3(1.05, 0.92, 0.74), vec3(0.72, 0.82, 1.05), smoothstep(0.05, 0.75, d));',
     '    } else {',
     /* Irregular: no disk, no core — a handful of bright clumps
@@ -491,14 +519,22 @@ var GAL_FRAG = [
     '            float dd = length((r - off) * 2.0);',
     '            clumps += exp(-dd * dd * (5.0 + fk * 1.7)) * (0.75 - fk * 0.13);',
     '        }',
-    '        lum = mix(exp(-d * d * 4.5) * 0.6, clumps, vDetail);',
+    '        float lumFarI = exp(-dP * dP * 4.5) * 0.6;',
+    '        lum = mix(lumFarI * lumFarI * 1.4, clumps, vDetail);',
     '        col = mix(vCol, vec3(0.80, 0.88, 1.05), 0.35);',
     '    }',
+    /* DEEP-FIELD NUCLEUS (2026-11-25): while a galaxy is still a
+       far speck (vDetail near 0) give it the compact bright core a
+       real galaxy shows in a deep-field plate — a tight nucleus
+       the soft profile alone never draws — so distant galaxies
+       read as bright-cored discs instead of fuzzy smears. Fades
+       out as the galaxy resolves and its true form takes over. */
+    '    lum += exp(-dP * dP * 30.0) * 0.95 * (1.0 - vDetail);',
     /* Named galaxies carry a wide, soft halo beyond their catalogued
        edge — the same starlight-glow treatment as the star field —
        so the showpieces (Andromeda, M87, the Magellanic Clouds) read
        with real presence instead of ending at a hard rim. */
-    '    lum += exp(-d * d * 1.6) * 0.38 * uHalo;',
+    '    lum += exp(-d * d * 3.2) * 0.34 * uHalo;',
     '    lum *= 1.0 + 0.18 * uHalo;',
     /* The feather: the exponentials above still carry light at the
        catalogued edge (~0.10 for a named elliptical), which is what
@@ -744,6 +780,7 @@ export function initUniverse(stage) {
     var fallbackEl = $('.uv-fallback');
     var hudEl = $('.uv-hud');
     var hudDist = $('.uv-hud-dist'), hudSpeed = $('.uv-hud-speed'), hudNear = $('.uv-hud-near');
+    var hudGate = { t: 0, d: '', s: '' };   /* atomic-swap gate for the HUD readouts (see frame()) */
     var captionEl = $('.uv-caption');
     var labelsEl = $('.uv-labels');
     var tourBtn = $('.uv-tour-btn'), flyBtn = $('.uv-fly-btn');
@@ -1800,8 +1837,8 @@ export function initUniverse(stage) {
         /* starlight glow — the broad wash first, then the fine grain
            (additive blending makes the order immaterial; the layering
            reads broad-to-fine). */
-        glowBroad = buildGlowLayer(380, 1.8, 0.050);
-        glowFine = buildGlowLayer(110, 3.0, 0.060);
+        glowBroad = buildGlowLayer(380, 1.8, 0.026);   /* alpha lowered 2026-11-25: deep-field murk (see GLOW_VERT) */
+        glowFine = buildGlowLayer(110, 3.0, 0.040);
         scene.add(glowBroad); scene.add(glowFine);
 
         /* the all-sky backdrop — summed catalog light in direction
@@ -2183,7 +2220,8 @@ export function initUniverse(stage) {
         }
         nearestDist = Math.sqrt(best);
         nearestName = bi >= 0 ? data.named[bi].n : (bi <= -2 ? solarBodies[-bi - 2].n : '');
-        hudNear.textContent = nearestName ? ('Nearest: ' + nearestName + ' \u2014 ' + fmtDist(nearestDist)) : '';
+        var nStr = nearestName ? ('Nearest: ' + nearestName + ' \u2014 ' + fmtDist(nearestDist)) : '';
+        if (hudNear.textContent !== nStr) hudNear.textContent = nStr;
     }
     var labelTick = 0;
     function updateLabels(w, h) {
@@ -2406,8 +2444,23 @@ export function initUniverse(stage) {
         camera.updateProjectionMatrix();
         if (fxOK && fxTarget) renderWithBloom();
         else renderer.render(scene, camera);
-        hudDist.textContent = 'From the Sun: ' + fmtDist(alt);
-        hudSpeed.textContent = 'Speed: ' + fmtSpeed(speedPc());
+        /* HUD readouts swap ATOMICALLY (Johnny, 2026-11-25, over
+           his phone recording: mid-flight the Speed value showed
+           two values at once and the Distance/Speed lines garbled
+           into each other — the same disease as the Frequency
+           readouts). These two nodes were rewritten every frame,
+           changed or not. Now: at most one write per node per
+           100 ms, and only when the formatted string actually
+           changed — a node holds exactly one complete value at
+           every frame. */
+        var hudNow = performance.now();
+        if (hudNow - hudGate.t >= 100) {
+            hudGate.t = hudNow;
+            var dStr = 'From the Sun: ' + fmtDist(alt);
+            if (dStr !== hudGate.d) { hudGate.d = dStr; hudDist.textContent = dStr; }
+            var sStr = 'Speed: ' + fmtSpeed(speedPc());
+            if (sStr !== hudGate.s) { hudGate.s = sStr; hudSpeed.textContent = sStr; }
+        }
         labelTick++;
         if (labelTick % 15 === 0) { updateNearest(); syncCaption(); }
         var rect = canvas.getBoundingClientRect();
@@ -2696,6 +2749,7 @@ export function initUniverse(stage) {
     function setSpeedT(v) {
         speedT = Math.max(0, Math.min(1, v));
         speedInput.value = String(speedT);
+        speedInput.style.setProperty('--uv-fill', (speedT * 100).toFixed(1) + '%');
         lastInputT = performance.now();
     }
 
