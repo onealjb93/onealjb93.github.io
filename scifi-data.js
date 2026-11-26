@@ -2,9 +2,10 @@
 // stays lean): cinematic science-fiction scenes made for this page.
 // Every picture is an original image created for this pool in
 // November 2026; no picture is taken from any other artist or
-// archive — except The Pillar Arch and The Cloud-Sea Habitat,
-// which are composites built on real photographs, credited on
-// the credits page, where the pool's disclosure lives.
+// archive — except The Pillar Arch, The Cloud-Sea Habitat and
+// The Valley Arch, which are composites built on real
+// photographs, credited on the credits page, where the pool's
+// disclosure lives.
 // Loaded lazily by ensureSciFi() in random.html the first time the
 // Sci-Fi tab, a #scifi link, or a Loved gallery holding loved sci-fi
 // entries needs it; window.SCIFI_DATA mirrors the shape of the other
@@ -18,9 +19,10 @@
 // evening, The Cantilever Terraces and The Cloud Gate City, and by
 // two batch-6 scenes he approved later still, The Needle Crown and
 // The Crown Deck, and by two batch-11 scenes he approved later
-// still, The Pillar Arch and The Cloud-Sea Habitat. Seventeen
-// entries. Entries carry no credit field: the page shows no
-// credit line for this pool.
+// still, The Pillar Arch and The Cloud-Sea Habitat, and by one
+// batch-12 scene he approved later still, The Valley Arch.
+// Eighteen entries. Entries carry no credit field: the page
+// shows no credit line for this pool.
 window.SCIFI_DATA = [
   {
     "id": "glass-dam",
@@ -259,5 +261,19 @@ window.SCIFI_DATA = [
     "img": "https://johnny-oneal.com/scifi-cloud-sea-habitat.webp",
     "source": "https://johnny-oneal.com/scifi-cloud-sea-habitat.webp",
     "deep": "<p>Most buildings defend themselves against the sky. This one moved in above it. The Cloud-Sea Habitat is a small, bright, terraced town founded on the only dry land in a drowned world — a ridge that was never an island until the clouds rose and made it one, every morning, on schedule. Its people wake to an ocean that burns off by noon and returns by night, tend gardens under green glass at the top of the weather, and watch the sun come up over water that is not water. The future, at its best, is not louder than this. It is a good building, in the right place, taking the view seriously.</p>"
+  },
+  {
+    "id": "valley-arch",
+    "name": "The Valley Arch",
+    "sub": "A colossal inhabited arch spanning the mouth of Yosemite Valley wall to wall, standing far away in the valley's own haze",
+    "overview": "Everyone knows this view — El Capitan standing guard on the left, Bridalveil Fall pouring down the right with a rainbow standing in its mist, the pine forest running unbroken to the valley's mouth. What the view has now is a gate. Far away, where the valley opens, a single luminous arch spans from wall to wall, its crown carrying gardens and a thread of moving light, its windows lit in small warm clusters — the whole structure softened by the same blue haze that softens the domes behind it.",
+    "details": [
+      "The span is the valley mouth's whole width — the arch does not cross the valley so much as close it, springing from one granite wall and landing on the other. Its crown stands at roughly two-fifths the height of El Capitan, which makes it, by any earthly standard, colossal — and in this company, almost modest.",
+      "It stands far enough away to live inside the valley's own air. Distance is its camouflage: the haze that blues Half Dome blues the arch by exactly the same amount, so the eye accepts it the way it accepts the far domes — as one more large thing the valley happens to hold.",
+      "Nothing in the foreground has changed. The forest is the forest, the fall still falls with its rainbow standing in the spray, and El Capitan keeps the left of the frame the way it has for a century of photographs. The arch adds one thing only: a threshold — a gate you pass under on your way into the valley, lit windows and all."
+    ],
+    "img": "https://johnny-oneal.com/scifi-valley-arch.webp",
+    "source": "https://johnny-oneal.com/scifi-valley-arch.webp",
+    "deep": "<p>Tunnel View is the most photographed doorway in American landscape — the place where the valley announces itself all at once, cliff and fall and forest in a single frame. To build here at all is an act of nerve; to build a gate is an act of understanding. The Valley Arch does not compete with the view. It stands at the far end of it, in the haze, at the exact scale the valley itself works at, and turns arrival into ceremony: you do not just enter Yosemite, you pass under lit windows and garden bands, through the mouth of the valley made visible. The cliffs were always a doorway. The arch simply admits it.</p>"
   }
 ];
