@@ -6022,6 +6022,35 @@ draw();
     function chartsRedraw() {
         requestAnimationFrame(function () { window.dispatchEvent(new Event('resize')); });
     }
+    // Re-seat on open and close (2026-11-26): the shelf is tall
+    // and its cards' titles sit mid-card, so a scroll that stops
+    // while the shelf passes under the pinned stack (the site nav,
+    // plus a pinned section heading where one rides above the
+    // chapter) leaves a card sliced mid-title at the stack's edge.
+    // Opening or closing a story collapses or grows the page
+    // around that resting place — a close can pull the next
+    // section up under the sliced card, so the card reads as a
+    // pin that outlived its chapter. When a tap opens or closes
+    // a story (or the How-it-works card) and the stack's edge is
+    // cutting the shelf, settle the page so the shelf rests whole
+    // directly under the stack. Only the sliced case moves: a
+    // shelf already whole, or already scrolled past, keeps the
+    // scroll exactly where it was.
+    function reseatShelf(fw) {
+        if (!fw) return;
+        var shelf = fw.querySelector('.shelf');
+        if (!shelf) return;
+        var nav = document.querySelector('.site-nav');
+        var stack = nav ? nav.getBoundingClientRect().bottom : 55;
+        document.querySelectorAll('body > h2, .btc-vsec > h2').forEach(function (h) {
+            var hr = h.getBoundingClientRect();
+            if (hr.top <= stack + 2 && hr.bottom > stack) stack = hr.bottom;
+        });
+        var r = shelf.getBoundingClientRect();
+        if (r.top < stack && r.bottom > stack) {
+            window.scrollBy(0, r.top - stack - 8);
+        }
+    }
     document.querySelectorAll('.btc-gallery').forEach(function (fw) {
         var panel = fw.querySelector(':scope > .story-panel');
         if (!panel) return;
@@ -6036,6 +6065,7 @@ draw();
             });
             panel.hidden = true;
             current = null;
+            reseatShelf(fw);
         }
         function openStory(key) {
             closeStory();
@@ -6055,6 +6085,7 @@ draw();
                 var key = card.getAttribute('data-story');
                 if (current === key) { closeStory(); return; }
                 openStory(key);
+                reseatShelf(fw);
                 var r = panel.getBoundingClientRect();
                 if (r.top > window.innerHeight || r.bottom < 0) {
                     window.scrollTo({ top: Math.max(0, window.scrollY + r.top - landing()),
@@ -6077,6 +6108,7 @@ draw();
             document.documentElement.classList.add('howit-cue-done');
             t.classList.remove('breathe');
             if (!open) chartsRedraw();
+            if (open) reseatShelf(hw.closest ? hw.closest('.btc-gallery') : null);
         });
     });
     var firstToggle = document.querySelector('.btc-gallery .howit-toggle');
