@@ -12,8 +12,10 @@
 // Boulevard, The Gorge Commons, The Harbour Terraces, The Grand
 // Concourse and The Fjord Farms — and by two batch-4 scenes he
 // approved the same evening, The Valley Habitat and The Forest
-// Crossing. Eleven entries. Entries carry no credit field: the
-// page shows no credit line for this pool.
+// Crossing, and by two batch-5 scenes he approved later that
+// evening, The Cantilever Terraces and The Cloud Gate City.
+// Thirteen entries. Entries carry no credit field: the page shows
+// no credit line for this pool.
 window.SCIFI_DATA = [
   {
     "id": "glass-dam",
@@ -168,5 +170,33 @@ window.SCIFI_DATA = [
     "img": "https://johnny-oneal.com/scifi-forest-crossing.webp",
     "source": "https://johnny-oneal.com/scifi-forest-crossing.webp",
     "deep": "<p>Every bridge decides who may cross. This one was designed for three populations at once: the herd that migrates along the ridge and now crosses on grass without ever meeting a road, the passengers whose train threads the gorge in the structure's sheltered lower level, and the forest itself, which was given soil on the decks and has taken the offer — roots in the beds, ferns on the edges, saplings where the light falls. The arches are the old technology, Roman in principle, scaled by modern materials; what is new is the tenancy. Infrastructure usually evicts the living world and then mitigates the damage. The crossing instead drew up its plans with the deer, the railway and the rainforest as co-tenants, and the golden hour shows the result: a piece of transport engineering that reads, from the path where the two walkers stand, as a piece of the valley.</p>"
+  },
+  {
+    "id": "cantilever-terraces",
+    "name": "The Cantilever Terraces",
+    "sub": "Civic decks of glass and timber stacked over a fjord river — a market below, a class in formation, one tower taller than the cliffs",
+    "overview": "The town is a staircase that leans out over the water. Terrace after terrace of glass and timber cantilevers from the forested bank above a green fjord river, trees growing out of every level and the morning crowd spread across all of them — a market on the lowest deck, a class moving through its forms in the sun — while one dark tower rises behind, taller than the fjord walls themselves.",
+    "details": [
+      "A cantilever carries its load from one end only: each deck is anchored deep in the bank behind it, which is why the floors can step out over the river with nothing standing in the water — the same trick Frank Lloyd Wright used for Fallingwater's trays over its waterfall in 1935, here stacked into a whole hillside of decks.",
+      "The class in formation is the deck's timetable made visible: group exercise fills public squares and park decks across East Asia every morning, and a civic terrace earns its keep the same way — the broadest, flattest deck is kept clear of stalls and tables precisely so a hundred people can move on it together.",
+      "The levels sort the town by tempo: market noise on the lowest deck where the paths arrive, games and meals on the planted middle decks, the quietest terraces at the top. The board game in the foreground is the proof of design — a deck comfortable enough for a family to sit at for an hour is a deck that got its sun, its shelter and its view right."
+    ],
+    "img": "https://johnny-oneal.com/scifi-cantilever-terraces.webp",
+    "source": "https://johnny-oneal.com/scifi-cantilever-terraces.webp",
+    "deep": "<p>Most buildings meet the ground once. The terraces meet it on every floor: each deck steps back into the hillside, so every level has soil for its trees, an earth-backed wall for shelter, and a front edge that hangs over the river like the balcony of the whole town. That is the cantilever's real gift — not the daring of the overhang but the multiplication of ground. A fjord bank that could hold one row of houses holds a town instead, stacked in the sun, every storey with its feet in the earth and its face to the water. The dark tower behind plays the opposite game — one footprint, all height — and the two together make the town's whole argument: spread where life is shared, rise where it is not, and let the river run unbuilt beneath both.</p>"
+  },
+  {
+    "id": "cloud-gate-city",
+    "name": "The Cloud Gate City",
+    "sub": "A colossal classical arch framing the sunrise over a white-and-gold waterfall city above the clouds",
+    "overview": "The gate is the city's front door, and the sun comes through it. A colossal arch of white stone and gold stands above a sea of cloud, framing the sunrise over a terraced city of domes, colonnades and towers — waterfalls pouring off its cliff edges, crowds crossing its great stair — while one traveller stands on the foreground rocks and takes the measure of it.",
+    "details": [
+      "An arch this size is also an instrument: on the mornings when the sun rises exactly through it, the whole city can read the date off the sky. Triumphal arches were always part gate, part monument — a gate aligned to the sunrise turns the calendar itself into architecture.",
+      "The waterfalls are the city's plumbing made ceremonial. A city above the cloud line gathers its water from mist, rain and its own gardens, and what it has used and cleaned must go somewhere: here it goes over the edge in white threads, feeding the cloud forest on the cliffs below instead of hiding in a pipe.",
+      "Building above the cloud sea trades one climate for another: the city sits in sun while the valleys below stay in mist, its gardens fed by the very clouds that brush its cliffs — the same inversion that leaves high towns in the tropics bright above a grey lowland."
+    ],
+    "img": "https://johnny-oneal.com/scifi-cloud-gate-city.webp",
+    "source": "https://johnny-oneal.com/scifi-cloud-gate-city.webp",
+    "deep": "<p>Why does the future here wear Rome's clothes? Because the classical orders are a technology of reassurance: columns, domes and arches are the shapes a civilisation uses when it means to stay. At ordinary scale they would be nostalgia; at this scale — an arch that frames the sunrise, a city terraced across the clouds — they become a claim that permanence and ambition can share a skyline. The waterfalls keep the claim honest. A city that pours its water off its edges in daylight is a city whose systems work in the open: supply, garden, drain and spectacle in one gesture. And the lone figure on the rocks is every arrival's first morning — the gate ahead, the sun coming through it, and a whole white city already awake below.</p>"
   }
 ];
