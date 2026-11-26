@@ -7,10 +7,11 @@
 // Sci-Fi tab, a #scifi link, or a Loved gallery holding loved sci-fi
 // entries needs it; window.SCIFI_DATA mirrors the shape of the other
 // pools' entries.
-// Pool (2026-11-22): Johnny re-judged all ten entries of the
-// 2026-11-21 pool one by one; four survive — the Glass Dam, the
-// Sky-Bridge Towers, the Promenade Dam and the Sky Boulevard. Entries
-// carry no credit field: the page shows no credit line for this pool.
+// Pool (2026-11-25): the four survivors are joined by five batch-2
+// scenes Johnny approved in his verdict loop — The Aqueduct
+// Boulevard, The Gorge Commons, The Harbour Terraces, The Grand
+// Concourse and The Fjord Farms. Nine entries. Entries carry no
+// credit field: the page shows no credit line for this pool.
 window.SCIFI_DATA = [
   {
     "id": "glass-dam",
@@ -67,5 +68,75 @@ window.SCIFI_DATA = [
     "img": "https://johnny-oneal.com/scifi-sky-boulevard.webp",
     "source": "https://johnny-oneal.com/scifi-sky-boulevard.webp",
     "deep": "<p>Every city has a street its people love most. This district's happens to run across the sky. The span came first — a crossing so large it had room for a neighbourhood on its back — and the town grew along the deck the way towns grow along any good street: homes with gardens, cafes with their chairs out, trees in a row, lamps lit at dusk. The difference is the ground. Between the two walkways the gorge falls away to a turquoise river, and the transit gallery slides past at parapet height, close enough to wave at. It is ordinary prosperous street life, conducted at an altitude that makes it extraordinary — a future you would not just visit, but take an apartment in.</p>"
+  },
+  {
+    "id": "aqueduct-boulevard",
+    "name": "The Aqueduct Boulevard",
+    "sub": "A colossal inhabited aqueduct carrying a river and a tree-lined boulevard across a green valley",
+    "overview": "The aqueduct is a town laid along a river in the sky. Its arched piers are full of lit homes, waterfalls spill from its flanks, and along the top an open channel of water runs beside a tree-lined boulevard where the evening crowds stroll high above the valley floor.",
+    "details": [
+      "Aqueducts have carried water across valleys for two thousand years — Rome's Pont du Gard still stands — but this one carries the valley's whole life with it: homes in the piers, a street along the crest.",
+      "The waterfalls are the overflow: when the channel runs high, spare water leaves over the flanks in white curtains instead of flooding the boulevard — the spill is the safety valve, worn as decoration.",
+      "Living inside the piers puts the town's weight where the structure is strongest: an arch carries its load down through its legs, so the inhabited stone is not cargo but part of the machine."
+    ],
+    "img": "https://johnny-oneal.com/scifi-aqueduct-boulevard.webp",
+    "source": "https://johnny-oneal.com/scifi-aqueduct-boulevard.webp",
+    "deep": "<p>Every aqueduct is a promise: water that would pool in one valley will arrive, by gravity alone, in another. The Romans built them by the thousand and roofed none of them; the channel ran open to the sky, exactly as it does here. What this structure adds is occupancy. The piers that hold the water up are hollow with homes, the walk along the crest has become a boulevard with trees and lamps, and the overflow — the part an engineer would hide — pours down the flanks as the town's waterfalls. It is infrastructure that has been lived in so long it turned into a place: the water supply, the high street and the view, all one piece of masonry.</p>"
+  },
+  {
+    "id": "gorge-commons",
+    "name": "The Gorge Commons",
+    "sub": "Timber-and-glass pavilions terraced into both walls of a jungle gorge, joined by bridges",
+    "overview": "The village holds its evening in common. Timber-and-glass pavilions climb both walls of a jungle gorge, bridges stitch the two banks together high above the river, and on the main terrace the whole settlement gathers around a fire while the terrace pool spills over the edge toward the water below.",
+    "details": [
+      "Building on both walls makes the gorge a room: the two halves face each other across the air, and the bridges between them are its corridors — nobody here lives out of sight of the commons.",
+      "The fire circle is the oldest civic technology there is: a fixed point of warmth and light that arranges people in a ring and makes a crowd into a company.",
+      "The pool at the terrace edge is an infinity edge aimed at the drop — its overflow becomes a waterfall to the river, so the settlement's water feature and the gorge's weather are the same water."
+    ],
+    "img": "https://johnny-oneal.com/scifi-gorge-commons.webp",
+    "source": "https://johnny-oneal.com/scifi-gorge-commons.webp",
+    "deep": "<p>Commons are the rooms a settlement owns together — the green, the hall, the fire. This village terraced its commons into a gorge: pavilions of dark timber and glass stacked up both cliffs, every roof a garden, every bridge a street, until the whole ravine became one shared interior with the river running through its floor. At dusk the design shows its purpose. The lanterns come on along the walkways, the bridges fill with people crossing to supper, and the main terrace gathers everyone the gorge holds around a single fire — a crowd with somewhere to be, in a place built at a scale that would be forbidding if it were private, and is welcoming because it is common.</p>"
+  },
+  {
+    "id": "harbour-terraces",
+    "name": "The Harbour Terraces",
+    "sub": "White shell-roofed halls terraced into a green coastal hillside above a harbour",
+    "overview": "The town's living room faces the sea. Sweeping white shell roofs step down a green hillside in terraces of timber and glass — a market under striped canopies, a class moving in formation on the deck, a family at a board game in the foreground, and a long reflecting pool holding the roofs above the harbour.",
+    "details": [
+      "The shell roofs are thin concrete curves: a shell carries its load by shape, not bulk, so a roof can span a hall on a few centimetres of material — the same trick as the Sydney Opera House's sails, laid low here as terraces.",
+      "Terracing into the hillside gives every level its own ground: each hall opens onto a plaza at grade, so a building six storeys tall has no stairs-only floors and no buried ones.",
+      "The reflecting pool is the plaza's mirror and its cooler — a sheet of still water doubles the architecture in view and takes the edge off the midday heat rising from the stone."
+    ],
+    "img": "https://johnny-oneal.com/scifi-harbour-terraces.webp",
+    "source": "https://johnny-oneal.com/scifi-harbour-terraces.webp",
+    "deep": "<p>Some buildings are visited; this one is inhabited by the whole town at once. The terraces stack the day's life in layers — market at the foot, classes on the deck, games at the parapet — and because each roof is the next level's plaza, the crowd sorts itself the way crowds do in a good square, by drift rather than by plan. The architecture's job is mostly shade, curve and view: white shells against the green hill, timber warm behind the glass, and everything aimed at the harbour, where the light comes back off the water all afternoon. It is a civic building with the programme of a holiday.</p>"
+  },
+  {
+    "id": "grand-concourse",
+    "name": "The Grand Concourse",
+    "sub": "A vast arched glass-and-lattice vault over a teeming multi-level plaza",
+    "overview": "One roof, one city room. A single arched vault of glass and lattice soars the length of the concourse — walkways crossing at several levels, shopfronts lit along every gallery, dense crowds streaming over the patterned floor, and the low sun sending shafts of amber light down its whole length.",
+    "details": [
+      "The vault is a lattice shell: thousands of small members share the load, so the roof can span hundreds of metres with no columns touching the floor — the crowd below never walks around a pillar.",
+      "A concourse at this scale is a climate machine: the high glass lets heat rise away, the low sun is admitted at its evening angle, and the moving crowd itself is part of the ventilation — thousands of people going somewhere stir the air.",
+      "The levels are the point: galleries, bridges and balconies stack the city's foot traffic in storeys, so the room holds a festival's worth of people without anyone's path being blocked."
+    ],
+    "img": "https://johnny-oneal.com/scifi-grand-concourse.webp",
+    "source": "https://johnny-oneal.com/scifi-grand-concourse.webp",
+    "deep": "<p>The great stations of the nineteenth century proved that a travelling crowd under a glass vault is one of architecture's reliable wonders; this concourse takes that inheritance at several times the scale and gives the room back to the city. It is not only a way through — the shops, cafes and rest decks line its galleries the way they would line a street, and the bridges crossing the void carry as many people as the floor. At the day's end the building performs its signature: the sun drops to the axis of the vault and fires the whole length of it, turning the commute into a procession through amber light. Monumental, yes — but the monument is a room everyone uses every day.</p>"
+  },
+  {
+    "id": "fjord-farms",
+    "name": "The Fjord Farms",
+    "sub": "Dozens of glass growing terraces stacked down a sunlit fjord cliff",
+    "overview": "The cliff is the farm. Dozens of glass growing terraces step down a fjord cliff face to deep blue water — crops in rows behind the glass, waterfalls threading between the levels, people working the planted balconies and crossing the sky-bridges, snow on the far peaks under a clear sky.",
+    "details": [
+      "A cliff face is wasted farmland turned vertical: stacking the terraces gives each crop its own sun and drainage, and the fjord below moderates the cold — water this deep rarely freezes at the shore.",
+      "The waterfalls are the irrigation arriving: meltwater from the heights is led down the face level by level, so gravity does the pumping and each terrace drinks on the way past.",
+      "Glass on a cliff this steep is serviced from the balconies themselves — the walkways are the farm's roads, and every terrace can be reached on foot, with no field road cut into the slope."
+    ],
+    "img": "https://johnny-oneal.com/scifi-fjord-farms.webp",
+    "source": "https://johnny-oneal.com/scifi-fjord-farms.webp",
+    "deep": "<p>Fjords are generous with everything except flat land. The water is deep and sheltered, the sun strikes the south-facing rock all day, and there is nowhere to put a field — so this settlement put its fields on the cliff itself, in glass. Terrace by terrace the farm climbs: greens in the cool levels near the water, warmth-loving crops higher in the sun trap, meltwater led down through all of it in white threads. It reads from the water as a green staircase hung on the rock, worked by people on balconies like a vineyard that went vertical. Abundance here is not imported; it is grown on the one surface the fjord had spare — the wall.</p>"
   }
 ];
