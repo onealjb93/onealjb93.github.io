@@ -20,8 +20,10 @@
 // two batch-6 scenes he approved later still, The Needle Crown and
 // The Crown Deck, and by two batch-11 scenes he approved later
 // still, The Pillar Arch and The Cloud-Sea Habitat, and by one
-// batch-12 scene he approved later still, The Valley Arch.
-// Eighteen entries. Entries carry no credit field: the page
+// batch-12 scene he approved later still, The Valley Arch, and by
+// two pool-growth scenes he approved on 2026-11-26, The Civic
+// Terraces and The River Pavilion.
+// Twenty entries. Entries carry no credit field: the page
 // shows no credit line for this pool.
 window.SCIFI_DATA = [
   {
@@ -275,5 +277,33 @@ window.SCIFI_DATA = [
     "img": "https://johnny-oneal.com/scifi-valley-arch.webp",
     "source": "https://johnny-oneal.com/scifi-valley-arch.webp",
     "deep": "<p>Tunnel View is the most photographed doorway in American landscape — the place where the valley announces itself all at once, cliff and fall and forest in a single frame. To build here at all is an act of nerve; to build a gate is an act of understanding. The Valley Arch does not compete with the view. It stands at the far end of it, in the haze, at the exact scale the valley itself works at, and turns arrival into ceremony: you do not just enter Yosemite, you pass under lit windows and garden bands, through the mouth of the valley made visible. The cliffs were always a doorway. The arch simply admits it.</p>"
+  },
+  {
+    "id": "civic-terraces",
+    "name": "The Civic Terraces",
+    "sub": "A terraced public house stepping down a green headland to the sea, its decks gathered under one great cable-held glass sail",
+    "overview": "The town's living room, rebuilt as a hillside. A public house steps down a green headland in planted terraces — olive trees and garden ledges above, a long still reflecting pool at its heart, an exercise deck below — and over it all leans a single enormous glass canopy, shaped like a sail and held out over the slope on cables from one mast, so the whole building stands in bright shade above the sea. Nothing here is behind a ticket gate: families are at lunch in the foreground, a class is mid-formation on the deck, and the ocean does the decorating.",
+    "details": [
+      "The canopy is a cable-stayed roof: one mast, cables fanning out to carry a roof that reaches far beyond anything its own columns could hold. It is the bridge-builder's trick turned into shade — the geometry that holds up the longest spans on Earth, used here to hold a ceiling of glass over a hillside.",
+      "Terracing is the oldest way to make a steep place generous. Cut a slope into level steps and every step becomes a room with a view over the one below — the principle behind rice terraces and Mediterranean hill towns, applied here to a single public building.",
+      "The long pool at the terraces' heart is a reflecting pool, not a swimming pool: a sheet of water kept shallow and still to double the sky, cool the decks around it as it evaporates, and give the building a calm centre the eye can rest on."
+    ],
+    "img": "https://johnny-oneal.com/scifi-civic-terraces.webp",
+    "source": "https://johnny-oneal.com/scifi-civic-terraces.webp",
+    "deep": "<p>Prosperity, in most pictures of the future, is something that happens behind walls. The Civic Terraces spend theirs in the open. The expensive things here — the great sail of glass, the engineered hillside, the still water — are all spent on space anyone may walk into: a deck for the morning class, tables long enough for two families, gardens shading the steps between. The headland was always beautiful. The building's one idea is that beauty like this should hold a town's whole day, from first exercise to last lunch, in the sun and out of the wind — abundance you don't need an invitation to.</p>"
+  },
+  {
+    "id": "river-pavilion",
+    "name": "The River Pavilion",
+    "sub": "A timber-and-glass pavilion bridging a jungle river gorge at dusk, its pool pouring over the edge as a waterfall",
+    "overview": "The pavilion does not cross the gorge so much as move into it. Dark timber halls with warm glass faces are strung between the two cliffs of a rainforest river gorge, solar panels tilted along their roofs, and on the near deck an infinity pool runs to the very edge of the structure and pours over it in one white ribbon — a waterfall the building makes on purpose — while people sit around a fire above the mist rising off the river.",
+    "details": [
+      "Inhabited bridges are an old idea — Florence's Ponte Vecchio and Erfurt's Krämerbrücke have carried shops and houses for centuries — but they crossed tame town rivers. This one carries dining halls and decks across a wild gorge, so the crossing itself is the destination.",
+      "The waterfall is the pool's overflow, given an edge wide and smooth enough to fall as a single unbroken sheet. The water is the river's own — stilled for a swim, then returned to the gorge it was always heading down.",
+      "The roofs carry solar panels tilted into the light gaps in the canopy, and the building's warmth at dusk is all lamplight and firelight. The gorge does the cooling itself, breathing cool air up off the river — the mist is that cool air meeting the warm evening, made visible."
+    ],
+    "img": "https://johnny-oneal.com/scifi-river-pavilion.webp",
+    "source": "https://johnny-oneal.com/scifi-river-pavilion.webp",
+    "deep": "<p>Most buildings treat a landscape like this as a view — something to face, framed in glass. The River Pavilion treats it as a host. It borrows the gorge's span for its structure, the river's water for its pool and its waterfall, the canopy's light for its power, and gives back the one thing the gorge never had: a warm room in the middle of it, lit at dusk, where people can sit by a fire and watch the mist come up. The technology is modest and mostly old — timber, glass, cable, falling water. What is new is the address.</p>"
   }
 ];
