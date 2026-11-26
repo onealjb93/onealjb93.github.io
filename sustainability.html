@@ -2359,6 +2359,49 @@ function boot() {
         <a href="#chap-material" data-spy="chap-material">Material</a>
     </nav>
 
+    <style>
+    /* Top search (2026-11-25): the site pattern's second instance —
+       Cooking's top search in this page's own glass. One quiet pill
+       directly under the chapter bar: live from the first letter,
+       a count beside the field, a clear that hands the page back
+       exactly as it was. */
+    .sus-search { margin: 0.9rem 0 0.2rem; }
+    .sus-search-row { display: flex; align-items: center; gap: 0.6rem;
+        border: 1px solid var(--border-color); background: var(--glass-bg);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+        backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+        border-radius: 999px; padding: 6px 6px 6px 18px;
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35); }
+    body.light-mode .sus-search-row { box-shadow: 0 14px 30px rgba(74, 60, 25, 0.18); }
+    .sus-search-input { flex: 1 1 auto; min-width: 0; border: none; background: transparent;
+        color: var(--text-color); font: inherit; font-size: 16px; line-height: 1.4;
+        padding: 8px 0; outline: none; }
+    .sus-search-input::placeholder { color: var(--subtext-color); opacity: 1; }
+    .sus-search-count { color: var(--subtext-color); font-size: 0.9rem; white-space: nowrap; }
+    .sus-search-clear { appearance: none; flex: none; cursor: pointer;
+        width: 38px; height: 38px; border-radius: 50%;
+        border: 1px solid var(--border-color); background: var(--card-bg);
+        color: var(--text-color); font-size: 0.95rem; line-height: 1;
+        display: inline-flex; align-items: center; justify-content: center; }
+    .sus-search-clear:hover { background: var(--hover-bg); }
+    .sus-search-clear[hidden] { display: none; }
+    .sus-search-empty { margin: 0.9rem 0 0; padding: 1rem 1.15rem;
+        border: 1px solid var(--border-color); border-radius: 20px;
+        background: var(--glass-bg); color: var(--text-color);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+        backdrop-filter: blur(var(--glass-blur)) saturate(1.5); }
+    .sus-search-empty[hidden] { display: none; }
+    .ss-hide { display: none !important; }
+    </style>
+    <div class="sus-search" id="susSearch">
+        <div class="sus-search-row">
+            <input class="sus-search-input" id="susSearchInput" type="text" autocomplete="off" spellcheck="false" placeholder="Search stories" aria-label="Search stories">
+            <span class="sus-search-count" id="susSearchCount" role="status"></span>
+            <button type="button" class="sus-search-clear" id="susSearchClear" aria-label="Clear the search" hidden>&#10005;</button>
+        </div>
+        <p class="sus-search-empty" id="susSearchEmpty" hidden>No stories match. Clear the search to bring every story back.</p>
+    </div>
+
     <section id="chap-food">
     <div class="chapter-head"><h2>Food abundance</h2><p class="section-line">Chapter 1 of 5 &middot; Grow food while rebuilding the land that grows it.</p></div>
 
@@ -5811,6 +5854,156 @@ body.light-mode .gtype-face{background:
         if (designated) { designated.classList.remove('breathe'); designated = null; }
     }, true);
     designate();
+})();
+</script>
+
+<script>
+/* Top search (2026-11-25): the site pattern — live from the first
+   letter, across every chapter, because finding is its job (the
+   chapter bar's scroll-spy is not a filter and is never treated as
+   one; tapping a chapter pill stands the search down first, then
+   the anchor travels as it always has). A case matches when every
+   word of the term appears in the text a visitor can read: the
+   case's shelf name and one-line, its framework's door name, its
+   chapter's name, or the story itself (the article is right there
+   in the same markup, so the story's own words are searched too).
+   Clearing hands the page back exactly: every shelf, count line,
+   open story and the scroll position restored to the snapshot
+   taken when the search began. */
+(function () {
+    var input = document.getElementById('susSearchInput');
+    var countEl = document.getElementById('susSearchCount');
+    var clearBtn = document.getElementById('susSearchClear');
+    var emptyEl = document.getElementById('susSearchEmpty');
+    if (!input || !countEl || !clearBtn || !emptyEl) return;
+    function norm(s) {
+        return (s || '').toLowerCase().normalize('NFD')
+            .replace(/[̀-ͯ]/g, '')
+            .replace(/\s+/g, ' ').trim();
+    }
+    function textOf(el) { return el ? el.textContent.replace(/\s+/g, ' ').trim() : ''; }
+    // ---- index: chapters -> frameworks -> cards, built from the DOM ----
+    var chapters = [];
+    var total = 0;
+    document.querySelectorAll('#chapters > section').forEach(function (section) {
+        var h2 = section.querySelector('.chapter-head h2');
+        var chapName = textOf(h2);
+        var ch = { section: section, frameworks: [] };
+        section.querySelectorAll('.gframework').forEach(function (fw) {
+            var door = fw.querySelector('.gchap-cards .gstrip-name');
+            var panel = fw.querySelector(':scope > .story-panel');
+            var shelfCount = fw.querySelector('.shelf-count');
+            var f = { fw: fw, panel: panel, shelfCount: shelfCount,
+                      shelfOrig: shelfCount ? shelfCount.textContent : null, cards: [] };
+            fw.querySelectorAll('.case-card').forEach(function (card) {
+                var nameEl = card.querySelector('.gstrip-name') || card.querySelector('.gtype-name');
+                var headEl = card.querySelector('.gstrip-head');
+                var key = card.getAttribute('data-story');
+                var art = panel ? panel.querySelector('[data-story="' + key + '"]') : null;
+                var hay = norm(textOf(nameEl) + ' ' + textOf(headEl) + ' ' +
+                               textOf(door) + ' ' + chapName + ' ' + textOf(art));
+                f.cards.push({ card: card, key: key, hay: hay });
+                total++;
+            });
+            ch.frameworks.push(f);
+        });
+        chapters.push(ch);
+    });
+    // The Future strip is a second door into the same rooms — while a
+    // search stands it steps aside with the shelves it duplicates.
+    var futureEls = [];
+    var fh = document.getElementById('future-happening');
+    if (fh) {
+        futureEls.push(fh);
+        if (fh.nextElementSibling) futureEls.push(fh.nextElementSibling);
+        var fstrip = document.querySelector('.future-strip');
+        if (fstrip) futureEls.push(fstrip);
+    }
+    // ---- snapshot / restore ----
+    var snapshot = null;   // { y, open: Map(framework el -> story key | null) }
+    function openKeyOf(f) {
+        var ex = f.fw.querySelector('.case-card[aria-expanded="true"]');
+        return ex ? ex.getAttribute('data-story') : null;
+    }
+    function takeSnapshot() {
+        var open = new Map();
+        chapters.forEach(function (ch) {
+            ch.frameworks.forEach(function (f) { open.set(f.fw, openKeyOf(f)); });
+        });
+        return { y: window.scrollY, open: open };
+    }
+    function clearSearch(skipScroll) {
+        if (!snapshot) { input.value = ''; countEl.textContent = ''; emptyEl.hidden = true; clearBtn.hidden = true; return; }
+        var snap = snapshot; snapshot = null;
+        document.querySelectorAll('#chapters .ss-hide').forEach(function (el) { el.classList.remove('ss-hide'); });
+        futureEls.forEach(function (el) { el.classList.remove('ss-hide'); });
+        chapters.forEach(function (ch) {
+            ch.frameworks.forEach(function (f) {
+                if (f.shelfCount && f.shelfOrig !== null) f.shelfCount.textContent = f.shelfOrig;
+                var want = snap.open.get(f.fw);
+                var now = openKeyOf(f);
+                if (now && now !== want) {
+                    var ex = f.fw.querySelector('.case-card[aria-expanded="true"]');
+                    if (ex) ex.click();
+                }
+                if (want && want !== now && f.fw._openStory) f.fw._openStory(want);
+            });
+        });
+        input.value = '';
+        countEl.textContent = '';
+        emptyEl.hidden = true;
+        clearBtn.hidden = true;
+        if (!skipScroll) {
+            var y = snap.y;
+            window.scrollTo(0, y);
+            window.requestAnimationFrame(function () {
+                if (window.scrollY !== y) window.scrollTo(0, y);
+            });
+        }
+    }
+    // ---- apply ----
+    function apply() {
+        var q = norm(input.value);
+        if (!q) { if (snapshot) clearSearch(false); return; }
+        if (!snapshot) snapshot = takeSnapshot();
+        var words = q.split(' ').filter(Boolean);
+        var n = 0;
+        chapters.forEach(function (ch) {
+            var chN = 0;
+            ch.frameworks.forEach(function (f) {
+                var fN = 0;
+                f.cards.forEach(function (c) {
+                    var hit = words.every(function (w) { return c.hay.indexOf(w) !== -1; });
+                    c.card.classList.toggle('ss-hide', !hit);
+                    if (hit) fN++;
+                });
+                // An open story whose card this search hides is closed
+                // (its own card click is the gallery's close path); one
+                // that still matches stays open, exactly as it was.
+                var openCard = f.fw.querySelector('.case-card[aria-expanded="true"]');
+                if (openCard && openCard.classList.contains('ss-hide')) openCard.click();
+                f.fw.classList.toggle('ss-hide', fN === 0);
+                if (fN > 0 && f.shelfCount) {
+                    f.shelfCount.textContent = fN + ' of ' + f.cards.length +
+                        (f.cards.length === 1 ? ' story' : ' stories');
+                }
+                chN += fN; n += fN;
+            });
+            ch.section.classList.toggle('ss-hide', chN === 0);
+        });
+        futureEls.forEach(function (el) { el.classList.add('ss-hide'); });
+        countEl.textContent = n ? (n + (n === 1 ? ' story' : ' stories')) : '';
+        emptyEl.hidden = n !== 0;
+        clearBtn.hidden = false;
+    }
+    input.addEventListener('input', apply);
+    clearBtn.addEventListener('click', function () { clearSearch(false); input.focus(); });
+    // Chapter pills compose by standing the search down (capture
+    // phase, the page's own guard pattern), then travelling as usual.
+    var nav = document.getElementById('chapnav');
+    if (nav) nav.addEventListener('click', function (e) {
+        if (snapshot && e.target && e.target.closest && e.target.closest('a')) clearSearch(true);
+    }, true);
 })();
 </script>
 </body>
