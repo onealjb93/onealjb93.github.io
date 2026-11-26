@@ -1073,7 +1073,7 @@
     .sig-axis-toggle .filter-pill { min-width: 44px; justify-content: center; font-weight: 600; }
     .sig-controls-layer { margin: 0 0 0.4rem; }
     .sig-controls-layer .filter-pill { min-height: 44px; padding: 10px 16px; display: inline-flex; align-items: center; }
-    .sig-controls-layer .sig-amt input { height: 44px; width: 6rem; }
+    .sig-controls-layer .sig-amt input { height: 44px; width: 6rem; font-size: 1rem; }
     .sig-tf-wrap { margin: 0.15rem 0 0.55rem; }
     .sig-tf-wrap .sig-tf-row { margin: 0; }
     .sig-names-btn { font-weight: 600; }
@@ -1139,6 +1139,45 @@
       #sigLegend { row-gap: 0.25rem; }
       #sigTotals { margin: 6px 0 4px; }
       .sig-viewrow { margin: 0.3rem 0 0.4rem; }
+      /* One screen, compact (2026-11-25, second pass): the whole
+         operating surface — inputs, totals band, timeframe, chart
+         — fits one 393x852 screen in the fullest state, the chart
+         canvas absorbing what is left as before. No control owns
+         a row of its own: the strategy and Names pills share a
+         line, Buy and Sell pair on the next, Compare's pills flex
+         beside their label on one line, and the two switches
+         share a line — the thermostat's state line takes the
+         full width under its switch (it wrapped word-by-word in
+         a squeezed column, with the Dividends label landing
+         inside it). Nothing is removed and no wording changes;
+         tap targets hold at 40px. */
+      .sig-controls-layer { gap: 6px; margin-bottom: 2px; }
+      .sig-controls-layer .sig-ctl-row { gap: 6px; }
+      .sig-controls-layer .filter-pill { min-height: 40px; padding: 8px 14px; }
+      .sig-controls-layer .sig-amt { flex: 1 1 130px; }
+      .sig-controls-layer .sig-amt input { height: 40px; width: 100%; flex: 1 1 auto; min-width: 0; }
+      .sig-ctl-row > .sig-bench { flex: 1 1 auto; flex-wrap: nowrap; gap: 6px; }
+      .sig-bench-label { flex: none; font-size: 0.82rem; }
+      .sig-bench .filter-pill { flex: 1 1 0; min-width: 0; padding: 8px 2px; justify-content: center; font-size: 0.8rem; white-space: nowrap; }
+      .sig-switch-row { gap: 5px; }
+      .sig-switch-row .sig-thermo-label { flex: none; font-size: 0.84rem; }
+      .sig-switch-row .sig-switch { height: 40px; }
+      .sig-switch-row #sigDivsLabel { margin-left: auto; }
+      .sig-controls-layer .sig-thermo-state { flex: 1 1 100%; order: 5; font-size: 0.78rem; line-height: 1.3; margin-top: 2px; }
+      .sig-band-head { padding: 5px 8px 0; line-height: 1.25; }
+      .sig-band-cols { padding: 3px 8px 0; line-height: 1.2; }
+      .sig-band-row { padding: 4px 8px 5px; line-height: 1.25; }
+      .sig-band-who { font-size: 0.74rem; margin-bottom: 0; line-height: 1.2; }
+      .sig-band-num { line-height: 1.25; }
+      .sig-bench-label { line-height: 1.25; }
+      .sig-bench .filter-pill { line-height: 1.25; }
+      .sig-controls-layer .filter-pill { line-height: 1.25; }
+      .sig-viewrow { margin: 3px 0 4px; }
+      .sig-viewrow .filter-pill { min-height: 40px; padding: 8px 16px; }
+      .sig-tf-wrap { margin: 2px 0 4px; }
+      .sig-tf-row .filter-pill { min-height: 40px; padding: 8px 4px; }
+      .sig-legend { font-size: 0.78rem; line-height: 1.3; margin-top: 4px; gap: 2px 10px; }
+      .sig-readout { font-size: 0.82rem; line-height: 1.3; margin-top: 3px; }
     }
     /* Johnny's card: the allocation bar (2026-11-17) — the strategy
        line drawn, 70 / 10 / 10 / 10. The $70 segment takes the page
@@ -1946,6 +1985,7 @@
     #chart .section-chevron { display: none; }
     #chart .section-toggle { pointer-events: none; cursor: default; }
     .pulse-line { font-size: 1rem; font-weight: 600; line-height: 1.35; color: var(--text-color); margin: 4px 0 12px; }
+    #backtest > .pulse-line { margin-bottom: 8px; line-height: 1.28; }
     .pulse-line .pulse-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #22c55e; vertical-align: baseline; }
     .pulse-line .pulse-dot.sell { background: #ef4444; }
     body.light-mode .pulse-line .pulse-dot { background: #16a34a; }
@@ -2451,6 +2491,334 @@
         btn.addEventListener("click", function () { setOpen(tools.hidden); });
     })();
     </script>
+<!-- Johnny's Indicator Backtest — the backtest simulator
+     (2026-11-25): replaces the Portfolio Backtest. Same section id
+     and body id, so the page's section machinery (nav, open-state,
+     pulse line) is untouched. Rearranged the same day, on Johnny's
+     approval of the working mock: the stage (totals band + chart)
+     on top, one control layer under the chart, the words folded
+     into one How it works layer, and the name list in a glass
+     sheet. Same engine, same defaults, same numbers. -->
+    <div class="sig-section collapsible-section" id="backtest">
+        <h2 class="section-title"><button type="button" class="section-toggle" data-section="backtest" aria-expanded="false" aria-controls="backtest-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Johnny&rsquo;s Indicator Backtest</span></button><button type="button" class="filter-pill chart-fs-btn" id="sigFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
+        <p class="pulse-line" id="backtestPulse" hidden></p>
+        <div class="section-body" id="backtest-body" hidden>
+        <p id="sigLoading" class="empty-state">Loading price history&hellip;</p>
+        <div id="sigApp" hidden>
+            <div class="sig-controls sig-controls-layer">
+                <div class="sig-ctl-row">
+                    <button type="button" class="filter-pill active" id="sigToggle" aria-pressed="true">Johnny&rsquo;s indicator</button>
+                    <button type="button" class="filter-pill sig-names-btn" id="sigNamesBtn" aria-haspopup="dialog">Names &middot; 23 in</button>
+                    <span class="sig-amt"><label for="sigBuyAmt">Buy&nbsp;$</label><input type="number" id="sigBuyAmt" value="1000" min="0" step="50" inputmode="decimal"></span>
+                    <span class="sig-amt"><label for="sigSellAmt">Sell&nbsp;$</label><input type="number" id="sigSellAmt" value="1000" min="0" step="50" inputmode="decimal"></span>
+                </div>
+                <div class="sig-ctl-row">
+                    <span class="sig-bench"><span class="sig-bench-label">Compare against</span><button type="button" class="filter-pill active" data-bench="SPX" aria-pressed="true">S&amp;P 500</button><button type="button" class="filter-pill" data-bench="IXIC" aria-pressed="false">Nasdaq-100</button><button type="button" class="filter-pill" data-bench="CASH" aria-pressed="false">Cash</button></span>
+                </div>
+                <div class="sig-ctl-row sig-switch-row">
+                    <span class="sig-thermo-label" id="sigThermoLabel">VIX cash thermostat</span>
+                    <button type="button" class="sig-switch" id="sigVix" aria-pressed="false" aria-labelledby="sigThermoLabel"></button>
+                    <span class="sig-thermo-state" id="sigThermoState" hidden></span>
+                    <span class="sig-thermo-label" id="sigDivsLabel">Dividends</span>
+                    <button type="button" class="sig-switch" id="sigDivs" aria-pressed="false" aria-labelledby="sigDivsLabel"></button>
+                </div>
+            </div>
+            <div class="sig-totals" id="sigTotals"></div>
+            <p class="empty-state sig-empty" id="sigEmpty" hidden></p>
+            <div class="chip-row sig-viewrow" id="sigViewRow" role="group" aria-label="Portfolio view">
+                <button type="button" class="filter-pill active" id="sigViewTable" aria-pressed="true">Table</button>
+                <button type="button" class="filter-pill" id="sigViewChart" aria-pressed="false">Chart</button>
+                <div class="sig-axis-toggle" role="group" aria-label="Amounts in dollars or percent">
+                    <button type="button" class="filter-pill active" id="sigAxisUsd" aria-pressed="true">$</button>
+                    <button type="button" class="filter-pill" id="sigAxisPct" aria-pressed="false">%</button>
+                </div>
+            </div>
+            <div class="sig-ctl-row sig-tf-wrap">
+                <div class="chip-row sig-tf-row" id="sigRanges" role="group" aria-label="Simulation time frame">
+                    <button type="button" class="filter-pill" data-range="1D">1D</button>
+                    <button type="button" class="filter-pill" data-range="1W">1W</button>
+                    <button type="button" class="filter-pill" data-range="1M">1M</button>
+                    <button type="button" class="filter-pill" data-range="6M">6M</button>
+                    <button type="button" class="filter-pill" data-range="1Y">1Y</button>
+                    <button type="button" class="filter-pill" data-range="5Y">5Y</button>
+                    <button type="button" class="filter-pill" data-range="10Y">10Y</button>
+                    <button type="button" class="filter-pill active" data-range="ALL">All</button>
+                </div>
+            </div>
+            <div id="sigTableWrap">
+                <div class="sig-table-wrap">
+                    <table class="sig-table">
+                        <thead>
+                            <tr><th>Name</th><th class="num">Shares</th><th class="num">Price</th><th class="num">Cost basis</th><th class="num">Value</th><th class="num">Dividends</th><th class="num">Gain / loss</th></tr>
+                        </thead>
+                        <tbody id="sigRows"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="sigChartWrap" hidden>
+                <div class="sig-chart-stage">
+                    <canvas id="sigChart" aria-label="Portfolio value over time, against the chosen comparison"></canvas>
+                </div>
+                <div class="sig-legend" id="sigLegend"></div>
+                <div class="sig-readout" id="sigReadout"></div>
+                <p class="empty-state" id="sigOffNote" hidden>The indicator is off &mdash; turn on Johnny&rsquo;s indicator to run the portfolio.</p>
+            </div>
+            <details class="disclaimer-note sig-hiw">
+              <summary><span class="disclaimer-gist">How it works</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
+              <div class="disclaimer-body">
+            <p class="sig-window" id="sigWindow"></p>
+            <p class="sig-rule">STRC and SATS sit with the rest of the names, but their dots print on price alone: a buy dot when the close is in a buy zone &mdash; $99&ndash;$95, $95&ndash;$85 or $85&ndash;$70 &mdash; and they never sell. What they pay out lands in Cash when Dividends is on, like every dividend here.</p>
+            <p class="sig-rule" id="sigVixRule" hidden>With the VIX thermostat on, each buy day steers the portfolio&rsquo;s cash share to the thermostat&rsquo;s target &mdash; 30% cash at a VIX of 10, 5% cash at a VIX of 35.</p>
+            <p class="sig-rule" id="sigBenchNote" hidden></p>
+            <p style="font-size: 0.85rem; color: var(--subtext-color);">Every green dot buys the Buy amount of that name at that day&rsquo;s close; every red dot sells the Sell amount, never more than the position holds. Fractional shares, the way the big platforms allow them. The dots and the prices are the same ones the chart above draws, from the same daily file, so this portfolio can never disagree with the chart.</p>
+            <p style="font-size: 0.85rem; color: var(--subtext-color);">Prices are split-adjusted, so stock splits are already in the numbers. Dividends are not in the prices. With the Dividends switch on, when a name pays, the cash lands in the Cash row on the ex-dividend date &mdash; the day the price drops by the payout &mdash; so the value line never shows a phantom dip. Dividends are counted in the gain, and nothing is reinvested unless a later dot buys it. With the switch off, no dividends are counted anywhere &mdash; both lines are price only.</p>
+            <p style="font-size: 0.85rem; color: var(--subtext-color);">The comparison line puts the same dollars in on the same days and just holds &mdash; no dots, no sells. The S&amp;P 500 comparison counts its dividends the same way the portfolio does when Dividends is on: the index&rsquo;s dividends per share (Standard &amp; Poor&rsquo;s published quarterly figures) land in its cash at each quarter&rsquo;s end, through 2025 Q4, the last quarter published before the series was discontinued &mdash; its 2026 dividends are not counted. The Nasdaq-100 comparison is the index&rsquo;s price only.</p>
+            <p class="sig-assumptions">Trades execute at the close on the day the dot prints &middot; no commissions or slippage &middot; figures are before taxes &middot; cash earns no interest.</p>
+              </div>
+            </details>
+        </div>
+
+        </div>
+    </div>
+    <!-- The backtest's names sheet (2026-11-25): the name list in
+         the site's glass standard, opened by the Names button in
+         the control layer above. -->
+    <div class="glass-scrim sig-names-scrim" id="sigNamesScrim" hidden>
+        <div class="glass-bubble sig-sheet" role="dialog" aria-modal="true" aria-labelledby="sigNamesHeading">
+            <div class="sig-sheet-head">
+                <h3 id="sigNamesHeading">Names in the portfolio</h3>
+                <button type="button" class="filter-pill sig-sheet-close" id="sigNamesClose">Close</button>
+            </div>
+            <div class="sig-sheet-body">
+                <div class="sig-names" id="sigNames"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+    // Johnny's Indicator Backtest, rearranged (2026-11-25): the
+    // arrangement's own wiring — the stage opens on the chart, the
+    // Names button carries the live count, the thermostat's state
+    // line rides at its switch, and the names sheet opens and
+    // closes without moving the page. The engine is untouched.
+    (function () {
+        "use strict";
+        function $(id) { return document.getElementById(id); }
+        var app = $("sigApp"), totals = $("sigTotals"), namesEl = $("sigNames");
+        var namesBtn = $("sigNamesBtn"), scrim = $("sigNamesScrim"), closeBtn = $("sigNamesClose");
+        if (!app || !totals || !namesEl || !namesBtn || !scrim || !closeBtn) return;
+
+        // The stage is the chart: one click on the real Chart pill
+        // the first time the app shows. The toggle stays.
+        var chartClicked = false;
+        function maybeChart() {
+            if (chartClicked || app.hidden) return;
+            chartClicked = true;
+            var vc = $("sigViewChart");
+            if (vc) vc.click();
+        }
+        if (window.MutationObserver) new MutationObserver(maybeChart)
+            .observe(app, { attributes: true, attributeFilter: ["hidden"] });
+        maybeChart();
+
+        // The Names button's live count, read from the list's own
+        // head ("N of 23 names in") each time the engine re-renders it.
+        function syncNamesLabel() {
+            var head = namesEl.querySelector(".sig-names-head span");
+            var m = head && head.textContent.match(/(\d+) of \d+/);
+            if (m) namesBtn.textContent = "Names \u00b7 " + m[1] + " in";
+        }
+        if (window.MutationObserver) new MutationObserver(syncNamesLabel)
+            .observe(namesEl, { childList: true });
+        syncNamesLabel();
+
+        // The thermostat's state line rides at its switch in the
+        // inputs; the engine writes it there directly (the band
+        // carries no card for it since the reorder).
+
+        // The names sheet: opens over the dimmed page, closes back
+        // to exactly where the reader was (scroll Δ = 0). Inside
+        // the section's own full screen it rides inside the section,
+        // the one place a fixed layer can be seen there.
+        var savedY = 0, home = scrim.parentNode, homeNext = scrim.nextSibling;
+        function openSheet() {
+            savedY = window.scrollY || 0;
+            var sec = $("backtest");
+            if (sec && document.fullscreenElement === sec) sec.appendChild(scrim);
+            scrim.hidden = false;
+            document.body.style.position = "fixed";
+            document.body.style.top = (-savedY) + "px";
+            document.body.style.left = "0";
+            document.body.style.right = "0";
+            closeBtn.focus({ preventScroll: true });
+        }
+        function closeSheet() {
+            scrim.hidden = true;
+            document.body.style.position = "";
+            document.body.style.top = "";
+            document.body.style.left = "";
+            document.body.style.right = "";
+            if (scrim.parentNode !== home) home.insertBefore(scrim, homeNext);
+            window.scrollTo(0, savedY);
+            namesBtn.focus({ preventScroll: true });
+        }
+        // One screen: the chart canvas takes the height that
+        // makes the whole operating surface fit the first screen.
+        // Everything else is measured as it stands; the canvas
+        // absorbs the difference, so toggling a comparison or the
+        // thermostat — which grows the totals strip — never moves
+        // a control. In full screen the chart's own flex sizing
+        // rules, and this clears out of its way.
+        var canvas = $("sigChart"), wrap = $("sigChartWrap"), sec = $("backtest");
+        var fitBusy = false;
+        function fitChart() {
+            if (!canvas || !wrap || !sec || app.hidden || wrap.hidden) return;
+            if (document.fullscreenElement || sec.classList.contains("sig-fs")) {
+                if (canvas.style.height) canvas.style.height = "";
+                return;
+            }
+            var title = sec.querySelector(".section-title");
+            var pin = title ? parseFloat(getComputedStyle(title).top) : NaN;
+            if (!(pin >= 0)) pin = 55;
+            // The operating surface now runs inputs → totals →
+            // view row → timeframe → chart: everything above and
+            // below the canvas inside the chart wrap (legend,
+            // readout) is measured as it stands, the canvas
+            // absorbs the difference.
+            var others = (wrap.getBoundingClientRect().bottom
+                - sec.getBoundingClientRect().top) - canvas.clientHeight;
+            var target = (window.innerHeight - pin) - others - 3;
+            var w = window.innerWidth;
+            var min = w <= 700 ? 100 : 150;
+            var max = w <= 700 ? 300 : (w <= 1000 ? 520 : 400);
+            target = Math.max(min, Math.min(max, target));
+            if (Math.abs(target - canvas.clientHeight) > 2) {
+                canvas.style.height = target + "px";
+                fitBusy = true;
+                window.dispatchEvent(new Event("resize"));
+                fitBusy = false;
+            }
+        }
+        var fitQueued = false;
+        function queueFit() {
+            if (fitQueued) return;
+            fitQueued = true;
+            requestAnimationFrame(function () {
+                fitQueued = false;
+                fitChart();
+                // The engine renders a new state a beat after the
+                // click; measure again once it has settled.
+                setTimeout(fitChart, 350);
+            });
+        }
+        sec.addEventListener("click", queueFit);
+        if (window.MutationObserver) {
+            new MutationObserver(queueFit).observe(totals, { childList: true });
+            var legend = $("sigLegend");
+            if (legend) new MutationObserver(queueFit).observe(legend, { childList: true });
+        }
+        window.addEventListener("resize", function () { if (!fitBusy) queueFit(); });
+        document.addEventListener("fullscreenchange", queueFit);
+        queueFit();
+
+        // The $ / % toggle: one switch for the whole stage — the
+        // totals band, the pulse line, the holdings table and the
+        // chart's axis. A number that carries both forms shows
+        // one; a number with one natural form (Total value, Money
+        // in, Dividends, Max drawdown) never changes. The engine
+        // keeps the values — this only restyles their display
+        // from the engine's own rendered text, and the chart
+        // hears the mode through the sig-axis-mode event. The
+        // mode lives here, so it persists across timeframe,
+        // comparison and thermostat changes in the session.
+        var axisPct = false;
+        var usdBtn = $("sigAxisUsd"), pctBtn = $("sigAxisPct");
+        var pulse = $("backtestPulse"), rowsEl = $("sigRows");
+        var origNums = {}, origPulse = null, origRows = {};
+        function oneForm(text, pct) {
+            var m = text.match(/^([+-]?\$[\d,]+\.\d{2}) \(([+-]?[\d.]+%)\)$/);
+            if (m) return pct ? m[2] : m[1];
+            m = text.match(/^([+-]?\$[\d,]+\.\d{2}) · ([+-]?[\d.]+%)$/);
+            if (m) return pct ? m[2] : m[1];
+            return text;
+        }
+        function usdPart(text) {
+            var m = text.match(/^([+-]?\$[\d,]+\.\d{2}) [·(]/);
+            return m ? m[1] : text;
+        }
+        function pulseForm(orig, pct) {
+            if (pct || !orig) return orig;
+            // The engine publishes the pulse's $ form alongside
+            // the % form (data-pulse-usd) — the switch picks one.
+            return totals.getAttribute("data-pulse-usd") || orig;
+        }
+        function applyTexts() {
+            totals.querySelectorAll(".sig-stat").forEach(function (card) {
+                var lab = card.querySelector(".sig-stat-label"), num = card.querySelector(".sig-stat-num");
+                if (!lab || !num) return;
+                var key = lab.textContent, cur = num.textContent;
+                if (origNums[key] === undefined || (cur !== origNums[key]
+                    && cur !== oneForm(origNums[key], false) && cur !== oneForm(origNums[key], true)))
+                    origNums[key] = cur;
+                var f = oneForm(origNums[key], axisPct);
+                if (cur !== f) num.textContent = f;
+            });
+            if (rowsEl) rowsEl.querySelectorAll("tr").forEach(function (tr) {
+                var name = tr.cells && tr.cells[0] ? tr.cells[0].textContent : "";
+                var td = tr.cells && tr.cells.length ? tr.cells[tr.cells.length - 1] : null;
+                if (!name || !td) return;
+                var cur = td.textContent;
+                if (origRows[name] === undefined || (cur !== origRows[name]
+                    && cur !== oneForm(origRows[name], false) && cur !== oneForm(origRows[name], true)))
+                    origRows[name] = cur;
+                var f = oneForm(origRows[name], axisPct);
+                if (cur !== f) td.textContent = f;
+            });
+            if (pulse && !pulse.hidden && pulse.textContent) {
+                var cur = pulse.textContent;
+                if (origPulse === null || (cur !== origPulse
+                    && cur !== pulseForm(origPulse, false) && cur !== pulseForm(origPulse, true)))
+                    origPulse = cur;
+                var f = pulseForm(origPulse, axisPct);
+                if (cur !== f) pulse.textContent = f;
+            }
+        }
+        function setAxis(pct) {
+            axisPct = !!pct;
+            if (usdBtn && pctBtn) {
+                usdBtn.classList.toggle("active", !axisPct);
+                pctBtn.classList.toggle("active", axisPct);
+                usdBtn.setAttribute("aria-pressed", axisPct ? "false" : "true");
+                pctBtn.setAttribute("aria-pressed", axisPct ? "true" : "false");
+            }
+            document.dispatchEvent(new CustomEvent("sig-axis-mode", { detail: { pct: axisPct } }));
+            applyTexts();
+            queueFit();
+        }
+        if (usdBtn && pctBtn) {
+            usdBtn.addEventListener("click", function () { setAxis(false); });
+            pctBtn.addEventListener("click", function () { setAxis(true); });
+        }
+        if (window.MutationObserver) {
+            new MutationObserver(applyTexts).observe(totals, { childList: true });
+            if (rowsEl) new MutationObserver(applyTexts).observe(rowsEl, { childList: true });
+            if (pulse) new MutationObserver(applyTexts).observe(pulse, { childList: true });
+        }
+        applyTexts();
+
+        namesBtn.addEventListener("click", openSheet);
+        closeBtn.addEventListener("click", closeSheet);
+        scrim.addEventListener("click", function (e) { if (e.target === scrim) closeSheet(); });
+        // Capture phase, and stop the event when it acts: the
+        // engine's own Escape handler (full-screen exit) would
+        // otherwise fire on the same keypress. When the sheet is
+        // closed the event passes through untouched.
+        document.addEventListener("keydown", function (e) {
+            if (e.key !== "Escape" && e.key !== "Esc") return;
+            if (!scrim.hidden) { e.stopPropagation(); closeSheet(); }
+        }, true);
+    })();
+    </script>
+
     <!-- Investment Scoreboard -->
     <div class="scoreboard-section collapsible-section" id="scoreboard">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="false" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Investment Scoreboard</span></button><button type="button" class="filter-pill chart-fs-btn" id="scoreboardFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
@@ -4062,333 +4430,6 @@
     
         </div>
     </div>
-<!-- Johnny's Indicator Backtest — the backtest simulator
-     (2026-11-25): replaces the Portfolio Backtest. Same section id
-     and body id, so the page's section machinery (nav, open-state,
-     pulse line) is untouched. Rearranged the same day, on Johnny's
-     approval of the working mock: the stage (totals band + chart)
-     on top, one control layer under the chart, the words folded
-     into one How it works layer, and the name list in a glass
-     sheet. Same engine, same defaults, same numbers. -->
-    <div class="sig-section collapsible-section" id="backtest">
-        <h2 class="section-title"><button type="button" class="section-toggle" data-section="backtest" aria-expanded="false" aria-controls="backtest-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Johnny&rsquo;s Indicator Backtest</span></button><button type="button" class="filter-pill chart-fs-btn" id="sigFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
-        <p class="pulse-line" id="backtestPulse" hidden></p>
-        <div class="section-body" id="backtest-body" hidden>
-        <p id="sigLoading" class="empty-state">Loading price history&hellip;</p>
-        <div id="sigApp" hidden>
-            <div class="sig-controls sig-controls-layer">
-                <div class="sig-ctl-row">
-                    <button type="button" class="filter-pill active" id="sigToggle" aria-pressed="true">Johnny&rsquo;s indicator</button>
-                    <button type="button" class="filter-pill sig-names-btn" id="sigNamesBtn" aria-haspopup="dialog">Names &middot; 23 in</button>
-                    <span class="sig-amt"><label for="sigBuyAmt">Buy&nbsp;$</label><input type="number" id="sigBuyAmt" value="1000" min="0" step="50" inputmode="decimal"></span>
-                    <span class="sig-amt"><label for="sigSellAmt">Sell&nbsp;$</label><input type="number" id="sigSellAmt" value="1000" min="0" step="50" inputmode="decimal"></span>
-                </div>
-                <div class="sig-ctl-row">
-                    <span class="sig-bench"><span class="sig-bench-label">Compare against</span><button type="button" class="filter-pill active" data-bench="SPX" aria-pressed="true">S&amp;P 500</button><button type="button" class="filter-pill" data-bench="IXIC" aria-pressed="false">Nasdaq-100</button><button type="button" class="filter-pill" data-bench="CASH" aria-pressed="false">Cash</button></span>
-                </div>
-                <div class="sig-ctl-row">
-                    <span class="sig-thermo-label" id="sigThermoLabel">VIX cash thermostat</span>
-                    <button type="button" class="sig-switch" id="sigVix" aria-pressed="false" aria-labelledby="sigThermoLabel"></button>
-                    <span class="sig-thermo-state" id="sigThermoState" hidden></span>
-                    <span class="sig-thermo-label" id="sigDivsLabel">Dividends</span>
-                    <button type="button" class="sig-switch" id="sigDivs" aria-pressed="false" aria-labelledby="sigDivsLabel"></button>
-                </div>
-            </div>
-            <div class="sig-totals" id="sigTotals"></div>
-            <p class="empty-state sig-empty" id="sigEmpty" hidden></p>
-            <div class="chip-row sig-viewrow" id="sigViewRow" role="group" aria-label="Portfolio view">
-                <button type="button" class="filter-pill active" id="sigViewTable" aria-pressed="true">Table</button>
-                <button type="button" class="filter-pill" id="sigViewChart" aria-pressed="false">Chart</button>
-                <div class="sig-axis-toggle" role="group" aria-label="Amounts in dollars or percent">
-                    <button type="button" class="filter-pill active" id="sigAxisUsd" aria-pressed="true">$</button>
-                    <button type="button" class="filter-pill" id="sigAxisPct" aria-pressed="false">%</button>
-                </div>
-            </div>
-            <div class="sig-ctl-row sig-tf-wrap">
-                <div class="chip-row sig-tf-row" id="sigRanges" role="group" aria-label="Simulation time frame">
-                    <button type="button" class="filter-pill" data-range="1D">1D</button>
-                    <button type="button" class="filter-pill" data-range="1W">1W</button>
-                    <button type="button" class="filter-pill" data-range="1M">1M</button>
-                    <button type="button" class="filter-pill" data-range="6M">6M</button>
-                    <button type="button" class="filter-pill" data-range="1Y">1Y</button>
-                    <button type="button" class="filter-pill" data-range="5Y">5Y</button>
-                    <button type="button" class="filter-pill" data-range="10Y">10Y</button>
-                    <button type="button" class="filter-pill active" data-range="ALL">All</button>
-                </div>
-            </div>
-            <div id="sigTableWrap">
-                <div class="sig-table-wrap">
-                    <table class="sig-table">
-                        <thead>
-                            <tr><th>Name</th><th class="num">Shares</th><th class="num">Price</th><th class="num">Cost basis</th><th class="num">Value</th><th class="num">Dividends</th><th class="num">Gain / loss</th></tr>
-                        </thead>
-                        <tbody id="sigRows"></tbody>
-                    </table>
-                </div>
-            </div>
-            <div id="sigChartWrap" hidden>
-                <div class="sig-chart-stage">
-                    <canvas id="sigChart" aria-label="Portfolio value over time, against the chosen comparison"></canvas>
-                </div>
-                <div class="sig-legend" id="sigLegend"></div>
-                <div class="sig-readout" id="sigReadout"></div>
-                <p class="empty-state" id="sigOffNote" hidden>The indicator is off &mdash; turn on Johnny&rsquo;s indicator to run the portfolio.</p>
-            </div>
-            <details class="disclaimer-note sig-hiw">
-              <summary><span class="disclaimer-gist">How it works</span><span class="disclaimer-chevron" aria-hidden="true">&#9654;</span></summary>
-              <div class="disclaimer-body">
-            <p class="sig-window" id="sigWindow"></p>
-            <p class="sig-rule">STRC and SATS sit with the rest of the names, but their dots print on price alone: a buy dot when the close is in a buy zone &mdash; $99&ndash;$95, $95&ndash;$85 or $85&ndash;$70 &mdash; and they never sell. What they pay out lands in Cash when Dividends is on, like every dividend here.</p>
-            <p class="sig-rule" id="sigVixRule" hidden>With the VIX thermostat on, each buy day steers the portfolio&rsquo;s cash share to the thermostat&rsquo;s target &mdash; 30% cash at a VIX of 10, 5% cash at a VIX of 35.</p>
-            <p class="sig-rule" id="sigBenchNote" hidden></p>
-            <p style="font-size: 0.85rem; color: var(--subtext-color);">Every green dot buys the Buy amount of that name at that day&rsquo;s close; every red dot sells the Sell amount, never more than the position holds. Fractional shares, the way the big platforms allow them. The dots and the prices are the same ones the chart above draws, from the same daily file, so this portfolio can never disagree with the chart.</p>
-            <p style="font-size: 0.85rem; color: var(--subtext-color);">Prices are split-adjusted, so stock splits are already in the numbers. Dividends are not in the prices. With the Dividends switch on, when a name pays, the cash lands in the Cash row on the ex-dividend date &mdash; the day the price drops by the payout &mdash; so the value line never shows a phantom dip. Dividends are counted in the gain, and nothing is reinvested unless a later dot buys it. With the switch off, no dividends are counted anywhere &mdash; both lines are price only.</p>
-            <p style="font-size: 0.85rem; color: var(--subtext-color);">The comparison line puts the same dollars in on the same days and just holds &mdash; no dots, no sells. The S&amp;P 500 comparison counts its dividends the same way the portfolio does when Dividends is on: the index&rsquo;s dividends per share (Standard &amp; Poor&rsquo;s published quarterly figures) land in its cash at each quarter&rsquo;s end, through 2025 Q4, the last quarter published before the series was discontinued &mdash; its 2026 dividends are not counted. The Nasdaq-100 comparison is the index&rsquo;s price only.</p>
-            <p class="sig-assumptions">Trades execute at the close on the day the dot prints &middot; no commissions or slippage &middot; figures are before taxes &middot; cash earns no interest.</p>
-              </div>
-            </details>
-        </div>
-
-        </div>
-    </div>
-    <!-- The backtest's names sheet (2026-11-25): the name list in
-         the site's glass standard, opened by the Names button in
-         the control layer above. -->
-    <div class="glass-scrim sig-names-scrim" id="sigNamesScrim" hidden>
-        <div class="glass-bubble sig-sheet" role="dialog" aria-modal="true" aria-labelledby="sigNamesHeading">
-            <div class="sig-sheet-head">
-                <h3 id="sigNamesHeading">Names in the portfolio</h3>
-                <button type="button" class="filter-pill sig-sheet-close" id="sigNamesClose">Close</button>
-            </div>
-            <div class="sig-sheet-body">
-                <div class="sig-names" id="sigNames"></div>
-            </div>
-        </div>
-    </div>
-    <script>
-    // Johnny's Indicator Backtest, rearranged (2026-11-25): the
-    // arrangement's own wiring — the stage opens on the chart, the
-    // Names button carries the live count, the thermostat's state
-    // line rides at its switch, and the names sheet opens and
-    // closes without moving the page. The engine is untouched.
-    (function () {
-        "use strict";
-        function $(id) { return document.getElementById(id); }
-        var app = $("sigApp"), totals = $("sigTotals"), namesEl = $("sigNames");
-        var namesBtn = $("sigNamesBtn"), scrim = $("sigNamesScrim"), closeBtn = $("sigNamesClose");
-        if (!app || !totals || !namesEl || !namesBtn || !scrim || !closeBtn) return;
-
-        // The stage is the chart: one click on the real Chart pill
-        // the first time the app shows. The toggle stays.
-        var chartClicked = false;
-        function maybeChart() {
-            if (chartClicked || app.hidden) return;
-            chartClicked = true;
-            var vc = $("sigViewChart");
-            if (vc) vc.click();
-        }
-        if (window.MutationObserver) new MutationObserver(maybeChart)
-            .observe(app, { attributes: true, attributeFilter: ["hidden"] });
-        maybeChart();
-
-        // The Names button's live count, read from the list's own
-        // head ("N of 23 names in") each time the engine re-renders it.
-        function syncNamesLabel() {
-            var head = namesEl.querySelector(".sig-names-head span");
-            var m = head && head.textContent.match(/(\d+) of \d+/);
-            if (m) namesBtn.textContent = "Names \u00b7 " + m[1] + " in";
-        }
-        if (window.MutationObserver) new MutationObserver(syncNamesLabel)
-            .observe(namesEl, { childList: true });
-        syncNamesLabel();
-
-        // The thermostat's state line rides at its switch in the
-        // inputs; the engine writes it there directly (the band
-        // carries no card for it since the reorder).
-
-        // The names sheet: opens over the dimmed page, closes back
-        // to exactly where the reader was (scroll Δ = 0). Inside
-        // the section's own full screen it rides inside the section,
-        // the one place a fixed layer can be seen there.
-        var savedY = 0, home = scrim.parentNode, homeNext = scrim.nextSibling;
-        function openSheet() {
-            savedY = window.scrollY || 0;
-            var sec = $("backtest");
-            if (sec && document.fullscreenElement === sec) sec.appendChild(scrim);
-            scrim.hidden = false;
-            document.body.style.position = "fixed";
-            document.body.style.top = (-savedY) + "px";
-            document.body.style.left = "0";
-            document.body.style.right = "0";
-            closeBtn.focus({ preventScroll: true });
-        }
-        function closeSheet() {
-            scrim.hidden = true;
-            document.body.style.position = "";
-            document.body.style.top = "";
-            document.body.style.left = "";
-            document.body.style.right = "";
-            if (scrim.parentNode !== home) home.insertBefore(scrim, homeNext);
-            window.scrollTo(0, savedY);
-            namesBtn.focus({ preventScroll: true });
-        }
-        // One screen: the chart canvas takes the height that
-        // makes the whole operating surface fit the first screen.
-        // Everything else is measured as it stands; the canvas
-        // absorbs the difference, so toggling a comparison or the
-        // thermostat — which grows the totals strip — never moves
-        // a control. In full screen the chart's own flex sizing
-        // rules, and this clears out of its way.
-        var canvas = $("sigChart"), wrap = $("sigChartWrap"), sec = $("backtest");
-        var fitBusy = false;
-        function fitChart() {
-            if (!canvas || !wrap || !sec || app.hidden || wrap.hidden) return;
-            if (document.fullscreenElement || sec.classList.contains("sig-fs")) {
-                if (canvas.style.height) canvas.style.height = "";
-                return;
-            }
-            var title = sec.querySelector(".section-title");
-            var pin = title ? parseFloat(getComputedStyle(title).top) : NaN;
-            if (!(pin >= 0)) pin = 55;
-            // The operating surface now runs inputs → totals →
-            // view row → timeframe → chart: everything above and
-            // below the canvas inside the chart wrap (legend,
-            // readout) is measured as it stands, the canvas
-            // absorbs the difference.
-            var others = (wrap.getBoundingClientRect().bottom
-                - sec.getBoundingClientRect().top) - canvas.clientHeight;
-            var target = (window.innerHeight - pin) - others - 3;
-            var w = window.innerWidth;
-            var min = w <= 700 ? 100 : 150;
-            var max = w <= 700 ? 300 : (w <= 1000 ? 520 : 400);
-            target = Math.max(min, Math.min(max, target));
-            if (Math.abs(target - canvas.clientHeight) > 2) {
-                canvas.style.height = target + "px";
-                fitBusy = true;
-                window.dispatchEvent(new Event("resize"));
-                fitBusy = false;
-            }
-        }
-        var fitQueued = false;
-        function queueFit() {
-            if (fitQueued) return;
-            fitQueued = true;
-            requestAnimationFrame(function () {
-                fitQueued = false;
-                fitChart();
-                // The engine renders a new state a beat after the
-                // click; measure again once it has settled.
-                setTimeout(fitChart, 350);
-            });
-        }
-        sec.addEventListener("click", queueFit);
-        if (window.MutationObserver) {
-            new MutationObserver(queueFit).observe(totals, { childList: true });
-            var legend = $("sigLegend");
-            if (legend) new MutationObserver(queueFit).observe(legend, { childList: true });
-        }
-        window.addEventListener("resize", function () { if (!fitBusy) queueFit(); });
-        document.addEventListener("fullscreenchange", queueFit);
-        queueFit();
-
-        // The $ / % toggle: one switch for the whole stage — the
-        // totals band, the pulse line, the holdings table and the
-        // chart's axis. A number that carries both forms shows
-        // one; a number with one natural form (Total value, Money
-        // in, Dividends, Max drawdown) never changes. The engine
-        // keeps the values — this only restyles their display
-        // from the engine's own rendered text, and the chart
-        // hears the mode through the sig-axis-mode event. The
-        // mode lives here, so it persists across timeframe,
-        // comparison and thermostat changes in the session.
-        var axisPct = false;
-        var usdBtn = $("sigAxisUsd"), pctBtn = $("sigAxisPct");
-        var pulse = $("backtestPulse"), rowsEl = $("sigRows");
-        var origNums = {}, origPulse = null, origRows = {};
-        function oneForm(text, pct) {
-            var m = text.match(/^([+-]?\$[\d,]+\.\d{2}) \(([+-]?[\d.]+%)\)$/);
-            if (m) return pct ? m[2] : m[1];
-            m = text.match(/^([+-]?\$[\d,]+\.\d{2}) · ([+-]?[\d.]+%)$/);
-            if (m) return pct ? m[2] : m[1];
-            return text;
-        }
-        function usdPart(text) {
-            var m = text.match(/^([+-]?\$[\d,]+\.\d{2}) [·(]/);
-            return m ? m[1] : text;
-        }
-        function pulseForm(orig, pct) {
-            if (pct || !orig) return orig;
-            // The engine publishes the pulse's $ form alongside
-            // the % form (data-pulse-usd) — the switch picks one.
-            return totals.getAttribute("data-pulse-usd") || orig;
-        }
-        function applyTexts() {
-            totals.querySelectorAll(".sig-stat").forEach(function (card) {
-                var lab = card.querySelector(".sig-stat-label"), num = card.querySelector(".sig-stat-num");
-                if (!lab || !num) return;
-                var key = lab.textContent, cur = num.textContent;
-                if (origNums[key] === undefined || (cur !== origNums[key]
-                    && cur !== oneForm(origNums[key], false) && cur !== oneForm(origNums[key], true)))
-                    origNums[key] = cur;
-                var f = oneForm(origNums[key], axisPct);
-                if (cur !== f) num.textContent = f;
-            });
-            if (rowsEl) rowsEl.querySelectorAll("tr").forEach(function (tr) {
-                var name = tr.cells && tr.cells[0] ? tr.cells[0].textContent : "";
-                var td = tr.cells && tr.cells.length ? tr.cells[tr.cells.length - 1] : null;
-                if (!name || !td) return;
-                var cur = td.textContent;
-                if (origRows[name] === undefined || (cur !== origRows[name]
-                    && cur !== oneForm(origRows[name], false) && cur !== oneForm(origRows[name], true)))
-                    origRows[name] = cur;
-                var f = oneForm(origRows[name], axisPct);
-                if (cur !== f) td.textContent = f;
-            });
-            if (pulse && !pulse.hidden && pulse.textContent) {
-                var cur = pulse.textContent;
-                if (origPulse === null || (cur !== origPulse
-                    && cur !== pulseForm(origPulse, false) && cur !== pulseForm(origPulse, true)))
-                    origPulse = cur;
-                var f = pulseForm(origPulse, axisPct);
-                if (cur !== f) pulse.textContent = f;
-            }
-        }
-        function setAxis(pct) {
-            axisPct = !!pct;
-            if (usdBtn && pctBtn) {
-                usdBtn.classList.toggle("active", !axisPct);
-                pctBtn.classList.toggle("active", axisPct);
-                usdBtn.setAttribute("aria-pressed", axisPct ? "false" : "true");
-                pctBtn.setAttribute("aria-pressed", axisPct ? "true" : "false");
-            }
-            document.dispatchEvent(new CustomEvent("sig-axis-mode", { detail: { pct: axisPct } }));
-            applyTexts();
-            queueFit();
-        }
-        if (usdBtn && pctBtn) {
-            usdBtn.addEventListener("click", function () { setAxis(false); });
-            pctBtn.addEventListener("click", function () { setAxis(true); });
-        }
-        if (window.MutationObserver) {
-            new MutationObserver(applyTexts).observe(totals, { childList: true });
-            if (rowsEl) new MutationObserver(applyTexts).observe(rowsEl, { childList: true });
-            if (pulse) new MutationObserver(applyTexts).observe(pulse, { childList: true });
-        }
-        applyTexts();
-
-        namesBtn.addEventListener("click", openSheet);
-        closeBtn.addEventListener("click", closeSheet);
-        scrim.addEventListener("click", function (e) { if (e.target === scrim) closeSheet(); });
-        // Capture phase, and stop the event when it acts: the
-        // engine's own Escape handler (full-screen exit) would
-        // otherwise fire on the same keypress. When the sheet is
-        // closed the event passes through untouched.
-        document.addEventListener("keydown", function (e) {
-            if (e.key !== "Escape" && e.key !== "Esc") return;
-            if (!scrim.hidden) { e.stopPropagation(); closeSheet(); }
-        }, true);
-    })();
-    </script>
 <!-- Curated Financial Resources Section Positioned Below the Stock Table -->
     <div class="resources-section collapsible-section" id="resources">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="resources" aria-expanded="false" aria-controls="resources-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Curated Financial Resources & Tools</span></button></h2>
@@ -6414,7 +6455,7 @@
                 + '<div class="spreadsheet-container"><table class="spreadsheet-table"><thead><tr><th>Check</th><th>The bar (the Stack)</th><th>' + t.name + ' (' + sym + ')</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
                 + insiderHtml
                 + '<p class="runner-notes"><strong>Step 2 &mdash; Rank what&rsquo;s left:</strong> the Scoreboard above already ranks these stocks by every rule that can be tested.</p>'
-                + '<p class="runner-notes"><strong>Steps 3 and 4 &mdash; research and risk rules</strong> stay a checklist (in Full details below): reading the filings and sizing positions are homework and portfolio rules, not numbers a page can grade. <strong>Step 5</strong> is Johnny&rsquo;s Indicator Backtest below: your dots against the index.</p>'
+                + '<p class="runner-notes"><strong>Steps 3 and 4 &mdash; research and risk rules</strong> stay a checklist (in Full details below): reading the filings and sizing positions are homework and portfolio rules, not numbers a page can grade. <strong>Step 5</strong> is Johnny&rsquo;s Indicator Backtest above: your dots against the index.</p>'
                 + runnerChartButton(sym, t.name);
             wireRunnerChartButton(out);
         }
@@ -6920,8 +6961,14 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     pulse += " · " + bn.name + " " + fmtPct(bn.gainPct);
                     pulseUsd += " · " + bn.name + " " + fmtSigned(bn.gain);
                 });
-                t.setAttribute("data-pulse", pulse + " · total return since " + fmtDateShort(r.firstDot));
-                t.setAttribute("data-pulse-usd", pulseUsd + " · total return since " + fmtDateShort(r.firstDot));
+                // The pulse names the returns only (2026-11-25):
+                // the run's dates have their one home in the How
+                // it works window line, and the shorter pulse
+                // holds two lines at phone width with a comparison
+                // added — so adding one never pushes the inputs
+                // down a line (the toggle-anchor rule).
+                t.setAttribute("data-pulse", pulse);
+                t.setAttribute("data-pulse-usd", pulseUsd);
             }
         }
 
@@ -7005,14 +7052,16 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         function renderBenchNote() {
             var note = el("sigBenchNote");
             var parts = [];
-            if (state.benches.SPX) {
-                parts.push(state.divsOn
-                    ? "The S&P 500 comparison counts its dividends the same way the portfolio does — the index's dividends per share (Standard & Poor's published quarterly figures) in cash at each quarter's end, through 2025 Q4, the last quarter published before the series was discontinued; its 2026 dividends are not counted."
-                    : "Dividends is off, so both lines are price only. Turn it on and the S&P 500 comparison counts its dividends in cash at each quarter's end, the same way the portfolio does.");
-            }
-            if (state.benches.IXIC) {
-                parts.push("The Nasdaq-100 comparison is the index's price only — its own dividends are not counted.");
-            }
+            // One home per fact (2026-11-25): the S&P 500 and
+            // Nasdaq-100 comparison facts — dividends counted the
+            // same way as the portfolio, the 2025 Q4 boundary, the
+            // Nasdaq-100's price-only line, and the price-only
+            // state when Dividends is off — all live in the prose
+            // below, so this note no longer restates them (it
+            // annotated the comparison with "(dividends off)",
+            // which the Dividends switch already states). The
+            // Cash comparison's purchasing-power basis is stated
+            // nowhere else, so it stays here.
             if (state.benches.CASH) {
                 parts.push("The Cash comparison is the same money held as cash, shown in the purchasing power of the first day shown (US CPI) — cash earns no interest and inflation shrinks what it buys; the portfolio line is in the dollars of each day.");
             }
