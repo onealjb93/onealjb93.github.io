@@ -1057,18 +1057,18 @@
     #sigTotals { display: block; border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; margin: 10px 0 6px; background: var(--card-bg); }
     #sigTotals[hidden] { display: none; }
     .sig-band-cols, .sig-band-row { display: grid; grid-template-columns: minmax(92px, 1.05fr) minmax(104px, 1fr) minmax(140px, 1.5fr) minmax(132px, 1.35fr) minmax(70px, 0.7fr); gap: 4px 8px; align-items: baseline; padding: 5px 10px; }
-    .sig-band-cols { font-size: 0.68rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--subtext-color); padding-bottom: 1px; }
+    .sig-band-cols { font-size: calc(0.68rem * var(--sig-hdr-fit, 1)); letter-spacing: 0.04em; text-transform: uppercase; color: var(--subtext-color); padding-bottom: 1px; }
     .sig-band-row { border-top: 1px solid var(--border-color); }
     .sig-band-nums { display: contents; }
     .sig-band-who { font-size: 0.86rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sig-band-num { font-size: 0.96rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .sig-band-num { font-size: calc(0.96rem * var(--sig-fit, 1)); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .sig-band-off { padding: 10px; font-size: 0.9rem; color: var(--subtext-color); }
     /* The band's Money in cell: on desktop it is the grid's
        second column, under its header label; the row's top span
        is display:contents there so the name and the figure take
        their columns. */
     .sig-band-top { display: contents; }
-    .sig-band-in { font-size: 0.96rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .sig-band-in { font-size: calc(0.96rem * var(--sig-fit, 1)); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .sig-band-in-lab { display: none; }
     /* The comparison's funding controls share the compare row:
        two native selects in the page's pill shape (16px text, so
@@ -1126,11 +1126,20 @@
          never wrap and never collide. */
       .sig-band-row { display: block; padding: 6px 8px 7px; }
       .sig-band-who { display: block; font-size: 0.76rem; margin-bottom: 1px; }
-      .sig-band-nums { display: grid; grid-template-columns: minmax(100px, 1.2fr) minmax(106px, 1.25fr) minmax(58px, 0.85fr); gap: 3px 6px; align-items: baseline; }
-      .sig-band-cols { grid-template-columns: minmax(100px, 1.2fr) minmax(106px, 1.25fr) minmax(58px, 0.85fr); gap: 3px 6px; padding: 5px 8px 0; font-size: 0.6rem; letter-spacing: 0.01em; }
+      /* Column minimums rebalanced (2026-11-26): the third
+         column's old 58px minimum let the "Max drawdown" header
+         label (84px of nowrap text) overflow its column and end
+         flush at the band's edge, where wider phone fonts clip
+         it. The drawdown column now holds an 86px minimum and
+         the two money columns give back the room from their
+         minimums; the fr shares are unchanged, so wider phones
+         lay out exactly as before and every label and figure
+         keeps its full column at 360px and up. */
+      .sig-band-nums { display: grid; grid-template-columns: minmax(84px, 1.2fr) minmax(90px, 1.25fr) minmax(86px, 0.85fr); gap: 3px 6px; align-items: baseline; }
+      .sig-band-cols { grid-template-columns: minmax(84px, 1.2fr) minmax(90px, 1.25fr) minmax(86px, 0.85fr); gap: 3px 6px; padding: 5px 8px 0; font-size: calc(0.6rem * var(--sig-hdr-fit, 1)); letter-spacing: 0.01em; }
       .sig-band-cols > span { white-space: nowrap; }
       .sig-band-cols > span:first-child { display: none; }
-      .sig-band-num { font-size: 0.84rem; }
+      .sig-band-num { font-size: calc(0.84rem * var(--sig-fit, 1)); }
       .sig-legend { gap: 0.35rem 0.8rem; margin-top: 0.3rem; }
       .sig-controls-layer { gap: 0.5rem; }
       .sig-tf-row { flex-wrap: nowrap; }
@@ -1179,7 +1188,7 @@
          their aligned line under it, as they always have. */
       .sig-band-cols > span:nth-child(2) { display: none; }
       .sig-band-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-      .sig-band-in { font-size: 0.84rem; }
+      .sig-band-in { font-size: calc(0.84rem * var(--sig-fit, 1)); }
       .sig-band-in-lab { display: inline; font-size: 0.68rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--subtext-color); font-weight: 400; margin-right: 4px; }
       .sig-bench-label { flex: none; font-size: 0.82rem; }
       .sig-band-cols { padding: 3px 8px 0; line-height: 1.2; }
@@ -6863,12 +6872,49 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         }
         function gainCls(v) { return v > 0 ? "sig-gain" : (v < 0 ? "sig-loss" : ""); }
 
+        // The band's figures are nowrap by design — they never
+        // wrap and never collide (2026-11-26): an extreme Buy
+        // amount can grow a figure past its column at phone
+        // widths, so after every render the band measures its
+        // figures and, only when one would overflow its column,
+        // steps the band's type scale down until everything
+        // fits again. In every ordinary state the scale stays
+        // at 1 and nothing on the band changes.
+        function fitBand() {
+            var t = el("sigTotals");
+            if (!t || !t.clientWidth) return;
+            function fit(sel, varName) {
+                var scale = 1;
+                t.style.setProperty(varName, "1");
+                for (var i = 0; i < 4; i++) {
+                    var worst = 1;
+                    t.querySelectorAll(sel).forEach(function (n) {
+                        if (n.clientWidth && n.scrollWidth > n.clientWidth) {
+                            worst = Math.min(worst, n.clientWidth / n.scrollWidth);
+                        }
+                    });
+                    if (worst >= 1) break;
+                    scale = Math.max(0.6, scale * worst * 0.995);
+                    t.style.setProperty(varName, String(scale));
+                }
+            }
+            fit(".sig-band-num, .sig-band-in", "--sig-fit");
+            fit(".sig-band-cols > span", "--sig-hdr-fit");
+        }
+        var fitBandRaf = 0;
+        window.addEventListener("resize", function () {
+            if (fitBandRaf) return;
+            fitBandRaf = requestAnimationFrame(function () { fitBandRaf = 0; fitBand(); });
+        });
+
         function renderTotals(r) {
             var t = el("sigTotals");
             if (!state.on) {
                 t.innerHTML = "<div class=\"sig-band-off\">The indicator is off &mdash; the table lists the names at their current prices.</div>";
                 t.removeAttribute("data-pulse");
                 t.removeAttribute("data-pulse-usd");
+                t.style.removeProperty("--sig-fit");
+                t.style.removeProperty("--sig-hdr-fit");
                 return;
             }
             // The two-row band (final design, 2026-11-25): his
@@ -6910,6 +6956,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 t.setAttribute("data-pulse", pulse);
                 t.setAttribute("data-pulse-usd", pulseUsd);
             }
+            fitBand();
         }
 
         function renderTable(r) {
