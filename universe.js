@@ -152,8 +152,10 @@ var STAR_VERT = [
     'uniform float uScaleH;',   /* (height px * 0.5 * proj[1][1]) * dpr */
     'uniform float uDpr;',
     'uniform float uTime;',
-    /* the camera's velocity this frame, in view space (parsecs per
-       frame): stars streak along it — see the stretch maths in main */
+    /* the camera's velocity in view space, scaled to a fixed
+       1/60 s reference frame (parsecs per reference frame, from a
+       true per-second velocity on the CPU): stars streak along
+       it — see the stretch maths in main */
     'uniform vec3 uVelView;',
     'varying vec3 vCol;',
     'varying float vAlpha;',
@@ -225,11 +227,18 @@ var STAR_VERT = [
        a streak, not a dimming and not a brightening. Direction is
        the star's own parallax motion (near stars streak long, the
        far field barely moves — exactly as in real flight). The
-       elongation saturates at 5x so a warp-speed pass reads as
-       streaks, not lines across the sky. */
+       elongation saturates at 9x so a warp-speed pass reads as
+       streaks, not lines across the sky — and past a stretch of
+       2.5 the fragment stage stops dividing the light down at the
+       full rate (see STAR_FRAG): at the old 5x cap with full
+       division, a warp pass spread each star to a fifth of its
+       brightness across a capped sprite and the sky read BLACK
+       at the top of the slider (Johnny, 2026-11-25). A streak at
+       warp is a speed indicator first; its light is conserved
+       where conservation is visible and held up where it is not. */
     '    vec2 velPx = uVelView.xy * (uScaleH / dist);',  /* this star's screen travel, CSS px per frame */
     '    float spd = length(velPx);',
-    '    vStretch = clamp(spd * 0.55 / max(szPx, 2.0), 0.0, 5.0);',
+    '    vStretch = clamp(spd * 0.55 / max(szPx, 2.0), 0.0, 9.0);',
     '    vAng = atan(-velPx.y, velPx.x);',   /* point-coord y runs down, view y up */
     '    if (spd < 0.05) { vStretch = 0.0; vAng = 0.0; }',
     /* a stretched sprite needs a bigger point to hold the streak */
@@ -269,7 +278,11 @@ var STAR_FRAG = [
     '    float g2 = g * g;',
     '    float core = g2 * g2 * g2 * g2 * g * (1.0 + 0.35 * vGlow);',
     '    float halo = g2 * (0.20 + 0.85 * vGlow);',
-    '    float a = clamp(core + halo, 0.0, 1.0) * vAlpha * vShim / (1.0 + vStretch * 0.8);',
+    /* light division: full conservation up to a stretch of 2.5
+       (identical to the old divisor there), then a much slower
+       rate — at warp the streak stays lit instead of spreading
+       itself into invisibility (see STAR_VERT) */
+    '    float a = clamp(core + halo, 0.0, 1.0) * vAlpha * vShim / (1.0 + min(vStretch, 2.5) * 0.8 + max(vStretch - 2.5, 0.0) * 0.12);',
     '    if (a < 0.004) discard;',
     /* QUALITY PASS: with the HDR final pass the authored colour
        is linearised here and the composite re-encodes it, so the
@@ -780,7 +793,8 @@ export function initUniverse(stage) {
     var fallbackEl = $('.uv-fallback');
     var hudEl = $('.uv-hud');
     var hudDist = $('.uv-hud-dist'), hudSpeed = $('.uv-hud-speed'), hudNear = $('.uv-hud-near');
-    var hudGate = { t: 0, d: '', s: '' };   /* atomic-swap gate for the HUD readouts (see frame()) */
+    var hudGate = { t: 0, d: '', s: '', n: '' };   /* atomic-swap gate for the HUD readouts (see frame()) */
+    var hudNearStr = '';   /* the nearest-object string, composed by updateNearest, written ONLY by frame()'s gated block */
     var captionEl = $('.uv-caption');
     var labelsEl = $('.uv-labels');
     var tourBtn = $('.uv-tour-btn'), flyBtn = $('.uv-fly-btn');
@@ -831,6 +845,8 @@ export function initUniverse(stage) {
     var sysSurf = Infinity, sysRad = 0;   /* nearest solar-body surface distance + that body's radius */
     var sysBodyPos = null;                /* nearest solar body's centre (approach governor) */
     var govTmp = new THREE.Vector3();
+    var popEdge = 0, popK = 0;                /* the mapped universe's edge (pc, from the catalog) + the edge governor's ease constant */
+    var edgeTmp = new THREE.Vector3();
     var labelFwd = new THREE.Vector3();   /* camera forward, for the label behind-camera cull */
     var rafId = 0, lastT = 0;
     var camPos = new THREE.Vector3();
@@ -1576,6 +1592,277 @@ export function initUniverse(stage) {
         '    gl_FragColor = vec4(col, cov * uBlend * dayness * 0.96);',
         '}'
     ].join('\n');
+    /* ---------------- Earth's streamed tile layer ----------------
+       From far away Earth is the fidelity-max globe texture, as
+       always. Below about one Earth radius of altitude this layer
+       streams Web-Mercator satellite/aerial tiles (Esri World
+       Imagery — credits on credits.html) for the ground the screen
+       actually shows, at the zoom whose ground resolution matches
+       the screen, up to zoom 18 (about a foot per pixel over most
+       US and European cities — individual rooftops, cars, trees).
+       Discipline, by construction:
+       - Tiles are patches of the same sphere, in Earth's own local
+         frame (the frame the base texture is painted in), each
+         level floated a hair above the level below it, so a parent
+         tile is already on screen, stretched, before its sharper
+         children arrive, and the globe itself is the ultimate
+         parent under everything. There is never a hole.
+       - Only the visible patch is fetched (screen corners and edge
+         midpoints unprojected onto the sphere, plus a margin), the
+         wanted set is bounded, and a bounded LRU cache keeps the
+         session's ground with it.
+       - If the tile source cannot be reached, or fails repeatedly,
+         the layer quietly stops asking and today's globe remains,
+         exactly as before this layer existed. */
+    var ET_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/';
+    var et = {
+        grp: null, R: 0, cache: new Map(), queue: [], inflight: 0,
+        meshes: new Map(), key: '', lastCheck: 0, dirty: false,
+        dead: false, errRun: 0, wantN: 0, z: -1,
+        MAXC: 168, MAXSET: 96, MAXFLY: 6, SEG: 10
+    };
+    var etQ = new THREE.Quaternion(), etV = new THREE.Vector3(), etV2 = new THREE.Vector3();
+
+    function etInit(grp, r) {
+        et.R = r;
+        et.grp = new THREE.Group();
+        et.grp.name = 'earthTiles';
+        grp.add(et.grp);
+    }
+    function etKey(z, x, y) { return z + '/' + x + '/' + y; }
+    function etTileY(lat, z) {
+        var n = Math.pow(2, z);
+        var m = Math.log(Math.tan(lat) + 1 / Math.cos(lat));
+        return Math.max(0, Math.min(n - 1, Math.floor((1 - m / Math.PI) / 2 * n)));
+    }
+    function etEntry(z, x, y) {
+        var k = etKey(z, x, y), e = et.cache.get(k);
+        if (!e) {
+            e = { z: z, x: x, y: y, key: k, state: 'idle', tex: null, mat: null, geom: null, used: 0 };
+            et.cache.set(k, e);
+        }
+        e.used = performance.now();
+        return e;
+    }
+    function etGeom(z, x, y) {
+        /* a patch of the sphere over the tile's lon range and its
+           Mercator lat range, built in Earth's local frame with the
+           base sphere's own direction convention, so the imagery
+           lands exactly where the globe's texture says it should */
+        var SEG = et.SEG, n = Math.pow(2, z);
+        var lonW = (x / n) * 2 * Math.PI - Math.PI, lonE = ((x + 1) / n) * 2 * Math.PI - Math.PI;
+        var mT = Math.PI * (1 - 2 * y / n), mB = Math.PI * (1 - 2 * (y + 1) / n);
+        /* the lift above the globe is deliberately tiny: it only
+           has to order the levels (polygonOffset does the rest of
+           the separation work in depth space). A larger lift put
+           the deepest patches exactly on the camera's near plane
+           (0.4 x surface distance), which clipped the middle out
+           of every patch — the first build's missing-tile seam. */
+        var rad = et.R * (1 + (z - 5) * 3e-7);
+        var pos = new Float32Array((SEG + 1) * (SEG + 1) * 3), nor = new Float32Array((SEG + 1) * (SEG + 1) * 3);
+        var uv = new Float32Array((SEG + 1) * (SEG + 1) * 2), idx = [];
+        var vi = 0, ui = 0;
+        for (var j = 0; j <= SEG; j++) {
+            var f = j / SEG, lat = Math.atan(Math.sinh(mT + (mB - mT) * f));
+            var cl = Math.cos(lat), sl = Math.sin(lat);
+            for (var i = 0; i <= SEG; i++) {
+                var g = i / SEG, lon = lonW + (lonE - lonW) * g;
+                var dx = cl * Math.cos(lon), dy = sl, dz = -cl * Math.sin(lon);
+                pos[vi] = dx * rad; nor[vi] = dx; vi++;
+                pos[vi] = dy * rad; nor[vi] = dy; vi++;
+                pos[vi] = dz * rad; nor[vi] = dz; vi++;
+                uv[ui++] = g; uv[ui++] = 1 - f;
+            }
+        }
+        for (var j2 = 0; j2 < SEG; j2++) for (var i2 = 0; i2 < SEG; i2++) {
+            var a = j2 * (SEG + 1) + i2, b2 = a + 1, c2 = a + SEG + 1, d2 = c2 + 1;
+            idx.push(a, c2, b2, b2, c2, d2);
+        }
+        var geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+        geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+        geo.setIndex(idx);
+        return geo;
+    }
+    function etQueue(z, x, y, prio) {
+        if (et.dead) return;
+        var e = etEntry(z, x, y);
+        if (e.state === 'idle') { e.state = 'queued'; et.queue.push({ e: e, p: prio }); }
+    }
+    function etPump() {
+        if (et.dead) { et.queue.length = 0; return; }
+        et.queue.sort(function (a, b) { return a.p - b.p; });
+        while (et.inflight < et.MAXFLY && et.queue.length) {
+            var item = et.queue.shift(), e = item.e;
+            if (e.state !== 'queued') continue;
+            e.state = 'loading'; et.inflight++;
+            (function (en) {
+                var img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = function () {
+                    et.inflight--; en.state = 'ready'; et.errRun = 0;
+                    var tex = new THREE.Texture(img);
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+                    tex.needsUpdate = true;
+                    en.tex = tex; et.dirty = true; etPump(); etEvict();
+                };
+                img.onerror = function () {
+                    et.inflight--; en.state = 'failed';
+                    /* only coarse tiles count toward giving up on the
+                       source: deep-zoom gaps are regional (the parent
+                       tile covers them), but if even the coarse world
+                       fails two dozen times in a row the source is
+                       unreachable — stop asking; the globe remains */
+                    if (en.z <= 12 && ++et.errRun >= 24) et.dead = true;
+                    etPump();
+                };
+                img.src = ET_URL + en.z + '/' + en.y + '/' + en.x;
+            })(e);
+        }
+    }
+    function etEvict() {
+        if (et.cache.size <= et.MAXC) return;
+        var arr = Array.from(et.cache.values()).filter(function (e) { return e.state === 'ready' || e.state === 'failed' || e.state === 'idle'; });
+        arr.sort(function (a, b) { return a.used - b.used; });
+        for (var i = 0; i < arr.length && et.cache.size > et.MAXC; i++) {
+            var e = arr[i];
+            if (et.meshes.has(e.key)) continue;   /* never evict what is on screen */
+            if (e.tex) e.tex.dispose();
+            if (e.geom) e.geom.dispose();
+            if (e.mat) e.mat.dispose();
+            et.cache.delete(e.key);
+        }
+    }
+    function etWanted() {
+        earthSys.grp.getWorldQuaternion(etQ).invert();
+        etV.copy(camPos).sub(earthSys.pos).applyQuaternion(etQ);
+        var d = etV.length(), R = et.R, h = d - R;
+        if (!(h > 0) || h > R * 0.9) return null;
+        var lat0 = Math.asin(Math.max(-1, Math.min(1, etV.y / d)));
+        var lon0 = Math.atan2(-etV.z, etV.x);
+        var bufH = Math.max(200, renderer.domElement.height || 800);
+        var visH = 2 * h * 0.52057;                    /* tan(27.5°): the camera's 55° vertical field */
+        var z = Math.round(Math.log2((2 * Math.PI * R) / (256 * (visH / bufH))));
+        z = Math.max(6, Math.min(18, z));
+        var e = camera.matrixWorld.elements, tanV = 0.52057, tanH = tanV * camera.aspect;
+        var pts = [[0, 0], [1, 1], [1, -1], [-1, 1], [-1, -1], [0, 1], [0, -1], [1, 0], [-1, 0]];
+        var laMin = Infinity, laMax = -Infinity, loMin = Infinity, loMax = -Infinity, miss = false;
+        function grow(la, lo) {
+            while (lo - lon0 > Math.PI) lo -= 2 * Math.PI;
+            while (lo - lon0 < -Math.PI) lo += 2 * Math.PI;
+            if (la < laMin) laMin = la; if (la > laMax) laMax = la;
+            if (lo < loMin) loMin = lo; if (lo > loMax) loMax = lo;
+        }
+        grow(lat0, lon0);
+        for (var pi = 0; pi < pts.length; pi++) {
+            etV2.set(
+                e[0] * pts[pi][0] * tanH + e[4] * pts[pi][1] * tanV - e[8],
+                e[1] * pts[pi][0] * tanH + e[5] * pts[pi][1] * tanV - e[9],
+                e[2] * pts[pi][0] * tanH + e[6] * pts[pi][1] * tanV - e[10]).normalize().applyQuaternion(etQ);
+            var bq = etV.dot(etV2), cq = d * d - R * R, disc = bq * bq - cq;
+            if (disc < 0) { miss = true; continue; }
+            var t = -bq - Math.sqrt(disc);
+            var hx = etV.x + etV2.x * t, hy = etV.y + etV2.y * t, hz = etV.z + etV2.z * t;
+            var hl = Math.sqrt(hx * hx + hy * hy + hz * hz) || 1;
+            grow(Math.asin(Math.max(-1, Math.min(1, hy / hl))), Math.atan2(-hz, hx));
+        }
+        if (miss) {   /* some of the screen is sky: the horizon bounds the ground instead */
+            var ah = Math.acos(Math.min(1, R / d));
+            var dLon = Math.abs(Math.cos(lat0)) < 1e-6 ? Math.PI : Math.min(Math.PI, ah / Math.max(0.2, Math.cos(lat0)));
+            grow(Math.max(-1.45, lat0 - ah), lon0 - dLon);
+            grow(Math.min(1.45, lat0 + ah), lon0 + dLon);
+        }
+        var MERC = 1.4845;   /* Web Mercator ends at 85.0511° */
+        laMin = Math.max(-MERC, laMin); laMax = Math.min(MERC, laMax);
+        var x0 = 0, x1 = 0, y0 = 0, y1 = 0;
+        while (true) {
+            /* margin: a quarter of the box, at least a third of a
+               tile AT THIS ZOOM — a fixed angular floor here once
+               forced the zoom five levels coarser than the screen
+               needed, because a third of a degree is a hundred
+               tiles at rooftop zoom */
+            var n2 = Math.pow(2, z), tSpan = 2 * Math.PI / n2;
+            var mLa2 = Math.max((laMax - laMin) * 0.25, tSpan * 0.35), mLo2 = Math.max((loMax - loMin) * 0.25, tSpan * 0.35);
+            x0 = Math.floor((loMin - mLo2 + Math.PI) / (2 * Math.PI) * n2);
+            x1 = Math.floor((loMax + mLo2 + Math.PI) / (2 * Math.PI) * n2);
+            y0 = etTileY(laMax + mLa2, z); y1 = etTileY(laMin - mLa2, z);
+            if ((x1 - x0 + 1) * (y1 - y0 + 1) > et.MAXSET) {
+                /* an oblique, horizon-grazing view unprojects to a
+                   box no bounded set can cover. Keep the zoom the
+                   altitude calls for and take the CENTRED window of
+                   that box instead — the ground nearest the camera,
+                   which is the ground that fills the screen; the
+                   far field keeps its parents and the globe. */
+                var cxT = Math.floor((lon0 + Math.PI) / (2 * Math.PI) * n2), cyT = etTileY(lat0, z);
+                x0 = Math.max(x0, cxT - 4); x1 = Math.min(x1, cxT + 4);
+                y0 = Math.max(y0, cyT - 4); y1 = Math.min(y1, cyT + 4);
+            }
+            if ((x1 - x0 + 1) * (y1 - y0 + 1) <= et.MAXSET || z <= 6) break;
+            z--;
+        }
+        var n3 = Math.pow(2, z), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, tiles = [];
+        for (var wx = x0; wx <= x1; wx++) for (var wy = y0; wy <= y1; wy++) {
+            tiles.push({ z: z, x: ((wx % n3) + n3) % n3, y: wy, p: Math.max(Math.abs(wx - cx), Math.abs(wy - cy)) });
+        }
+        var parents = [];
+        if (z >= 8) {
+            var pz = z - 2, pn = Math.pow(2, pz);
+            var px0 = Math.floor(x0 / 4), px1 = Math.floor(x1 / 4), py0 = Math.floor(y0 / 4), py1 = Math.floor(y1 / 4);
+            for (var qx = px0; qx <= px1; qx++) for (var qy = py0; qy <= py1; qy++) {
+                parents.push({ z: pz, x: ((qx % pn) + pn) % pn, y: qy, p: Math.max(Math.abs(qx * 4 + 1.5 - cx), Math.abs(qy * 4 + 1.5 - cy)) / 4 });
+            }
+        }
+        return { z: z, tiles: tiles, parents: parents, sig: z + ':' + x0 + ',' + y0 + ',' + x1 + ',' + y1 };
+    }
+    function etRebuild(w) {
+        var want = new Map(), i, t, e;
+        for (i = 0; i < w.parents.length; i++) { t = w.parents[i]; e = et.cache.get(etKey(t.z, t.x, t.y)); if (e && e.state === 'ready') want.set(e.key, e); }
+        for (i = 0; i < w.tiles.length; i++) { t = w.tiles[i]; e = et.cache.get(etKey(t.z, t.x, t.y)); if (e && e.state === 'ready') want.set(e.key, e); }
+        Array.from(et.meshes.keys()).forEach(function (k) {
+            if (!want.has(k)) { et.grp.remove(et.meshes.get(k)); et.meshes.delete(k); }
+        });
+        want.forEach(function (en, k) {
+            en.used = performance.now();
+            if (et.meshes.has(k)) return;
+            if (!en.geom) en.geom = etGeom(en.z, en.x, en.y);
+            if (!en.mat) en.mat = new THREE.MeshLambertMaterial({ map: en.tex, polygonOffset: true, polygonOffsetFactor: -(en.z - 4), polygonOffsetUnits: -(en.z - 4) });
+            var mesh = new THREE.Mesh(en.geom, en.mat);
+            mesh.frustumCulled = false;
+            et.grp.add(mesh);
+            et.meshes.set(k, mesh);
+        });
+    }
+    function etFrame(now) {
+        if (!et.grp || !earthSys || !earthSys.grp) return;
+        if (now - et.lastCheck < 200) return;
+        et.lastCheck = now;
+        var w = etWanted();
+        if (!w) {
+            if (et.meshes.size) { et.meshes.forEach(function (m) { et.grp.remove(m); }); et.meshes.clear(); }
+            et.key = ''; et.z = -1; et.wantN = 0;
+            return;
+        }
+        et.z = w.z; et.wantN = w.tiles.length;
+        if (w.sig !== et.key || et.dirty) {
+            et.key = w.sig; et.dirty = false;
+            var i, t;
+            for (i = 0; i < w.parents.length; i++) { t = w.parents[i]; etQueue(t.z, t.x, t.y, t.p); }
+            for (i = 0; i < w.tiles.length; i++) { t = w.tiles[i]; etQueue(t.z, t.x, t.y, 10 + t.p); }
+            etPump();
+            etEvict();
+            etRebuild(w);
+        }
+    }
+    function etState() {
+        return {
+            on: !!(et.grp && et.meshes.size), z: et.z, shown: et.meshes.size,
+            cached: et.cache.size, wanted: et.wantN, dead: et.dead,
+            keys: Array.from(et.meshes.keys()).sort()
+        };
+    }
+
     function startEarthStack() {
         if (!earthSys || earthStackState.started) return;
         earthStackState.started = true;
@@ -1673,8 +1960,9 @@ export function initUniverse(stage) {
                 grp.add(cloudMesh);
                 earthSys = {
                     pos: pos, uniforms: emat.uniforms, cloudUniforms: cmat.uniforms,
-                    cloudMesh: cloudMesh, sunVP: sunVP
+                    cloudMesh: cloudMesh, sunVP: sunVP, grp: grp, r: b.r
                 };
+                etInit(grp, b.r);   /* the streamed tile layer rides in Earth's own frame */
             } else {
                 var mat = b.sun
                     ? new THREE.MeshBasicMaterial({ color: 0xffdd88 })
@@ -2125,6 +2413,41 @@ export function initUniverse(stage) {
                     }
                 }
             }
+            /* Universe-edge governor: the catalog ends, and beyond
+               it there is nothing to see. At the old top of the
+               slider (about 400,000 pc/s) a pilot crossed the whole
+               mapped galaxy field in seconds and the sky went black
+               (Johnny, 2026-11-25) — not a rendering failure, an
+               empty universe: the stars were all behind him and the
+               galaxies thinned to specks. The edge is measured from
+               the catalog itself on first use. In the outer ease
+               zone (beyond 45% of the edge) the OUTWARD radial
+               speed is capped by an allowance that falls toward the
+               edge, so flight at any slider setting stays among the
+               galaxies and the view never empties; tangential flight
+               keeps nearly all its speed and flying back inward is
+               never capped at all. */
+            if (!popEdge && data && data.galPos) {
+                var pMax = 0;
+                for (var pe2 = 0; pe2 < data.galPos.length; pe2 += 3) {
+                    var px2 = data.galPos[pe2], py2 = data.galPos[pe2 + 1], pz2 = data.galPos[pe2 + 2];
+                    var pd2 = px2 * px2 + py2 * py2 + pz2 * pz2;
+                    if (pd2 > pMax) pMax = pd2;
+                }
+                popEdge = Math.sqrt(pMax);
+                popK = 420000 / (0.55 * popEdge);   /* the allowance crosses the slider's top speed at the ease zone's inner edge */
+            }
+            if (popEdge > 0) {
+                var rrE = camPos.length();
+                if (rrE > popEdge * 0.45) {
+                    edgeTmp.copy(move).normalize();
+                    var outD = edgeTmp.dot(camPos) / rrE;   /* outward radial share of the heading, -1..1 */
+                    if (outD > 0.05) {
+                        var allow = Math.max(25, (popEdge - rrE) * popK);
+                        sp = Math.min(sp, allow / outD);
+                    }
+                }
+            }
             move.normalize().multiplyScalar(sp * dt);
             camPos.add(move);
         }
@@ -2221,7 +2544,7 @@ export function initUniverse(stage) {
         nearestDist = Math.sqrt(best);
         nearestName = bi >= 0 ? data.named[bi].n : (bi <= -2 ? solarBodies[-bi - 2].n : '');
         var nStr = nearestName ? ('Nearest: ' + nearestName + ' \u2014 ' + fmtDist(nearestDist)) : '';
-        if (hudNear.textContent !== nStr) hudNear.textContent = nStr;
+        hudNearStr = nStr;   /* composed here, written only by frame()'s single gated HUD block */
     }
     var labelTick = 0;
     function updateLabels(w, h) {
@@ -2321,8 +2644,27 @@ export function initUniverse(stage) {
     function frame(now) {
         if (!ctrl.active) { rafId = 0; return; }
         rafId = requestAnimationFrame(frame);
-        var dt = Math.min(0.1, (now - lastT) / 1000 || 0.016);
+        var dtRaw = (now - lastT) / 1000;
+        if (!(dtRaw > 0)) dtRaw = 0.016;
         lastT = now;
+        /* SPEED INTEGRITY (2026-11-25, Johnny's phone: "sometimes
+           it's faster on slow speed than on high speed"): the old
+           line clamped dt at 0.1 s and silently DISCARDED the rest
+           of every longer frame, so the game's clock ran slower
+           than the wall clock exactly when frames ran long — and
+           frames run longest at high speed (streaks, bloom, the
+           resolution ladder), which compressed the top of the
+           slider until high settings could feel slower than low
+           ones. Now the frame's real elapsed time is honoured up
+           to a 0.5 s clamp (a tab-switch guard, nothing more — a
+           visible frame longer than half a second is a frozen
+           game, not a frame rate) and motion advances in substeps
+           of at most 1/30 s of game time, so the flight maths and
+           the approach governor see the same step at every frame
+           rate: achieved speed is the slider's speed, strictly
+           increasing with the slider, at 120 Hz, 60 Hz, or a
+           struggling 20 Hz alike. */
+        var dt = Math.min(dtRaw, 0.5);
         /* nearest solar-body surface — feeds the near plane and the
            system-zone speed cap (one frame of lag is fine) */
         sysSurf = Infinity; sysRad = 0;
@@ -2347,16 +2689,23 @@ export function initUniverse(stage) {
            steps are shallow, and the floor is 0.7 of native density
            — what gives instead is frame-rate headroom in the densest
            fields: the game would rather run slower than go soft. */
-        frameAcc += dt; frameN++;
+        frameAcc += dtRaw; frameN++;   /* the ladder measures real frame cost, not the clamped game step */
         if (frameN >= 90) {
             var avg = frameAcc / frameN;
             if (avg > 0.033 && dprLevel < DPR_STEPS.length - 1) { dprLevel++; applyDpr(); }
             else if (avg < 0.012 && dprLevel > 0) { dprLevel--; applyDpr(); }
             frameAcc = 0; frameN = 0;
         }
-        if (tour.on) tourFrame(dt);
-        else if (flyAnim) flyAnimFrame(dt);
-        else { idleDrift(now, dt); spinFrame(dt); flyFrame(dt); }
+        var mSteps = Math.max(1, Math.ceil(dt / (1 / 30)));
+        var mDt = dt / mSteps;
+        for (var mStep = 0; mStep < mSteps; mStep++) {
+            if (tour.on) tourFrame(mDt);
+            else if (flyAnim) flyAnimFrame(mDt);
+            else {
+                if (mStep === 0) idleDrift(now, dt);
+                spinFrame(mDt); flyFrame(mDt);
+            }
+        }
 
         /* shader clocks — the star shimmer and the glow's slow
            undulation share the frame's timestamp */
@@ -2375,7 +2724,14 @@ export function initUniverse(stage) {
            you reach it — a drawn planet radius is ~1e-7 pc. Let the
            nearest body's surface set the near plane instead. */
         if (sysSurf < 0.001) {
-            camera.near = Math.min(camera.near, Math.max(1e-9, Math.max(sysSurf, 1e-10) * 0.4));
+            /* the floor used to be 1e-9 pc: below about 1e-9 pc of
+               surface distance (~31 km at Earth's drawn scale) the
+               ground itself fell inside the near plane and clipped
+               away. The streamed-tile descent flies to a few metres,
+               so the floor now follows the surface down (4e-14 pc);
+               at every range the old floor governed (>= 2.5e-9 pc)
+               the value is unchanged. */
+            camera.near = Math.min(camera.near, Math.max(4e-14, Math.max(sysSurf, 1e-13) * 0.4));
         }
         camera.far = Math.max(2e9, alt * 30);
         /* the backdrop sphere rides on the camera — centred here,
@@ -2400,20 +2756,27 @@ export function initUniverse(stage) {
                 panoSky.material.opacity = 0.88 * homeF;
             }
         }
-        /* star streaks: the camera's velocity this frame, in view
-           space, smoothed over two frames so a single hitched
-           frame cannot flash the field into lines. The rotation
-           transpose is the inverse rotation — world travel into
-           the camera's own axes. */
+        /* star streaks: the camera's velocity in view space. The
+           rotation transpose is the inverse rotation — world travel
+           into the camera's own axes. SPEED INTEGRITY (2026-11-25):
+           this used to hand the shader the raw PER-FRAME travel,
+           so the same flight drew streaks twice as long at 60 Hz
+           as at 120 Hz, and the smoothing blend was per-frame too.
+           It is now a true per-second velocity, smoothed with a
+           frame-rate-independent time constant (0.09 s — the old
+           0.55 blend at 60 Hz), and scaled by a fixed 1/60 s
+           reference frame on its way to the shader: a star's
+           streak now depends on how fast you are flying, never on
+           the refresh rate of the screen you fly on. */
         if (starPoints) {
-            if (prevCamPos && dt > 0.0005 && dt < 0.1) {
-                tmpV.copy(camPos).sub(prevCamPos);   /* per-frame travel, parsecs */
+            if (prevCamPos && dtRaw > 0.0005 && dtRaw < 1.0) {
+                tmpV.copy(camPos).sub(prevCamPos).divideScalar(dtRaw);   /* parsecs per second */
                 tmpM.extractRotation(camera.matrixWorld).transpose();
                 tmpV.applyMatrix4(tmpM);
-                velViewSm.lerp(tmpV, 0.55);
+                velViewSm.lerp(tmpV, 1 - Math.exp(-dtRaw / 0.09));
             }
             if (prevCamPos) prevCamPos.copy(camPos); else prevCamPos = camPos.clone();
-            starPoints.material.uniforms.uVelView.value.copy(velViewSm);
+            starPoints.material.uniforms.uVelView.value.copy(velViewSm).multiplyScalar(1 / 60);
         }
         /* the Sun's point sprite hands over to its textured sphere
            once you are close enough for the sphere to be the Sun */
@@ -2439,6 +2802,7 @@ export function initUniverse(stage) {
             if (earthSys.cloudMesh.visible) earthSys.cloudMesh.rotation.y += dt * 0.01;
             camera.updateMatrixWorld();
             earthSys.sunVP.value.set(0, 0, 0).applyMatrix4(camera.matrixWorldInverse);
+            try { etFrame(now); } catch (etErr) { /* the tile layer is an enhancement: its failure never breaks the globe */ }
         }
         try { lodFrame(dt, tSec); } catch (e) { /* LOD is an enhancement layer */ }
         camera.updateProjectionMatrix();
@@ -2448,11 +2812,16 @@ export function initUniverse(stage) {
            his phone recording: mid-flight the Speed value showed
            two values at once and the Distance/Speed lines garbled
            into each other — the same disease as the Frequency
-           readouts). These two nodes were rewritten every frame,
-           changed or not. Now: at most one write per node per
-           100 ms, and only when the formatted string actually
-           changed — a node holds exactly one complete value at
-           every frame. */
+           readouts). This block is the ONLY writer of all three
+           HUD nodes in the game — the distance, the speed, and
+           (since the 2026-11-25 repair, which found updateNearest
+           writing the third node on its own cadence beside this
+           gate) the nearest-object line, whose string is now
+           composed there and written here. At most one write per
+           node per 100 ms, and only when the formatted string
+           actually changed — a node holds exactly one complete
+           value at every frame, and no other code path in the
+           game can put a second value beside it. */
         var hudNow = performance.now();
         if (hudNow - hudGate.t >= 100) {
             hudGate.t = hudNow;
@@ -2460,6 +2829,7 @@ export function initUniverse(stage) {
             if (dStr !== hudGate.d) { hudGate.d = dStr; hudDist.textContent = dStr; }
             var sStr = 'Speed: ' + fmtSpeed(speedPc());
             if (sStr !== hudGate.s) { hudGate.s = sStr; hudSpeed.textContent = sStr; }
+            if (hudNearStr !== hudGate.n) { hudGate.n = hudNearStr; hudNear.textContent = hudNearStr; }
         }
         labelTick++;
         if (labelTick % 15 === 0) { updateNearest(); syncCaption(); }
@@ -3077,8 +3447,21 @@ export function initUniverse(stage) {
                     starFor: lod.starFor, starOpacity: +lod.starOpacity.toFixed(3),
                     frameMsAvg: lod.frameMs.length ?
                         +(lod.frameMs.reduce(function (a, b) { return a + b; }, 0) / lod.frameMs.length).toFixed(2) : 0,
-                    stats: lod.stats
+                    stats: lod.stats,
+                    earthTiles: etState(),
+                    edgePc: popEdge
                 };
+            },
+            earthPoint: function (latDeg, lonDeg, altR) {
+                /* the world position altR radii above a lat/lon — the
+                   placement proof flies the camera here */
+                if (!earthSys || !earthSys.grp) return null;
+                var la = latDeg * Math.PI / 180, lo = lonDeg * Math.PI / 180;
+                var cl = Math.cos(la);
+                etV.set(cl * Math.cos(lo), Math.sin(la), -cl * Math.sin(lo));
+                earthSys.grp.getWorldQuaternion(etQ);
+                etV.applyQuaternion(etQ).multiplyScalar(earthSys.r * (1 + altR)).add(earthSys.pos);
+                return [etV.x, etV.y, etV.z];
             },
             posOf: function (name) {
                 var e = namedEntry(name);
