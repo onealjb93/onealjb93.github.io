@@ -32,7 +32,7 @@ import json
 import os
 import sys
 import time
-import urllib.request
+import requests
 import xml.etree.ElementTree as ET
 from datetime import date, timedelta
 
@@ -53,6 +53,24 @@ NON_EQUITY = {"SPX", "IXIC", "RUT", "VIX", "TNX", "DOLLAR", "EURO", "GOLD",
 EPOCH = date(1970, 1, 1)
 
 _last = [0.0]
+_session = [None]
+
+
+def _get_session():
+    # EDGAR's front door refused the stdlib urllib client from
+    # the CI runners (403 on the very first request, Actions run
+    # 46058270264, 2026-11-27) even with the declared User-Agent
+    # below. The same declared agent sent through requests — the
+    # client the politicians builder already uses — is the fix.
+    if _session[0] is None:
+        s = requests.Session()
+        s.headers.update({
+            "User-Agent": UA,
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+        })
+        _session[0] = s
+    return _session[0]
 
 
 def fetch(url, binary=False):
@@ -60,14 +78,16 @@ def fetch(url, binary=False):
     wait = _last[0] + 0.13 - time.time()
     if wait > 0:
         time.sleep(wait)
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    s = _get_session()
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            data = r.read()
+        r = s.get(url, timeout=30)
+        r.raise_for_status()
+        data = r.content
     except Exception:
         time.sleep(2.0)
-        with urllib.request.urlopen(req, timeout=30) as r:
-            data = r.read()
+        r = s.get(url, timeout=30)
+        r.raise_for_status()
+        data = r.content
     _last[0] = time.time()
     return data if binary else data.decode("utf-8", "replace")
 
