@@ -243,6 +243,7 @@
     #chartStockPolHead { top: 5.5rem; }
     #chartStockNdxHead { top: 2.75rem; }
     .pol-dd-note { color: var(--subtext-color); font-size: 0.88rem; margin: 0; padding: 0.45rem 0.45rem 0.2rem; }
+    .pol-dd-retry { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
     .stock-dd-head .stock-dd-chev { display: inline-block; font-size: 0.65rem; transition: transform var(--dur-1) var(--ease-out); }
     .stock-dd-head[aria-expanded="false"] .stock-dd-chev { transform: rotate(-90deg); }
     .stock-dd-list { display: flex; flex-direction: column; padding: 0.15rem 0.35rem 0.55rem; }
@@ -407,6 +408,16 @@
     @media (min-width: 769px) {
         .fin-readout { grid-template-columns: repeat(7, minmax(0, auto)); padding-right: 96px; }
     }
+    /* The Congress cell (2026-11-27) carries whole sentences —
+       who traded, the range, both dates, several members on one
+       day — so it takes the strip's full width as its own row
+       instead of squeezing into one grid column, where a
+       three-trade day wrapped to a 246px column and shoved the
+       chart down mid-scrub. In the fullscreen strip (a single
+       scrolling row) it is width-bounded instead, so its text
+       wraps inside one screenful. */
+    .fin-readout .fin-stat-wide { grid-column: 1 / -1; }
+    #chart:fullscreen .fin-readout .fin-stat-wide, #chart:-webkit-full-screen .fin-readout .fin-stat-wide, #chart.chart-fs .fin-readout .fin-stat-wide { max-width: 76vw; }
     /* Mock A (approved 2026-11-23): the three-dot pill at the
        readout's top-right corner. Grey dots = values white;
        lit dots = each value in its Chart key colour. The state
@@ -2433,6 +2444,7 @@
         <div class="fin-dots-row">
         <button type="button" class="fin-ind-switch" id="finIndBtn" role="switch" aria-checked="false" aria-label="Johnny’s indicator" title="Turn Johnny’s indicator on or off"><span class="fin-ind-label" aria-hidden="true">Johnny’s indicator</span><span class="fin-ind-track" aria-hidden="true"><span class="fin-ind-knob"></span></span></button>
         <button type="button" class="fin-ind-switch" id="polIndBtn" role="switch" aria-checked="false" aria-label="Politicians’ trades" title="Turn the politicians’ trades layer on or off"><span class="fin-ind-label" aria-hidden="true">Politicians</span><span class="fin-ind-track" aria-hidden="true"><span class="fin-ind-knob"></span></span></button>
+        <button type="button" class="fin-ind-switch" id="insIndBtn" role="switch" aria-checked="false" aria-label="Insiders’ trades" title="Turn the insiders’ trades layer on or off"><span class="fin-ind-label" aria-hidden="true">Insiders</span><span class="fin-ind-track" aria-hidden="true"><span class="fin-ind-knob"></span></span></button>
         <div class="fin-dots" id="polFilter">
             <button type="button" class="filter-pill" id="polFilterBtn" aria-haspopup="true" aria-expanded="false" aria-controls="polFilterPanel" hidden>Politicians: All</button>
             <div class="fin-dots-panel glass-bubble" id="polFilterPanel" hidden>
@@ -2466,6 +2478,7 @@
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-buy"></span><span class="tv-key-dot tv-key-dot-sell"></span></span><span><strong>Green and red dots &mdash; Johnny&rsquo;s indicator</strong>. A green dot marks a buy day: the RSI at or under 30, the VIX at or over 25, the price at least 30% down from its highest price of the last two years and PEG at or under 1 &mdash; or, where PEG can&rsquo;t be calculated, the price at least 40% down from its highest price of the last two years &mdash; all on the same day. A green dot also marks a buy day through the second door: the RSI at or under 30, the VIX at or over 25, the price at least 20% down from its highest price of the last two years, below its 200-week average and PEG at or under 2, all on the same day. Where PEG can&rsquo;t be calculated, the second door does not open. A red dot marks a sell day: the RSI over 70, the VIX under 15, PEG at 2 or more and the price at least 50% above its 200-week average, all of it held for five straight days. The S&amp;P 500, Nasdaq, gold, and Bitcoin have no PEG to calculate, so no PEG leg applies to them: the S&amp;P 500 and Nasdaq buy at 25% down from the two-year high, gold and Bitcoin at 30% down &mdash; with the same RSI at or under 30 and the VIX at or over 25.</span></span>
             <span class="tv-key-item" id="keyScoreItem" hidden><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-score"></span></span><span>A ringed green dot marks a day that scored 85 or higher on the 100-point score but did not pass the buy gate.</span></span>
             <span class="tv-key-item" id="keyPolItem" hidden><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot" style="background: transparent; border: 2px solid #e8590c; box-sizing: border-box;"></span></span><span id="keyPolText">A ringed dot in the buy green or the sell red marks a trade a member of Congress disclosed for that day &mdash; the bigger the ring, the bigger the disclosed amount (sized by the filed range&rsquo;s midpoint, an estimate).</span></span>
+            <span class="tv-key-item" id="keyInsItem" hidden><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot" style="background: #2f9e44; border-radius: 2px; transform: rotate(45deg); box-sizing: border-box;"></span></span><span>A diamond in the buy green or the sell red marks an insider trade &mdash; an officer, director or 10% owner of the company buying or selling its own stock, from their SEC Form 4. Insiders report the exact shares and price; members of Congress report ranges. The bigger the diamond, the bigger the trade.</span></span>
             <span class="tv-key-item" id="keyCurveItem" hidden><span class="tv-key-swatch" style="height: 3px; background: #4dabf7; align-self: center;" aria-hidden="true"></span><span><strong>Blue &mdash; <span id="keyCurveName">the member</span>&rsquo;s rebuilt portfolio</strong>. What just their disclosed trades would have done, week by week: each covered buy opens a position sized at its filed range&rsquo;s midpoint, and sells close the oldest buys first. A reconstruction from the filings, not their real account.</span></span>
             <span class="tv-key-item" id="keySpxItem" hidden><span class="tv-key-swatch" style="height: 0; border-top: 3px dashed #9198a1; align-self: center;" aria-hidden="true"></span><span><strong>Grey dashed &mdash; the S&amp;P 500</strong> over the same weeks. Both lines start at 100, so the gap between them is the whole story.</span></span>
         </div>
@@ -2583,7 +2596,8 @@
                     <span class="sig-amt"><label for="sigSellAmt">Sell&nbsp;$</label><input type="number" id="sigSellAmt" value="1000" min="0" step="50" inputmode="decimal"></span>
                 </div>
                 <div class="sig-ctl-row">
-                    <span class="sig-bench"><label class="sig-bench-label" for="sigBenchSel">Compare against</label><select id="sigBenchSel" class="sig-select"><option value="NONE">None</option><option value="SPX" selected>S&amp;P 500</option><option value="IXIC">Nasdaq</option><option value="GOLD">Gold</option><option value="BTC">Bitcoin</option><option value="CASH">Cash</option><option value="BLEND">S&amp;P + Nasdaq 50/50</option></select></span>
+                    <span class="sig-bench"><label class="sig-bench-label" for="sigBenchSel">Compare against</label><select id="sigBenchSel" class="sig-select"><option value="NONE">None</option><option value="SPX" selected>S&amp;P 500</option><option value="IXIC">Nasdaq</option><option value="GOLD">Gold</option><option value="BTC">Bitcoin</option><option value="CASH">Cash</option><option value="BLEND">S&amp;P + Nasdaq 50/50</option><optgroup label="Politicians" id="sigBenchPolGroup"><option disabled>Loading the filings&hellip;</option></optgroup></select></span>
+                    <span class="sig-bench-basis" id="sigBenchBasis" hidden></span>
                     <span class="sig-fund"><span class="sig-fund-main"><label class="sig-bench-label" for="sigTimingSel">It buys</label><select id="sigTimingSel" class="sig-select"><option value="days">Same days as my signals</option><option value="monthly" selected>Every month</option><option value="weekly">Every week</option><option value="start">All at the start</option></select></span><span class="sig-amt"><label for="sigBenchAmt"><span class="sig-amt-full">Amount&nbsp;</span>$</label><input type="number" id="sigBenchAmt" value="100" min="0" step="10" inputmode="decimal"></span></span>
                 </div>
             </div>
@@ -2882,23 +2896,31 @@
     </script>
 
     <!-- Stock Review (2026-11-27): the Investment Committee Stock
-         Review and Johnny's Stock Checklist are one category now —
-         Stock Review. Both parts keep their own names as their
-         titles, their toggles, and all of their machinery; the
-         category adds one card around them and one shared picker:
-         pick a name once and the committee's grades open on it in
+         Review and Johnny's Stock Checklist are one section now —
+         Stock Review — in the page's standard section anatomy,
+         the same as The Chart, the Backtest and Politicians'
+         Trades: one title row (the section toggle and the single
+         Full screen button), one body, the shared picker once at
+         the top, and the two parts as labelled sub-parts under
+         inner headings, their own names kept as the headings.
+         Pick a name once and the committee's grades open on it in
          the first part while the checklist runs it in the second. -->
     <style>
-    .stock-review-category { border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); padding: 8px 16px 16px; margin-top: 24px; scroll-margin-top: var(--fin-nav-h, 55px); }
-    .stock-review-category > .collapsible-section { border: none; border-radius: 0; background: transparent; padding: 0; margin-top: 0; margin-bottom: 0; }
-    .stock-review-category #screener { border-top: 1px solid var(--border-color); margin-top: 20px; padding-top: 4px; }
-    .sr-cat-title { margin-top: 0; padding-top: 12px; display: flex; align-items: center; gap: 0.5rem; }
     .sr-cat-line { color: var(--subtext-color); font-size: 0.92rem; margin: 2px 0 10px; }
     .sr-picker { margin-bottom: 6px; }
-    body.fin-searching .stock-review-category { display: none; }
+    .sr-part-title { font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; font-weight: 600; margin: 18px 0 4px; }
+    #scoreboard.sr-part > .sr-part-title { margin-top: 10px; }
+    #screener.sr-part { border-top: 1px solid var(--border-color); margin-top: 20px; padding-top: 4px; }
+    #screener.sr-part h3 { margin-top: 1.25rem; }
+    body.fin-searching #stockreview { display: none; }
+    #stockreview:fullscreen, #stockreview:-webkit-full-screen { display: flex; flex-direction: column; height: 100%; width: 100%; margin: 0; box-sizing: border-box; overflow: hidden; overscroll-behavior: none; background: var(--bg-color); padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) calc(env(safe-area-inset-right, 0px) + 0.6rem) calc(env(safe-area-inset-bottom, 0px) + 0.6rem) calc(env(safe-area-inset-left, 0px) + 0.6rem); }
+    #stockreview.sr-fs { position: fixed; inset: 0; z-index: 1100; display: flex; flex-direction: column; width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; margin: 0; box-sizing: border-box; overflow: hidden; overscroll-behavior: none; background: var(--bg-color); padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) calc(env(safe-area-inset-right, 0px) + 0.6rem) calc(env(safe-area-inset-bottom, 0px) + 0.6rem) calc(env(safe-area-inset-left, 0px) + 0.6rem); }
+    #stockreview:fullscreen .section-title, #stockreview:-webkit-full-screen .section-title, #stockreview.sr-fs .section-title { margin-top: 0; padding-top: 0; }
+    #stockreview:fullscreen > #stockreview-body, #stockreview:-webkit-full-screen > #stockreview-body, #stockreview.sr-fs > #stockreview-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
     </style>
-    <div class="stock-review-category" id="stockreview">
-        <h2 class="section-title sr-cat-title">Stock Review</h2>
+    <div class="stock-review-section collapsible-section" id="stockreview">
+        <h2 class="section-title"><button type="button" class="section-toggle" data-section="stockreview" aria-expanded="false" aria-controls="stockreview-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Stock Review</span></button><button type="button" class="filter-pill chart-fs-btn" id="stockreviewFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
+        <div class="section-body" id="stockreview-body" hidden>
         <p class="sr-cat-line">One stock, judged both ways &mdash; the committee&rsquo;s grades first, then Johnny&rsquo;s checklist, on the same name.</p>
         <div class="sr-picker">
             <div class="selector-group" style="max-width: 320px;">
@@ -2907,10 +2929,9 @@
             </div>
         </div>
 <!-- Investment Scoreboard -->
-    <div class="scoreboard-section collapsible-section" id="scoreboard">
-        <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="false" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Investment Committee Stock Review</span></button><button type="button" class="filter-pill chart-fs-btn" id="scoreboardFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
+    <div class="sr-part" id="scoreboard">
+        <h3 class="sr-part-title">Investment Committee Stock Review</h3>
         <p class="pulse-line" id="scoreboardPulse" hidden></p>
-        <div class="section-body" id="scoreboard-body" hidden>
         <p class="sb-lens-label" id="sbLensLabel">See the review through investors&rsquo; eyes &mdash; tap names to build the view, one or several at once</p>
                     <div class="chip-row" id="scoreboardInvestors" role="group" aria-label="See the review through investors' eyes — tap names to build the view">
                         <!-- Chips are rendered from SCOREBOARD_RULES below, with an Everyone chip first: one tap picks the one view. -->
@@ -3004,14 +3025,11 @@
           </div>
         </details>
         <p style="font-size: 0.85rem; color: var(--subtext-color);">Every screen above must beat a low-cost total-market index fund after costs and taxes &mdash; if it can&rsquo;t, own the index. (Bogle)</p>
-
-        </div>
     </div>
 <!-- Johnny's Drill Down: The Stack -->
-    <div class="screener-section collapsible-section" id="screener">
-        <h2 class="section-title"><button type="button" class="section-toggle" data-section="screener" aria-expanded="false" aria-controls="screener-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Johnny&rsquo;s Stock Checklist</span></button><button type="button" class="filter-pill chart-fs-btn" id="screenerFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
+    <div class="sr-part" id="screener">
+        <h3 class="sr-part-title">Johnny&rsquo;s Stock Checklist</h3>
         <p class="pulse-line" id="screenerPulse" hidden></p>
-        <div class="section-body" id="screener-body" hidden>
         <p>My checklist for any stock, in order &mdash; a stock has to clear each step to stay in.</p>
         <div class="stack-runner" id="stackRunner">
             <div class="selector-group" style="max-width: 320px;">
@@ -3061,9 +3079,8 @@
         <p>Track results vs. a total-market index fund after taxes and fees. If you can&rsquo;t beat it over 3–5 years, shift core money to the index. John Bogle&rsquo;s Cost Matters Hypothesis: after costs, the average active investor must underperform a low-cost index fund by exactly the amount of the costs. SPIVA Year-End 2025: 89.5% of US large-cap funds underperformed after costs over 15 years; over 20 years, ~93–94% fell short. Buffett&rsquo;s 2007–2017 bet proved the point: a Vanguard S&amp;P 500 index fund compounded 7.1%/yr against hedge funds, after fees.</p>
           </div>
         </details>
-    
-        </div>
     </div>
+        </div>
     </div><!-- /stockreview -->
 
 <!-- Politicians' Trades (2026-11-27): what members of Congress
@@ -3092,6 +3109,9 @@
     .pol-copy-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--border-color); border-radius: 10px; background: var(--hover-bg); color: var(--text-color); padding: 9px 12px; cursor: pointer; font: inherit; min-height: 44px; box-sizing: border-box; }
     .pol-copy-row .pol-copy-name { font-weight: 700; }
     .pol-copy-row .pol-copy-meta { color: var(--subtext-color); font-size: 0.83rem; }
+    .pol-copy-row .pol-copy-figs { color: var(--subtext-color); font-size: 0.83rem; margin-left: auto; text-align: right; }
+    .pol-copy-row .pol-copy-figs + .pol-copy-go { margin-left: 0; }
+    .sig-bench-basis { color: var(--subtext-color); font-size: 0.9rem; }
     .pol-copy-row .pol-copy-go { margin-left: auto; color: var(--subtext-color); font-size: 0.85rem; white-space: nowrap; }
     .pol-copy-pos { display: flex; align-items: baseline; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border-color); font-size: 0.94rem; }
     .pol-copy-pos:last-child { border-bottom: none; }
@@ -3129,6 +3149,7 @@
     .pol-cluster { border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; font-size: 0.92rem; }
     .pol-cluster .pol-conv { display: block; color: var(--subtext-color); font-size: 0.85rem; margin-top: 3px; }
     .pol-board-tag { border: 1px solid #2f9e44; color: #2f9e44; border-radius: 999px; padding: 0 7px; font-size: 0.75rem; white-space: nowrap; }
+    .pol-jur { border: 1px solid var(--border-color); color: var(--subtext-color); border-radius: 999px; padding: 0 7px; font-size: 0.75rem; white-space: nowrap; }
     .pol-feed-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
     .pol-feed-tools select { background: var(--input-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 8px; font-size: 0.9rem; min-height: 38px; }
     .pol-person-chip { display: none; align-items: center; gap: 7px; border: 1px solid #4dabf7; border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 0.88rem; }
@@ -3183,6 +3204,7 @@
                     <select id="polPartySel" aria-label="Party"><option value="">All parties</option><option value="R">Republican</option><option value="D">Democrat</option><option value="I">Independent</option></select>
                     <select id="polChamberSel" aria-label="Chamber"><option value="">Both chambers</option><option value="House">House</option><option value="Senate">Senate</option></select>
                     <select id="polCommitteeSel" aria-label="Committee"><option value="">All committees</option></select>
+                    <select id="polSortSel" aria-label="Sort the list"><option value="filed">Newest filed</option><option value="traded">Newest traded</option><option value="amount">Biggest amount</option></select>
                     <span class="pol-ctl-label">Chart dots:</span>
                     <button type="button" class="filter-pill active" data-polscope="overall">Overall</button>
                     <button type="button" class="filter-pill" data-polscope="member">By politician</button>
@@ -6345,9 +6367,9 @@
             }
             renderRunner();
             closeScoreTip();
-            const body = document.getElementById('screener-body');
+            const body = document.getElementById('stockreview-body');
             if (body && body.hidden) {
-                const tg = document.querySelector('.section-toggle[data-section="screener"]');
+                const tg = document.querySelector('.section-toggle[data-section="stockreview"]');
                 if (tg) tg.click();
             }
             const sec = document.getElementById('screener');
@@ -7098,6 +7120,58 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     maxDD: bMaxDD * 100
                 });
             }
+            // A politician comparison (2026-11-27): not funded
+            // through the legs at all — the comparison IS the
+            // copied portfolio the filings rebuild, the builder's
+            // own curve series (the same one the chart's curve
+            // mode draws), read over the part of its span this
+            // run covers. Money in is the curve's value where the
+            // run first meets it — 100 at the curve's own start,
+            // so at full overlap the row is the curve's own end
+            // value, gain and worst dip exactly. The chart line
+            // steps the weekly curve onto the run's days and
+            // does not exist before the curve begins (null, which
+            // the chart's bench paths now skip — funded benches
+            // never carry nulls, so their drawing is unchanged).
+            var polSel = String(state.bench).indexOf("POL") === 0 ? state.bench : null;
+            if (polSel && window.__polCurves) {
+                var pc = window.__polCurves();
+                var pCurve = null, pName = null;
+                if (pc) {
+                    if (polSel === "POLALL") { pCurve = pc.congress; pName = "All politicians"; }
+                    else {
+                        var pmi = +polSel.slice(4);
+                        pc.members.forEach(function (mm) { if (mm.mi === pmi) { pCurve = mm.curve; pName = mm.name; } });
+                    }
+                }
+                if (pCurve && series.length) {
+                    var s0 = series[0].d, s1 = series[series.length - 1].d;
+                    var inWin = [];
+                    pc.dates.forEach(function (cd, ix) { if (cd >= s0 && cd <= s1 && pCurve[ix] != null) inWin.push([cd, pCurve[ix]]); });
+                    if (inWin.length) {
+                        var pScale = inWin[0][1] > 0 ? 100 / inWin[0][1] : 1;
+                        inWin = inWin.map(function (pt) { return [pt[0], pt[1] * pScale]; });
+                        var pFirst = inWin[0][1], pLast = inWin[inWin.length - 1][1];
+                        var pPk = 0, pDd = 0;
+                        inWin.forEach(function (pt) {
+                            if (pt[1] > pPk) pPk = pt[1];
+                            if (pPk > 0 && (pPk - pt[1]) / pPk > pDd) pDd = (pPk - pt[1]) / pPk;
+                        });
+                        benches.push({
+                            sym: polSel, name: pName, color: "#f472b6", polBench: true,
+                            moneyIn: pFirst, value: pLast, gain: pLast - pFirst,
+                            gainPct: pFirst > 0 ? (pLast - pFirst) / pFirst * 100 : 0,
+                            maxDD: pDd * 100
+                        });
+                        var ci2 = 0;
+                        series.forEach(function (p) {
+                            while (ci2 < inWin.length && inWin[ci2][0] <= p.d) ci2++;
+                            p.b[polSel] = ci2 > 0 ? inWin[ci2 - 1][1] : null;
+                            if (ci2 > 0) p.bin = pFirst;
+                        });
+                    }
+                }
+            }
             return {
                 names: names, firstDot: firstDot, endDate: endDate, startBound: startBound, range: state.range, rows: rows,
                 cash: cash, moneyIn: moneyIn, totalValue: totalValue,
@@ -7312,7 +7386,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 var toPct = function (v, ix) { var m = pts.ins[ix]; return m > 0 ? (v - m) / m * 100 : 0; };
                 dPort = pts.port.map(toPct);
                 dBenches = pts.benches.map(function (bn) {
-                    return { name: bn.name, color: bn.color, vals: bn.vals.map(function (v, ix) { var m = bn.ins[ix]; return m > 0 ? (v - m) / m * 100 : 0; }) };
+                    return { name: bn.name, color: bn.color, vals: bn.vals.map(function (v, ix) { if (v == null) return null; var m = bn.ins[ix]; return m > 0 ? (v - m) / m * 100 : 0; }) };
                 });
             }
             var maxV = 0, minV = 0;
@@ -7365,9 +7439,16 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             function line(vals, color, dashed) {
                 ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(dashed || []);
                 ctx.beginPath();
+                // A null value is a gap, not a zero: the pen lifts
+                // and resumes at the next real value. Funded
+                // benches never carry nulls (their drawing is
+                // byte-identical); a politician's curve uses them
+                // for the days before its span begins.
+                var pen = false;
                 for (var i = 0; i < n; i++) {
+                    if (vals[i] == null) { pen = false; continue; }
                     var x = X(i), y = Y(vals[i]);
-                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y);
                 }
                 ctx.stroke(); ctx.setLineDash([]);
             }
@@ -7377,7 +7458,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 ctx.strokeStyle = sub; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(X(inspectIdx), padT); ctx.lineTo(X(inspectIdx), padT + ih); ctx.stroke();
                 var pairs = [[dPort[inspectIdx], acc]];
-                dBenches.forEach(function (bn) { pairs.push([bn.vals[inspectIdx], bn.color]); });
+                dBenches.forEach(function (bn) { if (bn.vals[inspectIdx] != null) pairs.push([bn.vals[inspectIdx], bn.color]); });
                 pairs.forEach(function (pr) {
                     ctx.fillStyle = pr[1];
                     ctx.beginPath(); ctx.arc(X(inspectIdx), Y(pr[0]), 3.5, 0, Math.PI * 2); ctx.fill();
@@ -7394,7 +7475,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 return fmtPct(m > 0 ? (v - m) / m * 100 : 0);
             };
             var ro = fmtDate(chartPts.dates[i]) + " · Portfolio " + fmtVal(chartPts.port[i], chartPts.ins[i]);
-            chartPts.benches.forEach(function (bn) { ro += " · " + bn.name + " " + fmtVal(bn.vals[i], bn.ins[i]); });
+            chartPts.benches.forEach(function (bn) { if (bn.vals[i] != null) ro += " · " + bn.name + " " + fmtVal(bn.vals[i], bn.ins[i]); });
             el("sigReadout").textContent = ro;
         }
         function chartInspect(clientX) {
@@ -7413,6 +7494,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         // The comparison's funding, in plain words for the chart
         // legend: what it buys, how often, and that it holds.
         function benchHow(bn) {
+            if (bn.polBench) return "their actual disclosed trades \u00B7 midpoint estimates \u00B7 only names with price data";
             var amt = fmtMoney(state.benchAmt).replace(/\.00$/, "");
             var how = state.benchTiming === "days" ? "buys " + amt + " on each buy-signal day"
                 : state.benchTiming === "weekly" ? "buys " + amt + " a week"
@@ -7426,7 +7508,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             el("sigChart").style.display = state.on ? "" : "none";
             el("sigReadout").style.display = state.on ? "" : "none";
             if (!state.on) { legend.innerHTML = ""; chartPts = null; return; }
-            chartPts = { dates: [], port: [], ins: [], benches: (r.benches || []).map(function (bn) { return { sym: bn.sym, name: bn.name, color: bn.color, cashBench: bn.cashBench, vals: [], ins: [] }; }) };
+            chartPts = { dates: [], port: [], ins: [], benches: (r.benches || []).map(function (bn) { return { sym: bn.sym, name: bn.name, color: bn.color, cashBench: bn.cashBench, polBench: bn.polBench, vals: [], ins: [] }; }) };
             (r.series || []).forEach(function (p) {
                 chartPts.dates.push(p.d); chartPts.port.push(p.v); chartPts.ins.push(p.in || 0);
                 chartPts.benches.forEach(function (bn) { bn.vals.push(p.b[bn.sym]); bn.ins.push(p.bin || 0); });
@@ -7522,12 +7604,57 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             var benchSel = el("sigBenchSel"), timingSel = el("sigTimingSel"), benchAmtInp = el("sigBenchAmt");
             function syncFund() {
                 // With no comparison chosen, its funding controls
-                // rest disabled — there is nothing to fund.
+                // rest disabled — there is nothing to fund. With a
+                // politician chosen, they step aside entirely —
+                // a copied portfolio has no funding schedule to
+                // set — and the basis line takes their place. The
+                // state underneath is never touched, so switching
+                // back restores the controls exactly as they were.
                 var none = state.bench === "NONE";
+                var pol = String(state.bench).indexOf("POL") === 0;
                 timingSel.disabled = none;
                 benchAmtInp.disabled = none;
+                var fund = document.querySelector(".sig-fund");
+                if (fund) fund.style.display = pol ? "none" : "";
+                var basis = el("sigBenchBasis");
+                if (basis) {
+                    basis.hidden = !pol;
+                    if (pol) {
+                        var nm = benchSel.options[benchSel.selectedIndex] ? benchSel.options[benchSel.selectedIndex].textContent : "";
+                        basis.textContent = state.bench === "POLALL"
+                            ? "Every member\u2019s disclosed trades in one portfolio \u00B7 midpoint estimates \u00B7 only names with price data"
+                            : nm + "\u2019s actual disclosed trades \u00B7 midpoint estimates \u00B7 only names with price data";
+                    }
+                }
             }
             benchSel.addEventListener("change", function () { state.bench = benchSel.value; syncFund(); run(); });
+            // The Politicians group of that same select: every
+            // member the filings rebuild a gradeable curve for,
+            // plus everyone together — populated from the section's
+            // own data when it arrives (the load starts here too,
+            // so opening the backtest first is enough).
+            var polBenchBuilt = false;
+            function populatePolBench() {
+                if (polBenchBuilt || !window.__polCurves) return;
+                var pc = window.__polCurves();
+                if (!pc) return;
+                polBenchBuilt = true;
+                var grp = el("sigBenchPolGroup");
+                if (!grp) return;
+                grp.innerHTML = "";
+                var all = document.createElement("option");
+                all.value = "POLALL"; all.textContent = "All politicians";
+                grp.appendChild(all);
+                pc.members.forEach(function (mm) {
+                    var o = document.createElement("option");
+                    o.value = "POL:" + mm.mi; o.textContent = mm.name;
+                    grp.appendChild(o);
+                });
+                if (String(state.bench).indexOf("POL") === 0) { benchSel.value = state.bench; syncFund(); run(); }
+            }
+            window.addEventListener("poldata", populatePolBench);
+            populatePolBench();
+            if (window.__polEnsure) window.__polEnsure();
             timingSel.addEventListener("change", function () { state.benchTiming = timingSel.value; run(); });
             amt("sigBenchAmt", "benchAmt");
             syncFund();
@@ -7656,7 +7783,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
        ============================================================ */
     (function () {
         "use strict";
-        var SECTION_IDS = ["chart", "scoreboard", "screener", "politicians", "committee", "backtest", "resources", "legend"];
+        var SECTION_IDS = ["chart", "stockreview", "politicians", "committee", "backtest", "resources", "legend"];
 
         /* ---------- Collapsible sections ---------- */
         function setSection(id, open) {
@@ -8159,6 +8286,9 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         var POL_KEY = "jbo-chart-pol-v1";
         var polOn = false;
         try { polOn = window.localStorage.getItem(POL_KEY) === "1"; } catch (e) { polOn = false; }
+        var INS_KEY = "jbo-chart-ins-v1";
+        var insOn = false;
+        try { insOn = window.localStorage.getItem(INS_KEY) === "1"; } catch (e) { insOn = false; }
         try {
             peOn = window.localStorage.getItem(PE_KEY) === "1";
             volOn = window.localStorage.getItem(VOL_KEY) !== "0";
@@ -8519,6 +8649,41 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (view.intra || view.fine) rows.push(["Time", fmtIntraStamp(b)]);
             else rows.push(["Date", fmtDate(b[0])]);
             tipRows(view, idx).forEach(function (r) { rows.push([r.label, r.value]); });
+            // Politicians' trades on the inspected day
+            // (2026-11-27): the indicator's dots speak through
+            // this strip, and now the politicians' dots do too —
+            // while the layer is on, a day carrying disclosed
+            // trades gains a Congress cell naming each one: who,
+            // which way, the range as filed, the traded and
+            // filed dates, from the section's own accessor under
+            // the same selection the dots draw with (the chart's
+            // member filter included). The day is the bar's own:
+            // its ISO date on a daily bar, its ET date on a fine
+            // or intraday bar.
+            if (polOn && window.__polTradesOn) {
+                var pday = (typeof b[0] === "number") ? etClock(b[0]).date : b[0];
+                var ptrades = window.__polTradesOn(cur.key, pday) || [];
+                if (ptrades.length) {
+                    rows.push(["Congress", ptrades.map(function (t) {
+                        return t.name + " — " + (t.s ? "sold" : "bought") + " " + t.range.replace(/&ndash;/g, "–") + " · traded " + t.traded + " · filed " + t.filed
+                            + (t.tag ? " · Sits on " + t.tag[0] + ", which oversees " + t.tag[1] : "");
+                    }).join("; ")]);
+                }
+            }
+            // Insiders on the inspected day (2026-11-27): the
+            // same readout path as the Congress cell — name, role,
+            // which way, and the EXACT shares and price from the
+            // Form 4 (labelled as filed by the chart key's line:
+            // insiders report exact figures, Congress ranges).
+            if (insOn && window.__insTradesOn) {
+                var iday = (typeof b[0] === "number") ? etClock(b[0]).date : b[0];
+                var itrades = window.__insTradesOn(cur.key, iday) || [];
+                if (itrades.length) {
+                    rows.push(["Insiders", itrades.map(function (t) {
+                        return t.name + " (" + t.role + ") — " + (t.s ? "sold" : "bought") + " " + Number(t.shares).toLocaleString("en-US") + " shares at $" + Number(t.price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    }).join("; ")]);
+                }
+            }
             var sig = rows.map(function (r) { return r[0]; }).join("|");
             if (sig !== tipSig || strip.childElementCount !== rows.length) {
                 var KEY_BY_LABEL = { "Close": "close", "200-day": "ma200", "50-day": "ma50", "RSI": "rsi", "P/E": "pe", "Volume": "vol" };
@@ -8527,6 +8692,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 rows.forEach(function (r) {
                     var cell = document.createElement("div");
                     cell.className = "fin-stat";
+                    if (r[0] === "Congress" || r[0] === "Insiders") cell.className = "fin-stat fin-stat-wide";
                     if (KEY_BY_LABEL[r[0]]) cell.setAttribute("data-key", KEY_BY_LABEL[r[0]]);
                     var lab = document.createElement("span");
                     lab.className = "fin-stat-label";
@@ -8965,18 +9131,75 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (polOn && window.__polDots) {
                 var pdots = window.__polDots(cur.key);
                 if (pdots && pdots.length) {
+                    // The mapping runs on bar DATES, never on the
+                    // bars' raw stamps (2026-11-27, dot audit): a
+                    // daily bar carries its ISO date, a fine or
+                    // intraday bar carries epoch seconds and takes
+                    // its ET date — the reckoning buildFineView's
+                    // own dot mapping uses. Searching the ISO
+                    // trade date against epoch stamps compared a
+                    // number with a string, lost every time, and
+                    // landed every dot on bar 0: the whole layer
+                    // stacked, half-clipped, on the pane's left
+                    // edge in exactly the views (1D–1Y) that route
+                    // to fine or intraday bars. A trade outside
+                    // the window's own days never draws — dots
+                    // are excluded, never clamped onto an edge
+                    // bar — and a centre near the pane's edge
+                    // shifts the few pixels it takes to draw the
+                    // whole ring inside its pane.
+                    var bd = new Array(bars.length);
+                    for (var bi = 0; bi < bars.length; bi++) { var bv = bars[bi][0]; bd[bi] = (typeof bv === "number") ? etClock(bv).date : bv; }
+                    var bdA = bd[v.start], bdB = bd[v.end];
                     ctx.lineWidth = 2;
                     for (var pdi = 0; pdi < pdots.length; pdi++) {
                         var pd = pdots[pdi];
-                        var blo = 0, bhi = bars.length - 1, bidx = -1;
-                        while (blo <= bhi) { var bmid = (blo + bhi) >> 1; if (bars[bmid][0] < pd.d) blo = bmid + 1; else { bidx = bmid; bhi = bmid - 1; } }
-                        if (bidx < v.start || bidx > v.end) continue;
+                        if (pd.d < bdA || pd.d > bdB) continue;
+                        var blo = v.start, bhi = v.end, bidx = -1;
+                        while (blo <= bhi) { var bmid = (blo + bhi) >> 1; if (bd[bmid] < pd.d) blo = bmid + 1; else { bidx = bmid; bhi = bmid - 1; } }
+                        if (bidx < 0) continue;
                         var pr = pd.m < 25000 ? 5 : (pd.m < 100000 ? 6.5 : (pd.m < 500000 ? 8 : 10));
-                        ctx.beginPath(); ctx.arc(X(bidx), YP(v.closes[bidx]), pr, 0, Math.PI * 2);
+                        var pcx = X(bidx);
+                        if (pcx < 6 + pr + 1) pcx = 6 + pr + 1; else if (pcx > 6 + plotW - pr - 1) pcx = 6 + plotW - pr - 1;
+                        ctx.beginPath(); ctx.arc(pcx, YP(v.closes[bidx]), pr, 0, Math.PI * 2);
                         ctx.strokeStyle = pd.s ? SELL_COLOR : BUY_COLOR; ctx.stroke();
                         ctx.globalAlpha = 0.15; ctx.fillStyle = pd.s ? SELL_COLOR : BUY_COLOR; ctx.fill(); ctx.globalAlpha = 1;
-                        ctx.beginPath(); ctx.arc(X(bidx), YP(v.closes[bidx]), Math.max(2, pr * 0.45), 0, Math.PI * 2);
+                        ctx.beginPath(); ctx.arc(pcx, YP(v.closes[bidx]), Math.max(2, pr * 0.45), 0, Math.PI * 2);
                         ctx.fillStyle = pd.s ? SELL_COLOR : BUY_COLOR; ctx.fill();
+                    }
+                }
+            }
+            // Insiders' diamonds (2026-11-27): Form 4 open-market
+            // trades by the company's own officers, directors and
+            // 10% owners — DIAMONDS, never rings (rings stay
+            // Congress's) and never plain solid dots (the
+            // indicator's). The same bar-date reckoning as the
+            // rings: a trade maps by its day, a trade outside the
+            // window does not draw, and a centre near the edge
+            // shifts to keep the whole diamond inside the pane.
+            // Size is the trade's exact filed value (shares ×
+            // price) on the rings' own bands.
+            if (insOn && window.__insDots) {
+                var idots = window.__insDots(cur.key);
+                if (idots && idots.length) {
+                    var ibd = new Array(bars.length);
+                    for (var ibi = 0; ibi < bars.length; ibi++) { var ibv = bars[ibi][0]; ibd[ibi] = (typeof ibv === "number") ? etClock(ibv).date : ibv; }
+                    var ibdA = ibd[v.start], ibdB = ibd[v.end];
+                    for (var idi = 0; idi < idots.length; idi++) {
+                        var idd = idots[idi];
+                        if (idd.d < ibdA || idd.d > ibdB) continue;
+                        var ilo = v.start, ihi = v.end, iidx = -1;
+                        while (ilo <= ihi) { var imid = (ilo + ihi) >> 1; if (ibd[imid] < idd.d) ilo = imid + 1; else { iidx = imid; ihi = imid - 1; } }
+                        if (iidx < 0) continue;
+                        var ir = (idd.v < 25000 ? 5 : (idd.v < 100000 ? 6.5 : (idd.v < 500000 ? 8 : 10))) + 1;
+                        var icx = X(iidx);
+                        if (icx < 6 + ir + 1) icx = 6 + ir + 1; else if (icx > 6 + plotW - ir - 1) icx = 6 + plotW - ir - 1;
+                        var icy = YP(v.closes[iidx]);
+                        ctx.beginPath();
+                        ctx.moveTo(icx, icy - ir); ctx.lineTo(icx + ir, icy); ctx.lineTo(icx, icy + ir); ctx.lineTo(icx - ir, icy);
+                        ctx.closePath();
+                        ctx.fillStyle = idd.s ? SELL_COLOR : BUY_COLOR; ctx.globalAlpha = 0.85; ctx.fill(); ctx.globalAlpha = 1;
+                        ctx.lineWidth = 1.5; ctx.strokeStyle = idd.s ? SELL_COLOR : BUY_COLOR; ctx.stroke();
                     }
                 }
             }
@@ -9942,6 +10165,60 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         });
         window.addEventListener("poldata", function () { populatePolSelect(); if (polOn) render(); });
         syncPol();
+        // Insiders layer switch (2026-11-27): open-market trades
+        // by a company's own officers, directors and 10% owners,
+        // from SEC Form 4 filings (insiders.json, built by
+        // insiders_build.py). Same switch pattern as the
+        // Politicians layer and the same bounded load discipline
+        // as the filings fix — 10-second attempts, one automatic
+        // retry — except a failed load here simply leaves the
+        // layer dark: there is no placeholder anywhere to strand,
+        // and the next toggle tries again.
+        var insBtn = document.getElementById("insIndBtn");
+        var insData = null, insPromise = null;
+        function insFetch() {
+            var ctl = window.AbortController ? new AbortController() : null;
+            var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 10000);
+            function done() { clearTimeout(timer); }
+            return fetch("insiders.json", ctl ? { signal: ctl.signal } : {})
+                .then(function (r) { done(); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+                .catch(function (e) { done(); throw e; });
+        }
+        window.__insEnsure = function () {
+            if (!insPromise) {
+                insPromise = insFetch().catch(function () { return insFetch(); })
+                    .then(function (j) { insData = j; if (insOn) render(); })
+                    .catch(function () { insPromise = null; });
+            }
+            return insPromise;
+        };
+        function insIso(dayNum) { return new Date(Date.UTC(1970, 0, 1) + dayNum * 86400000).toISOString().slice(0, 10); }
+        window.__insDots = function (key) {
+            if (!insData || !insData.tickers[key]) return [];
+            return insData.tickers[key].map(function (r) { return { d: insIso(r[0]), s: r[1], v: r[2] * r[3] }; });
+        };
+        window.__insTradesOn = function (key, iso) {
+            if (!insData || !insData.tickers[key]) return [];
+            var out = [];
+            insData.tickers[key].forEach(function (r) {
+                if (insIso(r[0]) === iso) out.push({ name: r[4], role: r[5], s: r[1], shares: r[2], price: r[3] });
+            });
+            return out;
+        };
+        function syncIns() {
+            if (insBtn) insBtn.setAttribute("aria-checked", insOn ? "true" : "false");
+            var kie = document.getElementById("keyInsItem");
+            if (kie) kie.hidden = !insOn;
+        }
+        if (insBtn) insBtn.addEventListener("click", function () {
+            insOn = !insOn;
+            try { window.localStorage.setItem(INS_KEY, insOn ? "1" : "0"); } catch (e) {}
+            syncIns();
+            if (insOn) window.__insEnsure();
+            render();
+        });
+        syncIns();
+        if (insOn) window.__insEnsure();
         // ---- Politicians mode (2026-11-27, Johnny's integration) --
         // The stock dropdown's fourth list, Politicians' stocks,
         // is a MODE of this chart, not just more names: while it
@@ -12023,8 +12300,8 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (chartSection && (chartSection.classList.contains("chart-fs") || document.fullscreenElement === chartSection || document.webkitFullscreenElement === chartSection)) {
                 document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
             }
-            var body = document.getElementById("scoreboard-body");
-            var toggle = document.querySelector('.section-toggle[data-section="scoreboard"]');
+            var body = document.getElementById("stockreview-body");
+            var toggle = document.querySelector('.section-toggle[data-section="stockreview"]');
             if (body && body.hidden && toggle) toggle.click();
             var section = document.getElementById("scoreboard");
             if (section && section.scrollIntoView) section.scrollIntoView({ block: "start" });
@@ -13533,7 +13810,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 requestDraw();
             }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
         }
-        var sbToggle = document.querySelector('.section-toggle[data-section="scoreboard"]');
+        var sbToggle = document.querySelector('.section-toggle[data-section="stockreview"]');
         if (sbToggle) sbToggle.addEventListener("click", function () { window.setTimeout(requestDraw, 60); });
         // The current point rides on the live table data: when the
         // scoreboard renders (its data has landed), redraw so the
@@ -13643,6 +13920,95 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             var body = document.getElementById("scoreboard-body");
             if (body && body.hidden) {
                 var toggle = document.querySelector('.section-toggle[data-section="scoreboard"]');
+                if (toggle) toggle.click();
+            }
+            var req = fsSection.requestFullscreen || fsSection.webkitRequestFullscreen;
+            if (req) {
+                try {
+                    var p = req.call(fsSection);
+                    if (p && p.catch) p.catch(function () { enterFsFallback(); });
+                } catch (err) { enterFsFallback(); }
+            } else {
+                enterFsFallback();
+            }
+        }
+        fsBtn.addEventListener("click", toggleFs);
+        document.addEventListener("fullscreenchange", syncFs);
+        document.addEventListener("webkitfullscreenchange", syncFs);
+        document.addEventListener("keydown", function (e) {
+            if (fsOn && (e.key === "Escape" || e.key === "Esc" || e.keyCode === 27)) exitFs();
+        });
+        syncFsButton(false);
+    })();
+    </script>
+    <script>
+    /* Stock Review full screen (2026-11-27): the merged
+       section's single title-row pill takes the whole Stock
+       Review block full screen — both parts on one screen, the
+       body scrolling inside — the same two mechanisms as the
+       page's other sections (the Fullscreen API where offered,
+       the .sr-fs fixed-overlay fallback where it is not), the
+       button staying in the title row as the exit, Esc leaving
+       too. Modelled line for line on the scoreboard's handler
+       above, which now stands down: its button went with the
+       two pseudo-sections this section replaced. */
+    (function () {
+        "use strict";
+        var fsBtn = document.getElementById("stockreviewFsBtn");
+        var fsSection = document.getElementById("stockreview");
+        if (!fsBtn || !fsSection) return;
+        var fsOn = false;
+        var fsFallback = false;
+        var fsSaved = null;
+        function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+        function syncFsButton(on) {
+            fsBtn.setAttribute("aria-pressed", on ? "true" : "false");
+            fsBtn.setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
+            fsBtn.classList.toggle("chart-fs-on", on);
+        }
+        function syncFs() {
+            var on = (fsElement() === fsSection) || fsFallback;
+            if (on === fsOn) { syncFsButton(on); return; }
+            fsOn = on;
+            syncFsButton(on);
+            window.dispatchEvent(new Event("resize"));
+        }
+        function enterFsFallback() {
+            fsFallback = true;
+            fsSection.classList.add("sr-fs");
+            fsSaved = { html: document.documentElement.style.overflow, body: document.body.style.overflow };
+            document.documentElement.style.overflow = "hidden";
+            document.body.style.overflow = "hidden";
+            syncFs();
+        }
+        function exitFsFallback() {
+            if (!fsFallback) return;
+            fsFallback = false;
+            fsSection.classList.remove("sr-fs");
+            if (fsSaved) {
+                document.documentElement.style.overflow = fsSaved.html;
+                document.body.style.overflow = fsSaved.body;
+                fsSaved = null;
+            }
+            syncFs();
+        }
+        function exitFs() {
+            if (fsFallback) { exitFsFallback(); return; }
+            if (fsElement()) {
+                var exit = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exit) {
+                    try {
+                        var xp = exit.call(document);
+                        if (xp && xp.catch) xp.catch(function () { /* the browser owns the exit */ });
+                    } catch (err) { /* the browser owns the exit */ }
+                }
+            }
+        }
+        function toggleFs() {
+            if (fsOn) { exitFs(); return; }
+            var body = document.getElementById("stockreview-body");
+            if (body && body.hidden) {
+                var toggle = document.querySelector('.section-toggle[data-section="stockreview"]');
                 if (toggle) toggle.click();
             }
             var req = fsSection.requestFullscreen || fsSection.webkitRequestFullscreen;
@@ -15462,10 +15828,12 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         var sel = document.getElementById("srTicker");
         if (!sel) return;
         var lastPicked = null;
-        function expandPart(id) {
-            var body = document.getElementById(id + "-body");
+        function expandPart() {
+            // One section now: picking a stock opens Stock
+            // Review itself, and both parts are on show inside it.
+            var body = document.getElementById("stockreview-body");
             if (body && body.hidden) {
-                var tg = document.querySelector('.section-toggle[data-section="' + id + '"]');
+                var tg = document.querySelector('.section-toggle[data-section="stockreview"]');
                 if (tg) tg.click();
             }
         }
@@ -15499,7 +15867,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         function pick(t) {
             if (!t) return;
             lastPicked = t;
-            expandPart("scoreboard");
+            expandPart();
             var on = document.querySelector('.sb-name-btn[data-compare="' + t + '"].sb-cmp-on');
             if (!on && window.__sbToggleCompare) window.__sbToggleCompare(t);
             var row = document.querySelector('.sb-name-btn[data-compare="' + t + '"]');
@@ -15508,7 +15876,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 if (tr && tr.scrollIntoView) tr.scrollIntoView({ block: "nearest" });
                 if (tr) { tr.classList.remove("fin-search-flash"); void tr.offsetWidth; tr.classList.add("fin-search-flash"); }
             }
-            expandPart("screener");
+            expandPart();
             var rs = document.getElementById("runnerTicker");
             if (rs) {
                 var has = Array.prototype.some.call(rs.options, function (o) { return o.value === t; });
@@ -15558,6 +15926,32 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         var filt = { side: "all", party: "", chamber: "", committee: "", minMid: 0, member: null };
         var feedShown = 150, baselineFiled = 0;
         var mode = "latest";
+        // Sort (2026-11-27): one select in the console's own
+        // select language, its options following the mode. The
+        // defaults are the orders the lists already promise —
+        // Latest is newest filed first, Clusters most members
+        // first, Most Watched and Copy the computed ranking —
+        // and a sort always applies to the filtered set, after
+        // the filters, never instead of them.
+        var sortKey = { latest: "filed", clusters: "members", watched: "ranked", copy: "ranked" };
+        var SORT_OPTIONS = {
+            latest: [["filed", "Newest filed"], ["traded", "Newest traded"], ["amount", "Biggest amount"]],
+            clusters: [["members", "Most members"], ["filed", "Newest filed"], ["traded", "Newest traded"], ["amount", "Biggest amount"]],
+            watched: [["ranked", "Ranked by disclosed size"], ["active", "Newest active"]],
+            copy: [["ranked", "Ranked by disclosed size"], ["active", "Newest active"]]
+        };
+        function syncSortSel() {
+            var sel = $("polSortSel");
+            if (!sel) return;
+            var opts = SORT_OPTIONS[mode] || SORT_OPTIONS.latest;
+            sel.innerHTML = opts.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + "</option>"; }).join("");
+            sel.value = sortKey[mode];
+        }
+        function lastFiled(mi) {
+            var mx = 0;
+            (byMember[mi] || []).forEach(function (r) { if (r[8] > mx) mx = r[8]; });
+            return mx;
+        }
         // The main chart's own member filter (its Politicians'
         // stocks mode): while set, __polDots answers for exactly
         // these members — the chart's filter wins over the
@@ -15604,13 +15998,27 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             }
             return rows.filter(passesGroup);
         }
+        // The one selection behind both the dots and the
+        // inspection readout: the chart's member filter wins
+        // while it stands; otherwise the section's scope rules.
+        function selectedRows(key) {
+            if (chartMembers) return (byTicker[key] || []).filter(function (r) { return chartMembers.indexOf(r[0]) !== -1; });
+            return scopedRows(key);
+        }
         window.__polDots = function (key) {
             if (!D) return [];
-            if (chartMembers) {
-                return (byTicker[key] || []).filter(function (r) { return chartMembers.indexOf(r[0]) !== -1; })
-                    .map(function (r) { return { d: isoOf(r[7]), s: r[2], m: mid(r) }; });
-            }
-            return scopedRows(key).map(function (r) { return { d: isoOf(r[7]), s: r[2], m: mid(r) }; });
+            return selectedRows(key).map(function (r) { return { d: isoOf(r[7]), s: r[2], m: mid(r) }; });
+        };
+        // The inspection readout's facts for one traded day, in
+        // the section's own formats — the range verbatim via
+        // rangeText (never a point value), the dates via dstr:
+        // who traded, which way, what they filed, when they
+        // traded and when they filed it.
+        window.__polTradesOn = function (key, iso) {
+            if (!D) return [];
+            var day = dayOf(iso);
+            return selectedRows(key).filter(function (r) { return r[7] === day; })
+                .map(function (r) { return { name: mem(r[0]).name, s: r[2], range: rangeText(r), traded: dstr(r[7]), filed: dstr(r[8]), tag: (r.__tag != null && D.tagInfo) ? D.tagInfo[r.__tag] : null }; });
         };
         // ---- the main chart's Politicians-mode interface ---------
         window.__polSetChartMembers = function (arr) {
@@ -15648,6 +16056,41 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         window.__polReconstruct = function (mi) {
             return ensurePrices().then(function () { return reconstruct(mi); });
         };
+        // The builder's curve series, exposed for the backtest's
+        // Politicians comparisons (Phase 3): the exact series the
+        // curve mode draws — D.curves per member, D.congressCurve
+        // for everyone together — never a recomputation.
+        window.__polCurves = function () {
+            if (!D) return null;
+            return {
+                dates: D.curveDates, spx: D.spxCurve, congress: D.congressCurve,
+                members: Object.keys(D.curves || {}).map(function (k) {
+                    return { mi: +k, name: D.members[+k][0], curve: D.curves[k] };
+                }).sort(function (a, b) { return a.name < b.name ? -1 : 1; })
+            };
+        };
+        // The curve's own figures, in the backtest's totals
+        // language: what $100 became, what the S&P 500 became
+        // over the same weeks, and the curve's worst dip.
+        function curveFigs(mi) {
+            var cv = D.curves && D.curves[mi];
+            if (!cv || !cv.length) return null;
+            var pk = 0, dd = 0;
+            cv.forEach(function (v) {
+                if (v > pk) pk = v;
+                if (pk > 0 && (pk - v) / pk > dd) dd = (pk - v) / pk;
+            });
+            return { end: cv[cv.length - 1], spx: D.spxCurve[D.spxCurve.length - 1], dd: dd * 100 };
+        }
+        function perfLineText(mi) {
+            var f = curveFigs(mi);
+            if (!f) return "";
+            return "Copy $100 \u2192 $" + f.end.toFixed(1) + " \u00B7 S&P 500 \u2192 $" + f.spx.toFixed(1) + " \u00B7 worst dip \u2212" + f.dd.toFixed(1) + "%";
+        }
+        function perfLineHtml(mi) {
+            var t = perfLineText(mi);
+            return t ? '<span class="pol-perf">' + esc(t) + '</span>' : "";
+        }
         window.__polHas = function (key) { return !!(D && (byTicker[key] || []).length && window.__polDots(key).length); };
         function weekKey(iso) {
             var d = new Date(iso + "T00:00:00Z");
@@ -15656,19 +16099,39 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             var y0 = Date.UTC(th.getUTCFullYear(), 0, 1);
             return th.getUTCFullYear() + "-" + Math.ceil(((th - y0) / 86400000 + 1) / 7);
         }
+        // A bar's date, whatever stamp the bar carries: daily
+        // bars carry their ISO date; fine and intraday bars carry
+        // epoch seconds and take their ET date — the chart's own
+        // etClock reckoning, mirrored here so the volume pane and
+        // the dots map by the same days in every view (searching
+        // an ISO date against epoch stamps silently landed every
+        // trade on the first bar — the 2026-11-27 dot audit).
+        var etFmtD = null;
+        function barDate(b0) {
+            if (typeof b0 !== "number") return b0;
+            try {
+                if (!etFmtD) etFmtD = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+                var p = {};
+                etFmtD.formatToParts(new Date(b0 * 1000)).forEach(function (part) { p[part.type] = part.value; });
+                return p.year + "-" + p.month + "-" + p.day;
+            } catch (e) { return new Date(b0 * 1000).toISOString().slice(0, 10); }
+        }
         window.__polWeeks = function (key, bars, start, end) {
             var dots = window.__polDots(key), sums = {}, max = 0, out = [];
             if (!dots.length || !bars || !bars.length) return { bars: [], max: 0 };
+            var bd = new Array(bars.length);
+            for (var bi = 0; bi < bars.length; bi++) bd[bi] = barDate(bars[bi][0]);
             var wkStart = {};
             var prev = null;
             for (var i = start; i <= end; i++) {
-                var wk = weekKey(bars[i][0]);
+                var wk = weekKey(bd[i]);
                 if (wk !== prev) { wkStart[i] = i; prev = wk; }
             }
             dots.forEach(function (pd) {
-                var lo = 0, hi = bars.length - 1, idx = -1;
-                while (lo <= hi) { var md = (lo + hi) >> 1; if (bars[md][0] < pd.d) lo = md + 1; else { idx = md; hi = md - 1; } }
-                if (idx < start || idx > end) return;
+                if (pd.d < bd[start] || pd.d > bd[end]) return;
+                var lo = start, hi = end, idx = -1;
+                while (lo <= hi) { var md = (lo + hi) >> 1; if (bd[md] < pd.d) lo = md + 1; else { idx = md; hi = md - 1; } }
+                if (idx < 0) return;
                 var s = idx;
                 while (s > start && !wkStart[s]) s--;
                 sums[s] = (sums[s] || 0) + pd.m;
@@ -15679,18 +16142,72 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             return { bars: out, max: max };
         };
         // ---- loading ---------------------------------------------
+        // Bounded and honest (2026-11-27): the filings file is
+        // ~650 KB and a phone can stall a fetch a dozen ways —
+        // tab suspension, a network switch — and the old path had
+        // no timeout, no retry and no failure state, so one stall
+        // left the dropdown saying "Loading the filings…" for
+        // ever. Each attempt now gets 10 seconds; a failure earns
+        // exactly one automatic retry; a second failure resets
+        // the promise (so a retry can run at all) and lands both
+        // surfaces — the section's line and the dropdown's note —
+        // on a tappable retry state instead of an eternal Loading.
         var loadPromise = null;
-        window.__polEnsure = function () {
-            if (!loadPromise) {
-                loadPromise = fetch("politicians-trades.json").then(function (r) {
+        function fetchFilings() {
+            var ctl = window.AbortController ? new AbortController() : null;
+            var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 10000);
+            function done() { clearTimeout(timer); }
+            return fetch("politicians-trades.json", ctl ? { signal: ctl.signal } : {})
+                .then(function (r) {
+                    done();
                     if (!r.ok) throw new Error("HTTP " + r.status);
                     return r.json();
-                }).then(function (j) {
+                })
+                .catch(function (e) { done(); throw e; });
+        }
+        function setLoadState(state) {
+            var note = document.getElementById("polDdNote");
+            if (note) {
+                if (state === "failed") {
+                    note.textContent = "Couldn\u2019t load the filings \u2014 tap to retry";
+                    note.classList.add("pol-dd-retry");
+                    note.setAttribute("role", "button");
+                    note.setAttribute("tabindex", "0");
+                } else {
+                    note.textContent = "Loading the filings\u2026";
+                    note.classList.remove("pol-dd-retry");
+                    note.removeAttribute("role");
+                    note.removeAttribute("tabindex");
+                }
+            }
+            if (state === "failed") {
+                var f = $("polFresh");
+                if (f) {
+                    f.textContent = "Couldn\u2019t load the filings, so this section is empty rather than out of date. ";
+                    var b = document.createElement("button");
+                    b.type = "button";
+                    b.className = "filter-pill";
+                    b.textContent = "Retry";
+                    b.addEventListener("click", function () { window.__polEnsure(); });
+                    f.appendChild(b);
+                }
+            }
+        }
+        window.__polEnsure = function () {
+            if (!loadPromise) {
+                setLoadState("loading");
+                loadPromise = fetchFilings()
+                    .catch(function () { return fetchFilings(); })
+                    .then(function (j) {
                     D = j;
                     D.rows.forEach(function (r) {
                         (byMember[r[0]] = byMember[r[0]] || []).push(r);
                         (byTicker[r[1]] = byTicker[r[1]] || []).push(r);
                     });
+                    // Committee-context tags (builder-computed):
+                    // stamp each tagged row with its tagInfo index
+                    // so every surface reads it off the row itself.
+                    if (D.tags) D.rows.forEach(function (r, i) { var t = D.tags[i]; if (t != null) r.__tag = t; });
                     D.board.forEach(function (t) { boardSet[t] = 1; });
                     (D.clusters || []).forEach(function (c) {
                         (clusterWins[c.t] = clusterWins[c.t] || []).push([dayOf(c.from), dayOf(c.to)]);
@@ -15705,12 +16222,25 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     renderAll();
                     window.dispatchEvent(new Event("poldata"));
                 }).catch(function () {
-                    var f = $("polFresh");
-                    if (f) f.textContent = "The filings file could not be loaded just now, so the section is empty rather than out of date. Try again in a little while.";
+                    loadPromise = null;
+                    setLoadState("failed");
                 });
             }
             return loadPromise;
         };
+        // The dropdown's note is the retry control in its failed
+        // state — wired once, and it only acts while it wears the
+        // retry class (after a success the chart rebuilds the
+        // group and this note is a different element entirely).
+        (function () {
+            var note = document.getElementById("polDdNote");
+            if (!note) return;
+            function retry() { if (note.classList.contains("pol-dd-retry")) window.__polEnsure(); }
+            note.addEventListener("click", retry);
+            note.addEventListener("keydown", function (e) {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); retry(); }
+            });
+        })();
         // ---- shared bits ------------------------------------------
         function lagCell(r) {
             var lag = r[8] - r[7];
@@ -15718,6 +16248,20 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             return lag + "d" + (late > 0 ? '<span class="pol-late">filed ' + late + (late === 1 ? " day" : " days") + " late</span>" : "");
         }
         function boardTag(t) { return boardSet[t] ? ' <span class="pol-board-tag">On your board</span>' : ""; }
+        // The committee-context marker: the committee's short
+        // name as a small chip, the full sentence on the title —
+        // jurisdiction context, worded as context, never as an
+        // accusation.
+        function jurChip(r) {
+            if (r.__tag == null || !D.tagInfo) return "";
+            var t = D.tagInfo[r.__tag];
+            return ' <span class="pol-jur" title="Sits on ' + esc(t[0]) + ', which oversees ' + esc(t[1]) + '">' + esc(t[0]) + '</span>';
+        }
+        function jurSentence(r) {
+            if (r.__tag == null || !D.tagInfo) return "";
+            var t = D.tagInfo[r.__tag];
+            return "Sits on " + t[0] + ", which oversees " + t[1];
+        }
         function indBuyDay(t) {
             var btns = document.querySelectorAll('#finDotsList .fin-dots-opt[data-key="' + t + '"]');
             for (var i = 0; i < btns.length; i++) {
@@ -15774,7 +16318,9 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         }
         // ---- render: Most Watched ---------------------------------
         function renderCards() {
-            $("polCards").innerHTML = D.leaderboard.map(function (e) {
+            var entries = D.leaderboard.slice();
+            if (sortKey.watched === "active") entries.sort(function (a, b) { return lastFiled(b.m) - lastFiled(a.m); });
+            $("polCards").innerHTML = entries.map(function (e) {
                 var m = mem(e.m);
                 var perf = e.buyPerf === null || e.buyPerf === undefined
                     ? '<span class="pol-line">Their buys sit mostly outside this page&rsquo;s price file, so no performance figure is shown.</span>'
@@ -15783,7 +16329,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 return '<article class="pol-card' + (filt.member === e.m ? " active" : "") + '" data-card="' + e.m + '">'
                     + '<button type="button" class="pol-name-btn" data-profile="' + e.m + '">' + esc(m.name) + '</button>'
                     + '<span class="pol-meta">' + metaLine(m) + '</span>'
-                    + perf
+                    + perf + perfLineHtml(e.m)
                     + '<span class="pol-line">' + big(e.volMid) + ' disclosed (est.) · ' + e.trades + ' trades · ' + e.buys + ' buys / ' + e.sells + ' sells · files in about ' + Math.round(e.avgLag) + ' days</span>'
                     + '<span class="pol-tickers">' + chips + '</span>'
                     + '<span class="pol-card-actions"><button type="button" class="filter-pill" data-chartmember="' + e.m + '">See their trades on the chart</button><button type="button" class="filter-pill" data-copy="' + e.m + '">Copy ' + esc(m.name.split(" ").slice(-1)[0]) + '</button></span></article>';
@@ -15791,12 +16337,24 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         }
         // ---- render: clusters --------------------------------------
         function renderClusters() {
-            $("polClusters").innerHTML = D.clusters.map(function (c) {
-                var conv = convergence(c.t, dayOf(c.from), dayOf(c.to));
+            var items = D.clusters.map(function (c) {
                 var mset = {};
                 c.members.forEach(function (mi) { mset[mi] = 1; });
-                var cvol = 0;
-                (byTicker[c.t] || []).forEach(function (r) { if (r[2] === 0 && mset[r[0]] && r[7] >= dayOf(c.from) && r[7] <= dayOf(c.to)) cvol += mid(r); });
+                var cvol = 0, maxFiled = 0;
+                (byTicker[c.t] || []).forEach(function (r) {
+                    if (r[2] === 0 && mset[r[0]] && r[7] >= dayOf(c.from) && r[7] <= dayOf(c.to)) {
+                        cvol += mid(r);
+                        if (r[8] > maxFiled) maxFiled = r[8];
+                    }
+                });
+                return { c: c, vol: cvol, maxFiled: maxFiled, maxTraded: dayOf(c.to) };
+            });
+            if (sortKey.clusters === "filed") items.sort(function (a, b) { return b.maxFiled - a.maxFiled || b.maxTraded - a.maxTraded; });
+            else if (sortKey.clusters === "traded") items.sort(function (a, b) { return b.maxTraded - a.maxTraded || b.maxFiled - a.maxFiled; });
+            else if (sortKey.clusters === "amount") items.sort(function (a, b) { return b.vol - a.vol || b.maxFiled - a.maxFiled; });
+            $("polClusters").innerHTML = items.map(function (it) {
+                var c = it.c, cvol = it.vol;
+                var conv = convergence(c.t, dayOf(c.from), dayOf(c.to));
                 return '<div class="pol-cluster" data-cluster-members="' + c.members.join(",") + '"><button type="button" class="pol-tk-btn" data-ticker="' + esc(c.t) + '">' + esc(c.t) + '</button>'
                     + ' — <b>' + c.n + ' members bought</b> between ' + dstr(dayOf(c.from)) + ' and ' + dstr(dayOf(c.to))
                     + ' · ' + big(cvol) + ' disclosed (est.)' + boardTag(c.t)
@@ -15823,7 +16381,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 + (r[9] ? '<span class="pol-owner">' + OWN[r[9]] + '</span>' : "")
                 + (r[10] ? '<span class="pol-owner"><a href="' + esc(r[10]) + '" target="_blank" rel="noopener">the filing &#8599;</a></span>' : "")
                 + '</td>'
-                + '<td><button type="button" class="pol-tk-btn" data-ticker="' + esc(r[1]) + '">' + esc(r[1]) + '</button>' + boardTag(r[1]) + '</td>'
+                + '<td><button type="button" class="pol-tk-btn" data-ticker="' + esc(r[1]) + '">' + esc(r[1]) + '</button>' + boardTag(r[1]) + jurChip(r) + '</td>'
                 + '<td class="' + (r[2] === 0 ? "pol-buy" : "pol-sell") + '">' + (r[2] === 0 ? "Buy" : "Sell") + (r[3] ? '<span class="pol-owner">partial sale</span>' : "") + '</td>'
                 + '<td>' + rangeText(r) + (r[4] ? '<span class="pol-owner">' + (r[4] === "C" ? "call option" : "put option") + '</span>' : "") + '</td>'
                 + '<td>' + dstr(r[7]) + '</td><td>' + dstr(r[8]) + '</td>'
@@ -15831,6 +16389,8 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         }
         function renderFeed() {
             var rows = feedOrder.filter(passesFeed);
+            if (sortKey.latest === "traded") rows.sort(function (a, b) { return b[7] - a[7] || b[8] - a[8]; });
+            else if (sortKey.latest === "amount") rows.sort(function (a, b) { return mid(b) - mid(a) || b[8] - a[8]; });
             $("polFeedBody").innerHTML = rows.slice(0, feedShown).map(rowHtml).join("");
             $("polCount").textContent = "Showing " + Math.min(feedShown, rows.length).toLocaleString("en-US") + " of " + rows.length.toLocaleString("en-US") + " filings";
             $("polMore").hidden = rows.length <= feedShown;
@@ -15875,11 +16435,13 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 + '<div class="pol-stat"><b>' + lateN + '</b><span>filings past the 45-day deadline</span></div>'
                 + (lb && lb.buyPerf !== null && lb.buyPerf !== undefined ? '<div class="pol-stat"><b>' + pct(lb.buyPerf) + '</b><span>covered buys since they bought (est.)</span></div>' : "")
                 + '</div>'
+                + perfLineHtml(mi)
+                + (function () { var n = rows.filter(function (r) { return r.__tag != null; }).length; return n ? '<p class="pol-meta">' + n + (n === 1 ? " trade" : " trades") + ' in sectors their committees oversee</p>' : ""; })()
                 + '<p class="pol-card-actions"><button type="button" class="filter-pill" data-chartmember="' + mi + '">See their trades on the main chart</button><button type="button" class="filter-pill" data-copy="' + mi + '">Copy ' + esc(m.name) + '</button></p>'
                 + '<p class="pol-meta">Most traded: ' + favs.map(function (t) { return '<button type="button" class="pol-chip" data-ticker="' + esc(t) + '">' + esc(t) + ' · ' + counts[t] + '</button>'; }).join(" ") + '</p>'
                 + '<div class="spreadsheet-container pol-mini-wrap" style="max-height: 40vh;"><table class="fin-table"><thead><tr><th>Ticker</th><th>Trade</th><th>Amount</th><th>Traded</th><th>Filed</th><th>Lag</th></tr></thead><tbody>'
                 + rows.slice(0, 60).map(function (r) {
-                    return '<tr><td><button type="button" class="pol-tk-btn" data-ticker="' + esc(r[1]) + '">' + esc(r[1]) + '</button></td>'
+                    return '<tr><td><button type="button" class="pol-tk-btn" data-ticker="' + esc(r[1]) + '">' + esc(r[1]) + '</button>' + jurChip(r) + '</td>'
                         + '<td class="' + (r[2] === 0 ? "pol-buy" : "pol-sell") + '">' + (r[2] === 0 ? "Buy" : "Sell") + '</td>'
                         + '<td>' + rangeText(r) + '</td><td>' + dstr(r[7]) + '</td><td>' + dstr(r[8]) + '</td><td>' + lagCell(r) + '</td></tr>';
                 }).join("")
@@ -15898,6 +16460,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 var v = $("polView" + k.charAt(0).toUpperCase() + k.slice(1));
                 if (v) v.hidden = k !== m;
             });
+            syncSortSel();
         }
         function showNote(html) {
             var n = $("polNote");
@@ -16057,12 +16620,15 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         function renderCopyList() {
             var el = $("polCopyList");
             if (!el || !D) return;
-            el.innerHTML = D.leaderboard.map(function (e) {
+            var entries = D.leaderboard.slice();
+            if (sortKey.copy === "active") entries.sort(function (a, b) { return lastFiled(b.m) - lastFiled(a.m); });
+            el.innerHTML = entries.map(function (e) {
                 var m = mem(e.m);
                 var has = !!(D.curves && D.curves[e.m]);
                 return '<button type="button" class="pol-copy-row" data-copy="' + e.m + '">'
                     + '<span class="pol-copy-name">' + esc(m.name) + '</span>'
                     + '<span class="pol-copy-meta">' + esc(m.party) + ' · ' + esc(m.state) + ' · ' + e.trades + ' trades</span>'
+                    + (has ? '<span class="pol-copy-figs">' + esc(perfLineText(e.m)) + '</span>' : "")
                     + '<span class="pol-copy-go">' + (has ? "Copy &rarr;" : "Too few covered buys") + '</span></button>';
             }).join("");
         }
@@ -16136,6 +16702,13 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             });
         });
         $("polSizeSel").addEventListener("change", function () { filt.minMid = +this.value; feedShown = 150; renderFeed(); });
+        $("polSortSel").addEventListener("change", function () {
+            sortKey[mode] = this.value;
+            if (mode === "latest") { feedShown = 150; renderFeed(); }
+            else if (mode === "clusters") renderClusters();
+            else if (mode === "watched") renderCards();
+            else if (mode === "copy") renderCopyList();
+        });
         $("polMore").addEventListener("click", function () { feedShown += 150; renderFeed(); });
         $("polPersonClear").addEventListener("click", function () { filt.member = null; renderFeed(); });
         document.querySelectorAll("[data-polmode]").forEach(function (b) {
