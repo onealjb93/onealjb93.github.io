@@ -745,6 +745,7 @@
        carries score days (the item's display rule above would
        otherwise defeat the hidden attribute). */
     #keyScoreItem[hidden] { display: none; }
+    #keyPolItem[hidden] { display: none; }
     /* The key in the site's details pattern (2026-11-16): a slim
        summary line — a chevron, the words "Chart key" and the five
        swatches — with the full descriptions one tap down, the same
@@ -2407,6 +2408,7 @@
         </div>
         <div class="fin-dots-row">
         <button type="button" class="fin-ind-switch" id="finIndBtn" role="switch" aria-checked="false" aria-label="Johnny’s indicator" title="Turn Johnny’s indicator on or off"><span class="fin-ind-label" aria-hidden="true">Johnny’s indicator</span><span class="fin-ind-track" aria-hidden="true"><span class="fin-ind-knob"></span></span></button>
+        <button type="button" class="fin-ind-switch" id="polIndBtn" role="switch" aria-checked="false" aria-label="Politicians’ trades" title="Turn the politicians’ trades layer on or off"><span class="fin-ind-label" aria-hidden="true">Politicians</span><span class="fin-ind-track" aria-hidden="true"><span class="fin-ind-knob"></span></span></button>
         <div class="fin-dots" id="finDots">
             <button type="button" class="filter-pill" id="finDotsBtn" aria-haspopup="true" aria-expanded="false" aria-controls="finDotsPanel">Latest buy &amp; sell dots<span class="chart-tools-chev" aria-hidden="true">&#9654;</span></button>
             <div class="fin-dots-panel glass-bubble" id="finDotsPanel" hidden>
@@ -2431,6 +2433,7 @@
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-volma" aria-hidden="true"></span><span id="keyVolma"><strong>Grey &mdash; the 20-week volume average</strong>. Bars poking above it mean a heavy trading week; below it, a quiet one. Volume confirms a move: price rising on rising volume is healthy &mdash; rising on shrinking volume is tiring.</span></span>
             <span class="tv-key-item"><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-buy"></span><span class="tv-key-dot tv-key-dot-sell"></span></span><span><strong>Green and red dots &mdash; Johnny&rsquo;s indicator</strong>. A green dot marks a buy day: the RSI at or under 30, the VIX at or over 25, the price at least 30% down from its highest price of the last two years and PEG at or under 1 &mdash; or, where PEG can&rsquo;t be calculated, the price at least 40% down from its highest price of the last two years &mdash; all on the same day. A green dot also marks a buy day through the second door: the RSI at or under 30, the VIX at or over 25, the price at least 20% down from its highest price of the last two years, below its 200-week average and PEG at or under 2, all on the same day. Where PEG can&rsquo;t be calculated, the second door does not open. A red dot marks a sell day: the RSI over 70, the VIX under 15, PEG at 2 or more and the price at least 50% above its 200-week average, all of it held for five straight days. The S&amp;P 500, Nasdaq, gold, and Bitcoin have no PEG to calculate, so no PEG leg applies to them: the S&amp;P 500 and Nasdaq buy at 25% down from the two-year high, gold and Bitcoin at 30% down &mdash; with the same RSI at or under 30 and the VIX at or over 25.</span></span>
             <span class="tv-key-item" id="keyScoreItem" hidden><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot tv-key-dot-score"></span></span><span>A ringed green dot marks a day that scored 85 or higher on the 100-point score but did not pass the buy gate.</span></span>
+            <span class="tv-key-item" id="keyPolItem" hidden><span class="tv-key-swatch tv-key-ind" aria-hidden="true"><span class="tv-key-dot" style="background: transparent; border: 2px solid #e8590c; box-sizing: border-box;"></span></span><span>A ringed dot in the buy green or the sell red marks a trade a member of Congress disclosed for that day &mdash; the bigger the ring, the bigger the disclosed amount (sized by the filed range&rsquo;s midpoint, an estimate).</span></span>
         </div>
         <p class="jbo-chart-datanote" id="jboChartDataNote"></p>
         <p class="chart-intro">The chart opens on the S&amp;P 500, Line, five-year view. Daily view carries the 200-day and 50-day averages and the daily RSI; Weekly view carries the same three by the week. A stock with under four years of trading history has no 200-day line yet; the note under the chart says so when that is the case.</p>
@@ -2844,7 +2847,32 @@
     })();
     </script>
 
-    <!-- Investment Scoreboard -->
+    <!-- Stock Review (2026-11-27): the Investment Committee Stock
+         Review and Johnny's Stock Checklist are one category now —
+         Stock Review. Both parts keep their own names as their
+         titles, their toggles, and all of their machinery; the
+         category adds one card around them and one shared picker:
+         pick a name once and the committee's grades open on it in
+         the first part while the checklist runs it in the second. -->
+    <style>
+    .stock-review-category { border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); padding: 8px 16px 16px; margin-top: 24px; scroll-margin-top: var(--fin-nav-h, 55px); }
+    .stock-review-category > .collapsible-section { border: none; border-radius: 0; background: transparent; padding: 0; margin-top: 0; margin-bottom: 0; }
+    .stock-review-category #screener { border-top: 1px solid var(--border-color); margin-top: 20px; padding-top: 4px; }
+    .sr-cat-title { margin-top: 0; padding-top: 12px; display: flex; align-items: center; gap: 0.5rem; }
+    .sr-cat-line { color: var(--subtext-color); font-size: 0.92rem; margin: 2px 0 10px; }
+    .sr-picker { margin-bottom: 6px; }
+    body.fin-searching .stock-review-category { display: none; }
+    </style>
+    <div class="stock-review-category" id="stockreview">
+        <h2 class="section-title sr-cat-title">Stock Review</h2>
+        <p class="sr-cat-line">One stock, judged both ways &mdash; the committee&rsquo;s grades first, then Johnny&rsquo;s checklist, on the same name.</p>
+        <div class="sr-picker">
+            <div class="selector-group" style="max-width: 320px;">
+                <label for="srTicker">Pick a stock</label>
+                <select id="srTicker"><option value="">Choose a stock&hellip;</option></select>
+            </div>
+        </div>
+<!-- Investment Scoreboard -->
     <div class="scoreboard-section collapsible-section" id="scoreboard">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="scoreboard" aria-expanded="false" aria-controls="scoreboard-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Investment Committee Stock Review</span></button><button type="button" class="filter-pill chart-fs-btn" id="scoreboardFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
         <p class="pulse-line" id="scoreboardPulse" hidden></p>
@@ -3002,6 +3030,137 @@
     
         </div>
     </div>
+    </div><!-- /stockreview -->
+
+<!-- Politicians' Trades (2026-11-27): what members of Congress
+     disclose buying and selling, straight from the official STOCK
+     Act filings — ranges exactly as filed, both dates, the lag
+     visible. Data: politicians-trades.json, rebuilt daily by
+     politicians_trades.py. -->
+    <style>
+    .pol-h3 { margin: 20px 0 8px; font-size: 1.05rem; }
+    .pol-fresh { color: var(--subtext-color); font-size: 0.9rem; margin: 6px 0 0; }
+    .pol-stale { border: 1px solid #e8590c; border-radius: 8px; padding: 8px 12px; font-size: 0.9rem; }
+    .pol-analytics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+    .pol-stat { border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; }
+    .pol-stat b { display: block; font-size: 1.15rem; }
+    .pol-stat span { color: var(--subtext-color); font-size: 0.82rem; }
+    .pol-controls { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .pol-ctl-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .pol-ctl-label { font-size: 0.85rem; color: var(--subtext-color); margin-right: 2px; }
+    .pol-ctl-row select { background: var(--input-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 8px; font-size: 0.9rem; min-height: 38px; }
+    .pol-ctl-note { color: var(--subtext-color); font-size: 0.85rem; margin: 0; }
+    .pol-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+    .pol-card { text-align: left; border: 1px solid var(--border-color); border-radius: 10px; background: var(--hover-bg); color: var(--text-color); padding: 10px 12px; cursor: pointer; font: inherit; width: 100%; }
+    .pol-card.active { outline: 2px solid #4dabf7; }
+    .pol-card .pol-name { font-weight: 700; font-size: 1rem; display: block; }
+    .pol-card .pol-meta, .pol-card .pol-line { color: var(--subtext-color); font-size: 0.83rem; display: block; margin-top: 2px; }
+    .pol-card .pol-perf { font-size: 0.9rem; display: block; margin-top: 4px; }
+    .pol-card svg { display: block; margin-top: 6px; width: 100%; height: 44px; }
+    .pol-tickers { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+    .pol-chip { border: 1px solid var(--border-color); border-radius: 999px; background: transparent; color: var(--text-color); padding: 3px 9px; font-size: 0.8rem; cursor: pointer; min-height: 28px; }
+    .pol-chip:hover { background: var(--border-color); }
+    .pol-clusters { display: flex; flex-direction: column; gap: 8px; }
+    .pol-cluster { border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; font-size: 0.92rem; }
+    .pol-cluster .pol-conv { display: block; color: var(--subtext-color); font-size: 0.85rem; margin-top: 3px; }
+    .pol-board-tag { border: 1px solid #2f9e44; color: #2f9e44; border-radius: 999px; padding: 0 7px; font-size: 0.75rem; white-space: nowrap; }
+    .pol-feed-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+    .pol-feed-tools select { background: var(--input-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 8px; font-size: 0.9rem; min-height: 38px; }
+    .pol-person-chip { display: none; align-items: center; gap: 7px; border: 1px solid #4dabf7; border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 0.88rem; }
+    .pol-person-chip.on { display: inline-flex; }
+    .pol-person-chip button { border: none; background: var(--border-color); color: var(--text-color); border-radius: 999px; width: 26px; height: 26px; cursor: pointer; font-size: 0.95rem; line-height: 1; }
+    #polTableWrap { max-height: 65vh; overflow-y: auto; }
+    #polTableWrap thead th { position: sticky; top: 0; z-index: 4; background-color: var(--hover-bg); }
+    #polTableWrap thead th:first-child { z-index: 5; }
+    body.light-mode #polTableWrap thead th { background-color: var(--badge-bg); }
+    .pol-mini-wrap { overflow-y: auto; }
+    .pol-mini-wrap thead th { position: sticky; top: 0; z-index: 4; background-color: var(--hover-bg); }
+    .pol-mini-wrap thead th:first-child { z-index: 5; }
+    body.light-mode .pol-mini-wrap thead th { background-color: var(--badge-bg); }
+    .pol-name-btn, .pol-tk-btn { background: none; border: none; padding: 2px 0; color: var(--text-color); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-decoration-color: var(--border-color); text-underline-offset: 3px; }
+    .pol-owner { display: block; color: var(--subtext-color); font-size: 0.78rem; font-weight: 400; }
+    .pol-new { color: #1971c2; font-weight: 700; font-size: 0.75rem; margin-right: 5px; }
+    .pol-late { display: block; color: #e8590c; font-size: 0.78rem; white-space: nowrap; }
+    .pol-buy { color: #2f9e44; font-weight: 700; }
+    .pol-sell { color: #e03131; font-weight: 700; }
+    .pol-panel { border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 14px; margin-top: 14px; }
+    .pol-panel-head { display: flex; align-items: flex-start; gap: 10px; }
+    .pol-panel-head h4 { margin: 0; font-size: 1.05rem; flex: 1 1 auto; }
+    .pol-panel .pol-meta { color: var(--subtext-color); font-size: 0.88rem; }
+    .pol-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 10px 0; }
+    .pol-close { flex: none; }
+    #polTickerChart { width: 100%; height: 240px; display: block; margin-top: 8px; }
+    .pol-legend { color: var(--subtext-color); font-size: 0.88rem; margin-top: 14px; }
+    .pol-source { color: var(--subtext-color); font-size: 0.82rem; margin-top: 10px; }
+    .pol-count { color: var(--subtext-color); font-size: 0.88rem; }
+    .pol-more { margin-top: 10px; }
+    #politicians:fullscreen, #politicians:-webkit-full-screen { background: var(--bg-color); overflow-y: auto; padding: 8px 16px 16px; }
+    #politicians.pol-fs { position: fixed; inset: 0; z-index: 1100; overflow-y: auto; box-sizing: border-box; background: var(--bg-color); margin: 0; padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) calc(env(safe-area-inset-right, 0px) + 0.6rem) calc(env(safe-area-inset-bottom, 0px) + 0.6rem) calc(env(safe-area-inset-left, 0px) + 0.6rem); }
+    </style>
+    <div class="politicians-section collapsible-section" id="politicians">
+        <h2 class="section-title"><button type="button" class="section-toggle" data-section="politicians" aria-expanded="false" aria-controls="politicians-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Politicians&rsquo; Trades</span></button><button type="button" class="filter-pill chart-fs-btn" id="polFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
+        <p class="pulse-line" id="polPulse" hidden></p>
+        <div class="section-body" id="politicians-body" hidden>
+            <p class="pol-fresh" id="polFresh">Loading the filings&hellip;</p>
+            <p class="pol-stale" id="polStale" hidden></p>
+            <div class="pol-analytics" id="polAnalytics"></div>
+            <div class="pol-controls">
+                <div class="pol-ctl-row" role="group" aria-label="Chart dot scope">
+                    <span class="pol-ctl-label">Chart dots:</span>
+                    <button type="button" class="filter-pill active" data-polscope="overall">Overall</button>
+                    <button type="button" class="filter-pill" data-polscope="member">By politician</button>
+                    <button type="button" class="filter-pill" data-polscope="clusters">Conglomerates</button>
+                    <select id="polMemberSel" hidden aria-label="Politician for the By politician scope"></select>
+                </div>
+                <div class="pol-ctl-row">
+                    <span class="pol-ctl-label">Show:</span>
+                    <select id="polPartySel" aria-label="Party"><option value="">All parties</option><option value="R">Republican</option><option value="D">Democrat</option><option value="I">Independent</option></select>
+                    <select id="polChamberSel" aria-label="Chamber"><option value="">Both chambers</option><option value="House">House</option><option value="Senate">Senate</option></select>
+                    <select id="polCommitteeSel" aria-label="Committee"><option value="">All committees</option></select>
+                </div>
+                <p class="pol-ctl-note">The scope and filters drive the ringed dots wherever they appear &mdash; the ticker charts below and, when its Politicians layer is on, the main chart at the top of the page.</p>
+            </div>
+            <h3 class="pol-h3">Most Watched</h3>
+            <p class="pol-ctl-note">The members with the most disclosed trading in the last 12 months, ranked by the size of what they filed. Tap a card to see only their trades in the feed; tap the name for their full profile.</p>
+            <div class="pol-cards" id="polCards"></div>
+            <div class="pol-panel" id="polProfile" hidden></div>
+            <h3 class="pol-h3">Cluster buys</h3>
+            <p class="pol-ctl-note">One stock, bought by at least three different members inside 45 days. Politicians converging on the same name is the pattern &mdash; the dates and ranges underneath are the facts.</p>
+            <div class="pol-clusters" id="polClusters"></div>
+            <h3 class="pol-h3">The Latest</h3>
+            <div class="pol-feed-tools">
+                <button type="button" class="filter-pill active" data-polside="all">All</button>
+                <button type="button" class="filter-pill" data-polside="buy">Buys</button>
+                <button type="button" class="filter-pill" data-polside="sell">Sells</button>
+                <select id="polSizeSel" aria-label="Minimum size"><option value="0">Any size</option><option value="15000">$15K+</option><option value="50000">$50K+</option><option value="250000">$250K+</option></select>
+                <span class="pol-person-chip" id="polPersonChip"><span id="polPersonName"></span><button type="button" id="polPersonClear" aria-label="Clear the person filter">&times;</button></span>
+                <span class="pol-count" id="polCount"></span>
+            </div>
+            <div class="spreadsheet-container" id="polTableWrap">
+                <table class="fin-table" id="polTable">
+                    <thead><tr><th>Politician</th><th>Ticker</th><th>Trade</th><th>Amount</th><th>Traded</th><th>Filed</th><th>Lag</th></tr></thead>
+                    <tbody id="polFeedBody"></tbody>
+                </table>
+            </div>
+            <button type="button" class="filter-pill pol-more" id="polMore">Show more filings</button>
+            <div class="pol-panel" id="polTickerPanel" hidden></div>
+            <p class="pol-legend">On the charts: a solid dot is Johnny&rsquo;s indicator. A ringed dot is a politician&rsquo;s disclosed trade on that day &mdash; a bigger ring means a bigger disclosed amount, sized by the range&rsquo;s midpoint, which is an estimate. Buys sit on the buy side, sells on the sell side, the same as the indicator&rsquo;s dots.</p>
+            <details class="disclaimer-note">
+                <summary>How this works &mdash; the law, the ranges, and the estimates</summary>
+                <div class="disc-body">
+                    <p>The STOCK Act (2012) requires members of Congress to disclose their stock trades &mdash; and their spouses&rsquo; and dependent children&rsquo;s &mdash; within 45 days of the trade. So &ldquo;the latest&rdquo; here means the latest <em>filed</em>, not the latest traded: a trade can be weeks old on the day it appears, and the Lag column shows exactly how long it took.</p>
+                    <p>Amounts are ranges because the law asks for ranges. The feed shows each range exactly as it was filed, never a single made-up number. Where one number is needed to add things up &mdash; the Most Watched ranking, the performance figures, the portfolio curves, the sizes of the chart dots &mdash; the middle of the range is used, and that figure is labelled an estimate.</p>
+                    <p>Household trades file under the member&rsquo;s name. Nancy Pelosi&rsquo;s filings, for example, are her husband Paul&rsquo;s trades, disclosed under her name as the law requires; each row notes whose account a trade was in when the filing says so.</p>
+                    <p>The &ldquo;since they bought&rdquo; figures use this page&rsquo;s own price data: for every disclosed buy the price file covers, the return from the trade date to the latest close, weighted by the size of each buy. A stock the price file does not cover shows its trades with no performance figure &mdash; no coverage, no number.</p>
+                    <p>The small curve on a card is a reconstruction from that member&rsquo;s disclosed trades, not their real account: each covered buy opens a position sized at its range midpoint at that day&rsquo;s close, sells close the oldest positions first, and sales of positions opened before this window are left out. It answers one narrow question &mdash; what would these disclosed trades, and only these, have done?</p>
+                    <p>Committees are shown because they are the context that makes a trade readable: the same defence-stock purchase is a different fact in the hands of an Armed Services member than in anyone else&rsquo;s. The committees listed are the member&rsquo;s current assignments, from the public congress-legislators dataset.</p>
+                    <p>The 45-day deadline is the law&rsquo;s, so a filing that took longer is flagged with how many days late it was &mdash; the dates themselves, stated plainly. This section is data only: filings, dates, ranges, and arithmetic on them. What any of it means is the reader&rsquo;s call.</p>
+                </div>
+            </details>
+            <p class="pol-source" id="polSource"></p>
+        </div>
+    </div>
+
 <!-- Frameworks & Quantifiable Metrics Accordions -->
     <div class="frameworks-section collapsible-section" id="committee">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="committee" aria-expanded="false" aria-controls="committee-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">My Investor Committee</span></button><button type="button" class="filter-pill chart-fs-btn" id="committeeFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
@@ -4455,9 +4614,9 @@
     
         </div>
     </div>
-<!-- Curated Financial Resources Section Positioned Below the Stock Table -->
+<!-- Finance Toolkit Section Positioned Below the Stock Table -->
     <div class="resources-section collapsible-section" id="resources">
-        <h2 class="section-title"><button type="button" class="section-toggle" data-section="resources" aria-expanded="false" aria-controls="resources-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Curated Financial Resources & Tools</span></button></h2>
+        <h2 class="section-title"><button type="button" class="section-toggle" data-section="resources" aria-expanded="false" aria-controls="resources-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Finance Toolkit</span></button></h2>
         <p class="pulse-line" id="resourcesPulse" hidden></p>
         <div class="section-body" id="resources-body" hidden>
         <div class="resource-grid">
@@ -4588,7 +4747,7 @@
        restored sections through expandSection and keeps the record
        current. The Games page rule, mirrored. */
     (function () {
-        var FIN_IDS = ["chart", "scoreboard", "screener", "committee", "backtest", "resources", "legend"];
+        var FIN_IDS = ["chart", "scoreboard", "screener", "politicians", "committee", "backtest", "resources", "legend"];
         var navType = "";
         try {
             var nav = performance.getEntriesByType("navigation");
@@ -7420,7 +7579,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
        ============================================================ */
     (function () {
         "use strict";
-        var SECTION_IDS = ["chart", "scoreboard", "screener", "committee", "backtest", "resources", "legend"];
+        var SECTION_IDS = ["chart", "scoreboard", "screener", "politicians", "committee", "backtest", "resources", "legend"];
 
         /* ---------- Collapsible sections ---------- */
         function setSection(id, open) {
@@ -7634,7 +7793,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 });
             } finally { annotating = false; }
         }
-        var CONTENT_SECTIONS = ["scoreboard", "screener", "committee", "backtest", "resources"];
+        var CONTENT_SECTIONS = ["scoreboard", "screener", "politicians", "committee", "backtest", "resources"];
         CONTENT_SECTIONS.forEach(function (id) { annotate(document.getElementById(id)); });
         // Dynamically rendered content (scoreboard, comparison table,
         // backtest) gets annotated as it appears.
@@ -7899,6 +8058,13 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         // it, with a fade (see syncInd). indPressed and
         // indFading live only for the visit.
         var indOn = false, indPressed = false, indFading = false;
+        // Politicians layer (2026-11-27): ringed dots + the
+        // Congress volume pane, off by default — the indicator
+        // stays the chart's primary voice. The choice persists
+        // like the pane choices.
+        var POL_KEY = "jbo-chart-pol-v1";
+        var polOn = false;
+        try { polOn = window.localStorage.getItem(POL_KEY) === "1"; } catch (e) { polOn = false; }
         try {
             peOn = window.localStorage.getItem(PE_KEY) === "1";
             volOn = window.localStorage.getItem(VOL_KEY) !== "0";
@@ -8494,13 +8660,16 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 if (v.pe) { for (var pni = v.start; pni <= v.end; pni++) { if (v.pe[pni] !== null) { peAny = true; break; } } }
                 if (!peAny) peH = Math.max(peH, 48);
             }
-            var nSub = (volH > 0 ? 1 : 0) + (rsiH > 0 ? 1 : 0) + (peH > 0 ? 1 : 0);
-            var priceH = plotH - volH - rsiH - peH - 6 * nSub;
-            var priceY = 6, yCur = priceY + priceH, volY = 0, rsiY = 0, peY = 0;
+            var polVolH = (polOn && window.__polHas && window.__polHas(cur.key)) ? Math.round(plotH * 0.09) : 0;
+            if (fsOn) polVolH = Math.min(polVolH, 44);
+            var nSub = (volH > 0 ? 1 : 0) + (polVolH > 0 ? 1 : 0) + (rsiH > 0 ? 1 : 0) + (peH > 0 ? 1 : 0);
+            var priceH = plotH - volH - polVolH - rsiH - peH - 6 * nSub;
+            var priceY = 6, yCur = priceY + priceH, volY = 0, polVolY = 0, rsiY = 0, peY = 0;
             if (volH > 0) { volY = yCur + 6; yCur = volY + volH; }
+            if (polVolH > 0) { polVolY = yCur + 6; yCur = polVolY + polVolH; }
             if (rsiH > 0) { rsiY = yCur + 6; yCur = rsiY + rsiH; }
             if (peH > 0) { peY = yCur + 6; yCur = peY + peH; }
-            var botY = peH > 0 ? peY + peH : (rsiH > 0 ? rsiY + rsiH : (volH > 0 ? volY + volH : priceY + priceH));
+            var botY = peH > 0 ? peY + peH : (rsiH > 0 ? rsiY + rsiH : (polVolH > 0 ? polVolY + polVolH : (volH > 0 ? volY + volH : priceY + priceH)));
             layout = { plotW: plotW, start: v.start, end: v.end, W: W, H: H, priceY: priceY, priceH: priceH, peY: peY, peH: peH, hi: null, lo: null };
             var lo = Infinity, hi = -Infinity;
             for (i = v.start; i <= v.end; i++) {
@@ -8683,7 +8852,50 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     ctx.beginPath(); ctx.arc(X(i), YP(v.closes[i]), 4, 0, Math.PI * 2); ctx.stroke();
                 }
             }
+            // Politicians' dots (2026-11-27): disclosed trades
+            // from politicians-trades.json drawn as RINGS in both
+            // colours, their radius set by the disclosed amount —
+            // never confusable with the indicator's solid dots
+            // (filled, r4) or the score rings (r4, buy green
+            // only). Data and scope come from the Politicians'
+            // Trades section script (window.__polDots).
+            if (polOn && window.__polDots) {
+                var pdots = window.__polDots(cur.key);
+                if (pdots && pdots.length) {
+                    ctx.lineWidth = 2;
+                    for (var pdi = 0; pdi < pdots.length; pdi++) {
+                        var pd = pdots[pdi];
+                        var blo = 0, bhi = bars.length - 1, bidx = -1;
+                        while (blo <= bhi) { var bmid = (blo + bhi) >> 1; if (bars[bmid][0] < pd.d) blo = bmid + 1; else { bidx = bmid; bhi = bmid - 1; } }
+                        if (bidx < v.start || bidx > v.end) continue;
+                        var pr = pd.m < 25000 ? 3.5 : (pd.m < 100000 ? 5 : (pd.m < 500000 ? 6.5 : 8));
+                        ctx.beginPath(); ctx.arc(X(bidx), YP(v.closes[bidx]), pr, 0, Math.PI * 2);
+                        ctx.strokeStyle = pd.s ? SELL_COLOR : BUY_COLOR; ctx.stroke();
+                        ctx.globalAlpha = 0.15; ctx.fillStyle = pd.s ? SELL_COLOR : BUY_COLOR; ctx.fill(); ctx.globalAlpha = 1;
+                    }
+                }
+            }
             ctx.restore();
+            // Congress volume pane (2026-11-27): the disclosed
+            // trading weight behind the dots — range midpoints
+            // summed per week, an estimate — present only while
+            // the Politicians layer is on and this name has
+            // filings in the window.
+            if (polVolH > 0 && window.__polWeeks) {
+                ctx.fillStyle = subC; ctx.textAlign = "left";
+                ctx.fillText("Congress volume (est.)", 8, polVolY + 11);
+                var pwk = window.__polWeeks(cur.key, bars, v.start, v.end);
+                if (pwk && pwk.max > 0) {
+                    var pvw2 = Math.max(1.5, plotW / n * 0.7);
+                    ctx.fillStyle = "#e8590c"; ctx.globalAlpha = 0.75;
+                    for (var pwi = 0; pwi < pwk.bars.length; pwi++) {
+                        var pb2 = pwk.bars[pwi];
+                        var ph2 = pb2.v / pwk.max * (polVolH - 12);
+                        if (ph2 > 0) ctx.fillRect(X(pb2.i) - pvw2 / 2, polVolY + polVolH - ph2, pvw2, ph2);
+                    }
+                    ctx.globalAlpha = 1;
+                }
+            }
             // volume pane: the bars, then the 20-week volume
             // average over them — the theme text colour at reduced
             // strength, so it reads against the bars in both
@@ -9557,6 +9769,25 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (indOn && !dailyData) ensureDaily(); else render();
         });
         syncInd();
+        // Politicians layer switch (2026-11-27): same switch
+        // pattern as the indicator's; the section's script owns
+        // the data (window.__polEnsure loads it on first need)
+        // and announces its arrival with a "poldata" event.
+        var polBtn = document.getElementById("polIndBtn");
+        function syncPol() {
+            if (polBtn) polBtn.setAttribute("aria-checked", polOn ? "true" : "false");
+            var kpe = document.getElementById("keyPolItem");
+            if (kpe) kpe.hidden = !polOn;
+        }
+        if (polBtn) polBtn.addEventListener("click", function () {
+            polOn = !polOn;
+            try { window.localStorage.setItem(POL_KEY, polOn ? "1" : "0"); } catch (e) {}
+            syncPol();
+            if (polOn && window.__polEnsure) window.__polEnsure();
+            render();
+        });
+        window.addEventListener("poldata", function () { if (polOn) render(); });
+        syncPol();
         // ---- Latest dots finder (2026-11-22) ----
         // The dots are rare — most series show a handful across
         // decades — so the switch alone can look broken on a
@@ -14300,7 +14531,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             window.sigRender = function () { var r = sigOrig.apply(this, arguments); renderSignalsPulse(); return r; };
         }
 
-        /* ---- My Investor Committee · Curated Financial Resources &
+        /* ---- My Investor Committee · Finance Toolkit &
            Tools · Legend: no live feed of their own, so each line
            states a fact of the section itself, counted from the DOM
            when the page loads — the number can never go stale, and
@@ -14313,7 +14544,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         var cmJohnnyRow = document.getElementById("glance-row-johnny");
         if (cmInvestorRows) setPulse("committeePulse", cmInvestorRows + " investors" + (cmJohnnyRow ? ", plus Johnny" : "") + " &middot; each with their style, key test and risk stance");
         var resCards = document.querySelectorAll("#resources .resource-card").length;
-        if (resCards) setPulse("resourcesPulse", resCards + " resources &middot; a compound-interest calculator &middot; a fear-and-greed gauge &middot; an 1875 market-cycle card, kept as history");
+        if (resCards) setPulse("resourcesPulse", "Good resources and tools, gathered in one place");
         var legendTerms = document.querySelectorAll("#legendList .legend-item").length;
         if (legendTerms) setPulse("legendPulse", legendTerms + " terms &middot; every word on this page, explained in plain language");
     })();
@@ -14656,6 +14887,600 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             collapseUi();
             input.blur();
         });
+    })();
+    </script>
+<script>
+    // Stock Review — the category's shared picker (2026-11-27).
+    // One pick drives both parts: the Investment Committee Stock
+    // Review marks the name in its table (the scoreboard's own
+    // compare marking — pick a second name and the two compare
+    // side by side, the way the review already works) and
+    // brings its row into view, and Johnny's Stock Checklist
+    // runs the same name in its own picker — the two parts stay
+    // the page's own machinery; this only conducts.
+    // The committee's headline for the name is also fed into the
+    // top of the checklist's results, so the flow reads as one
+    // judgment: grades first, checklist below, same stock.
+    (function () {
+        "use strict";
+        var sel = document.getElementById("srTicker");
+        if (!sel) return;
+        var lastPicked = null;
+        function expandPart(id) {
+            var body = document.getElementById(id + "-body");
+            if (body && body.hidden) {
+                var tg = document.querySelector('.section-toggle[data-section="' + id + '"]');
+                if (tg) tg.click();
+            }
+        }
+        function committeeLine(t) {
+            var rows = window.__sbRows || [];
+            for (var i = 0; i < rows.length; i++) {
+                if (rows[i].ticker === t) {
+                    var r = rows[i];
+                    if (!r.graded) return t + " sits on the committee's table but has not been graded yet — the checklist below still runs on it.";
+                    return "The committee's review of " + t + ": a score of " + r.score + ", with " + r.passed + " of the graded investors passing it. The grades themselves are in the review above.";
+                }
+            }
+            return null;
+        }
+        var results = document.getElementById("runnerResults");
+        if (results && window.MutationObserver) {
+            new MutationObserver(function () {
+                if (!lastPicked) return;
+                var rs = document.getElementById("runnerTicker");
+                if (!rs || rs.value !== lastPicked) return;
+                if (results.querySelector(".sr-committee-line")) return;
+                var line = committeeLine(lastPicked);
+                if (!line) return;
+                var p = document.createElement("p");
+                p.className = "sr-committee-line";
+                p.setAttribute("style", "border:1px solid var(--border-color);border-radius:8px;padding:8px 12px;margin:0 0 10px;");
+                p.textContent = line;
+                results.insertBefore(p, results.firstChild);
+            }).observe(results, { childList: true });
+        }
+        function pick(t) {
+            if (!t) return;
+            lastPicked = t;
+            expandPart("scoreboard");
+            var on = document.querySelector('.sb-name-btn[data-compare="' + t + '"].sb-cmp-on');
+            if (!on && window.__sbToggleCompare) window.__sbToggleCompare(t);
+            var row = document.querySelector('.sb-name-btn[data-compare="' + t + '"]');
+            if (row) {
+                var tr = row.closest("tr");
+                if (tr && tr.scrollIntoView) tr.scrollIntoView({ block: "nearest" });
+                if (tr) { tr.classList.remove("fin-search-flash"); void tr.offsetWidth; tr.classList.add("fin-search-flash"); }
+            }
+            expandPart("screener");
+            var rs = document.getElementById("runnerTicker");
+            if (rs) {
+                var has = Array.prototype.some.call(rs.options, function (o) { return o.value === t; });
+                if (has) { rs.value = t; rs.dispatchEvent(new Event("change", { bubbles: true })); }
+            }
+            var cat = document.getElementById("stockreview");
+            if (cat && cat.scrollIntoView) cat.scrollIntoView({ block: "start" });
+        }
+        // The options mirror the checklist runner's own list —
+        // the graded universe — so the picker can only offer a
+        // name both parts can actually judge.
+        function fillOptions() {
+            var rs = document.getElementById("runnerTicker");
+            if (!rs || sel.options.length > 1) return;
+            Array.prototype.forEach.call(rs.options, function (o) {
+                if (!o.value || o.value === "__other") return;
+                var opt = document.createElement("option");
+                opt.value = o.value;
+                opt.textContent = o.textContent;
+                sel.appendChild(opt);
+            });
+        }
+        fillOptions();
+        var tries = 0;
+        var iv = setInterval(function () { fillOptions(); if (sel.options.length > 1 || ++tries > 40) clearInterval(iv); }, 250);
+        sel.addEventListener("change", function () { pick(sel.value); });
+        window.__srPick = pick;
+    })();
+    </script>
+<script>
+    // Politicians' Trades (2026-11-27): renders the section from
+    // politicians-trades.json (rebuilt daily from the official
+    // STOCK Act disclosures by politicians_trades.py) and owns
+    // the chart layer the main chart draws through
+    // window.__polDots / __polWeeks / __polHas. Amounts are the
+    // disclosed ranges, verbatim; a midpoint appears only inside
+    // labelled estimates. The data loads lazily — when the
+    // section is first opened, or when the main chart's
+    // Politicians switch is first turned on.
+    (function () {
+        "use strict";
+        var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        var MONF = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        var OWN = ["", "spouse&rsquo;s account", "joint account", "child&rsquo;s account", "family account"];
+        var D = null, feedOrder = [], byMember = {}, byTicker = {}, boardSet = {}, clusterWins = {};
+        var scope = "overall", scopeMember = null;
+        var filt = { side: "all", party: "", chamber: "", committee: "", minMid: 0, member: null };
+        var feedShown = 150, baselineFiled = 0, dailyCache = null;
+        function $(id) { return document.getElementById(id); }
+        function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+        function dstr(day) { var d = new Date(day * 86400000); return d.getUTCDate() + " " + MON[d.getUTCMonth()] + " " + d.getUTCFullYear(); }
+        function isoOf(day) { return new Date(day * 86400000).toISOString().slice(0, 10); }
+        function dayOf(iso) { return Math.round(Date.parse(iso + "T00:00:00Z") / 86400000); }
+        function mid(r) { return r[6] ? (r[5] + r[6]) / 2 : r[5]; }
+        function rangeText(r) {
+            function m(v) { return "$" + Math.round(v).toLocaleString("en-US"); }
+            if (!r[6]) return "Over " + m(r[5] - 1);
+            return m(r[5]) + " &ndash; " + m(r[6]);
+        }
+        function big(v) {
+            if (v >= 1e9) return "$" + (v / 1e9).toFixed(2) + "B";
+            if (v >= 1e6) return "$" + (v / 1e6).toFixed(1) + "M";
+            if (v >= 1e3) return "$" + Math.round(v / 1e3) + "K";
+            return "$" + Math.round(v);
+        }
+        function pct(v) { return (v > 0 ? "+" : "") + v.toFixed(1) + "%"; }
+        function mem(mi) { var m = D.members[mi]; return { name: m[0], party: m[1], state: m[2], chamber: m[3], committees: m[5] || [] }; }
+        function metaLine(m) { return esc(m.party) + " &middot; " + esc(m.state) + " &middot; " + esc(m.chamber); }
+        // ---- the chart layer ------------------------------------
+        function passesGroup(r) {
+            var m = D.members[r[0]];
+            if (filt.party && m[1] !== filt.party) return false;
+            if (filt.chamber && m[3] !== filt.chamber) return false;
+            if (filt.committee && (m[5] || []).indexOf(filt.committee) === -1) return false;
+            return true;
+        }
+        function scopedRows(t) {
+            var rows = byTicker[t] || [];
+            if (scope === "member") rows = rows.filter(function (r) { return r[0] === scopeMember; });
+            else if (scope === "clusters") {
+                var wins = clusterWins[t] || [];
+                rows = rows.filter(function (r) {
+                    if (r[2] !== 0) return false;
+                    return wins.some(function (w) { return r[7] >= w[0] && r[7] <= w[1]; });
+                });
+            }
+            return rows.filter(passesGroup);
+        }
+        window.__polDots = function (key) {
+            if (!D) return [];
+            return scopedRows(key).map(function (r) { return { d: isoOf(r[7]), s: r[2], m: mid(r) }; });
+        };
+        window.__polHas = function (key) { return !!(D && (byTicker[key] || []).length && window.__polDots(key).length); };
+        function weekKey(iso) {
+            var d = new Date(iso + "T00:00:00Z");
+            var th = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+            th.setUTCDate(th.getUTCDate() + 4 - (th.getUTCDay() || 7));
+            var y0 = Date.UTC(th.getUTCFullYear(), 0, 1);
+            return th.getUTCFullYear() + "-" + Math.ceil(((th - y0) / 86400000 + 1) / 7);
+        }
+        window.__polWeeks = function (key, bars, start, end) {
+            var dots = window.__polDots(key), sums = {}, max = 0, out = [];
+            if (!dots.length || !bars || !bars.length) return { bars: [], max: 0 };
+            var wkStart = {};
+            var prev = null;
+            for (var i = start; i <= end; i++) {
+                var wk = weekKey(bars[i][0]);
+                if (wk !== prev) { wkStart[i] = i; prev = wk; }
+            }
+            dots.forEach(function (pd) {
+                var lo = 0, hi = bars.length - 1, idx = -1;
+                while (lo <= hi) { var md = (lo + hi) >> 1; if (bars[md][0] < pd.d) lo = md + 1; else { idx = md; hi = md - 1; } }
+                if (idx < start || idx > end) return;
+                var s = idx;
+                while (s > start && !wkStart[s]) s--;
+                sums[s] = (sums[s] || 0) + pd.m;
+                if (sums[s] > max) max = sums[s];
+            });
+            Object.keys(sums).forEach(function (k) { out.push({ i: +k, v: sums[k] }); });
+            out.sort(function (a, b) { return a.i - b.i; });
+            return { bars: out, max: max };
+        };
+        // ---- loading ---------------------------------------------
+        var loadPromise = null;
+        window.__polEnsure = function () {
+            if (!loadPromise) {
+                loadPromise = fetch("politicians-trades.json").then(function (r) {
+                    if (!r.ok) throw new Error("HTTP " + r.status);
+                    return r.json();
+                }).then(function (j) {
+                    D = j;
+                    D.rows.forEach(function (r) {
+                        (byMember[r[0]] = byMember[r[0]] || []).push(r);
+                        (byTicker[r[1]] = byTicker[r[1]] || []).push(r);
+                    });
+                    D.board.forEach(function (t) { boardSet[t] = 1; });
+                    (D.clusters || []).forEach(function (c) {
+                        (clusterWins[c.t] = clusterWins[c.t] || []).push([dayOf(c.from), dayOf(c.to)]);
+                    });
+                    feedOrder = D.rows.slice().sort(function (a, b) { return b[8] - a[8] || b[7] - a[7]; });
+                    var maxFiled = feedOrder.length ? feedOrder[0][8] : 0;
+                    try {
+                        var stored = parseInt(window.localStorage.getItem("polLastFiled") || "0", 10) || 0;
+                        baselineFiled = stored > 0 ? stored : maxFiled;
+                        window.localStorage.setItem("polLastFiled", String(maxFiled));
+                    } catch (e) { baselineFiled = maxFiled; }
+                    renderAll();
+                    window.dispatchEvent(new Event("poldata"));
+                }).catch(function () {
+                    var f = $("polFresh");
+                    if (f) f.textContent = "The filings file could not be loaded just now, so the section is empty rather than out of date. Try again in a little while.";
+                });
+            }
+            return loadPromise;
+        };
+        // ---- shared bits ------------------------------------------
+        function lagCell(r) {
+            var lag = r[8] - r[7];
+            var late = lag - 45;
+            return lag + "d" + (late > 0 ? '<span class="pol-late">filed ' + late + (late === 1 ? " day" : " days") + " late</span>" : "");
+        }
+        function boardTag(t) { return boardSet[t] ? ' <span class="pol-board-tag">On your board</span>' : ""; }
+        function indBuyDay(t) {
+            var btns = document.querySelectorAll('#finDotsList .fin-dots-opt[data-key="' + t + '"]');
+            for (var i = 0; i < btns.length; i++) {
+                var lbl = btns[i].getAttribute("aria-label") || "";
+                if (lbl.indexOf("Buy ") !== 0) continue;
+                var dd = btns[i].getAttribute("data-date") || "";
+                if (/^\d{4}-\d{2}-\d{2}/.test(dd)) return dayOf(dd.slice(0, 10));
+            }
+            return null;
+        }
+        function convergence(t, fromDay, toDay) {
+            var d = indBuyDay(t);
+            if (d === null) return "";
+            var gap = null, when = "";
+            if (d <= fromDay && fromDay - d <= 30) { gap = fromDay - d; when = "before"; }
+            else if (d >= fromDay && d <= toDay + 30) { gap = d - fromDay; when = "after"; }
+            if (gap === null) return "";
+            return "Johnny&rsquo;s indicator marked its own buy on " + esc(t) + " on " + dstr(d) + " &mdash; " + gap + (gap === 1 ? " day " : " days ") + when + " this cluster&rsquo;s window opened. Two facts, side by side; nothing here says one caused the other.";
+        }
+        function curveSvg(vals, spx, h) {
+            if (!vals || !vals.length) return "";
+            var all = vals.concat((spx || []).filter(function (x) { return x !== null; }));
+            var mn = Math.min.apply(null, all), mx = Math.max.apply(null, all);
+            if (mx <= mn) { mx = mn + 1; }
+            function pts(arr) {
+                var out = [];
+                for (var i = 0; i < arr.length; i++) {
+                    if (arr[i] === null) continue;
+                    out.push((i / (arr.length - 1) * 100).toFixed(1) + "," + (h - 3 - (arr[i] - mn) / (mx - mn) * (h - 6)).toFixed(1));
+                }
+                return out.join(" ");
+            }
+            return '<svg viewBox="0 0 100 ' + h + '" preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:' + h + 'px;display:block">'
+                + (spx ? '<polyline points="' + pts(spx) + '" fill="none" stroke="#9198a1" stroke-width="1" stroke-dasharray="3 2" vector-effect="non-scaling-stroke"/>' : "")
+                + '<polyline points="' + pts(vals) + '" fill="none" stroke="#4dabf7" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
+        }
+        // ---- render: chrome ---------------------------------------
+        function renderAll() {
+            var a = D.analytics;
+            var pulse = $("polPulse");
+            if (pulse) { pulse.hidden = false; pulse.textContent = "Filings through " + dstr(dayOf(D.asOf)) + " — every trade members of Congress disclosed in the last 12 months of filings."; }
+            $("polFresh").textContent = "Filings through " + dstr(dayOf(D.asOf)) + " · " + D.counts.rows.toLocaleString("en-US") + " disclosed trades · " + D.counts.members + " members.";
+            var staleDays = Math.floor(Date.now() / 86400000) - dayOf(D.asOf);
+            if (staleDays > 10) {
+                var st = $("polStale");
+                st.hidden = false;
+                st.textContent = "This data is older than usual — the newest filing in it is from " + dstr(dayOf(D.asOf)) + ", " + staleDays + " days ago. The daily rebuild publishes nothing rather than pass off stale filings as fresh, so read the feed as behind until it refreshes.";
+            }
+            var ym = a.month.split("-");
+            var yrBuys = 0, yrSells = 0;
+            D.rows.forEach(function (r) { if (r[2] === 0) yrBuys++; else yrSells++; });
+            var sellsShare = Math.round(100 * yrSells / Math.max(1, yrBuys + yrSells));
+            $("polAnalytics").innerHTML =
+                '<div class="pol-stat"><b>' + big(a.volEst) + '</b><span>disclosed in ' + MONF[+ym[1] - 1] + ' ' + ym[0] + ' filings so far (est.)</span></div>'
+                + '<div class="pol-stat"><b>' + a.buys + ' buys · ' + a.sells + ' sells</b><span>filed this month</span></div>'
+                + '<div class="pol-stat"><b>' + sellsShare + '% sells</b><span>of the year&rsquo;s disclosed trades, by count</span></div>'
+                + '<div class="pol-stat"><b>' + a.hot30.slice(0, 3).map(function (h) { return esc(h[0]); }).join(' · ') + '</b><span>most traded, last 30 days</span></div>';
+            // committee + member selects
+            var comms = {};
+            D.members.forEach(function (m) { (m[5] || []).forEach(function (c) { comms[c] = 1; }); });
+            $("polCommitteeSel").innerHTML = '<option value="">All committees</option>' + Object.keys(comms).filter(function (c) { return c.indexOf(" — ") === -1; }).sort().map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join("");
+            var mIdx = D.members.map(function (m, i) { return i; }).sort(function (x, y) { return (byMember[y] || []).length - (byMember[x] || []).length; });
+            $("polMemberSel").innerHTML = mIdx.map(function (i) { return '<option value="' + i + '">' + esc(D.members[i][0]) + ' (' + (byMember[i] || []).length + ')</option>'; }).join("");
+            if (scopeMember === null && mIdx.length) scopeMember = mIdx[0];
+            $("polMemberSel").value = String(scopeMember);
+            $("polSource").textContent = "Source: the official House Clerk and Senate disclosure documents, via the ZipLime congress-trading dataset (rebuilt from the filings; every row in a profile links its own filing). Committees: the public unitedstates/congress-legislators dataset. Prices: this page's own price file, through " + dstr(dayOf(D.priceThrough)) + ".";
+            renderCards();
+            renderClusters();
+            renderFeed();
+        }
+        // ---- render: Most Watched ---------------------------------
+        function renderCards() {
+            $("polCards").innerHTML = D.leaderboard.map(function (e) {
+                var m = mem(e.m);
+                var perf = e.buyPerf === null || e.buyPerf === undefined
+                    ? '<span class="pol-line">Their buys sit mostly outside this page&rsquo;s price file, so no performance figure is shown.</span>'
+                    : '<span class="pol-perf">Their covered buys are <b>' + pct(e.buyPerf) + '</b> since they bought (est.)</span>';
+                var curve = D.curves && D.curves[e.m] ? curveSvg(D.curves[e.m], D.spxCurve, 44) : "";
+                var chips = e.top.map(function (tp) { return '<button type="button" class="pol-chip" data-ticker="' + esc(tp) + '">' + esc(tp) + '</button>'; }).join("");
+                return '<article class="pol-card' + (filt.member === e.m ? " active" : "") + '" data-card="' + e.m + '">'
+                    + '<button type="button" class="pol-name-btn" data-profile="' + e.m + '">' + esc(m.name) + '</button>'
+                    + '<span class="pol-meta">' + metaLine(m) + '</span>'
+                    + perf + curve
+                    + '<span class="pol-line">' + big(e.volMid) + ' disclosed (est.) · ' + e.trades + ' trades · ' + e.buys + ' buys / ' + e.sells + ' sells · files in about ' + Math.round(e.avgLag) + ' days</span>'
+                    + '<span class="pol-tickers">' + chips + '</span></article>';
+            }).join("");
+        }
+        // ---- render: clusters --------------------------------------
+        function renderClusters() {
+            $("polClusters").innerHTML = D.clusters.map(function (c) {
+                var conv = convergence(c.t, dayOf(c.from), dayOf(c.to));
+                var mset = {};
+                c.members.forEach(function (mi) { mset[mi] = 1; });
+                var cvol = 0;
+                (byTicker[c.t] || []).forEach(function (r) { if (r[2] === 0 && mset[r[0]] && r[7] >= dayOf(c.from) && r[7] <= dayOf(c.to)) cvol += mid(r); });
+                return '<div class="pol-cluster"><button type="button" class="pol-tk-btn" data-ticker="' + esc(c.t) + '">' + esc(c.t) + '</button>'
+                    + ' — <b>' + c.n + ' members bought</b> between ' + dstr(dayOf(c.from)) + ' and ' + dstr(dayOf(c.to))
+                    + ' · ' + big(cvol) + ' disclosed (est.)' + boardTag(c.t)
+                    + (c.perf !== null ? ' · those buys are <b>' + pct(c.perf) + '</b> since (est.)' : "")
+                    + (conv ? '<span class="pol-conv">' + conv + '</span>' : "")
+                    + '</div>';
+            }).join("") || '<p class="pol-ctl-note">No cluster buys in the current window.</p>';
+        }
+        // ---- render: the feed ---------------------------------------
+        function passesFeed(r) {
+            if (!passesGroup(r)) return false;
+            if (filt.member !== null && r[0] !== filt.member) return false;
+            if (filt.side === "buy" && r[2] !== 0) return false;
+            if (filt.side === "sell" && r[2] !== 1) return false;
+            if (filt.minMid && mid(r) < filt.minMid) return false;
+            return true;
+        }
+        function rowHtml(r) {
+            var m = mem(r[0]);
+            var isNew = r[8] > baselineFiled;
+            return '<tr>'
+                + '<td>' + (isNew ? '<span class="pol-new">New</span>' : "") + '<button type="button" class="pol-name-btn" data-profile="' + r[0] + '">' + esc(m.name) + '</button>'
+                + '<span class="pol-owner">' + metaLine(m) + '</span>'
+                + (r[9] ? '<span class="pol-owner">' + OWN[r[9]] + '</span>' : "")
+                + (r[10] ? '<span class="pol-owner"><a href="' + esc(r[10]) + '" target="_blank" rel="noopener">the filing &#8599;</a></span>' : "")
+                + '</td>'
+                + '<td><button type="button" class="pol-tk-btn" data-ticker="' + esc(r[1]) + '">' + esc(r[1]) + '</button>' + boardTag(r[1]) + '</td>'
+                + '<td class="' + (r[2] === 0 ? "pol-buy" : "pol-sell") + '">' + (r[2] === 0 ? "Buy" : "Sell") + (r[3] ? '<span class="pol-owner">partial sale</span>' : "") + '</td>'
+                + '<td>' + rangeText(r) + (r[4] ? '<span class="pol-owner">' + (r[4] === "C" ? "call option" : "put option") + '</span>' : "") + '</td>'
+                + '<td>' + dstr(r[7]) + '</td><td>' + dstr(r[8]) + '</td>'
+                + '<td>' + lagCell(r) + '</td></tr>';
+        }
+        function renderFeed() {
+            var rows = feedOrder.filter(passesFeed);
+            $("polFeedBody").innerHTML = rows.slice(0, feedShown).map(rowHtml).join("");
+            $("polCount").textContent = "Showing " + Math.min(feedShown, rows.length).toLocaleString("en-US") + " of " + rows.length.toLocaleString("en-US") + " filings";
+            $("polMore").hidden = rows.length <= feedShown;
+            var chip = $("polPersonChip");
+            if (filt.member !== null) { chip.classList.add("on"); $("polPersonName").textContent = mem(filt.member).name; }
+            else chip.classList.remove("on");
+            renderCardsActive();
+        }
+        function renderCardsActive() {
+            document.querySelectorAll(".pol-card").forEach(function (c) {
+                c.classList.toggle("active", filt.member !== null && +c.getAttribute("data-card") === filt.member);
+            });
+        }
+        function setMemberFilter(mi) {
+            filt.member = (filt.member === mi) ? null : mi;
+            feedShown = 150;
+            renderFeed();
+            var w = $("polTableWrap");
+            if (w && filt.member !== null) w.scrollIntoView({ block: "nearest" });
+        }
+        // ---- profile ------------------------------------------------
+        function openProfile(mi) {
+            var m = mem(mi);
+            var rows = (byMember[mi] || []).slice().sort(function (a, b) { return b[8] - a[8] || b[7] - a[7]; });
+            var buys = rows.filter(function (r) { return r[2] === 0; }).length;
+            var vol = rows.reduce(function (s, r) { return s + mid(r); }, 0);
+            var lagAvg = rows.length ? Math.round(rows.reduce(function (s, r) { return s + (r[8] - r[7]); }, 0) / rows.length) : 0;
+            var lateN = rows.filter(function (r) { return r[8] - r[7] > 45; }).length;
+            var lb = null;
+            D.leaderboard.forEach(function (e) { if (e.m === mi) lb = e; });
+            var counts = {};
+            rows.forEach(function (r) { counts[r[1]] = (counts[r[1]] || 0) + 1; });
+            var favs = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 5);
+            var curve = D.curves && D.curves[mi] ? '<div style="height:90px">' + curveSvg(D.curves[mi], D.spxCurve, 90) + '</div><p class="pol-meta">The blue line is a reconstruction of just these disclosed trades; the dashed line is the S&amp;P 500 over the same weeks. Not their real account.</p>' : "";
+            var p = $("polProfile");
+            p.innerHTML = '<div class="pol-panel-head"><h4>' + esc(m.name) + '</h4><button type="button" class="filter-pill pol-close" id="polProfileClose">Close</button></div>'
+                + '<p class="pol-meta">' + metaLine(m) + (m.committees.length ? ' &middot; Committees: ' + m.committees.map(esc).join(", ") : ' &middot; No committee assignments in the current dataset') + '</p>'
+                + '<div class="pol-stats">'
+                + '<div class="pol-stat"><b>' + rows.length + '</b><span>trades disclosed in the window</span></div>'
+                + '<div class="pol-stat"><b>' + buys + ' / ' + (rows.length - buys) + '</b><span>buys / sells</span></div>'
+                + '<div class="pol-stat"><b>' + big(vol) + '</b><span>disclosed volume (est.)</span></div>'
+                + '<div class="pol-stat"><b>' + lagAvg + ' days</b><span>average time to file</span></div>'
+                + '<div class="pol-stat"><b>' + lateN + '</b><span>filings past the 45-day deadline</span></div>'
+                + (lb && lb.buyPerf !== null && lb.buyPerf !== undefined ? '<div class="pol-stat"><b>' + pct(lb.buyPerf) + '</b><span>covered buys since they bought (est.)</span></div>' : "")
+                + '</div>' + curve
+                + '<p class="pol-meta">Most traded: ' + favs.map(function (t) { return '<button type="button" class="pol-chip" data-ticker="' + esc(t) + '">' + esc(t) + ' · ' + counts[t] + '</button>'; }).join(" ") + '</p>'
+                + '<div class="spreadsheet-container pol-mini-wrap" style="max-height: 40vh;"><table class="fin-table"><thead><tr><th>Ticker</th><th>Trade</th><th>Amount</th><th>Traded</th><th>Filed</th><th>Lag</th></tr></thead><tbody>'
+                + rows.slice(0, 60).map(function (r) {
+                    return '<tr><td><button type="button" class="pol-tk-btn" data-ticker="' + esc(r[1]) + '">' + esc(r[1]) + '</button></td>'
+                        + '<td class="' + (r[2] === 0 ? "pol-buy" : "pol-sell") + '">' + (r[2] === 0 ? "Buy" : "Sell") + '</td>'
+                        + '<td>' + rangeText(r) + '</td><td>' + dstr(r[7]) + '</td><td>' + dstr(r[8]) + '</td><td>' + lagCell(r) + '</td></tr>';
+                }).join("")
+                + '</tbody></table></div>'
+                + (rows.length > 60 ? '<p class="pol-meta">The 60 most recent filings are shown; the feed below can be filtered to this member for the rest.</p>' : "");
+            p.hidden = false;
+            p.scrollIntoView({ block: "nearest" });
+        }
+        // ---- per-ticker view -----------------------------------------
+        function openTicker(t) {
+            var rows = (byTicker[t] || []).slice().sort(function (a, b) { return b[8] - a[8] || b[7] - a[7]; });
+            var people = {};
+            rows.forEach(function (r) { people[r[0]] = 1; });
+            var buys = rows.filter(function (r) { return r[2] === 0; }).length;
+            var vol = rows.reduce(function (s, r) { return s + mid(r); }, 0);
+            var conv = "";
+            (D.clusters || []).forEach(function (c) { if (c.t === t) { var s = convergence(t, dayOf(c.from), dayOf(c.to)); if (s) conv = s; } });
+            var p = $("polTickerPanel");
+            p.innerHTML = '<div class="pol-panel-head"><h4>' + esc(t) + '</h4><button type="button" class="filter-pill pol-close" id="polTickerClose">Close</button></div>'
+                + '<p class="pol-meta" id="polTickerState">' + (boardSet[t] ? 'On your board — loading its latest close…' : 'Not in this page&rsquo;s price file — the trades below are the whole picture here.') + '</p>'
+                + (boardSet[t] ? '<canvas id="polTickerChart" width="600" height="240"></canvas>' : "")
+                + '<div class="pol-stats">'
+                + '<div class="pol-stat"><b>' + Object.keys(people).length + '</b><span>members traded it</span></div>'
+                + '<div class="pol-stat"><b>' + buys + ' / ' + (rows.length - buys) + '</b><span>buys / sells</span></div>'
+                + '<div class="pol-stat"><b>' + big(vol) + '</b><span>disclosed volume (est.)</span></div></div>'
+                + (conv ? '<p class="pol-conv" style="color:var(--subtext-color);font-size:0.88rem;">' + conv + '</p>' : "")
+                + '<div class="spreadsheet-container pol-mini-wrap" style="max-height: 40vh;"><table class="fin-table"><thead><tr><th>Politician</th><th>Trade</th><th>Amount</th><th>Traded</th><th>Filed</th></tr></thead><tbody>'
+                + rows.slice(0, 40).map(function (r) {
+                    var m = mem(r[0]);
+                    return '<tr><td><button type="button" class="pol-name-btn" data-profile="' + r[0] + '">' + esc(m.name) + '</button></td>'
+                        + '<td class="' + (r[2] === 0 ? "pol-buy" : "pol-sell") + '">' + (r[2] === 0 ? "Buy" : "Sell") + '</td>'
+                        + '<td>' + rangeText(r) + '</td><td>' + dstr(r[7]) + '</td><td>' + dstr(r[8]) + '</td></tr>';
+                }).join("")
+                + '</tbody></table></div>'
+                + (rows.length > 40 ? '<p class="pol-meta">The 40 most recent filings are shown.</p>' : "");
+            p.hidden = false;
+            p.scrollIntoView({ block: "nearest" });
+            if (boardSet[t]) drawTickerChart(t);
+        }
+        function drawTickerChart(t) {
+            var cv = $("polTickerChart");
+            if (!cv) return;
+            function go(daily) {
+                var s = (daily.series || daily)[t];
+                if (!s || !s.bars || !s.bars.length) return;
+                var bars = s.bars.filter(function (b) { return b[0] >= D.windowFrom; });
+                if (bars.length < 5) bars = s.bars.slice(-260);
+                var st = $("polTickerState");
+                var last = s.bars[s.bars.length - 1];
+                if (st) st.innerHTML = 'On your board — latest close <b>$' + last[4].toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</b> · ' + dstr(dayOf(last[0])) + ' (this page&rsquo;s price file). Ringed dots are the disclosed trades in the current scope; the orange bars are disclosed volume per week (est.).';
+                var dpr = window.devicePixelRatio || 1;
+                var w = cv.clientWidth || 600, h = 240;
+                cv.width = w * dpr; cv.height = h * dpr;
+                var ctx = cv.getContext("2d");
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                var cs = window.getComputedStyle(document.body);
+                var textC = (cs.getPropertyValue("--text-color") || "#f0f3f6").trim();
+                var subC = (cs.getPropertyValue("--subtext-color") || "#9198a1").trim();
+                var volH = 34, priceH = h - volH - 8;
+                var lo = Infinity, hi = -Infinity;
+                bars.forEach(function (b) { if (b[4] < lo) lo = b[4]; if (b[4] > hi) hi = b[4]; });
+                var pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad;
+                function X(i) { return 6 + (w - 12) * (bars.length === 1 ? 0.5 : i / (bars.length - 1)); }
+                function Y(v) { return 4 + (hi - v) / (hi - lo) * priceH; }
+                ctx.beginPath();
+                bars.forEach(function (b, i) { if (i === 0) ctx.moveTo(X(i), Y(b[4])); else ctx.lineTo(X(i), Y(b[4])); });
+                ctx.strokeStyle = textC; ctx.lineWidth = 1.6; ctx.stroke();
+                var dots = window.__polDots(t);
+                ctx.lineWidth = 2;
+                dots.forEach(function (pd) {
+                    var lo2 = 0, hi2 = bars.length - 1, idx = -1;
+                    while (lo2 <= hi2) { var md2 = (lo2 + hi2) >> 1; if (bars[md2][0] < pd.d) lo2 = md2 + 1; else { idx = md2; hi2 = md2 - 1; } }
+                    if (idx < 0) return;
+                    var pr = pd.m < 25000 ? 3.5 : (pd.m < 100000 ? 5 : (pd.m < 500000 ? 6.5 : 8));
+                    ctx.beginPath(); ctx.arc(X(idx), Y(bars[idx][4]), pr, 0, Math.PI * 2);
+                    ctx.strokeStyle = pd.s ? "#e03131" : "#2f9e44"; ctx.stroke();
+                });
+                var wk = window.__polWeeks(t, bars, 0, bars.length - 1);
+                if (wk.max > 0) {
+                    ctx.fillStyle = "#e8590c"; ctx.globalAlpha = 0.75;
+                    wk.bars.forEach(function (b) {
+                        var bh = b.v / wk.max * (volH - 10);
+                        ctx.fillRect(X(b.i) - 1.5, h - bh, 3, bh);
+                    });
+                    ctx.globalAlpha = 1;
+                    ctx.fillStyle = subC; ctx.textAlign = "left";
+                    ctx.fillText("Congress volume (est.)", 8, h - volH + 2);
+                }
+            }
+            if (dailyCache) { go(dailyCache); return; }
+            fetch("finance-chart-daily.json").then(function (r) { return r.json(); }).then(function (j) { dailyCache = j; go(j); }).catch(function () {});
+        }
+        // ---- wiring ---------------------------------------------------
+        function refreshDots() {
+            window.dispatchEvent(new Event("poldata"));
+            var tp = $("polTickerPanel");
+            if (tp && !tp.hidden) { var h4 = tp.querySelector("h4"); if (h4) drawTickerChart(h4.textContent); }
+        }
+        document.querySelectorAll("[data-polscope]").forEach(function (b) {
+            b.addEventListener("click", function () {
+                document.querySelectorAll("[data-polscope]").forEach(function (x) { x.classList.toggle("active", x === b); });
+                scope = b.getAttribute("data-polscope");
+                $("polMemberSel").hidden = scope !== "member";
+                refreshDots();
+            });
+        });
+        $("polMemberSel").addEventListener("change", function () { scopeMember = +this.value; refreshDots(); });
+        $("polPartySel").addEventListener("change", function () { filt.party = this.value; feedShown = 150; renderFeed(); refreshDots(); });
+        $("polChamberSel").addEventListener("change", function () { filt.chamber = this.value; feedShown = 150; renderFeed(); refreshDots(); });
+        $("polCommitteeSel").addEventListener("change", function () { filt.committee = this.value; feedShown = 150; renderFeed(); refreshDots(); });
+        document.querySelectorAll("[data-polside]").forEach(function (b) {
+            b.addEventListener("click", function () {
+                document.querySelectorAll("[data-polside]").forEach(function (x) { x.classList.toggle("active", x === b); });
+                filt.side = b.getAttribute("data-polside");
+                feedShown = 150;
+                renderFeed();
+            });
+        });
+        $("polSizeSel").addEventListener("change", function () { filt.minMid = +this.value; feedShown = 150; renderFeed(); });
+        $("polMore").addEventListener("click", function () { feedShown += 150; renderFeed(); });
+        $("polPersonClear").addEventListener("click", function () { filt.member = null; renderFeed(); });
+        $("politicians").addEventListener("click", function (e) {
+            var t = e.target;
+            var prof = t.closest ? t.closest("[data-profile]") : null;
+            if (prof) { openProfile(+prof.getAttribute("data-profile")); return; }
+            var tk = t.closest ? t.closest("[data-ticker]") : null;
+            if (tk) { openTicker(tk.getAttribute("data-ticker")); return; }
+            if (t.closest && t.closest("#polProfileClose")) { $("polProfile").hidden = true; return; }
+            if (t.closest && t.closest("#polTickerClose")) { $("polTickerPanel").hidden = true; return; }
+            var card = t.closest ? t.closest(".pol-card") : null;
+            if (card) setMemberFilter(+card.getAttribute("data-card"));
+        });
+        // Lazy load: first open of the section, or a restored-open body.
+        var tog = document.querySelector('.section-toggle[data-section="politicians"]');
+        if (tog) tog.addEventListener("click", function () { window.__polEnsure(); });
+        if (!$("politicians-body").hidden) window.__polEnsure();
+        // Full screen, the section pattern: native where offered,
+        // a fixed overlay where not; the button is the exit either
+        // way and its glyph swaps with the state.
+        (function () {
+            var fsBtn = $("polFsBtn"), fsSection = $("politicians");
+            if (!fsBtn || !fsSection) return;
+            var fsOn = false, fsFallback = false, fsSaved = null;
+            function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+            function syncFsButton(on) {
+                fsBtn.setAttribute("aria-pressed", on ? "true" : "false");
+                fsBtn.setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
+                fsBtn.classList.toggle("chart-fs-on", on);
+            }
+            function syncFs() {
+                var on = (fsElement() === fsSection) || fsFallback;
+                if (on === fsOn) { syncFsButton(on); return; }
+                fsOn = on; syncFsButton(on);
+                window.dispatchEvent(new Event("resize"));
+            }
+            function enterFallback() {
+                fsFallback = true;
+                fsSection.classList.add("pol-fs");
+                fsSaved = { html: document.documentElement.style.overflow, body: document.body.style.overflow };
+                document.documentElement.style.overflow = "hidden";
+                document.body.style.overflow = "hidden";
+                syncFs();
+            }
+            function exitFallback() {
+                if (!fsFallback) return;
+                fsFallback = false;
+                fsSection.classList.remove("pol-fs");
+                if (fsSaved) { document.documentElement.style.overflow = fsSaved.html; document.body.style.overflow = fsSaved.body; fsSaved = null; }
+                syncFs();
+            }
+            fsBtn.addEventListener("click", function () {
+                if (fsOn) {
+                    if (fsFallback) exitFallback();
+                    else if (fsElement()) { var ex = document.exitFullscreen || document.webkitExitFullscreen; if (ex) { try { var xp = ex.call(document); if (xp && xp.catch) xp.catch(function () {}); } catch (err) {} } }
+                    return;
+                }
+                var body = $("politicians-body");
+                if (body && body.hidden && tog) tog.click();
+                window.__polEnsure();
+                var req = fsSection.requestFullscreen || fsSection.webkitRequestFullscreen;
+                if (req) {
+                    try { var p = req.call(fsSection); if (p && p.catch) p.catch(function () { enterFallback(); }); }
+                    catch (err) { enterFallback(); }
+                } else enterFallback();
+            });
+            document.addEventListener("fullscreenchange", syncFs);
+            document.addEventListener("webkitfullscreenchange", syncFs);
+        })();
     })();
     </script>
 </body>
