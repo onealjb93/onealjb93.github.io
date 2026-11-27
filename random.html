@@ -607,29 +607,38 @@
            remains is this one small pill in the control row: it
            carries the current selection's name, so it says where
            you are, and it opens the category menu, so it is also
-           how you move. It keeps the split control's face (the
-           accent fill, white text) at a compact size. */
+           how you move. REVISION (2026-11-27, Johnny's device
+           verdict): the first face — a solid accent fill — read
+           as a label, not a control ("It isn't immediately
+           obvious that you can use the button that says animals
+           to change categories"). It now wears the site's own
+           dropdown language, the same face as the header's
+           "Explore pages ▾" pill and the viewer's own pick:
+           card glass, a hairline border, a full pill radius,
+           the name in the text colour and the caret beside it —
+           the page's vocabulary teaches that it opens a list,
+           with no words added. */
         .gen-pick {
             flex: none;
             min-height: 44px;
-            padding: 0.5rem 0.85rem;
+            padding: 0.5rem 0.95rem;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 0.45rem;
-            background: var(--link-color);
-            color: #fff;
-            border: none;
-            border-radius: 10px;
+            background: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
             font-size: 0.98rem;
-            font-weight: 600;
+            font-weight: 500;
             line-height: 1.2;
             white-space: nowrap;
             cursor: pointer;
         }
-        .gen-pick:hover { opacity: 0.92; }
+        .gen-pick:hover { border-color: var(--link-color); }
         .gen-pick:active { transform: scale(0.98); }
-        .gen-pick:focus-visible { outline: 2px solid var(--text-color); outline-offset: 2px; }
+        .gen-pick:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         .gen-pick-caret { font-size: 0.68em; opacity: 0.85; line-height: 1; }
         .gen-cat-scrim { position: fixed; inset: 0; z-index: 2599; background: transparent; }
         .gen-cat-scrim[hidden] { display: none; }
@@ -1312,7 +1321,21 @@
            the neighbour cards stay hidden), though a swipe still
            steps the album from it. The fullscreen viewer carries
            the same strip inside its own stage. */
-        :root { --jv-peek: 46px; --jv-gap: 10px; }
+        /* REVISION (2026-11-27, Johnny's device verdict): the
+           first peek — a 36px full-brightness slice — competed
+           with the dealt picture ("the next picture is too
+           distracting from the main picture"). The visible
+           sliver is now ~16px (the peek allowance minus the
+           strip's gap), and the waiting cards are subdued hard
+           — dimmed to 40% and blurred — so the edge reads as a
+           hint of a stack behind the picture, never a second
+           picture. The dealt card also widens by the reclaimed
+           allowance, which serves the subject-reads-whole rule. */
+        :root { --jv-peek: 24px; --jv-gap: 8px; }
+        .gen-section .gen-img-behind, .gen-section .gen-quote-behind,
+        .gen-fs .gen-fs-img-behind, .gen-fs .gen-fs-quote-behind {
+            filter: brightness(0.4) blur(2px);
+        }
         .gen-section:not(.deep-open) .gen-stage { overflow: hidden; justify-content: flex-start; }
         .gen-section:not(.deep-open):not(.jv-solo) .gen-img,
         .gen-section:not(.deep-open):not(.jv-solo) .gen-quote { width: calc(100% - var(--jv-peek)); margin: 0; flex: none; }
@@ -1331,7 +1354,7 @@
             transform: none;
         }
         .gen-fs.jv-solo .gen-fs-img-behind, .gen-fs.jv-solo .gen-fs-quote-behind { width: 100%; }
-        .gen-fs-pick { font-weight: 600; }
+        .gen-fs-pick { font-weight: 500; }
         .gen-fs-pick .gen-pick-name { font-size: 0.98rem; }
         .jv-nudging { transition: transform 0.65s var(--ease-inout) !important; }
         @media (prefers-reduced-motion: reduce) {
@@ -4115,7 +4138,11 @@
     // card waiting off-frame at the left. A horizontal drag
     // moves the strip with the finger; releasing past the commit
     // point (or a flick with enough speed) slides the strip one
-    // card over and steps the album through the __rgSwipe*
+    // card over and steps the album through the __rgSwipe*.
+    // A decisive flick up or down deals the next card too (the
+    // any-direction flick, restored 2026-11-27), while a slow
+    // vertical drag is handed to the page as a scroll — the
+    // arbitration lives in wireSwipe below.
     // hooks: forward at the history's front deals a fresh card
     // from the deck — the very card the peek previewed, dealt by
     // the deck's own preparation (weighted reshuffle + the
@@ -4142,7 +4169,9 @@
         var TAP_DIST = 28;      // px of travel before a press becomes a drag
         var COMMIT_DIST = 88;   // px of travel that commits the step on release
         var FLICK_VEL = 0.45;   // px/ms over the last ~100ms that commits a short drag
-        var GAP = 10;           // px between cards in the strip
+        var V_AXIS = 1.4;       // |dy| must beat |dx| by this factor for a gesture to read as vertical
+        var FLICK_VEL_V = 0.5;  // px/ms trailing speed that makes a vertical stage drag a dealing flick, not a scroll
+        var GAP = 8;            // px between cards in the strip (the visible peek sliver is --jv-peek minus this)
         var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
         var behind = {};        // prefix -> { img, quote, text, attrib } RIGHT neighbour elements
         var prevEls = {};       // prefix -> { img, quote, text, attrib } LEFT neighbour elements
@@ -4513,12 +4542,55 @@
             }, 320);
         }
 
+        // ANY-DIRECTION FLICKS + THE SCROLL HANDOFF (revision,
+        // 2026-11-27, Johnny's device verdict): the album strip
+        // alone reads only left/right, and Johnny wants his
+        // any-direction flick back — "It's only right left. Not
+        // up down any direction anymore." So a decisive flick UP
+        // or DOWN deals the next fresh card too, on the stage and
+        // in the viewer. The stage's surfaces carry
+        // touch-action: none, so no gesture is ever taken over
+        // by the browser mid-flight and the arbitration is ours:
+        // velocity and distance decide what a vertical drag IS.
+        // A fast one (trailing speed at or past FLICK_VEL_V as
+        // it crosses the drag threshold, clearly vertical) is a
+        // flick and deals. A slow or sustained one is a scroll:
+        // the strip settles home and the page follows the finger
+        // 1:1 for the rest of the drag, with a short momentum
+        // glide on release — the page is never trapped under a
+        // stage gesture. The viewer has nothing scrolling behind
+        // it, so there a vertical drag simply deals on release
+        // past the commit point, up or down alike. Mouse keeps
+        // exactly its old behaviour (horizontal drag, keys,
+        // wheel); the vertical arbitration is for touch and pen.
+        var momentumRAF = 0;
+        function stopScrollMomentum() {
+            if (momentumRAF) { cancelAnimationFrame(momentumRAF); momentumRAF = 0; }
+        }
+        function startScrollMomentum(vy) {
+            stopScrollMomentum();
+            var v = -vy; // page velocity: a finger moving up scrolls the page down
+            if (Math.abs(v) < 0.08) { return; }
+            var last = performance.now();
+            var step = function (now) {
+                var dt = Math.min(64, now - last);
+                last = now;
+                window.scrollBy(0, v * dt);
+                v *= Math.pow(0.001, dt / 900);
+                if (Math.abs(v) < 0.02) { momentumRAF = 0; return; }
+                momentumRAF = requestAnimationFrame(step);
+            };
+            momentumRAF = requestAnimationFrame(step);
+        }
+        window.addEventListener('wheel', stopScrollMomentum, { passive: true });
+
         function wireSwipe(el, opt) {
             if (!el) { return; }
             if (el.tagName === 'IMG') { el.draggable = false; }
             var g = null;
             el.addEventListener('pointerdown', function (e) {
                 cancelNudge();
+                stopScrollMomentum();
                 if (g) { return; }
                 if (opt.isFs && fsZoomed) { return; } // viewer zoomed: one finger pans the view, never deals
                 if (e.pointerType === 'mouse' && e.button !== 0) { return; }
@@ -4540,12 +4612,45 @@
                 g = {
                     id: e.pointerId, prefix: prefix, el: el, plain: !!opt.plain,
                     x0: e.clientX, y0: e.clientY, dx: 0, dy: 0,
-                    dragging: false, shownBefore: st.shownId,
+                    dragging: false, shownBefore: st.shownId, mode: null, lastY: e.clientY,
                     state: window.__rgSwipeState ? window.__rgSwipeState(prefix) : { back: null, fwd: null, fwdJump: false },
                     samples: [{ x: e.clientX, y: e.clientY, t: Date.now() }]
                 };
                 try { el.setPointerCapture(e.pointerId); } catch (err) { }
             });
+            // Decide what a touch/pen gesture IS, once, from its
+            // shape: 'strip' (horizontal — the album follows),
+            // 'vflick' (a decisive vertical flick — deals at
+            // once), 'scroll' (a slow vertical drag — the page
+            // takes the gesture), or 'vert' (the viewer's
+            // vertical drag — the release decides). Mouse never
+            // classifies: its behaviour is unchanged.
+            function classifyMove(e) {
+                var adx = Math.abs(g.dx), ady = Math.abs(g.dy);
+                if (ady > V_AXIS * adx && ady >= TAP_DIST) {
+                    if (opt.isFs) { g.mode = 'vert'; return; }
+                    // Velocity over the trailing sample window,
+                    // with an 8ms floor on the window: inside a
+                    // narrower window the timestamps cannot prove
+                    // slowness (events delivered in the same
+                    // millisecond read as dt 0), and large travel
+                    // inside it is a flick by any definition.
+                    var s0 = g.samples[0];
+                    var dt = Math.max(Date.now() - s0.t, 8);
+                    var vvel = Math.abs(e.clientY - s0.y) / dt;
+                    if (g.state.fwd && vvel >= FLICK_VEL_V) {
+                        g.mode = 'vflick';
+                        markSwiped();
+                        albumStep(opt.isFs, g.prefix, 1, g.state, g.plain);
+                        return;
+                    }
+                    g.mode = 'scroll';
+                    if (!g.plain) { settleStrip(opt.isFs, g.prefix); }
+                    g.lastY = e.clientY;
+                    return;
+                }
+                if (adx >= TAP_DIST && adx > ady) { g.mode = 'strip'; }
+            }
             el.addEventListener('pointermove', function (e) {
                 if (!g || e.pointerId !== g.id) { return; }
                 g.dx = e.clientX - g.x0;
@@ -4554,7 +4659,19 @@
                 g.samples.push({ x: e.clientX, y: e.clientY, t: now });
                 while (g.samples.length > 2 && now - g.samples[0].t > 100) { g.samples.shift(); }
                 if (!g.dragging && Math.hypot(g.dx, g.dy) >= TAP_DIST) { g.dragging = true; }
-                if (!g.dragging || g.plain) { return; }
+                if (!g.dragging) { return; }
+                // A dealt flick owns the rest of its gesture.
+                if (g.mode === 'vflick') { return; }
+                // A scroll-classified drag moves the page with
+                // the finger, 1:1, for as long as it lasts.
+                if (g.mode === 'scroll') {
+                    window.scrollBy(0, g.lastY - e.clientY);
+                    g.lastY = e.clientY;
+                    return;
+                }
+                if (!g.mode && e.pointerType !== 'mouse') { classifyMove(e); }
+                if (g.mode === 'vflick' || g.mode === 'scroll') { return; }
+                if (g.mode === 'vert' || g.plain) { return; }
                 // The strip follows the finger horizontally. A
                 // drag with nowhere to go (backward at the
                 // history's start, forward at a Loved walk's end)
@@ -4572,11 +4689,36 @@
                 if (!done.dragging) { return; } // a tap: the click does its usual work
                 suppressEl = done.el;
                 suppressUntil = Date.now() + 600;
+                // The vertical modes resolve before the
+                // horizontal strip logic ever sees the gesture.
+                if (done.mode === 'vflick') { return; } // dealt mid-gesture, at the flick itself
+                if (done.mode === 'scroll') {
+                    if (!cancelled) {
+                        var ss0 = done.samples[0];
+                        var sdt = Math.max(Date.now() - ss0.t, 8);
+                        startScrollMomentum((e.clientY - ss0.y) / sdt);
+                    }
+                    return;
+                }
+                if (done.mode === 'vert') {
+                    // The viewer's vertical drag: up or down past
+                    // the commit point — or flicked there — deals
+                    // the next card; anything less settles back.
+                    var ady = Math.abs(done.dy);
+                    var vs0 = done.samples[0];
+                    var vdt = Math.max(Date.now() - vs0.t, 8);
+                    var vvel = Math.abs(e.clientY - vs0.y) / vdt;
+                    var commitV = !cancelled && !!done.state.fwd &&
+                        (ady >= COMMIT_DIST || (ady >= TAP_DIST && vvel >= FLICK_VEL));
+                    if (!commitV) { if (!done.plain) { settleStrip(opt.isFs, done.prefix); } return; }
+                    markSwiped();
+                    albumStep(opt.isFs, done.prefix, 1, done.state, done.plain);
+                    return;
+                }
                 var dist = Math.abs(done.dx);
-                var vel = 0;
                 var s0 = done.samples[0];
-                var dt = Date.now() - s0.t;
-                if (dt > 0) { vel = Math.abs(e.clientX - s0.x) / dt; }
+                var dt = Math.max(Date.now() - s0.t, 8);
+                var vel = Math.abs(e.clientX - s0.x) / dt;
                 var dir = done.dx < 0 ? 1 : (done.dx > 0 ? -1 : 0);
                 var target = dir > 0 ? done.state.fwd : done.state.back;
                 var commit = !cancelled && dir !== 0 && !!target &&
