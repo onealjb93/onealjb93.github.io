@@ -1,0 +1,41 @@
+name: Daily Politicians Trades Update
+
+on:
+  schedule:
+    - cron: '30 13 * * *' # Every day at 1:30 PM UTC (8:30 AM ET) — filings land through the morning
+  workflow_dispatch: # Allows you to manually trigger it anytime from the GitHub Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  update-politicians:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests pyarrow
+
+      # The builder fails loudly (non-zero exit, nothing written)
+      # if either chamber's feed is unreachable or its newest
+      # filing is more than 21 days old — a failed run leaves the
+      # previous politicians-trades.json in place rather than
+      # publishing stale data as fresh.
+      - name: Run politicians trades builder
+        run: python politicians_trades.py
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add politicians-trades.json
+          git commit -m "Automated daily politicians trades refresh [skip ci]" || exit 0
+          git pull --rebase origin main
+          git push
