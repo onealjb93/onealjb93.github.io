@@ -39,3 +39,34 @@ jobs:
           git commit -m "Automated daily politicians trades refresh [skip ci]" || exit 0
           git pull --rebase origin main
           git push
+
+  # The Insiders layer's data (SEC Form 4, exact shares and
+  # prices) — a separate job so an EDGAR hiccup can never stall
+  # the filings update above, and vice versa. The builder fails
+  # loudly and publishes nothing if its pull covers less than
+  # 95% of the universe. First run (no insiders.json in the
+  # repo) pulls the full trailing 12 months; later runs pull 60
+  # days and merge. EDGAR is unreachable from some sandboxes
+  # (403 on the egress), which is why this build lives in CI.
+  update-insiders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Run insiders builder
+        run: python insiders_build.py
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add insiders.json
+          git commit -m "Automated daily insiders refresh [skip ci]" || exit 0
+          git pull --rebase origin main
+          git push
