@@ -24,6 +24,45 @@
     <link rel="icon" type="image/png" href="JBO%20Logo.%20green%20background.png">
     <link rel="apple-touch-icon" href="JBO%20Logo.%20green%20background.png">
     <link rel="stylesheet" href="style.css">
+    <script type="importmap">{ "imports": { "three": "./three.module.min.js" } }</script>
+    <style>
+        /* The Games Room (2026-11-26): a full-screen room over the
+           page — Johnny's mountain-home photo as a projection-mapped
+           3D space (games-room/room.js, loaded on first entry). The
+           only chrome inside the room is the Leave games pill. The
+           room is a photograph, so its colours are its own in both
+           themes; the entry card above it uses the page's classes. */
+        #gr-room { position: fixed; inset: 0; z-index: 1200; background: #14100c;
+            font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        #gr-room[hidden] { display: none; }
+        html.gr-lock { overflow: hidden; }
+        #gr-canvas { position: absolute; inset: 0; display: block; touch-action: none; cursor: grab; }
+        #gr-canvas.dragging { cursor: grabbing; }
+        #gr-veil { position: absolute; inset: 0; background: #14100c; z-index: 50; display: flex;
+            align-items: center; justify-content: center; transition: opacity .7s ease; }
+        #gr-veil.gone { opacity: 0; pointer-events: none; }
+        #gr-veil .gr-mark { color: #e8ddc9; font-size: 15px; letter-spacing: .22em; text-transform: uppercase; opacity: .85; }
+        #gr-leave { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+            z-index: 30; min-height: 44px; padding: 10px 20px; border-radius: 999px; color: #fff;
+            font: inherit; font-size: 14px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; cursor: pointer;
+            background: rgba(20,16,10,.42); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
+            border: 1px solid rgba(255,255,255,.18); box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+        #gr-leave:active { background: rgba(20,16,10,.62); }
+        #gr-pill { position: absolute; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translate(-50%, 16px);
+            z-index: 20; padding: 9px 18px; border-radius: 999px; color: #fff; font-size: 15px; font-weight: 600; text-align: center;
+            background: rgba(20,16,10,.42); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
+            border: 1px solid rgba(255,255,255,.18); box-shadow: 0 6px 24px rgba(0,0,0,.35);
+            opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease; white-space: nowrap; }
+        #gr-pill.on { opacity: 1; transform: translate(-50%,0); pointer-events: auto; cursor: pointer; }
+        #gr-pill small { display: block; text-align: center; font-weight: 400; font-size: 11px; opacity: .75; letter-spacing: .04em; }
+        #gr-back { position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 14px; z-index: 28;
+            padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); color: #fff;
+            background: rgba(20,16,10,.45); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; min-height: 44px; }
+        #gr-fade { position: absolute; inset: 0; z-index: 26; pointer-events: none; opacity: 0;
+            background: radial-gradient(ellipse at center, #ffffff 0%, #e8eff5 55%, #cfdde9 100%); }
+    </style>
     <style>
         /* Section headings (2026-11-14; unpinned 2026-11-21, format
            batch 3b): Games is a named no-pin exception page (Format
@@ -1381,6 +1420,13 @@
     </header>
 
     <div class="games-grid" id="gamesGrid">
+    <section class="gr-section" aria-labelledby="games-room-heading">
+        <div class="game-card">
+        <span class="game-card-photo" data-room-open aria-hidden="true"><img src="games-room/assets/hero-room.webp" alt="" width="1280" height="512" loading="lazy" decoding="async"></span>
+        <h2 id="games-room-heading"><button type="button" class="game-toggle" data-room-open>The Games Room</button></h2>
+        <p data-room-open>Step inside the mountain home — the games live here now. Board the Disc out on the porch and fly to the Universe, pick up the iPad on the island for Line Rider, settle over the plate on the coffee table for the Frequency Generator.</p>
+        </div>
+    </section>
     <section class="lr-section" aria-labelledby="line-rider-heading">
         <div class="game-card">
         <span class="game-card-photo" data-card-open="linerider" aria-hidden="true"><img src="game-peek-linerider.webp" alt="" width="1156" height="546" loading="lazy" decoding="async"></span>
@@ -8415,6 +8461,164 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             }
         });
     })();
+})();
+</script>
+<div id="gr-room" hidden role="dialog" aria-modal="true" aria-label="The Games Room">
+  <canvas id="gr-canvas"></canvas>
+  <button id="gr-leave" type="button">Leave games</button>
+  <div id="gr-pill"></div>
+  <button id="gr-back" type="button" style="display:none">← The room</button>
+  <div id="gr-fade"></div>
+  <div id="gr-veil"><div class="gr-mark">The Games Room</div></div>
+</div>
+<script>
+/* The Games Room — host glue (2026-11-26). The room itself is
+   games-room/room.js (an ES module, loaded lazily on first entry);
+   this script owns the page side: showing and hiding the room
+   overlay, handing over to the real games through their own door
+   buttons (so every game's own open/close, engine start and scroll
+   restore run exactly as they do from the grid), and bringing the
+   room back — running the start backwards — when a room-started
+   game closes. The page's scroll position never moves under the
+   room: entering locks it, leaving restores it as it was. */
+(function () {
+    var overlay = document.getElementById('gr-room');
+    if (!overlay) return;
+    var THR_KEY = 'games-room-return-v1';
+    var PAGE_NAME = { linerider: 'linerider', universe: 'universe', thumbdrive: 'thumbkart', frequency: 'frequency' };
+    var roomPromise = null, roomApi = null, roomOpen = false;
+    var armed = null; /* page name of the game the room started, awaiting its close */
+    var pageScroll = null, guardId = 0;
+    /* Locking/unlocking the page toggles the scrollbar, and the
+       browser's scroll anchoring can answer that reflow by moving
+       the restored scroll (measured: +171px after a room-started
+       game closed). Snap the scroll back to the recorded spot for
+       a few seconds of frames whenever the room hands the page
+       back, so a room visit leaves the page exactly as it was. */
+    function guardScroll() {
+        if (pageScroll === null) return;
+        var frames = 0;
+        if (guardId) cancelAnimationFrame(guardId);
+        var step = function () {
+            if (window.scrollY !== pageScroll) window.scrollTo(0, pageScroll);
+            if (++frames < 240) guardId = requestAnimationFrame(step);
+        };
+        guardId = requestAnimationFrame(step);
+    }
+
+    function loadRoom() {
+        if (!roomPromise) {
+            roomPromise = import('./games-room/room.js').then(function () { roomApi = window.__room || null; });
+        }
+        return roomPromise;
+    }
+    function showRoom(stationId) {
+        pageScroll = window.scrollY;
+        overlay.hidden = false;
+        roomOpen = true;
+        document.documentElement.classList.add('gr-lock');
+        loadRoom().then(function () {
+            if (!roomApi) return;
+            roomApi.setHostActive(true);
+            roomApi.refit();
+            if (stationId) roomApi.resumeAtStation(stationId);
+        });
+    }
+    function hideRoom(keepLock) {
+        overlay.hidden = true;
+        roomOpen = false;
+        /* handing over to a game keeps the page locked under the
+           game's own lock as well, so the scrollbar state never
+           flips while the shell restores the scroll at the close */
+        if (!keepLock) document.documentElement.classList.remove('gr-lock');
+        if (roomApi) roomApi.setHostActive(false);
+    }
+
+    window.__roomHost = {
+        /* the room's start has finished its motion: hand over */
+        enterGame: function (roomId, craft) {
+            if (roomId === 'threads') {
+                /* Threads lives on its own page; remember the chair
+                   so coming back lands in it (see below) */
+                try { sessionStorage.setItem(THR_KEY, 'threads'); } catch (e) { /* storage blocked */ }
+                window.setTimeout(function () { window.location.href = 'ar-rhythm.html'; }, 300);
+                return;
+            }
+            var name = PAGE_NAME[roomId];
+            if (!name) return;
+            armed = name;
+            pageScroll = window.scrollY;
+            hideRoom(true);
+            var btn = document.querySelector('[data-game-btn="' + name + '"]');
+            if (btn) btn.click();
+            if (name === 'universe') {
+                /* arrive in the craft the room had parked: set the
+                   game's own craft switch once its rig is up */
+                var tries = 0;
+                var iv = window.setInterval(function () {
+                    tries++;
+                    if (window.__uvShip) {
+                        window.clearInterval(iv);
+                        if (window.__uvShip.current() !== craft) window.__uvShip.set(craft);
+                    } else if (tries > 160) window.clearInterval(iv);
+                }, 250);
+            }
+        },
+        /* Leave games: out of the room, back to this page exactly
+           as it was — the room resets to its entry state so the
+           next visit starts at the door, like the mock's page load */
+        leave: function () {
+            if (roomApi) roomApi.hostReset();
+            hideRoom();
+            guardScroll();
+        }
+    };
+
+    document.addEventListener('click', function (e) {
+        var hit = e.target && e.target.closest ? e.target.closest('[data-room-open]') : null;
+        if (hit) { e.preventDefault(); showRoom(null); }
+    });
+    /* if the room module ever failed to load, Leave still leaves */
+    document.getElementById('gr-leave').addEventListener('click', function () {
+        if (!roomApi) { hideRoom(); guardScroll(); }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (roomOpen && (e.key === 'Escape' || e.key === 'Esc')) window.__roomHost.leave();
+    });
+
+    /* A game the room started has closed — its door button reports
+       collapsed (the shell sets that when the close fully lands and
+       the scroll is restored): bring the room back at that station
+       and run the start backwards to the seat. */
+    var doorBtns = {};
+    Object.keys(PAGE_NAME).forEach(function (k) {
+        doorBtns[PAGE_NAME[k]] = document.querySelector('[data-game-btn="' + PAGE_NAME[k] + '"]');
+    });
+    var obs = new MutationObserver(function () {
+        if (!armed) return;
+        var btn = doorBtns[armed];
+        if (btn && btn.getAttribute('aria-expanded') === 'false') {
+            armed = null;
+            overlay.hidden = false;
+            roomOpen = true;
+            document.documentElement.classList.add('gr-lock');
+            if (roomApi) { roomApi.setHostActive(true); roomApi.refit(); roomApi.hostReturn(); }
+            guardScroll();
+        }
+    });
+    Object.keys(doorBtns).forEach(function (n) {
+        if (doorBtns[n]) obs.observe(doorBtns[n], { attributes: true, attributeFilter: ['aria-expanded'] });
+    });
+
+    /* Coming back from the Threads page: you are still in the chair
+       beside the armchair — the room reopens at the station, and its
+       own back button stands you up again. */
+    var backFrom = null;
+    try {
+        backFrom = sessionStorage.getItem(THR_KEY);
+        if (backFrom) sessionStorage.removeItem(THR_KEY);
+    } catch (e) { /* storage blocked */ }
+    if (backFrom === 'threads') window.setTimeout(function () { showRoom('threads'); }, 350);
 })();
 </script>
 </body>
