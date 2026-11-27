@@ -21,7 +21,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install requests pyarrow
+        run: pip install requests pyarrow pandas
 
       # The builder fails loudly (non-zero exit, nothing written)
       # if either chamber's feed is unreachable or its newest
@@ -46,8 +46,10 @@ jobs:
   # loudly and publishes nothing if its pull covers less than
   # 95% of the universe. First run (no insiders.json in the
   # repo) pulls the full trailing 12 months; later runs pull 60
-  # days and merge. EDGAR is unreachable from some sandboxes
-  # (403 on the egress), which is why this build lives in CI.
+  # days and merge. EDGAR refused the stdlib HTTP client from
+  # the CI runners too (403 on the first request, run
+  # 46058270264, 2026-11-27), so the builder fetches through
+  # requests with the same declared User-Agent.
   update-insiders:
     runs-on: ubuntu-latest
     steps:
@@ -58,6 +60,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
 
       - name: Run insiders builder
         run: python insiders_build.py
