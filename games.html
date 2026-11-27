@@ -1977,7 +1977,7 @@ const easeIn=(a,b,p)=>a+(b-a)*p*p, easeInOut=(a,b,p)=>a+(b-a)*(-Math.cos(p*Math.
 const overlap=(x1,w1,x2,w2,p)=>{ const h1=w1*p/2,h2=w2*p/2; return !(x1+h1<x2-h2||x1-h1>x2+h2); };
 
 /* ---------- engine constants ---------- */
-const SEG_LEN=200, RUMBLE=3, ROAD_W=2100, DRAW_DIST=245, CAM_H=5800;
+const SEG_LEN=200, RUMBLE=3, ROAD_W=2100, DRAW_DIST=277, CAM_H=5800;
 const BASE_DEPTH = 1/Math.tan((92/2)*Math.PI/180);    /* FOV 92 */
 const YSCALE=0.74;   /* vertical projection stretch: pitches the view down
                         so the road ahead spreads over more of the screen —
@@ -1995,7 +1995,27 @@ const YSCALE=0.74;   /* vertical projection stretch: pitches the view down
    anchor — playerZ = CAM_H x depth — so the machine sits
    farther away and smaller, and a lot more course reads ahead),
    YSCALE 0.68 -> 0.74, DRAW_DIST 230 -> 245 with the roadside
-   stream extended to match (fade 190-228). */
+   stream extended to match (fade 190-228).
+   PULLED BACK (Johnny's device verdict, 2026-11-26 21:16: "I am
+   higher up, but I'm not further away from the cart with a
+   higher-up view — it's not easier to see the course"): raising
+   CAM_H alone only pitched the view; the machine's sprite was a
+   fixed size pinned to the bottom edge and the road surface at
+   the machine sat BELOW the frame (the course only entered the
+   picture ~13 segments ahead of it). The render camera now sits
+   VIEW_H over the road and CAM_BACK behind its old anchor, the
+   draw distance grows by the same 32 segments so the far reach
+   is unchanged, fog and the roadside stream are counted from the
+   machine instead of the camera anchor, and the machine itself
+   is drawn THROUGH the projection (segPoint at its own segment):
+   it sits on the road at ~90% of the frame height, sized by its
+   distance — smaller in frame, road visible at its wheels and
+   all the way ahead. CAM_H itself is untouched: gameplay samples
+   the road at position + CAM_H x depth (playerSegIndex). */
+const VIEW_H=6800, CAM_BACK=6400, CAM_BACK_SEGS=CAM_BACK/SEG_LEN;
+const KART_WORLD_W=2860;   /* the player machine's width in world units:
+                              through the projection at the pulled-back
+                              distance it reads ~11.5% of the frame width */
 const GRAV=20000;    /* jump gravity, world units / s^2 */
 const MAX_SPEED = SEG_LEN*62;                          /* 12,400 u/s */
 const BOOST_MAX = MAX_SPEED*1.18;
@@ -2299,8 +2319,16 @@ function onTilt(e){
     return;
   }
   if(tiltNeutral===null){ tiltNeutral={steer:ax.steer, pitch:ax.pitch}; }
-  tiltSteer=clamp((ax.steer-tiltNeutral.steer)/16, -1, 1);
-  if(Math.abs(ax.steer-tiltNeutral.steer)<3) tiltSteer=0;
+  /* SENSITIVITY (Johnny's device verdict, 2026-11-26 21:16: "I want
+     it really sensitive — like to barely tilt my phone to turn.
+     Right now I have to really tilt a lot"): full lock at 10 deg of
+     tilt (was 16, linear), a 2 deg dead zone so resting hands don't
+     drift it (was 3, and the old line then stepped straight to 0.19
+     at the edge), and a gentle power curve between — quick to answer
+     a small tilt, fine-grained near centre, landing on full lock
+     smoothly instead of clamping into it. */
+  const tD=ax.steer-tiltNeutral.steer, tA=Math.abs(tD);
+  tiltSteer = tA<=2? 0 : Math.sign(tD)*Math.pow(Math.min(1,(tA-2)/8), 0.8);
   const now=performance.now();
   const dPitch=(ax.pitch-tiltNeutral.pitch)*TILT_JUMP_DIR;
   if(dPitch<5) tiltArm=true;   /* re-arms on a partial return — a real flick dips and tips again */
@@ -3109,7 +3137,12 @@ const proj=[];
 function render(){
   const camDepth=BASE_DEPTH*fovKick, playerZ=CAM_H*camDepth;
   drawBackdrop();
-  const baseSeg=findSegment(position), basePct=(position%SEG_LEN)/SEG_LEN;
+  /* the pulled-back render camera (see VIEW_H / CAM_BACK above): the
+     projection anchor sits CAM_BACK behind `position`, wrapped onto
+     the lap; gameplay anchors (playSeg, playerY) are unchanged */
+  const camPos=position-CAM_BACK;
+  const camLap=camPos<0? trackLength:0;   /* the first CAM_BACK of every lap the anchor sits before the start line: the tail segments are the PREVIOUS lap (see camZ in the loop) */
+  const baseSeg=findSegment(((camPos%trackLength)+trackLength)%trackLength), basePct=((camPos%SEG_LEN)+SEG_LEN)%SEG_LEN/SEG_LEN;
   const playSeg=findSegment(position+playerZ), playPct=((position+playerZ)%SEG_LEN)/SEG_LEN;
   const playerY=lerp(playSeg.p1.world.y, playSeg.p2.world.y, playPct);
   /* flight lift: the camera rises with the machine (55% of its
@@ -3117,17 +3150,27 @@ function render(){
      framed low while the course falls away beneath it */
   const airHNow = airborne? Math.max(0, airY-roadYAt(position + CAM_H*BASE_DEPTH)) : 0;
   camLift += ((airHNow*0.55)-camLift)*0.10;
-  const camY = playerY+CAM_H+camLift;
+  const camY = playerY+VIEW_H+camLift;
+  /* the camera turns WITH the machine: the curve accumulation is
+     measured from the machine's own segment (xKart), not from the
+     pulled-back anchor — otherwise the swing the road builds up
+     over the 60 segments between anchor and machine throws the
+     machine toward the frame edge in a long corner. The course
+     ahead still bends away exactly as it did; the machine stays
+     centred on its road. */
+  let xKart=0, dxK=-(baseSeg.curve*basePct);
+  const nPlay=((playSeg.index-baseSeg.index)+segments.length)%segments.length;
+  for(let n=0;n<nPlay;n++){ xKart+=dxK; dxK+=segments[(baseSeg.index+n)%segments.length].curve; }
   let maxY=H, x=0, dx=-(baseSeg.curve*basePct);
   proj.length=0;
   for(let n=0;n<DRAW_DIST;n++){
     const seg=segments[(baseSeg.index+n)%segments.length];
     const looped=seg.index<baseSeg.index;
-    seg.fog=Math.pow(n/DRAW_DIST,2)*0.92;
+    seg.fog=Math.pow(clamp((n-CAM_BACK_SEGS)/(DRAW_DIST-CAM_BACK_SEGS),0,1),2)*0.92;   /* fog counted from the machine, not the pulled-back anchor */
     seg.clip=maxY;
-    const camZ=position-(looped?trackLength:0);
-    project(seg.p1, playerX*ROAD_W - x,      camY, camZ, camDepth);
-    project(seg.p2, playerX*ROAD_W - x - dx, camY, camZ, camDepth);
+    const camZ=camPos+camLap-(looped?trackLength:0);
+    project(seg.p1, playerX*ROAD_W - (x-xKart),      camY, camZ, camDepth);
+    project(seg.p2, playerX*ROAD_W - (x+dx-xKart), camY, camZ, camDepth);
     x+=dx; dx+=seg.curve;
     proj.push(seg);
     if(seg.p1.camera.z<=camDepth || seg.p2.screen.y>=seg.p1.screen.y || seg.p2.screen.y>=maxY) continue;
@@ -3140,7 +3183,7 @@ function render(){
      time on a phone GPU budget */
   for(let n=proj.length-1;n>=0;n--){
     const seg=proj[n];
-    if(n<224){ RS_FADE = n<188? 1 : 1-(n-188)/36; for(const sp of seg.sprites) drawRoadside(sp, seg); RS_FADE=1; }
+    const nR=n-CAM_BACK_SEGS; if(nR<224){ RS_FADE = nR<188? 1 : 1-(nR-188)/36; for(const sp of seg.sprites) drawRoadside(sp, seg); RS_FADE=1; }
     if(seg.index===0) drawGantry(seg);
     if(seg.gate) drawGate(seg);
     if(seg.ringGate) drawRingGate(seg);
@@ -3172,21 +3215,25 @@ function render(){
       drawMachine(pt.x, pt.y, kw, machineImgFor(r.color), r.goldT>0? '#f7b500' : r.color, r.shirt, Math.sin(r.sway)*0.04, spinRot, 1-Math.min(0.6, seg.fog*0.6), clamp(r.speed/MAX_SPEED,0,1));
     }
   }
-  /* player machine — smaller and lower in the frame than the old kart:
-     the camera sits higher and further back (CAM_H), so the road ahead
-     owns the screen and the machine rides small at the bottom edge */
-  const kw=clamp(Math.min(W*0.16, H*0.36), 48, 180);
+  /* player machine — drawn through the same projection as everything
+     else (the pulled-back camera, above): segPoint at its own segment
+     gives its ground line on the road (~90% of the frame height) and
+     its scale, so it sits ON the road, smaller in frame, and the
+     course reads at its wheels and all the way ahead */
+  const kPt=segPoint(playSeg, playPct, playerX);
+  const kw=clamp(kPt.scale*KART_WORLD_W*(W/2), 36, 190);
+  const pxUnit=kPt.scale*H*YSCALE;   /* screen px per world unit at the machine */
   const spN=speed/MAX_SPEED;
   const bounce = state==='racing'? Math.sin(raceTime*26)*spN*2.2 + Math.sin(raceTime*6.3)*0.7 : Math.sin(performance.now()*0.004)*1.1;
-  const px=W/2 + slideCur*W*0.016 + (shake? (Math.random()-0.5)*shake : 0);
-  const py=H - kw*0.04 + bounce;
+  const px=kPt.x + (shake? (Math.random()-0.5)*shake : 0);
+  const py=kPt.y - camLift*pxUnit + bounce;   /* the ground line with the camera at ride height; the lift is added back for the shadow below */
   /* airborne: the machine rises off its ground line by the projected
      height of the arc; the shadow stays behind on the road (drawMachine
      receives the ground line as shadowBaseY). A landing settle dips the
      machine briefly below its ride line. */
   const airH = airborne? Math.max(0, airY-roadYAt(position + CAM_H*BASE_DEPTH)) : 0;
-  let pyDraw = py - (airH - camLift) * H * YSCALE / CAM_H;   /* the camera carries 55% of the rise; the machine still lifts clear of its shadow */
-  const pyShadow = py + camLift * H * YSCALE / CAM_H;        /* the shadow rides the road, which the lifted camera drops */
+  let pyDraw = py - (airH - camLift) * pxUnit;   /* the camera carries 55% of the rise; the machine still lifts clear of its shadow */
+  const pyShadow = py + camLift * pxUnit;        /* the shadow rides the road, which the lifted camera drops */
   if(landT>0) pyDraw += Math.sin((0.22-landT)/0.22*Math.PI)*7;
   /* pitch: on the ground the machine tips with the road's slope (up the
      ramp face); in the air it follows the arc — nose up while climbing,
