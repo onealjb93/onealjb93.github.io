@@ -24,6 +24,10 @@
     <link rel="icon" type="image/png" href="JBO%20Logo.%20green%20background.png">
     <link rel="apple-touch-icon" href="JBO%20Logo.%20green%20background.png">
     <link rel="stylesheet" href="style.css">
+    <!-- the Games Room opens itself on arrival (Johnny, 2026-11-26):
+         its photograph starts loading with the page, so the first
+         frame the room shows is already complete -->
+    <link rel="preload" as="image" href="games-room/assets/hero-room.webp" fetchpriority="high">
     <script type="importmap">{ "imports": { "three": "./three.module.min.js" } }</script>
     <style>
         /* The Games Room (2026-11-26): a full-screen room over the
@@ -39,10 +43,6 @@
         html.gr-lock { overflow: hidden; }
         #gr-canvas { position: absolute; inset: 0; display: block; touch-action: none; cursor: grab; }
         #gr-canvas.dragging { cursor: grabbing; }
-        #gr-veil { position: absolute; inset: 0; background: #14100c; z-index: 50; display: flex;
-            align-items: center; justify-content: center; transition: opacity .7s ease; }
-        #gr-veil.gone { opacity: 0; pointer-events: none; }
-        #gr-veil .gr-mark { color: #e8ddc9; font-size: 15px; letter-spacing: .22em; text-transform: uppercase; opacity: .85; }
         #gr-leave { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
             z-index: 30; min-height: 44px; padding: 10px 20px; border-radius: 999px; color: #fff;
             font: inherit; font-size: 14px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; cursor: pointer;
@@ -1422,7 +1422,7 @@
     <div class="games-grid" id="gamesGrid">
     <section class="gr-section" aria-labelledby="games-room-heading">
         <div class="game-card">
-        <span class="game-card-photo" data-room-open aria-hidden="true"><img src="games-room/assets/hero-room.webp" alt="" width="1280" height="512" loading="lazy" decoding="async"></span>
+        <span class="game-card-photo" data-room-open aria-hidden="true"><img src="games-room/assets/hero-room.webp" alt="" width="1280" height="512" loading="eager" decoding="async"></span>
         <h2 id="games-room-heading"><button type="button" class="game-toggle" data-room-open>The Games Room</button></h2>
         <p data-room-open>Step inside the mountain home — the games live here now. Board the Disc out on the porch and fly to the Universe, pick up the iPad on the island for Line Rider, settle over the plate on the coffee table for the Frequency Generator.</p>
         </div>
@@ -8520,7 +8520,6 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
   <div id="gr-pill"></div>
   <button id="gr-back" type="button" style="display:none">← The room</button>
   <div id="gr-fade"></div>
-  <div id="gr-veil"><div class="gr-mark">The Games Room</div></div>
 </div>
 <script>
 /* The Games Room — host glue (2026-11-26). The room itself is
@@ -8563,9 +8562,24 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         }
         return roomPromise;
     }
+    /* entry is a short fade from the page into the finished room —
+       no title card, no dark hold (Johnny, 2026-11-26 19:57).
+       Reduced motion gets the room instantly, as everywhere. */
+    function fadeInRoom() {
+        if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        overlay.style.transition = 'none';
+        overlay.style.opacity = '0';
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                overlay.style.transition = 'opacity .38s ease';
+                overlay.style.opacity = '1';
+            });
+        });
+    }
     function showRoom(stationId) {
         pageScroll = window.scrollY;
         overlay.hidden = false;
+        fadeInRoom();
         roomOpen = true;
         document.documentElement.classList.add('gr-lock');
         loadRoom().then(function () {
@@ -8577,6 +8591,8 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
     }
     function hideRoom(keepLock) {
         overlay.hidden = true;
+        overlay.style.opacity = '';
+        overlay.style.transition = '';
         roomOpen = false;
         /* handing over to a game keeps the page locked under the
            game's own lock as well, so the scrollbar state never
@@ -8651,6 +8667,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         if (btn && btn.getAttribute('aria-expanded') === 'false') {
             armed = null;
             overlay.hidden = false;
+            fadeInRoom();
             roomOpen = true;
             document.documentElement.classList.add('gr-lock');
             if (roomApi) { roomApi.setHostActive(true); roomApi.refit(); roomApi.hostReturn(); }
@@ -8670,6 +8687,31 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         if (backFrom) sessionStorage.removeItem(THR_KEY);
     } catch (e) { /* storage blocked */ }
     if (backFrom === 'threads') window.setTimeout(function () { showRoom('threads'); }, 350);
+
+    /* Arriving on this page IS arriving in the room (Johnny,
+       2026-11-26 19:57: "When i press games in the dropdown it
+       should take me to the room"). The room preloads with the page
+       and opens itself the moment its first complete frame exists —
+       no card tap, no intermediate step. A touch or keypress on the
+       page first (someone tapping a game card in the brief load
+       window) cancels the auto-open and leaves the page in charge;
+       Leave games still exits to this page exactly as it was, and
+       the room card above stays as the way back in. */
+    loadRoom();
+    var autoOpenArmed = backFrom !== 'threads';
+    function cancelAutoOpen() { autoOpenArmed = false; }
+    document.addEventListener('pointerdown', cancelAutoOpen);
+    document.addEventListener('keydown', cancelAutoOpen);
+    window.__roomHost.roomReady = function () {
+        if (!autoOpenArmed || roomOpen) return;
+        autoOpenArmed = false;
+        showRoom(null);
+    };
+    /* the room finished before this hook was armed (fast cache) */
+    if (autoOpenArmed && window.__roomReady) {
+        autoOpenArmed = false;
+        showRoom(null);
+    }
 })();
 </script>
 </body>

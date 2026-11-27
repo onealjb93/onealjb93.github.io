@@ -1,32 +1,27 @@
-/* The Games Room — mock v3 (projection-mapped room, full-coverage build).
-   The room is Johnny's own mountain-home photograph (the Health hero,
-   health-committee-morning.webp) as a PROJECTED TEXTURE on real 3D
-   geometry built to the photograph's own structure. v3 changes:
-   (1) COVERAGE — the built room now extends past every edge of the
-   view at every reachable position and look angle: a real timber
-   ceiling with full-width beams, stone side walls, a terrace parapet,
-   floor build-outs (wood strip inside, stone slab on the porch front),
-   a widened vista, and a panorama surround cylinder behind it, so no
-   viewpoint ever shows void, a stepped geometry edge, or a smeared
-   band. Where surfaces are seen much closer than the photo was taken,
-   the shader now defocuses into a blurred copy of the same photo
-   instead of a flat tone. Portrait phones crop INTO the photo (same
-   viewpoint, projector's own vertical FOV) and fill the frame.
-   (2) LAYOUT (Johnny, 2026-11-26 15:22) — the porch is the vehicle
-   pad: the Disc hovers ~a foot off the terrace at the porch's left,
-   the Thumb Drive kart hovers beside it, and Starman takes the Disc's
-   pad spot when toggled (tap the parked craft to swap). The room's
-   copy of the photo has the yoga figure removed (hero-room.webp; the
-   Health hero itself is untouched). Line Rider lives on an iPad on
-   the kitchen island; the Frequency Generator sits on the coffee
-   table by the armchairs; Threads is on a tablet beside the white
-   armchair. The desk computer and the wooden table are plain dressing.
-   LIVE BUILD (2026-11-26 18:15, Johnny's order): this is the room on
-   games.html — stations hand over to the real games through
-   window.__roomHost (see "live host integration" below). Placement
-   update (Johnny, 18:14): the Disc and the kart sit OUT ON THE EDGE
-   of the porch, at the terrace's outer lip by the columns, poised to
-   launch — PAD z −9.7, kart z −9.9. */
+/* The Games Room — a MODELED 3D room (rebuilt 2026-11-26 20:13 on
+   Johnny's ruling: "It can't be just a photograph. It has to be a
+   real 3D space we can walk through for each game without distorting
+   anything"). The first live build projected his mountain-home
+   photograph onto geometry; a projected photo reads true only from
+   its own viewpoint and tore into sliding layers the moment the
+   camera moved (his recordings, 19:57 + 20:10). This room is real
+   geometry throughout — walls, island, library, fireplace, terrace,
+   furniture, all meshes with materials sampled from the photo's own
+   palette (timber, stone, marble, cream fabric) — so parallax is
+   correct from every position and distortion is impossible. The
+   photograph itself is used only as (a) the modeling reference and
+   (b) the mountain scenery beyond the terrace, on a backdrop 70 m
+   out, where a backdrop is honest. It is a crafted likeness of his
+   house, not the literal photograph.
+   LAYOUT (Johnny, 2026-11-26 15:22 + 18:14): the porch is the
+   vehicle pad — the Disc hovers ~a foot off the terrace OUT ON ITS
+   EDGE (PAD z −9.7), the Thumb Drive kart beside it (z −9.9),
+   Starman takes the Disc's spot when toggled (tap the parked craft
+   to swap). Line Rider lives on an iPad on the kitchen island; the
+   Frequency Generator sits on the coffee table by the armchairs;
+   Threads is on a tablet beside the white armchair. The desk
+   computer and the wooden table are plain dressing. Stations hand
+   over to the real games through window.__roomHost (below). */
 import * as THREE from 'three';
 import { makeCraft } from './craft.js';
 
@@ -47,21 +42,15 @@ scene.background = new THREE.Color(0x171310);
 const camera = new THREE.PerspectiveCamera(47.9, innerWidth / innerHeight, 0.05, 220);
 function fitFov() {
   camera.aspect = innerWidth / innerHeight;
-  /* one vertical FOV for every shape: the projector's own (47.9°).
-     Landscape matches the photo's framing; portrait crops INTO the
-     photo — a narrower slice of the same viewpoint, filled edge to
-     edge, never a band floating in void. */
+  /* one vertical FOV for every shape (47.9°): landscape sees the
+     room wide; portrait takes a narrower slice of the same space,
+     filled edge to edge, never a band floating in void. */
   camera.fov = 47.9;
   camera.updateProjectionMatrix();
 }
 fitFov();
 
-/* ---------- the projector: where the photograph's camera stood ---------- */
-const PROJ_POS = new THREE.Vector3(0, 1.55, 0);
-const TAN_H = Math.tan(THREE.MathUtils.degToRad(96 / 2));
-const TAN_V = TAN_H / 2.5;
-
-/* ---------- textures: real photographs throughout ---------- */
+/* ---------- textures: procedural, in the photo's palette ---------- */
 const texLoader = new THREE.TextureLoader();
 function woodTex(url, rx, ry) {
   const t = texLoader.load(url);
@@ -70,58 +59,85 @@ function woodTex(url, rx, ry) {
   return t;
 }
 
-/* the room's copy of the hero: the yoga figure removed (Johnny,
-   2026-11-26); the served Health hero (assets/hero.webp) is untouched */
-const photoMats = [];
-let surroundMat = null;
+/* the room's copy of the hero photo (yoga figure removed, Johnny
+   2026-11-26; the served Health hero is untouched). In the modeled
+   room the photo is scenery and reference only: its mountain vista
+   becomes the backdrop beyond the terrace, its framed painting
+   hangs over the fireplace, and it lights the room's reflections. */
+let backdropMat = null;
+let paintingMat = null;
 const heroTex = texLoader.load('games-room/assets/hero-room.webp', () => {
   window.__roomStats.loadMs = Math.round(performance.now() - t0);
-  document.getElementById('gr-veil').classList.add('gone');
   window.__roomReady = true;
+  /* no title card, no veil (Johnny, 2026-11-26 19:57): the host
+     fades the finished room in over the page — this callback is
+     what tells it the first complete frame exists */
+  if (window.__roomHost && window.__roomHost.roomReady) window.__roomHost.roomReady();
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromEquirectangular(heroTex).texture;
-  /* a blurred copy of the same photo: the shader defocuses into it
-     where a surface is seen far closer than the photo was taken */
-  const img = heroTex.image;
-  const small = document.createElement('canvas'); small.width = 128; small.height = 51;
-  small.getContext('2d').drawImage(img, 0, 0, 128, 51);
-  const bc = document.createElement('canvas'); bc.width = 1024; bc.height = 410;
-  const bg = bc.getContext('2d'); bg.imageSmoothingEnabled = true;
-  bg.drawImage(small, 0, 0, 1024, 410);
-  const blurTex = new THREE.CanvasTexture(bc);
-  blurTex.colorSpace = THREE.SRGBColorSpace;
-  for (const m of photoMats) m.uniforms.mapBlur.value = blurTex;
-  /* the panorama surround: the photo's own edges stretched outward —
-     sky above, hazy valley below and to the sides — so sight lines
-     past the vista plane land on the photo continuing, not on void */
-  if (surroundMat) {
-    /* the cylinder is 120 tall (centre y 25, spanning -35..85) so
-       even the steepest porch pitch-up lands on it, never over its
-       rim. The photo band is drawn at the rows that map to world
-       y 0..18.5 on that cylinder (v 0.2917..0.4458); above it a
-       tall sky gradient, below it the hazy valley. */
-    const sc = document.createElement('canvas'); sc.width = 1024; sc.height = 1024;
+  const img = heroTex.image, W = img.width, H = img.height;
+  /* the backdrop: a 70 m cylinder around the house. The photo's
+     vista band (peaks to river, its right-hand half) is drawn at
+     the rows that put the peaks ~20° above the terrace eye line;
+     the photo's own sky stretches above it, hazy valley below. At
+     that distance it is scenery, and it never moves against the
+     room — the room is real geometry in front of it. */
+  if (backdropMat) {
+    /* 2048 wide for panorama sharpness. The vista crop is drawn
+       ONCE, centred (the cylinder's wrap seam sits behind the
+       house, out of view) — a mirrored second pass ghosted the
+       ridges into a smear. Soft haze fills the sides. */
+    const sc = document.createElement('canvas'); sc.width = 2048; sc.height = 1024;
     const g = sc.getContext('2d');
-    g.drawImage(img, 0, 0, img.width, img.height, 0, 567, 1024, 158);
-    g.save(); g.translate(1024, 0); g.scale(-1, 1);
-    g.drawImage(img, 0, 0, img.width, img.height, 0, 567, 1024, 158); g.restore();
-    const top = g.createLinearGradient(0, 0, 0, 567);
-    top.addColorStop(0, '#aebfd2'); top.addColorStop(1, '#cfd9e4');
-    g.fillStyle = top; g.fillRect(0, 0, 1024, 567);
-    const bot = g.createLinearGradient(0, 725, 0, 1024);
+    const skyGrad = g.createLinearGradient(0, 0, 0, 470);
+    skyGrad.addColorStop(0, '#9FB6CC'); skyGrad.addColorStop(1, '#D8E2EC');
+    g.fillStyle = skyGrad; g.fillRect(0, 0, 2048, 470);
+    const skyH = Math.max(8, Math.round(H * 0.10));
+    g.globalAlpha = 0.65;
+    g.drawImage(img, 0, 0, W, skyH, 0, 60, 2048, 380);
+    g.globalAlpha = 1;
+    /* vista band: source x 50%..100%, y 8%..63% (peaks → river) */
+    g.drawImage(img, W * 0.29, H * 0.08, W * 0.68, H * 0.55, 274, 400, 1500, 330);
+    /* feather the crop's top into the sky and its foot into the valley */
+    const fT = g.createLinearGradient(0, 392, 0, 485);
+    fT.addColorStop(0, 'rgba(216,226,236,0.9)'); fT.addColorStop(1, 'rgba(216,226,236,0)');
+    g.fillStyle = fT; g.fillRect(0, 392, 2048, 93);
+    const fB = g.createLinearGradient(0, 685, 0, 762);
+    fB.addColorStop(0, 'rgba(93,111,116,0)'); fB.addColorStop(1, 'rgba(93,111,116,0.92)');
+    g.fillStyle = fB; g.fillRect(0, 685, 2048, 77);
+    const side = g.createLinearGradient(0, 0, 2048, 0);
+    side.addColorStop(0, 'rgba(190,203,216,0.95)');
+    side.addColorStop(0.18, 'rgba(190,203,216,0.25)');
+    side.addColorStop(0.30, 'rgba(190,203,216,0)');
+    side.addColorStop(0.70, 'rgba(190,203,216,0)');
+    side.addColorStop(0.82, 'rgba(190,203,216,0.25)');
+    side.addColorStop(1, 'rgba(190,203,216,0.95)');
+    g.fillStyle = side; g.fillRect(0, 380, 2048, 380);
+    const haze = g.createLinearGradient(0, 430, 0, 780);
+    haze.addColorStop(0, 'rgba(216,226,236,0)');
+    haze.addColorStop(0.55, 'rgba(205,218,228,0.22)');
+    haze.addColorStop(1, 'rgba(190,205,220,0)');
+    g.fillStyle = haze; g.fillRect(0, 430, 2048, 350);
+    const bot = g.createLinearGradient(0, 715, 0, 1024);
     bot.addColorStop(0, '#5d6f74'); bot.addColorStop(1, '#2e3d42');
-    g.fillStyle = bot; g.fillRect(0, 725, 1024, 299);
-    g.fillStyle = 'rgba(190,205,220,0.20)'; g.fillRect(0, 690, 1024, 90);
+    g.fillStyle = bot; g.fillRect(0, 715, 2048, 309);
     const st = new THREE.CanvasTexture(sc);
     st.colorSpace = THREE.SRGBColorSpace;
     st.wrapS = THREE.RepeatWrapping;
-    surroundMat.map = st;
-    /* the material's base colour was a dark placeholder for the
-       pre-load frames; left in place it multiplies the finished
-       texture down to a dark glassy panel wherever the surround is
-       seen past the vista's edge */
-    surroundMat.color.set(0xffffff);
-    surroundMat.needsUpdate = true;
+    backdropMat.map = st;
+    backdropMat.color.set(0xffffff);
+    backdropMat.needsUpdate = true;
+  }
+  /* the painting over the fireplace is the photo's own framed
+     picture, lifted from the same image */
+  if (paintingMat) {
+    const pc = document.createElement('canvas'); pc.width = 256; pc.height = 176;
+    pc.getContext('2d').drawImage(img, W * 0.135, H * 0.135, W * 0.105, H * 0.145, 0, 0, 256, 176);
+    const pt = new THREE.CanvasTexture(pc);
+    pt.colorSpace = THREE.SRGBColorSpace;
+    paintingMat.map = pt;
+    paintingMat.color.set(0xffffff);
+    paintingMat.needsUpdate = true;
   }
 });
 heroTex.colorSpace = THREE.SRGBColorSpace;
@@ -191,73 +207,38 @@ const stoneFloorT = canvasTex((g, S) => {
   }
 }, 5, 2);
 
-/* Projective texture material: the fragment divides the interpolated
-   projector coordinates per-pixel, so the photograph stays glued to
-   the geometry exactly as a real projector would paint it. Where the
-   camera comes much closer than the projector was, the photo defocuses
-   into its own blurred copy; beyond the photo's edge the surface falls
-   into a dimmed continuation of the edge, never a streak or a void. */
-function makePhotoMat(magLo, magHi, magStrength, flatLo, flatHi, anisoLo, anisoHi, alphaFade, tint) {
-  const m = new THREE.ShaderMaterial({
-    transparent: !!alphaFade,
-    uniforms: { map: { value: heroTex }, mapBlur: { value: null } },
-    vertexShader: `
-      attribute vec3 projCoord;
-      varying vec3 vP;
-      void main() {
-        vP = projCoord;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader: `
-      uniform sampler2D map;
-      uniform sampler2D mapBlur;
-      varying vec3 vP;
-      void main() {
-        vec2 uv = vP.xy / vP.z;
-        vec2 uvc = clamp(uv, 0.002, 0.998);
-        vec4 c = texture2D(map, uvc);
-        float mag = length(dFdx(uv)) + length(dFdy(uv));
-        vec3 soft = texture2D(mapBlur, uvc).rgb;
-        c.rgb = mix(c.rgb, soft, smoothstep(${magLo}, ${magHi}, mag) * ${magStrength});
-        /* at extreme grazing the blurred copy still streaks — it is
-           a directional image stretched along one axis. Fade to the
-           coarsest mip of the same blur (a near-flat local average),
-           so a surface seen edge-on reads as dim material, never as
-           smeared bands. */
-        vec3 flatTone = texture2D(mapBlur, uvc, 9.0).rgb * ${tint || 'vec3(1.0)'};
-        c.rgb = mix(c.rgb, flatTone * 0.92, smoothstep(${flatLo}, ${flatHi}, mag) * 0.88);
-        /* anisotropic stretch — one axis sweeping far faster than
-           the other (a foreshortened counter edge, a floor at
-           grazing) — streaks even when the total rate is moderate:
-           fade it to the same flat tone */
-        float axa = length(dFdx(uv)), aya = length(dFdy(uv));
-        float aniso = max(axa, aya) / max(min(axa, aya), 1e-6);
-        c.rgb = mix(c.rgb, flatTone * 0.92, smoothstep(${anisoLo}, ${anisoHi}, aniso) * 0.85);
-        vec2 outd = max(max(-uv, uv - 1.0), 0.0);
-        float fade = clamp(max(outd.x, outd.y) * 5.0, 0.0, 1.0);
-        c.rgb = mix(c.rgb, flatTone * 0.55, fade);
-        gl_FragColor = c;
-        /* the photo's top sliver, seen on the far curved backdrop at
-           grazing angles, defocuses to a dirty grey average — fade
-           it out too, so the surround's clean sky gradient carries
-           the top of the world */
-        float topFade = smoothstep(0.90, 1.0, uv.y);
-        gl_FragColor.a = 1.0 - max(fade, topFade) * ${alphaFade || '0.0'} * 0.96;
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }`,
-    side: THREE.DoubleSide,
-  });
-  photoMats.push(m);
-  return m;
-}
-/* photoMat's flat tone is warmed: its beyond-frustum surfaces are
-   floors and counters, whose continuation should read as warm
-   stone in shadow — the photo's raw edge average is sky-blue and
-   read as a pale blue wash on the floor. photoMatSoft carries the
-   vista (sky and valley), so its tone stays neutral. */
-const photoMat = makePhotoMat('2.2', '9.0', '0.9', '4.5', '11.0', '4.0', '9.0', null, 'vec3(1.06, 0.94, 0.80)');
-const photoMatSoft = makePhotoMat('1.2', '5.0', '1.0', '3.5', '8.0', '4.0', '9.0', '1.0', null);
+/* ---- materials for the modeled room, in the photo's palette ---- */
+const marbleT = canvasTex((g, S) => {
+  g.fillStyle = '#CFC2A8'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 2400; i++) {
+    g.fillStyle = `rgba(${140 + rnd() * 70 | 0},${128 + rnd() * 55 | 0},${100 + rnd() * 45 | 0},${0.04 + rnd() * 0.06})`;
+    g.fillRect(rnd() * S, rnd() * S, 2.2, 2.2);
+  }
+  /* veins wander in every direction (long horizontal runs read as
+     wood planks at counter distance, not stone) */
+  for (let i = 0; i < 26; i++) {
+    g.strokeStyle = `rgba(105,96,80,${0.10 + rnd() * 0.16})`;
+    g.lineWidth = 0.7 + rnd() * 1.6;
+    let x = rnd() * S, y = rnd() * S;
+    const ang = rnd() * Math.PI * 2;
+    g.beginPath(); g.moveTo(x, y);
+    for (let s = 0; s < 4; s++) {
+      x += Math.cos(ang + (rnd() - 0.5) * 0.9) * S * 0.22;
+      y += Math.sin(ang + (rnd() - 0.5) * 0.9) * S * 0.22;
+      g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+}, 2, 1);
+const marbleMat = new THREE.MeshStandardMaterial({ map: marbleT, roughness: 0.5, envMapIntensity: 0.4 });
+const islandWood = new THREE.MeshStandardMaterial({ color: 0x3A2A1C, roughness: 0.85, envMapIntensity: 0.15 });
+const steelMat = new THREE.MeshStandardMaterial({ color: 0xA8ADB3, roughness: 0.45, metalness: 0.85, envMapIntensity: 0.35 });
+const glassMat = new THREE.MeshStandardMaterial({ color: 0xBFD4D8, transparent: true, opacity: 0.16, roughness: 0.08, metalness: 0.2, envMapIntensity: 0.8, side: THREE.DoubleSide });
+const fabricMat = new THREE.MeshStandardMaterial({ color: 0xDCD2BE, roughness: 1, envMapIntensity: 0.1 });
+const cushionMat = new THREE.MeshStandardMaterial({ color: 0xEAE3D3, roughness: 1, envMapIntensity: 0.1 });
+const stoneSmooth = new THREE.MeshStandardMaterial({ color: 0xC9B797, roughness: 0.75, envMapIntensity: 0.12 });
+const goldMat = new THREE.MeshStandardMaterial({ color: 0x8A6D3B, roughness: 0.4, metalness: 0.6, envMapIntensity: 0.4 });
+const ceramicMat = new THREE.MeshStandardMaterial({ color: 0xE8E2D4, roughness: 0.5, envMapIntensity: 0.3, side: THREE.DoubleSide });
 const pineMat = new THREE.MeshStandardMaterial({ map: woodTex('games-room/assets/wood-pine.jpg', 2, 1), color: 0xC4A888, roughness: 0.8, envMapIntensity: 0.35 });
 const weatheredMat = new THREE.MeshStandardMaterial({ map: woodTex('games-room/assets/wood-weathered.jpg', 2, 1), roughness: 0.9, envMapIntensity: 0.35 });
 const darkMetal = new THREE.MeshStandardMaterial({ color: 0x1c1e22, roughness: 0.45, metalness: 0.6, envMapIntensity: 0.4 });
@@ -265,175 +246,322 @@ const blackGlass = new THREE.MeshStandardMaterial({ color: 0x0a0c10, roughness: 
 const plainWood = new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 0.9, envMapIntensity: 0.15 });
 const plainStone = new THREE.MeshStandardMaterial({ color: 0x3b332a, roughness: 1, envMapIntensity: 0.1 });
 const timberMat = new THREE.MeshStandardMaterial({ map: timberT, roughness: 0.95, envMapIntensity: 0.08 });
-const ceilMat = new THREE.MeshStandardMaterial({ map: timberT, color: 0xD9C6AC, emissive: 0x201409, roughness: 1, envMapIntensity: 0.1 });
-const beamMat = new THREE.MeshStandardMaterial({ map: timberT, color: 0xB49B7E, emissive: 0x180D05, roughness: 1, envMapIntensity: 0.08 });
+const ceilMat = new THREE.MeshStandardMaterial({ map: timberT, color: 0xC7AB84, emissive: 0x140B04, roughness: 1, envMapIntensity: 0.1 });
+/* the beams carry their own grain scale: the shared timber texture
+   at repeat (3,3) stretched a single tile across a 34 m header, so
+   the beams read as flat brown slabs (Johnny's recording, pitch-up).
+   A cloned texture per beam samples one plank row (v 0.34..0.54)
+   along its length — real grain, at furniture scale. */
+function beamTexture(repX) {
+  const t = timberT.clone();
+  t.repeat.set(repX, 0.2); t.offset.set(0, 0.34);
+  t.needsUpdate = true;
+  return t;
+}
+const beamMat = new THREE.MeshStandardMaterial({ map: beamTexture(9), color: 0x9A7B58, emissive: 0x1A0F06, roughness: 1, envMapIntensity: 0.08 });
+const beamMatEdge = new THREE.MeshStandardMaterial({ map: beamTexture(5), color: 0x9A7B58, emissive: 0x1A0F06, roughness: 1, envMapIntensity: 0.08 });
 const stoneWallMat = new THREE.MeshStandardMaterial({ map: stoneWallT, roughness: 1, envMapIntensity: 0.08 });
 const parapetMat = new THREE.MeshStandardMaterial({ map: stoneWallT.clone(), roughness: 1, envMapIntensity: 0.08 });
-parapetMat.map.repeat.set(2.4, 0.415); parapetMat.map.needsUpdate = true;
-const stoneFloorMat = new THREE.MeshStandardMaterial({ map: stoneFloorT, roughness: 0.95, envMapIntensity: 0.1 });
-stoneFloorMat.map.repeat.set(6, 3);
-const woodFloorMat = new THREE.MeshStandardMaterial({ map: woodTex('games-room/assets/wood-pine.jpg', 3, 1), color: 0x7d6248, roughness: 0.85, envMapIntensity: 0.12 });
+parapetMat.map.repeat.set(10, 0.5); parapetMat.map.needsUpdate = true;
+const stoneFloorMat = new THREE.MeshStandardMaterial({ map: stoneFloorT, color: 0x9A8A72, roughness: 0.95, envMapIntensity: 0.1 });
+stoneFloorMat.map.repeat.set(8, 4);
+const stoneFloorMatB = stoneFloorMat.clone();
+stoneFloorMatB.map = stoneFloorT.clone();
+stoneFloorMatB.map.repeat.set(5, 8); stoneFloorMatB.map.needsUpdate = true;
+const woodFloorMat = new THREE.MeshStandardMaterial({ map: woodTex('games-room/assets/wood-pine.jpg', 5, 5), color: 0x8A7154, roughness: 0.85, envMapIntensity: 0.12 });
 
 function box(w, h, d, mat) { return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); }
 
-/* bake projector coordinates (x·w, y·w, w) into a mesh's geometry */
-function projUV(mesh) {
-  mesh.updateMatrixWorld(true);
-  const pos = mesh.geometry.attributes.position;
-  const pc = new Float32Array(pos.count * 3);
-  const p = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
-    const dx = p.x - PROJ_POS.x, dy = p.y - PROJ_POS.y, dz = Math.max(PROJ_POS.z - p.z, 0.001);
-    pc[i * 3] = dx / (2 * TAN_H) + dz / 2;
-    pc[i * 3 + 1] = dy / (2 * TAN_V) + dz / 2;
-    pc[i * 3 + 2] = dz;
-  }
-  mesh.geometry.setAttribute('projCoord', new THREE.BufferAttribute(pc, 3));
-  return mesh;
-}
-function photoMesh(geo, mat) {
-  const m = new THREE.Mesh(geo, mat || photoMat);
-  scene.add(m);
-  return projUV(m);
-}
-function quadMesh(a, b, c, d, mat) {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(
-    [...a, ...b, ...c, ...a, ...c, ...d]), 3));
-  g.computeVertexNormals();
-  const m = new THREE.Mesh(g, mat || photoMat);
-  scene.add(m);
-  return projUV(m);
-}
-
-/* ================= the room's geometry =================
-   Photo surfaces first (floor, back wall, vista, island, columns,
-   dining slab, armchairs — the photo's own structure), then the built
-   shell that carries the room past every edge of the photograph:
-   ceiling + beams, side walls, terrace parapet, floor build-outs,
-   and the panorama surround behind the vista. */
-/* the floor — widened well past the photo's floor wedge, so porch
-   viewpoints stand on photo floor or on the build-outs below */
+/* ================= the room's geometry (modeled) =================
+   Every surface below is a real mesh at its real place: wood floor
+   inside, stone terrace wrapping the back and right of the house,
+   the library wall (bookshelves, fireplace, the photo's painting),
+   glass doors to the porch, columns, parapets, ceiling and beams —
+   and 70 m out, the backdrop cylinder carrying the photo's vista.
+   Nothing in the walkable space is a projected image, so no view
+   of it can tear, stretch or smear. */
+/* floors: wood inside; stone on the terrace (back strip + the
+   right-side wrap, as the photo's terrace wraps the house) */
 {
-  const floor = photoMesh(new THREE.PlaneGeometry(36, 10.2));
-  floor.rotation.x = -Math.PI / 2; floor.position.set(3, 0, -5.9);
-  projUV(floor);
+  const wood = new THREE.Mesh(new THREE.PlaneGeometry(16, 14), woodFloorMat);
+  wood.rotation.x = -Math.PI / 2; wood.position.set(-2.5, 0, -4);
+  scene.add(wood);
+  const stoneA = new THREE.Mesh(new THREE.PlaneGeometry(18.5, 4.9), stoneFloorMat);
+  stoneA.rotation.x = -Math.PI / 2; stoneA.position.set(7.25, 0.005, -11.35);
+  scene.add(stoneA);
+  const stoneB = new THREE.Mesh(new THREE.PlaneGeometry(11, 10.4), stoneFloorMatB);
+  stoneB.rotation.x = -Math.PI / 2; stoneB.position.set(11, 0.004, -3.7);
+  scene.add(stoneB);
+  /* the hillside the house stands on: a soft ground disc running
+     out to the backdrop, so the terrace edge drops to land, never
+     to void */
+  const skirt = new THREE.Mesh(new THREE.CircleGeometry(78, 40),
+    new THREE.MeshStandardMaterial({ color: 0x5D6F74, roughness: 1 }));
+  skirt.rotation.x = -Math.PI / 2; skirt.position.set(2, -0.06, -6);
+  scene.add(skirt);
 }
-/* floor build-outs: a wood strip in front of the island (the strip
-   below the photo's frame, inside the house) and a stone slab across
-   the porch front (below/right of the photo's floor wedge) */
+/* the backdrop: the photo's mountains, 70 m out — scenery, not room */
 {
-  const strip = new THREE.Mesh(new THREE.PlaneGeometry(19, 2.7), woodFloorMat);
-  strip.rotation.x = -Math.PI / 2; strip.position.set(6.5, 0.004, -0.1);
-  scene.add(strip);
-  const slab = new THREE.Mesh(new THREE.PlaneGeometry(16.4, 7.4), stoneFloorMat);
-  slab.rotation.x = -Math.PI / 2; slab.position.set(9.5, 0.006, -5.1);
-  scene.add(slab);
-}
-/* the back wall: bookshelves, fireplace, stone, the folding glass
-   doors — widened to meet the left side wall with no gap */
-{
-  const wall = photoMesh(new THREE.PlaneGeometry(15, 7.4));
-  wall.position.set(-5.9, 3.7, -11);
-  projUV(wall);
-}
-/* the vista: mountains, river, sky — a curved projective backdrop
-   centred on the projector itself (r 45, a 200° arc), so the photo
-   keeps its true angular layout and the backdrop has no flat edge
-   for a porch sight line to find; past the photo's own frustum the
-   material fades transparent (photoMatSoft) and the surround's hazy
-   continuation takes over */
-{
-  const vista = photoMesh(
-    new THREE.CylinderGeometry(45, 45, 40, 64, 1, true, Math.PI - 1.75, 3.5), photoMatSoft);
-  vista.position.set(0, 8, 0);
-  projUV(vista);
-}
-/* the surround: a cylinder of the photo's own continuation behind
-   everything, so the widest porch sight lines land on hazy valley */
-{
-  surroundMat = new THREE.MeshBasicMaterial({ color: 0x39434a, side: THREE.BackSide });
-  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(70, 70, 120, 40, 1, true), surroundMat);
+  backdropMat = new THREE.MeshBasicMaterial({ color: 0x39434a, side: THREE.BackSide });
+  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(70, 70, 120, 40, 1, true), backdropMat);
   cyl.position.set(2, 25, -6);
   scene.add(cyl);
 }
-/* the kitchen island: a trapezoid prism traced from the photograph's
-   own island silhouette */
-{
-  const NL = [-1.34, 0.92, -1.42], NR = [1.25, 0.92, -1.42];
-  const FR = [3.95, 0.92, -4.45], FL = [-4.25, 0.92, -4.45];
-  const NLb = [-1.34, 0, -1.42], NRb = [1.25, 0, -1.42];
-  const FRb = [3.95, 0, -4.45], FLb = [-4.25, 0, -4.45];
-  quadMesh(FL, FR, NR, NL);                    // top: the counter
-  quadMesh(NL, NR, NRb, NLb);                  // front face
-  quadMesh(FL, NL, NLb, FLb);                  // left end panel (projected)
-  quadMesh(NR, FR, FRb, NRb);                  // right end panel (projected)
-  quadMesh(FR, FL, FLb, FRb, plainWood);       // back (against the doors)
+/* the library wall: stone, with the bookshelves, the fireplace and
+   the painting the photo shows — all modeled */
+const bookPalette = [0x7A4A2B, 0x39506B, 0x6D2F28, 0x51663A, 0x8A6D3B, 0x54423A, 0x2F4F4F, 0x9A7B4F, 0x703838, 0x445566];
+const bookXforms = [];
+function shelfUnit(cx) {
+  const g = new THREE.Group();
+  /* an OPEN frame — back, sides, top — never a solid carcass: the
+     books stand on the boards between the uprights, in the open */
+  const back = box(1.3, 3.6, 0.03, islandWood); back.position.set(cx, 1.8, -10.96); g.add(back);
+  for (const sx of [-0.625, 0.625]) {
+    const side = box(0.05, 3.6, 0.32, plainWood); side.position.set(cx + sx, 1.8, -10.82); g.add(side);
+  }
+  const topB = box(1.3, 0.05, 0.32, plainWood); topB.position.set(cx, 3.58, -10.82); g.add(topB);
+  const cab = box(1.2, 0.85, 0.03, islandWood); cab.position.set(cx, 0.55, -10.645); g.add(cab);
+  for (const sy of [1.12, 1.74, 2.36, 2.98]) {
+    const board = box(1.2, 0.04, 0.28, plainWood); board.position.set(cx, sy, -10.80); g.add(board);
+    let x = cx - 0.56;
+    while (x < cx + 0.48) {
+      if (rnd() < 0.12) { x += 0.05 + rnd() * 0.06; continue; }
+      const bw = 0.028 + rnd() * 0.026, bh = 0.23 + rnd() * 0.13;
+      bookXforms.push({ x: x + bw / 2, y: sy + 0.02 + bh / 2, z: -10.80, w: bw, h: bh, c: bookPalette[(rnd() * bookPalette.length) | 0] });
+      x += bw + 0.004;
+    }
+  }
+  scene.add(g);
 }
-/* the terrace columns — they end at the terrace roof-edge beam
-   (its top, y 5.86), never through it into open sky */
+{
+  for (const cx of [-9.5, -5.3, -1.3]) shelfUnit(cx);
+  const books = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 0.2),
+    new THREE.MeshStandardMaterial({ roughness: 0.85, envMapIntensity: 0.1 }), bookXforms.length);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
+  bookXforms.forEach((b, i) => {
+    m4.compose(new THREE.Vector3(b.x, b.y, b.z), q, new THREE.Vector3(b.w, b.h, 1));
+    books.setMatrixAt(i, m4);
+    books.setColorAt(i, col.setHex(b.c));
+  });
+  scene.add(books);
+  /* the wall itself */
+  const wall = box(12.6, 5.9, 0.3, stoneWallMat); wall.position.set(-4.1, 2.95, -11.15); scene.add(wall);
+  /* the fireplace: stone surround, black firebox, timber mantel,
+     a lit fire, and the painting above it */
+  for (const px of [-8.4, -6.8]) {
+    const pillar = box(0.4, 1.6, 0.3, stoneWallMat); pillar.position.set(px, 0.8, -10.85); scene.add(pillar);
+  }
+  const lintel = box(2.0, 0.45, 0.3, stoneWallMat); lintel.position.set(-7.6, 1.375, -10.85); scene.add(lintel);
+  const breast = box(2.0, 4.3, 0.25, stoneWallMat); breast.position.set(-7.6, 3.75, -10.87); scene.add(breast);
+  const fbox = box(1.2, 1.15, 0.1, new THREE.MeshStandardMaterial({ color: 0x0A0806, roughness: 1 }));
+  fbox.position.set(-7.6, 0.58, -10.95); scene.add(fbox);
+  const mantel = box(2.3, 0.09, 0.45, beamMat); mantel.position.set(-7.6, 1.66, -10.8); scene.add(mantel);
+  const hearth = box(2.2, 0.05, 0.7, plainStone); hearth.position.set(-7.6, 0.025, -10.5); scene.add(hearth);
+  const fireC = document.createElement('canvas'); fireC.width = 128; fireC.height = 96;
+  const fg = fireC.getContext('2d');
+  const fgr = fg.createRadialGradient(64, 78, 4, 64, 70, 62);
+  fgr.addColorStop(0, 'rgba(255,236,170,1)'); fgr.addColorStop(0.35, 'rgba(255,160,60,0.9)');
+  fgr.addColorStop(0.7, 'rgba(200,70,20,0.55)'); fgr.addColorStop(1, 'rgba(60,10,0,0)');
+  fg.fillStyle = fgr; fg.fillRect(0, 0, 128, 96);
+  const fireTex = new THREE.CanvasTexture(fireC);
+  const fire = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 0.62),
+    new THREE.MeshBasicMaterial({ map: fireTex, transparent: true, toneMapped: false }));
+  fire.position.set(-7.6, 0.42, -10.88); scene.add(fire);
+  const log1 = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.7, 8), islandWood);
+  log1.rotation.z = Math.PI / 2; log1.rotation.y = 0.4; log1.position.set(-7.6, 0.1, -10.85); scene.add(log1);
+  const frame = box(1.15, 0.82, 0.05, goldMat); frame.position.set(-7.6, 2.62, -10.72); scene.add(frame);
+  paintingMat = new THREE.MeshStandardMaterial({ color: 0x6B7A86, roughness: 0.6 });
+  const painting = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.68), paintingMat);
+  painting.position.set(-7.6, 2.62, -10.69); scene.add(painting);
+}
+/* the folding glass doors to the porch, at the wall's right end */
+{
+  const dg = new THREE.Group();
+  for (const px of [2.8, 4.0]) {
+    const leaf = new THREE.Group();
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.06, 3.14), glassMat);
+    glass.position.set(px, 1.67, -11); leaf.add(glass);
+    const rail = (w, h, x, y) => { const r = box(w, h, 0.07, darkMetal); r.position.set(x, y, -11); leaf.add(r); };
+    rail(1.14, 0.08, px, 3.28); rail(1.14, 0.08, px, 0.06);
+    rail(0.08, 3.3, px - 0.53, 1.67); rail(0.08, 3.3, px + 0.53, 1.67);
+    dg.add(leaf);
+  }
+  const tGlass = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.9), glassMat);
+  tGlass.position.set(3.4, 4.32, -11); dg.add(tGlass);
+  const tRail = box(2.38, 0.08, 0.07, darkMetal); tRail.position.set(3.4, 5.3, -11); dg.add(tRail);
+  const mRail = box(2.38, 0.08, 0.07, darkMetal); mRail.position.set(3.4, 3.32, -11); dg.add(mRail);
+  scene.add(dg);
+}
+/* the kitchen island: a real counter — dark cabinet base with
+   panelled front, a marble top at y 0.92 (the height every station
+   pose was built against), and the photo's own foreground props
+   modeled on it: cooktop, pot, kettle, skillet, fruit bowls, the
+   black faucet and the sink. The iPad's spot (0.9, -2.3) stays
+   clear between them. */
+{
+  const isl = new THREE.Group();
+  const base = box(5.0, 0.86, 2.18, islandWood); base.position.set(0.9, 0.43, -2.51); isl.add(base);
+  for (const px of [-0.95, 0.3, 1.55, 2.8]) {
+    const panel = box(1.05, 0.62, 0.03, plainWood); panel.position.set(px, 0.45, -1.405); isl.add(panel);
+  }
+  const top = box(5.3, 0.06, 2.48, marbleMat); top.position.set(0.9, 0.89, -2.51); isl.add(top);
+  /* cooktop with pot and kettle */
+  const hob = box(0.95, 0.015, 0.6, blackGlass); hob.position.set(-0.35, 0.927, -2.5); isl.add(hob);
+  for (const [bx, bz, br] of [[-0.58, -2.65, 0.10], [-0.12, -2.65, 0.075], [-0.58, -2.35, 0.075], [-0.12, -2.35, 0.09]]) {
+    const burn = new THREE.Mesh(new THREE.CylinderGeometry(br, br, 0.008, 20), darkMetal);
+    burn.position.set(bx, 0.936, bz); isl.add(burn);
+  }
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.14, 0.17, 22), steelMat);
+  pot.position.set(-0.58, 1.005, -2.65); isl.add(pot);
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 22), steelMat);
+  lid.position.set(-0.58, 1.10, -2.65); isl.add(lid);
+  const knobS = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 8), darkMetal);
+  knobS.position.set(-0.58, 1.125, -2.65); isl.add(knobS);
+  const kettle = new THREE.Group(); kettle.position.set(0.28, 0.92, -2.5);
+  const kBody = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.115, 0.2, 20), steelMat);
+  kBody.position.y = 0.10; kettle.add(kBody);
+  const kHandle = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.011, 8, 18, Math.PI), darkMetal);
+  kHandle.position.y = 0.21; kettle.add(kHandle);
+  const kSpout = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.024, 0.11, 10), steelMat);
+  kSpout.position.set(-0.11, 0.13, 0); kSpout.rotation.z = 0.7; kettle.add(kSpout);
+  isl.add(kettle);
+  /* skillet with vegetables, front-left as in the photo */
+  const skill = new THREE.Group(); skill.position.set(-1.05, 0.92, -1.85);
+  const pan = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.04, 22), darkMetal);
+  pan.position.y = 0.02; skill.add(pan);
+  const handle = box(0.24, 0.018, 0.04, darkMetal); handle.position.set(-0.26, 0.03, 0); skill.add(handle);
+  const vegCols = [0xE8912D, 0x7A9A3D, 0xB03A2E, 0xE8C93B, 0x51663A];
+  for (let i = 0; i < 6; i++) {
+    const v = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 8),
+      new THREE.MeshStandardMaterial({ color: vegCols[i % 5], roughness: 0.6 }));
+    v.position.set((rnd() - 0.5) * 0.18, 0.05, (rnd() - 0.5) * 0.18); skill.add(v);
+  }
+  isl.add(skill);
+  /* fruit bowl + egg bowl */
+  const bowlAt = (bx, bz, r, fruits) => {
+    const bowl = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), ceramicMat);
+    bowl.position.set(bx, 0.92 + r * 0.55, bz); isl.add(bowl);
+    fruits.forEach(([fx, fz, fc, fr], i) => {
+      const f = new THREE.Mesh(new THREE.SphereGeometry(fr, 10, 10),
+        new THREE.MeshStandardMaterial({ color: fc, roughness: 0.55 }));
+      f.position.set(bx + fx, 0.92 + r * 0.62 + (i === 0 ? fr * 0.7 : 0), bz + fz); isl.add(f);
+    });
+  };
+  bowlAt(1.95, -2.8, 0.17, [[-0.07, 0.02, 0xE8912D, 0.052], [0.06, -0.04, 0xB03A2E, 0.05], [0.0, 0.07, 0xE8C93B, 0.048], [0.08, 0.05, 0x7A9A3D, 0.047], [0, 0, 0xE8912D, 0.052]]);
+  bowlAt(1.5, -1.9, 0.11, [[-0.04, 0.02, 0xD9A066, 0.033], [0.045, -0.02, 0xEFE6D4, 0.033], [0.0, 0.05, 0xD9A066, 0.033], [0.01, -0.05, 0xEFE6D4, 0.033]]);
+  /* bread board */
+  const board = box(0.55, 0.025, 0.35, weatheredMat); board.position.set(2.9, 0.933, -2.0); isl.add(board);
+  const bread = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 10),
+    new THREE.MeshStandardMaterial({ color: 0xC89B62, roughness: 0.8 }));
+  bread.scale.set(1.25, 0.62, 0.85); bread.position.set(2.85, 0.985, -2.0); isl.add(bread);
+  /* the black gooseneck faucet + sink, the photo's right foreground */
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.028, 0.32, 12), darkMetal);
+  stem.position.set(2.35, 1.08, -3.4); isl.add(stem);
+  const spoutArm = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.34, 10), darkMetal);
+  spoutArm.rotation.x = Math.PI / 2; spoutArm.position.set(2.35, 1.235, -3.24); isl.add(spoutArm);
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.07, 10), darkMetal);
+  nozzle.position.set(2.35, 1.20, -3.08); isl.add(nozzle);
+  const sink = box(0.85, 0.02, 0.52, blackGlass); sink.position.set(2.35, 0.912, -2.62); isl.add(sink);
+  scene.add(isl);
+  /* two stools tucked at the counter's near side */
+  for (const sx of [0.2, 1.7]) {
+    const stool = new THREE.Group(); stool.position.set(sx, 0, -0.82);
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.05, 18), plainWood);
+    seat.position.y = 0.63; stool.add(seat);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.6, 10), darkMetal);
+    leg.position.y = 0.31; stool.add(leg);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.15, 0.025, 16), darkMetal);
+    foot.position.y = 0.013; stool.add(foot);
+    stool.add(blobShadow(0.55, 0.55, 0.4));
+    scene.add(stool);
+  }
+}
+/* the terrace columns: smooth stone, base and capital, meeting the
+   roof-edge beam (its underside, y 5.24) — never through it */
 for (const [cx, r] of [[1.72, 0.34], [10.7, 0.42]]) {
-  const col = photoMesh(new THREE.CylinderGeometry(r, r * 1.06, 5.86, 24, 1));
-  col.position.set(cx, 2.93, -10.6);
-  projUV(col);
+  const col = new THREE.Group();
+  const baseB = box(r * 2 + 0.16, 0.3, r * 2 + 0.16, stoneSmooth); baseB.position.y = 0.15; col.add(baseB);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.05, 4.95, 22), stoneSmooth);
+  shaft.position.y = 2.77; col.add(shaft);
+  const capB = box(r * 2 + 0.2, 0.32, r * 2 + 0.2, stoneSmooth); capB.position.y = 5.3; col.add(capB);
+  col.position.set(cx, 0, -10.6);
+  scene.add(col);
 }
-/* the dining set on the terrace: a slab with the photograph's table
-   and chairs on it (plain dressing in v3) */
+/* the dining set out on the terrace, left of the pad (dressing) */
 {
-  const mats = [photoMat, photoMat, photoMatSoft, plainStone, photoMat, plainStone];
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.74, 1.4), mats);
-  slab.position.set(1.5, 0.37, -7.6);
-  scene.add(slab); projUV(slab);
+  const dt = new THREE.Group(); dt.position.set(0.2, 0, -12.1); dt.rotation.y = 0.06;
+  const dtop = box(2.2, 0.06, 1.1, weatheredMat); dtop.position.y = 0.74; dt.add(dtop);
+  for (const [lx, lz] of [[-1.0, -0.45], [1.0, -0.45], [-1.0, 0.45], [1.0, 0.45]]) {
+    const leg = box(0.07, 0.74, 0.07, weatheredMat); leg.position.set(lx, 0.37, lz); dt.add(leg);
+  }
+  const chairAt = (x, z, ry) => {
+    const ch = new THREE.Group(); ch.position.set(x, 0, z); ch.rotation.y = ry;
+    const seat = box(0.45, 0.05, 0.45, plainWood); seat.position.y = 0.46; ch.add(seat);
+    const back = box(0.45, 0.55, 0.05, plainWood); back.position.set(0, 0.76, -0.2); ch.add(back);
+    for (const [lx, lz] of [[-0.19, -0.19], [0.19, -0.19], [-0.19, 0.19], [0.19, 0.19]]) {
+      const leg = box(0.04, 0.46, 0.04, plainWood); leg.position.set(lx, 0.23, lz); ch.add(leg);
+    }
+    dt.add(ch);
+  };
+  chairAt(-0.6, -0.85, Math.PI); chairAt(0.6, -0.85, Math.PI);
+  chairAt(-0.6, 0.85, 0); chairAt(0.6, 0.85, 0);
+  dt.add(blobShadow(2.6, 1.6, 0.35));
+  scene.add(dt);
 }
-/* the two armchairs against the library wall */
-for (const cx of [-2.78, -1.73]) {
-  const mats = [photoMat, photoMat, photoMat, plainWood, photoMat, plainWood];
-  const chair = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.95), mats);
-  chair.position.set(cx, 0.475, -8.83);
-  scene.add(chair); projUV(chair);
+/* the two cream armchairs in front of the library wall — modeled:
+   base, arms, tilted back, loose cushions, in the photo's ivory */
+function makeArmchair(cx, ry) {
+  const g = new THREE.Group(); g.position.set(cx, 0, -8.83); g.rotation.y = ry;
+  const base = box(0.98, 0.32, 0.92, fabricMat); base.position.y = 0.26; g.add(base);
+  for (const ax of [-0.39, 0.39]) {
+    const arm = box(0.2, 0.3, 0.88, fabricMat); arm.position.set(ax, 0.57, 0); g.add(arm);
+  }
+  const back = box(0.98, 0.74, 0.2, fabricMat); back.position.set(0, 0.79, -0.37); back.rotation.x = -0.08; g.add(back);
+  const seatC = box(0.58, 0.15, 0.62, cushionMat); seatC.position.set(0, 0.5, 0.06); g.add(seatC);
+  const backC = box(0.58, 0.48, 0.13, cushionMat); backC.position.set(0, 0.83, -0.25); backC.rotation.x = -0.08; g.add(backC);
+  for (const [lx, lz] of [[-0.42, -0.38], [0.42, -0.38], [-0.42, 0.38], [0.42, 0.38]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.1, 8), plainWood);
+    leg.position.set(lx, 0.05, lz); g.add(leg);
+  }
+  g.add(blobShadow(1.35, 1.25, 0.42));
+  scene.add(g);
 }
-/* the built shell: timber ceiling + full-width beams, stone side
-   walls, and the terrace parapet — real lit geometry in the photo's
-   materials, extending past every reachable frame edge */
+makeArmchair(-2.78, 0.15);
+makeArmchair(-1.73, -0.10);
+/* the shell: timber ceiling + beams over the interior, the stone
+   left wall, and the terrace parapets. The porch itself is open-air
+   (no roof over it, as in the photo) — the roof-edge beam the
+   columns meet is its front line, and beyond it the backdrop sky. */
 {
-  /* the ceiling covers the INTERIOR only, ending at the glass line
-     (z -3.6): the terrace beyond the doors is open-air in the photo,
-     and a ceiling slab stretched over it drew a dead-straight dark
-     edge across the sky in every entry view. Two beams remain: the
-     header over the glass doors (z -3.5) and the terrace roof-edge
-     beam the columns meet (z -10.6); between and beyond them the
-     porch is open to the surround's sky. */
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(38, 10.6), ceilMat);
-  ceil.rotation.x = Math.PI / 2; ceil.position.set(2, 5.9, 1.7);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(15.9, 14), ceilMat);
+  ceil.rotation.x = Math.PI / 2; ceil.position.set(-2.45, 5.9, -4);
   scene.add(ceil);
-  const header = box(34, 0.62, 0.5, beamMat);
-  header.position.set(2, 5.55, -3.5); scene.add(header);
-  /* the roof-edge beam spans the columns and a little past them —
-     at full width its ends hung in open sky and read as a floating
-     plank from the porch */
-  const edge = box(14, 0.62, 0.5, beamMat);
+  for (const bz of [-3.5, -7.5]) {
+    const beam = box(15.9, 0.62, 0.5, beamMat);
+    beam.position.set(-2.45, 5.55, bz); scene.add(beam);
+  }
+  const edge = box(14, 0.62, 0.5, beamMatEdge);
   edge.position.set(6, 5.55, -10.6); scene.add(edge);
-  const wl = new THREE.Mesh(new THREE.PlaneGeometry(17, 7.6), stoneWallMat);
-  wl.position.set(-10.4, 3.8, -5); wl.rotation.y = Math.PI / 2; scene.add(wl);
-  /* no right wall: a flat block wall at x 16.8 made the parapet's
-     cap read as a floating plank against it and left a pale gap at
-     its base. The terrace's right side is the parapet against the
-     open valley, as in the photo; the surround cylinder covers the
-     widest yaw. */
-  const par = box(0.35, 1.05, 8.4, parapetMat);
-  par.position.set(13.8, 0.525, -7.6); scene.add(par);
-  const cap = box(0.5, 0.09, 8.6, plainStone);
-  cap.position.set(13.8, 1.09, -7.6); scene.add(cap);
+  const wl = new THREE.Mesh(new THREE.PlaneGeometry(14, 5.9), stoneWallMat);
+  wl.position.set(-10.4, 2.95, -4); wl.rotation.y = Math.PI / 2; scene.add(wl);
+  /* the terrace parapets: along the outer lip (the vehicles park
+     just inside it, poised at the edge) and the right return */
+  const par = box(18.2, 1.05, 0.35, parapetMat);
+  par.position.set(7.1, 0.525, -13.8); scene.add(par);
+  const cap = box(18.4, 0.09, 0.5, plainStone);
+  cap.position.set(7.1, 1.09, -13.8); scene.add(cap);
+  const parR = box(0.35, 1.05, 4.3, parapetMat);
+  parR.position.set(15.9, 0.525, -11.65); scene.add(parR);
+  const capR = box(0.5, 0.09, 4.5, plainStone);
+  capR.position.set(15.9, 1.09, -11.65); scene.add(capR);
 }
 
 scene.add(new THREE.HemisphereLight(0xfff4e0, 0x4a3b28, 0.95));
 const sun = new THREE.DirectionalLight(0xffeecf, 1.2);
 sun.position.set(5, 6.5, 3.5);
 scene.add(sun);
-/* warm downlights for the BUILT shell only — the photo surfaces use
-   the projector shader and never see scene lights, so these model the
-   ceiling, beams, walls and furniture without touching the photo */
+/* warm downlights over the living area and the porch, matching the
+   photo's late-afternoon warmth */
 for (const [lx, lz] of [[-2, -6], [5, -7]]) {
   const down = new THREE.PointLight(0xffdfae, 10, 20, 2);
   down.position.set(lx, 4.8, lz);
@@ -592,7 +720,7 @@ const parkedName = () => `Universe — ${parkedCraft === 'disc' ? 'the Disc' : '
 /* the desk, against the library wall: monitor (dark, plain dressing),
    keyboard, mug. No station in v3. */
 {
-  const desk = new THREE.Group(); desk.position.set(-6.3, 0, -7.7);
+  const desk = new THREE.Group(); desk.position.set(0.9, 0, -10.45);
   const top = box(1.7, 0.05, 0.8, pineMat); top.position.y = 0.74; desk.add(top);
   for (const [lx, lz] of [[-0.78, -0.33], [0.78, -0.33], [-0.78, 0.33], [0.78, 0.33]]) {
     const leg = box(0.06, 0.74, 0.06, pineMat); leg.position.set(lx, 0.37, lz); desk.add(leg);
@@ -645,7 +773,10 @@ let ipadK = 0;
   ipadRig.group = ipad;
   ipadRig.rest = { p: ipad.position.clone(), e: ipad.rotation.clone() };
   ipadRig.lifted = { p: new THREE.Vector3(0.9, 1.07, -2.02), e: new THREE.Euler(-0.55, -0.35, 0) };
-  const sh = blobShadow(1.1, 0.85, 0.5); sh.position.set(0.9, 0.923, -2.3); scene.add(sh);
+  /* a tighter, stronger contact shadow: at glancing angles the
+     iPad read as a black plate floating over the counter — the
+     shadow is what seats it */
+  const sh = blobShadow(1.0, 0.78, 0.66); sh.position.set(0.9, 0.923, -2.3); scene.add(sh);
   registerStation({
     id: 'linerider', name: 'Line Rider',
     focus: new THREE.Vector3(0.9, 0.96, -2.3),
@@ -693,11 +824,15 @@ let tabletK = 0;
   const side = new THREE.Group(); side.position.set(-0.85, 0, -8.55);
   const top = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.03, 24), pineMat);
   top.position.y = 0.55; side.add(top);
-  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.55, 12), pineMat);
-  leg.position.y = 0.275; side.add(leg);
-  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.03, 20), pineMat);
-  foot.position.y = 0.015; side.add(foot);
-  side.add(blobShadow(0.8, 0.8, 0.35));
+  /* a pedestal with body: the first build's 3 cm leg vanished
+     against the room at reading distance, and the table + tablet
+     read as floating mid-room (Johnny's recording). Darker timber,
+     a trumpet base, and a real contact shadow keep it standing. */
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.075, 0.50, 14), plainWood);
+  leg.position.y = 0.28; side.add(leg);
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.21, 0.06, 20), plainWood);
+  foot.position.y = 0.03; side.add(foot);
+  side.add(blobShadow(0.95, 0.95, 0.52));
   scene.add(side);
   const grp = new THREE.Group(); grp.position.set(-0.85, 0.613, -8.55); grp.rotation.set(0.22, 0.30, 0);
   const body = box(0.52, 0.018, 0.36, darkMetal); grp.add(body);
@@ -847,26 +982,42 @@ const view = {
   fromPos: null, fromFocus: null, toPos: null, toFocus: null, t: 0, dur: 0,
   onDone: null, station: null, atSeat: true,
 };
-/* the entry look, v2's model: a normalized look (-1..1 each way) that
-   slides the seat laterally (±1.1 m) and yaws/pitches it inside the
-   designed envelope. Glides never touch it, so a return restores the
-   exact pre-approach look — Δ=0 by construction. */
+/* the entry look: a normalized look (-1..1 each way) that yaws and
+   pitches the camera in place at the entry point — you turn your
+   head; the glides do the walking. Glides never touch it, so a
+   return restores the exact pre-approach look — Δ=0 by construction. */
 let lookX = 0, lookPitch = 0;
+/* The standing look (rebuilt room, 2026-11-26 20:13): you stand at
+   the entry point and TURN — the room is real geometry, so a turn
+   is honest from here exactly as it is from anywhere; travelling
+   is what the station glides are for. The old model's seat slide
+   died with the projection build (it existed to fake parallax in a
+   photograph; real geometry has its own). The bounds keep the view
+   inside the built room — behind the standing point the house
+   isn't modeled — and every station still reaches the centre of
+   the frame inside them. A soft knee (softLook) decelerates the
+   view into the bounds, so the limit feels like the room ending,
+   never a clunk. */
 const LIM = () => (innerWidth / innerHeight < 0.8
-  ? { yaw: 0.55, pitchUp: 0.42, pitchDown: 0.34, slide: 1.1 }
-  : { yaw: 0.13, pitchUp: 0.06, pitchDown: 0.05, slide: 1.1 });
+  ? { yaw: 0.72, pitchUp: 0.24, pitchDown: 0.24, slide: 0 }
+  : { yaw: 0.16, pitchUp: 0.08, pitchDown: 0.06, slide: 0 });
+/* soft knee: full sensitivity through the middle of the drag, easing
+   off toward the ends. A pure function of the stored look, so a
+   return still restores the exact pre-approach look — Δ=0. */
+const softLook = v => v * (1 - 0.22 * v * v);
 function clampLook() {
   lookX = THREE.MathUtils.clamp(lookX, -1, 1);
   lookPitch = THREE.MathUtils.clamp(lookPitch, -1, 1);
 }
-function seatPos() { return HOME.pos.clone().add(new THREE.Vector3(lookX * LIM().slide, 0, 0)); }
-function seatFocus() { return HOME.focus.clone().add(new THREE.Vector3(lookX * LIM().slide, 0, 0)); }
+function seatPos() { return HOME.pos.clone().add(new THREE.Vector3(softLook(lookX) * LIM().slide, 0, 0)); }
+function seatFocus() { return HOME.focus.clone().add(new THREE.Vector3(softLook(lookX) * LIM().slide, 0, 0)); }
 function applyLook() {
   if (view.state !== 'room' || !view.atSeat) return;
   view.pos.copy(seatPos()); view.focus.copy(seatFocus());
   const L = LIM();
-  const yaw = lookX * L.yaw;
-  const pitch = lookPitch >= 0 ? lookPitch * L.pitchUp : lookPitch * L.pitchDown;
+  const yaw = softLook(lookX) * L.yaw;
+  const sp = softLook(lookPitch);
+  const pitch = sp >= 0 ? sp * L.pitchUp : sp * L.pitchDown;
   const dir = view.focus.clone().sub(view.pos).normalize();
   dir.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw));
   const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
@@ -1152,7 +1303,12 @@ canvas.addEventListener('pointerup', e => {
    (window.__roomHost, a classic script in games.html) shows/hides
    the overlay and opens the real games; these are its only ways
    in and out. */
-let hostActive = true;
+/* the module preloads with the page (auto-open), but it does not
+   render until the host shows the room: a visitor who cancels the
+   auto-open and stays on the games page costs no GPU. showRoom
+   activates the room before its fade lands, and the hero texture
+   is already loaded by then, so the first frame shown is complete */
+let hostActive = false;
 function hostReset() {
   flight = null; overlayAnim = null; swapAnim = null;
   setOverlay(0);
@@ -1237,6 +1393,16 @@ window.__room = {
   resumeAtStation: id => resumeAtStation(id),
   swap: () => swapCraft(),
   look: (x, p) => { lookX = x; lookPitch = p; clampLook(); },
+  /* rotate the current view in place (gate hook: look sweeps at
+     station poses, where the seat look does not apply) */
+  spin: (dyaw, dpitch) => {
+    const dir = view.focus.clone().sub(view.pos);
+    const sph = new THREE.Spherical().setFromVector3(dir);
+    sph.theta -= dyaw;
+    sph.phi = THREE.MathUtils.clamp(sph.phi - dpitch, 0.15, Math.PI - 0.15);
+    view.focus.copy(view.pos).add(new THREE.Vector3().setFromSpherical(sph));
+    camera.position.copy(view.pos); camera.lookAt(view.focus);
+  },
   project: id => {
     const st = stationById(id); if (!st) return null;
     const camDir = new THREE.Vector3();
