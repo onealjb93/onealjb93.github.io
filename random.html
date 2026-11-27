@@ -121,7 +121,7 @@
     <div class="gen-block" id="gen-block">
     <header class="page-header">
         <h1>Johnny's View</h1>
-        <p class="subtitle">A new animal, painting, place, or idea on every press.</p>
+        <p class="subtitle">A new animal, painting, place, or idea on every swipe.</p>
     </header>
 
     <style>
@@ -602,25 +602,35 @@
             border-radius: 0;
         }
         .gen-split .gen-btn:active { transform: none; }
+        /* THE CATEGORIES BUTTON (2026-11-27): the split control
+           and its draw button are gone — swiping deals. What
+           remains is this one small pill in the control row: it
+           carries the current selection's name, so it says where
+           you are, and it opens the category menu, so it is also
+           how you move. It keeps the split control's face (the
+           accent fill, white text) at a compact size. */
         .gen-pick {
             flex: none;
-            width: 48px;
-            min-height: 52px;
-            padding: 0;
-            display: flex;
+            min-height: 44px;
+            padding: 0.5rem 0.85rem;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: transparent;
+            gap: 0.45rem;
+            background: var(--link-color);
             color: #fff;
             border: none;
-            border-right: 1px solid rgba(255, 255, 255, 0.35);
-            border-radius: 10px 0 0 10px;
-            font-size: 1.08rem;
-            line-height: 1;
+            border-radius: 10px;
+            font-size: 0.98rem;
+            font-weight: 600;
+            line-height: 1.2;
+            white-space: nowrap;
             cursor: pointer;
         }
-        .gen-pick:hover { background: rgba(255, 255, 255, 0.12); }
-        .gen-pick:focus-visible, .gen-split .gen-btn:focus-visible { outline: 2px solid var(--text-color); outline-offset: 2px; }
+        .gen-pick:hover { opacity: 0.92; }
+        .gen-pick:active { transform: scale(0.98); }
+        .gen-pick:focus-visible { outline: 2px solid var(--text-color); outline-offset: 2px; }
+        .gen-pick-caret { font-size: 0.68em; opacity: 0.85; line-height: 1; }
         .gen-cat-scrim { position: fixed; inset: 0; z-index: 2599; background: transparent; }
         .gen-cat-scrim[hidden] { display: none; }
         /* The menu wears the site's glass popup standard exactly
@@ -707,12 +717,14 @@
         .gen-nav-btn:hover:not(:disabled) { opacity: 0.85; }
         .gen-nav-btn:active:not(:disabled) { transform: scale(0.96); }
         .gen-nav-btn:disabled { opacity: 0.35; cursor: default; }
-        /* Control row (2026-11-20): the split control takes the
-           row's left end and the back and forward buttons sit
-           together as a pair at the right end, the entry name
-           between them — one arrangement on every screen, set by
-           explicit order so the DOM order never decides it. */
-        .gen-topbar .gen-split { order: 1; }
+        /* Control row (2026-11-20; 2026-11-27: the Categories
+           button takes the split control's place): the Categories
+           button takes the row's left end and the back and
+           forward buttons sit together as a pair at the right
+           end, the entry name between them — one arrangement on
+           every screen, set by explicit order so the DOM order
+           never decides it. */
+        .gen-topbar .gen-pick { order: 1; }
         .gen-topbar-text { order: 2; }
         .gen-topbar .gen-nav-btn { order: 3; }
         .gen-empty { color: var(--subtext-color); font-size: 0.95rem; margin: 0; }
@@ -769,14 +781,14 @@
         }
         @media (max-width: 600px) {
             .gen-body { padding: 0.55rem 0.7rem 0.6rem; }
-            /* Title priority: the topbar wraps — Generate keeps row
-               one, the name/sub take a full-width second row, so the
-               entry name wraps at the full card width (2 lines hold the
-               longest name in the pools, 55 chars) and is never
-               ellipsized. The extra row comes out of the stage's flex,
-               not out of any text. */
+            /* Title priority: the topbar wraps — the Categories
+               button keeps row one, the name/sub take a full-width
+               second row, so the entry name wraps at the full card
+               width (2 lines hold the longest name in the pools,
+               55 chars) and is never ellipsized. The extra row
+               comes out of the stage's flex, not out of any text. */
             .gen-topbar { gap: 0.5rem; row-gap: 0.3rem; padding: 0.25rem 0; flex-wrap: wrap; }
-            .gen-topbar .gen-split { order: 1; }
+            .gen-topbar .gen-pick { order: 1; }
             .gen-topbar .gen-nav-btn { order: 2; }
             .gen-topbar-text { order: 3; flex: 1 1 100%; }
             .gen-topbar .gen-name { font-size: 1rem; }
@@ -834,32 +846,18 @@
            now lives in the row below the photo (2026-11-23). */
         .gen-fs-credit { position: absolute; left: 0.55rem; right: calc(0.55rem + 36px + 0.5rem + 36px + 0.5rem + 36px + 16px); bottom: 0; margin: 0; padding: 1.6rem 1rem 0.7rem; font-size: 0.78rem; line-height: 1.35; text-align: left; color: rgba(255, 255, 255, 0.8); background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent); border-radius: 0 0 0 20px; }
         .gen-fs-credit a { color: rgba(255, 255, 255, 0.9); }
-        /* Draw button inside the photo fullscreen (2026-11-20): the
-           stage's draw, carried into the viewer — ONE glass pill,
-           bottom-centre, floating above the credit strip in the
-           viewer's own glass chrome (the .gen-love chips' material:
-           card background, blur, hairline border, soft shadow),
-           wearing the draw segment's type (1.08rem, weight 700) at
-           the segment's full 52px height. Its label is the draw
-           segment's own label for the current selection, kept in
-           step by the script below; it never covers the chips at
-           the bottom-right or the credit line under it. */
-        /* CONTROL ROW INSIDE THE VIEWER (2026-11-20, later): the
-           pill now sits at the centre of one integrated row that
-           mirrors the stage's control row — the category dropdown
-           at the far left, the draw in the middle, the back and
+        /* CONTROL ROW INSIDE THE VIEWER (2026-11-20; the draw
+           button retired 2026-11-27 — swiping deals): one
+           integrated row that mirrors the stage's control row —
+           the Categories button at the far left, the back and
            forward pair together at the right — so fullscreen
            carries the same overview as the main page. The row
-           floats where the lone pill floated (same offset above
-           the credit strip); every piece wears the viewer's glass
-           (the chips' material above), the draw keeps its face
-           untouched, the dropdown is the split control's own
-           48px chevron segment standing on its own, and the pair
-           are the stage's .gen-nav-btn at their own 44px size,
-           given the glass blur and shadow so they sit on a photo
-           the way the chips do. The three zones are placed
-           absolutely — dropdown flush left, draw dead-centre,
-           pair flush right — so no content width can push another
+           floats above the credit strip; every piece wears the
+           viewer's glass (the chips' material above), and the
+           pair are the stage's .gen-nav-btn at their own 44px
+           size, given the glass blur and shadow so they sit on a
+           photo the way the chips do. The zones are placed
+           absolutely — dropdown flush left, pair flush right — so no content width can push another
            piece around. Two narrow-width adaptations, both
            mirroring the stage's own: at phone widths the draw
            takes the stage button's small-screen sizing (1.02rem,
@@ -882,12 +880,13 @@
             left: 0;
             top: 50%;
             transform: translateY(-50%);
-            width: 48px;
+            width: auto;
             height: 52px;
-            padding: 0;
+            padding: 0 1rem;
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 0.45rem;
             border-radius: 999px;
             background: var(--card-bg);
             -webkit-backdrop-filter: blur(12px);
@@ -901,31 +900,6 @@
         }
         .gen-fs-pick:hover { border-color: var(--link-color); }
         .gen-fs-pick:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
-        .gen-fs-draw {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            min-height: 52px;
-            padding: 0 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 999px;
-            background: var(--card-bg);
-            -webkit-backdrop-filter: blur(12px);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border-color);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-            color: var(--text-color);
-            font-size: 1.08rem;
-            line-height: 1.2;
-            font-weight: 700;
-            white-space: nowrap;
-            cursor: pointer;
-        }
-        .gen-fs-draw:hover { border-color: var(--link-color); }
-        .gen-fs-draw:focus-visible { outline: 2px solid var(--link-color); outline-offset: 2px; }
         .gen-fs-navpair {
             position: absolute;
             right: 0;
@@ -934,15 +908,11 @@
             display: flex;
             gap: 0.6rem;
         }
-        @media (max-width: 600px) {
-            .gen-fs-draw { font-size: 1.02rem; padding: 0 0.9rem; }
-        }
         @media (max-width: 384px) {
             .gen-fs-bar { display: flex; align-items: center; }
-            .gen-fs-pick, .gen-fs-draw, .gen-fs-navpair { position: static; transform: none; }
+            .gen-fs-pick, .gen-fs-navpair { position: static; transform: none; }
             .gen-fs-pick { flex: none; }
-            .gen-fs-draw { flex: none; margin: 0 auto; padding: 0 0.6rem; }
-            .gen-fs-navpair { flex: none; gap: 0.4rem; }
+            .gen-fs-navpair { flex: none; gap: 0.4rem; margin-left: auto; }
         }
         .gen-fs-nav {
             -webkit-backdrop-filter: blur(12px);
@@ -1325,6 +1295,48 @@
         .gen-block:fullscreen .gen-section.deep-open .gen-details, .gen-block.gen-block-fs .gen-section.deep-open .gen-details { max-height: none; overflow: visible; }
         .gen-block:fullscreen .gen-section.deep-open .gen-info, .gen-block.gen-block-fs .gen-section.deep-open .gen-info { border-left: none; }
         .gen-block:fullscreen .gen-section.deep-open .gen-info .rg-tucked, .gen-block.gen-block-fs .gen-section.deep-open .gen-info .rg-tucked { display: block; }
+
+        /* THE ALBUM (2026-11-27): Johnny's View is a swipe album
+           now. The stage keeps its one fixed frame; inside it the
+           dealt card sits a little narrower than the frame and
+           the NEXT card waits immediately to its right, its edge
+           permanently visible — the shape says "swipe" with no
+           words, the same peek the site's glass popups use. The
+           previous card waits off-frame to the left. A drag moves
+           all three as one strip; the swipe script owns the
+           transforms. When no next card exists (the end of a
+           Loved walk) the section wears .jv-solo and the dealt
+           card takes the whole frame again. Deep Overview is the
+           reading state: the album's widths stand down there (its
+           own rules above give the photo its natural size and
+           the neighbour cards stay hidden), though a swipe still
+           steps the album from it. The fullscreen viewer carries
+           the same strip inside its own stage. */
+        :root { --jv-peek: 46px; --jv-gap: 10px; }
+        .gen-section:not(.deep-open) .gen-stage { overflow: hidden; justify-content: flex-start; }
+        .gen-section:not(.deep-open):not(.jv-solo) .gen-img,
+        .gen-section:not(.deep-open):not(.jv-solo) .gen-quote { width: calc(100% - var(--jv-peek)); margin: 0; flex: none; }
+        .gen-section .gen-img-behind, .gen-section .gen-quote-behind {
+            left: 0; top: 0; right: auto; bottom: auto;
+            width: calc(100% - var(--jv-peek)); height: 100%;
+            transform: none;
+        }
+        .gen-section.jv-solo .gen-img-behind, .gen-section.jv-solo .gen-quote-behind { width: 100%; }
+        .gen-section .gen-stage .gen-empty { margin: 0 auto; }
+        .gen-fs-stage { overflow: hidden; }
+        .gen-fs:not(.jv-solo) .gen-fs-img, .gen-fs:not(.jv-solo) .gen-fs-quote { width: calc(100% - var(--jv-peek)); }
+        .gen-fs .gen-fs-img-behind, .gen-fs .gen-fs-quote-behind {
+            left: 0; top: 0; right: auto; bottom: auto;
+            width: calc(100% - var(--jv-peek)); height: 100%;
+            transform: none;
+        }
+        .gen-fs.jv-solo .gen-fs-img-behind, .gen-fs.jv-solo .gen-fs-quote-behind { width: 100%; }
+        .gen-fs-pick { font-weight: 600; }
+        .gen-fs-pick .gen-pick-name { font-size: 0.98rem; }
+        .jv-nudging { transition: transform 0.65s var(--ease-inout) !important; }
+        @media (prefers-reduced-motion: reduce) {
+            .jv-nudging { transition: none !important; }
+        }
     </style>
 
 
@@ -1332,7 +1344,7 @@
         <div class="gen-body">
             <div class="gen-topbar" id="animals-topbar">
                 <button class="gen-nav-btn" id="animals-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button>
-                <span class="gen-split"><button class="gen-pick" id="animals-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category">&#9662;</button><button class="gen-btn" id="animals-btn" type="button">&#127922; New animal</button></span>
+                <button class="gen-pick" id="animals-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category"><span class="gen-pick-name" id="animals-pick-name">Animals</span><span class="gen-pick-caret" aria-hidden="true">&#9662;</span></button>
                 <button class="gen-nav-btn" id="animals-next" type="button" aria-label="Next photo" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <span class="gen-topbar-names">
@@ -1355,10 +1367,10 @@
                 <p class="gen-source">Photo: <a id="animals-source" href="#" target="_blank" rel="noopener">Wikimedia Commons</a></p>
             </div>
             <div class="gen-stage" aria-live="polite">
-                <p class="gen-empty" id="animals-empty">Tap 🎲 New animal to meet your first one.</p>
+                <p class="gen-empty" id="animals-empty">Swipe to meet your first one.</p>
                 <p class="gen-empty" id="animals-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="animals-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
-                <div class="gen-img-error" id="animals-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-img-error" id="animals-imgerr" hidden>This image didn't load — swipe for another one.</div>
             </div>
             <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="animals-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
@@ -1372,7 +1384,7 @@
         <div class="gen-body">
             <div class="gen-topbar" id="art-topbar">
                 <button class="gen-nav-btn" id="art-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button>
-                <span class="gen-split"><button class="gen-pick" id="art-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category">&#9662;</button><button class="gen-btn" id="art-btn" type="button">&#127922; New painting</button></span>
+                <button class="gen-pick" id="art-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category"><span class="gen-pick-name" id="art-pick-name">Animals</span><span class="gen-pick-caret" aria-hidden="true">&#9662;</span></button>
                 <button class="gen-nav-btn" id="art-next" type="button" aria-label="Next photo" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <span class="gen-topbar-names">
@@ -1393,10 +1405,10 @@
                 <p class="gen-source">Image: <a id="art-source" href="#" target="_blank" rel="noopener">Wikimedia Commons</a></p>
             </div>
             <div class="gen-stage" aria-live="polite">
-                <p class="gen-empty" id="art-empty">Tap 🎲 New painting to see your first one.</p>
+                <p class="gen-empty" id="art-empty">Swipe to see your first one.</p>
                 <p class="gen-empty" id="art-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="art-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
-                <div class="gen-img-error" id="art-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-img-error" id="art-imgerr" hidden>This image didn't load — swipe for another one.</div>
             </div>
             <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="art-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
@@ -1410,7 +1422,7 @@
         <div class="gen-body">
             <div class="gen-topbar" id="arch-topbar">
                 <button class="gen-nav-btn" id="arch-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button>
-                <span class="gen-split"><button class="gen-pick" id="arch-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category">&#9662;</button><button class="gen-btn" id="arch-btn" type="button">&#127922; New building</button></span>
+                <button class="gen-pick" id="arch-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category"><span class="gen-pick-name" id="arch-pick-name">Animals</span><span class="gen-pick-caret" aria-hidden="true">&#9662;</span></button>
                 <button class="gen-nav-btn" id="arch-next" type="button" aria-label="Next photo" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <span class="gen-topbar-names">
@@ -1431,10 +1443,10 @@
                 <p class="gen-source">Photo: <a id="arch-source" href="#" target="_blank" rel="noopener">Wikimedia Commons</a></p>
             </div>
             <div class="gen-stage" aria-live="polite">
-                <p class="gen-empty" id="arch-empty">Tap 🎲 New building to see your first one.</p>
+                <p class="gen-empty" id="arch-empty">Swipe to see your first one.</p>
                 <p class="gen-empty" id="arch-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="arch-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
-                <div class="gen-img-error" id="arch-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-img-error" id="arch-imgerr" hidden>This image didn't load — swipe for another one.</div>
             </div>
             <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="arch-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
@@ -1448,7 +1460,7 @@
         <div class="gen-body">
             <div class="gen-topbar" id="space-topbar">
                 <button class="gen-nav-btn" id="space-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button>
-                <span class="gen-split"><button class="gen-pick" id="space-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category">&#9662;</button><button class="gen-btn" id="space-btn" type="button">&#127922; New wonder</button></span>
+                <button class="gen-pick" id="space-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category"><span class="gen-pick-name" id="space-pick-name">Animals</span><span class="gen-pick-caret" aria-hidden="true">&#9662;</span></button>
                 <button class="gen-nav-btn" id="space-next" type="button" aria-label="Next photo" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <span class="gen-topbar-names">
@@ -1469,10 +1481,10 @@
                 <p class="gen-source">Image: <a id="space-source" href="#" target="_blank" rel="noopener">Wikimedia Commons</a></p>
             </div>
             <div class="gen-stage" aria-live="polite">
-                <p class="gen-empty" id="space-empty">Tap 🎲 New wonder to see your first one.</p>
+                <p class="gen-empty" id="space-empty">Swipe to see your first one.</p>
                 <p class="gen-empty" id="space-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <img class="gen-img" id="space-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
-                <div class="gen-img-error" id="space-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-img-error" id="space-imgerr" hidden>This image didn't load — swipe for another one.</div>
             </div>
             <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="space-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
@@ -1486,7 +1498,7 @@
         <div class="gen-body">
             <div class="gen-topbar" id="quotes-topbar">
                 <button class="gen-nav-btn" id="quotes-prev" type="button" aria-label="Previous quote" disabled>&#8249;</button>
-                <span class="gen-split"><button class="gen-pick" id="quotes-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category">&#9662;</button><button class="gen-btn" id="quotes-btn" type="button">&#127922; New quote</button></span>
+                <button class="gen-pick" id="quotes-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category"><span class="gen-pick-name" id="quotes-pick-name">Animals</span><span class="gen-pick-caret" aria-hidden="true">&#9662;</span></button>
                 <button class="gen-nav-btn" id="quotes-next" type="button" aria-label="Next quote" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <span class="gen-topbar-names">
@@ -1507,7 +1519,7 @@
                 <p class="gen-source">Source: <a id="quotes-source" href="#" target="_blank" rel="noopener"></a></p>
             </div>
             <div class="gen-stage" aria-live="polite">
-                <p class="gen-empty" id="quotes-empty">Tap 🎲 New quote to read your first one.</p>
+                <p class="gen-empty" id="quotes-empty">Swipe to read your first one.</p>
                 <p class="gen-empty" id="quotes-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <p class="gen-empty" id="quotes-loading" hidden>Loading quotes…</p>
                 <p class="gen-empty" id="quotes-loaderror" hidden>Quotes didn't load — <button type="button" class="gen-retry" id="quotes-retry">tap to try again</button>.</p>
@@ -1516,7 +1528,7 @@
                     <blockquote class="gen-quote-text" id="quotes-quotetext"></blockquote>
                     <figcaption class="gen-quote-attrib" id="quotes-quoteattrib"></figcaption>
                 </figure>
-                <div class="gen-img-error" id="quotes-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-img-error" id="quotes-imgerr" hidden>This image didn't load — swipe for another one.</div>
             </div>
             <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="quotes-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
@@ -1530,7 +1542,7 @@
         <div class="gen-body">
             <div class="gen-topbar" id="engineering-topbar">
                 <button class="gen-nav-btn" id="engineering-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button>
-                <span class="gen-split"><button class="gen-pick" id="engineering-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category">&#9662;</button><button class="gen-btn" id="engineering-btn" type="button">&#127922; New marvel</button></span>
+                <button class="gen-pick" id="engineering-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category"><span class="gen-pick-name" id="engineering-pick-name">Animals</span><span class="gen-pick-caret" aria-hidden="true">&#9662;</span></button>
                 <button class="gen-nav-btn" id="engineering-next" type="button" aria-label="Next photo" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <span class="gen-topbar-names">
@@ -1551,12 +1563,12 @@
                 <p class="gen-source">Photo: <a id="engineering-source" href="#" target="_blank" rel="noopener">Wikimedia Commons</a></p>
             </div>
             <div class="gen-stage" aria-live="polite">
-                <p class="gen-empty" id="engineering-empty">Tap 🎲 New marvel to see your first one.</p>
+                <p class="gen-empty" id="engineering-empty">Swipe to see your first one.</p>
                 <p class="gen-empty" id="engineering-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <p class="gen-empty" id="engineering-loading" hidden>Loading engineering…</p>
                 <p class="gen-empty" id="engineering-loaderror" hidden>Engineering didn't load — <button type="button" class="gen-retry" id="engineering-retry">tap to try again</button>.</p>
                 <img class="gen-img" id="engineering-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
-                <div class="gen-img-error" id="engineering-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-img-error" id="engineering-imgerr" hidden>This image didn't load — swipe for another one.</div>
             </div>
             <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="engineering-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
@@ -1570,7 +1582,7 @@
         <div class="gen-body">
             <div class="gen-topbar" id="websites-topbar">
                 <button class="gen-nav-btn" id="websites-prev" type="button" aria-label="Previous website" disabled>&#8249;</button>
-                <span class="gen-split"><button class="gen-pick" id="websites-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category">&#9662;</button><button class="gen-btn" id="websites-btn" type="button">&#127922; New website</button></span>
+                <button class="gen-pick" id="websites-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category"><span class="gen-pick-name" id="websites-pick-name">Animals</span><span class="gen-pick-caret" aria-hidden="true">&#9662;</span></button>
                 <button class="gen-nav-btn" id="websites-next" type="button" aria-label="Next website" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <span class="gen-topbar-names">
@@ -1592,12 +1604,12 @@
                 <p class="gen-source">Site: <a id="websites-source" href="#" target="_blank" rel="noopener"></a></p>
             </div>
             <div class="gen-stage" aria-live="polite">
-                <p class="gen-empty" id="websites-empty">Tap 🎲 New website to discover your first one.</p>
+                <p class="gen-empty" id="websites-empty">Swipe to discover your first one.</p>
                 <p class="gen-empty" id="websites-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <p class="gen-empty" id="websites-loading" hidden>Loading websites…</p>
                 <p class="gen-empty" id="websites-loaderror" hidden>Websites didn't load — <button type="button" class="gen-retry" id="websites-retry">tap to try again</button>.</p>
                 <img class="gen-img" id="websites-img" alt="" hidden tabindex="0" role="button" aria-label="View preview full screen">
-                <div class="gen-img-error" id="websites-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-img-error" id="websites-imgerr" hidden>This image didn't load — swipe for another one.</div>
             </div>
             <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="websites-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
@@ -1611,7 +1623,7 @@
         <div class="gen-body">
             <div class="gen-topbar" id="scifi-topbar">
                 <button class="gen-nav-btn" id="scifi-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button>
-                <span class="gen-split"><button class="gen-pick" id="scifi-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category">&#9662;</button><button class="gen-btn" id="scifi-btn" type="button">&#127922; New sci-fi</button></span>
+                <button class="gen-pick" id="scifi-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category"><span class="gen-pick-name" id="scifi-pick-name">Animals</span><span class="gen-pick-caret" aria-hidden="true">&#9662;</span></button>
                 <button class="gen-nav-btn" id="scifi-next" type="button" aria-label="Next photo" disabled>&#8250;</button>
                 <div class="gen-topbar-text">
                     <span class="gen-topbar-names">
@@ -1632,12 +1644,12 @@
                 <p class="gen-source">Photo: <a id="scifi-source" href="#" target="_blank" rel="noopener">Wikimedia Commons</a></p>
             </div>
             <div class="gen-stage" aria-live="polite">
-                <p class="gen-empty" id="scifi-empty">Tap 🎲 New sci-fi to see your first one.</p>
+                <p class="gen-empty" id="scifi-empty">Swipe to see your first one.</p>
                 <p class="gen-empty" id="scifi-lovedempty" hidden>Nothing loved here yet — tap the heart on anything you love.</p>
                 <p class="gen-empty" id="scifi-loading" hidden>Loading sci-fi…</p>
                 <p class="gen-empty" id="scifi-loaderror" hidden>Sci-Fi didn't load — <button type="button" class="gen-retry" id="scifi-retry">tap to try again</button>.</p>
                 <img class="gen-img" id="scifi-img" alt="" hidden tabindex="0" role="button" aria-label="View photo full screen">
-                <div class="gen-img-error" id="scifi-imgerr" hidden>This image didn't load — tap Generate for another one.</div>
+                <div class="gen-img-error" id="scifi-imgerr" hidden>This image didn't load — swipe for another one.</div>
             </div>
             <div class="gen-actions">
                 <button class="gen-love gen-love-chip" id="scifi-love" type="button" aria-pressed="false" aria-label="Love this entry" title="Love this entry" hidden>♡</button>
@@ -1660,10 +1672,11 @@
             <figcaption class="gen-fs-quoteattrib" id="gen-fs-quoteattrib"></figcaption>
         </figure>
 
-        <!-- The viewer's control row (2026-11-20): the stage's
-             control row carried into fullscreen — category dropdown
-             at the far left, the draw in the middle, back and
-             forward together at the right. The menu below is the
+        <!-- The viewer's control row (2026-11-20; the draw
+             button retired 2026-11-27 — swiping deals, here as on
+             the stage): the stage's control row carried into
+             fullscreen — the Categories button at the far left,
+             back and forward together at the right. The menu below is the
              stage's category menu in its own glass, a second
              instance inside the viewer (native fullscreen shows
              only the viewer's subtree, so the stage's menu cannot
@@ -1671,8 +1684,7 @@
              stage's own selection wiring and check-mark sync drive
              them unchanged. -->
         <div class="gen-fs-bar" id="gen-fs-bar">
-            <button class="gen-fs-pick" id="gen-fs-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category">&#9662;</button>
-            <button class="gen-fs-draw" id="gen-fs-draw" type="button">&#127922; New animal</button>
+            <button class="gen-fs-pick" id="gen-fs-pick" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose a category"><span class="gen-pick-name" id="gen-fs-pick-name">Animals</span><span class="gen-pick-caret" aria-hidden="true">&#9662;</span></button>
             <span class="gen-fs-navpair"><button class="gen-nav-btn gen-fs-nav" id="gen-fs-prev" type="button" aria-label="Previous photo" disabled>&#8249;</button><button class="gen-nav-btn gen-fs-nav" id="gen-fs-next" type="button" aria-label="Next photo" disabled>&#8250;</button></span>
         </div>
         <p class="gen-fs-credit" id="gen-fs-pcredit">Photo: <a id="gen-fs-credit" href="#" target="_blank" rel="noopener"></a></p>
@@ -1882,8 +1894,6 @@
             document.getElementById(prefix + '-prev').addEventListener('click', function () { histStep(prefix, -1); });
             document.getElementById(prefix + '-next').addEventListener('click', function () { histStep(prefix, 1); });
             syncHist(prefix);
-            var btn = document.getElementById(prefix + '-btn');
-            btn.addEventListener('click', function () { rgDraw(prefix); });
             document.getElementById(prefix + '-love').addEventListener('click', function () { toggleLove(prefix); });
             // DEEP OVERVIEW IN PLACE (2026-11-23): the pin is set on
             // the summary's CLICK, not in the toggle handler — the
@@ -2126,6 +2136,63 @@
         };
         window.__rgLovedWalkStart = lovedWalkStart;
         window.__rgLovedWalkClear = lovedWalkClear;
+
+        // THE ALBUM'S DOORS (2026-11-27): the swipe script reads
+        // the album's state and steps it through these hooks, so
+        // the Loved walk, the session history and the deck keep
+        // exactly one owner. State names the entry waiting on
+        // each side of the dealt card: back is the walk's or the
+        // history's previous card; forward is the next history
+        // card while history is being browsed, and otherwise the
+        // deck's waiting head — the very card a fresh draw deals,
+        // so the card that slides in is the card that was
+        // previewed. fwdJump marks the one case where a fresh
+        // draw may land on another pool (All mode): the strip
+        // does not slide there, the draw fires at once, exactly
+        // as the retired button behaved.
+        function walkEntryOf(key) {
+            var cut = key.indexOf(':');
+            var pfx = walkPrefixOf(key.slice(0, cut));
+            var s2 = pfx ? GEN[pfx] : null;
+            return s2 ? (s2.byId[key.slice(cut + 1)] || null) : null;
+        }
+        window.__rgSwipeState = function (prefix) {
+            var out = { back: null, fwd: null, fwdJump: false };
+            if (lovedWalk) {
+                if (lovedWalk.pos > 0) { out.back = walkEntryOf(lovedWalk.keys[lovedWalk.pos - 1]); }
+                if (lovedWalk.pos < lovedWalk.keys.length - 1) { out.fwd = walkEntryOf(lovedWalk.keys[lovedWalk.pos + 1]); }
+                return out;
+            }
+            var st = GEN[prefix];
+            if (!st) { return out; }
+            if (lovedOnly) {
+                // The Loved view deals its own deck and keeps no
+                // history (its back/forward pair stands disabled):
+                // forward is the loved deck's waiting head, back
+                // is nothing.
+                out.fwd = st.behindId ? (st.byId[st.behindId] || null) : null;
+                return out;
+            }
+            if (st.histPos > 0) { out.back = st.byId[st.hist[st.histPos - 1]] || null; }
+            if (st.histPos < st.hist.length - 1) {
+                out.fwd = st.byId[st.hist[st.histPos + 1]] || null;
+            } else {
+                out.fwd = st.behindId ? (st.byId[st.behindId] || null) : null;
+                out.fwdJump = (rgSel === 'all');
+            }
+            return out;
+        };
+        window.__rgSwipeForward = function (prefix) {
+            if (lovedWalk) { lovedWalkStep(1); return; }
+            var st = GEN[prefix];
+            if (!lovedOnly && st && st.histPos < st.hist.length - 1) { histStep(prefix, 1); return; }
+            rgDraw(prefix);
+        };
+        window.__rgSwipeBack = function (prefix) {
+            if (lovedWalk) { lovedWalkStep(-1); return; }
+            if (lovedOnly) { return; }
+            histStep(prefix, -1);
+        };
 
         // Speed (2026-11-16): the stage never displays wider than
         // ~800px, so it loads a right-sized 1280px thumb instead of
@@ -3320,24 +3387,25 @@
             if (fsBtnMove && fsTitleRow && fsBtnMove.parentNode !== fsTitleRow) { fsTitleRow.appendChild(fsBtnMove); }
             if (updateHash) { history.replaceState(null, '', '#' + GEN_HASH[prefix]); }
         }
-        // SPLIT DRAW CONTROL (REDESIGN 2026-11-20): the tab row
-        // is gone; the category lives in ONE selection state (rgSel)
-        // behind the split control's arrow segment. The menu marks
-        // the selection; every draw button is labelled by it — its
-        // own pool's label in pool mode, the All label in All mode.
-        // Picking a category switches the visible pool exactly as
-        // the tabs did (showGen, hash and all); in All mode a draw
-        // press deals from a uniformly random pool — loading a lazy
-        // pool's data first, the way opening its tab used to — and
-        // the selection stays "All" after the draw.
+        // THE CATEGORIES BUTTON (2026-11-27): the category lives
+        // in ONE selection state (rgSel) behind the Categories
+        // button in each section's control row. The button carries
+        // the selection's name — it says where you are — and opens
+        // the menu, which marks the selection with its check. The
+        // draw button is gone: swiping deals, through rgDraw and
+        // the history steppers (the swipe script reaches them
+        // through the __rgSwipe* hooks above). Picking a category
+        // switches the visible pool exactly as the tabs did
+        // (showGen, hash and all); in All mode a draw deals from
+        // a uniformly random pool — loading a lazy pool's data
+        // first, the way opening its tab used to — and the
+        // selection stays "All" after the draw.
         var RG_PREFIXES = ['animals', 'art', 'arch', 'space', 'quotes', 'engineering', 'websites', 'scifi'];
         var RG_ENSURE = { quotes: ensureQuotes, engineering: ensureEngineering, websites: ensureWebsites, scifi: ensureSciFi };
         var rgSel = 'all';
-        var rgDrawLabels = {};
+        var RG_CAT_NAMES = { all: 'All', animals: 'Animals', art: 'Oil Paintings', arch: 'Architecture', space: 'The Cosmos', quotes: 'Quotes', engineering: 'Engineering', websites: 'Websites', scifi: 'Sci-Fi' };
         var rgEmptyLines = {};
         RG_PREFIXES.forEach(function (p) {
-            var b = document.getElementById(p + '-btn');
-            if (b) { rgDrawLabels[p] = b.textContent; }
             var e = document.getElementById(p + '-empty');
             if (e) { rgEmptyLines[p] = e.textContent; }
         });
@@ -3345,12 +3413,15 @@
             document.querySelectorAll('.gen-cat-row[data-sel]').forEach(function (row) {
                 row.setAttribute('aria-checked', row.getAttribute('data-sel') === rgSel ? 'true' : 'false');
             });
+            var label = RG_CAT_NAMES[rgSel] || 'All';
             RG_PREFIXES.forEach(function (p) {
-                var b = document.getElementById(p + '-btn');
-                if (b && rgDrawLabels[p]) { b.textContent = (rgSel === 'all') ? '🎲 New surprise' : rgDrawLabels[p]; }
+                var nm = document.getElementById(p + '-pick-name');
+                if (nm) { nm.textContent = label; }
                 var e = document.getElementById(p + '-empty');
-                if (e && rgEmptyLines[p]) { e.textContent = (rgSel === 'all') ? 'Tap 🎲 New surprise to see something new.' : rgEmptyLines[p]; }
+                if (e && rgEmptyLines[p]) { e.textContent = (rgSel === 'all') ? 'Swipe to see something new.' : rgEmptyLines[p]; }
             });
+            var fsNm = document.getElementById('gen-fs-pick-name');
+            if (fsNm) { fsNm.textContent = label; }
         }
         function rgDraw(prefix) {
             // A Loved walk in progress owns the draw press (and so
@@ -3619,8 +3690,6 @@
         window.__rgMarkCapped = markCapped;
         function markSoon() { setTimeout(markCapped, 0); }
         PREFIXES.forEach(function (p) {
-            var btn = document.getElementById(p + '-btn');
-            if (btn) { btn.addEventListener('click', markSoon); }
             var deep = document.getElementById(p + '-deep');
             if (deep) { deep.addEventListener('toggle', markSoon); }
         });
@@ -3631,55 +3700,20 @@
         window.addEventListener('resize', markCapped);
         markSoon();
 
-        // BIG GENERATE BUTTON (2026-11-17): every split control
-        // carries .rg-pulse (the breathing shadow in the CSS
-        // above) — ONE glow around the whole control, both
-        // segments inside it — on every page load, until the
-        // visitor presses a draw button in THIS visit (Johnny,
-        // 2026-11-22: an invitation pulse returns on every load
-        // while its invitation stands; no stored flag retires it
-        // across visits — the old jbo-random-pressed-v1 gate is
-        // gone, and nothing else read that key). Opening the
-        // category menu does not complete the invitation (the
-        // invitation is "pick a category, press for something
-        // new", and only the press completes it). The stop is a
-        // FADE, not a cut: the glow's current shadow is captured
-        // and transitioned to transparent over about a second —
-        // a spectrum of on/off, not a switch (instant under
-        // prefers-reduced-motion).
-        (function () {
-            var ctrls = Array.prototype.slice.call(document.querySelectorAll('.gen-btn'));
-            var mains = Array.prototype.slice.call(document.querySelectorAll('.gen-split'));
-            if (!mains.length) { return; }
-            mains.forEach(function (b) { b.classList.add('rg-pulse'); });
-            function stopPulse() {
-                ctrls.forEach(function (el) { el.removeEventListener('click', stopPulse); });
-                var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-                mains.forEach(function (b) {
-                    if (reduce) { b.classList.remove('rg-pulse'); return; }
-                    var cs = window.getComputedStyle(b).boxShadow;
-                    b.classList.remove('rg-pulse');
-                    b.style.boxShadow = cs;
-                    void b.offsetWidth;
-                    b.style.transition = 'box-shadow 1.05s ease-out';
-                    b.style.boxShadow = '0 0 3px 2px transparent, 0 0 12px 2px transparent';
-                    setTimeout(function () {
-                        b.style.transition = '';
-                        b.style.boxShadow = '';
-                    }, 1150);
-                });
-            }
-            ctrls.forEach(function (el) { el.addEventListener('click', stopPulse); });
-        })();
+        // THE INVITATION (2026-11-27): the breathing pulse that
+        // wrapped the split control is retired with the control
+        // itself — the draw button it invited a press on no
+        // longer exists. The invitation is now the album's own
+        // shape: the next card peeking at the stage's edge, and
+        // one gentle demo nudge on open (both in the swipe
+        // script below).
 
         var overlay = document.getElementById('gen-fs');
         var fsImg = document.getElementById('gen-fs-img');
         var fsCredit = document.getElementById('gen-fs-credit');
         var fsOpen = false;
         var fsSeq = 0;
-        var fsDrawBtn = document.getElementById('gen-fs-draw');
         var fsCur = null;
-        var fsDrawWatch = null;
         // THE TRAVELLING ACTION GROUP (2026-11-24): the deck's one
         // action group — the Full screen button and the visible
         // pool's Share · Notes · Love chips — moves into the
@@ -3732,7 +3766,6 @@
             overlay.hidden = true;
             fsOpen = false;
             fsCur = null;
-            stopFsDrawWatch();
             stopFsCatWatch();
             closeFsCatMenu();
             document.body.style.overflow = '';
@@ -3777,7 +3810,6 @@
             overlay.hidden = false;
             fsOpen = true;
             fsCur = prefix;
-            syncFsDrawLabel();
             syncFsNav();
             travelActionsIn(prefix);
             if (!soft) { enterFs(); }
@@ -3818,7 +3850,6 @@
             overlay.hidden = false;
             fsOpen = true;
             fsCur = prefix;
-            syncFsDrawLabel();
             syncFsNav();
             travelActionsIn(prefix);
             if (!soft) { enterFs(); }
@@ -3863,15 +3894,6 @@
             var sec = document.querySelector('.gen-section:not([hidden])');
             return sec ? sec.id.replace('gen-', '') : null;
         }
-        function syncFsDrawLabel() {
-            if (!fsDrawBtn) { return; }
-            var p = fsVisiblePrefix() || fsCur;
-            var b = p ? document.getElementById(p + '-btn') : null;
-            if (b) { fsDrawBtn.textContent = b.textContent; }
-        }
-        function stopFsDrawWatch() {
-            if (fsDrawWatch) { clearInterval(fsDrawWatch); fsDrawWatch = null; }
-        }
         // The stage swaps a dealt photo in only once it has decoded
         // (until then the previous photo stays up), and an All-mode
         // draw from a lazy pool lands later still — so the viewer
@@ -3894,26 +3916,13 @@
             if (!openFS(np, true)) { return false; }
             return true;
         }
-        if (fsDrawBtn) {
-            fsDrawBtn.addEventListener('click', function (e) {
-                e.stopPropagation(); // drawing must not leave fullscreen
-                if (!fsOpen || !fsCur) { return; }
-                var btn = document.getElementById(fsCur + '-btn');
-                if (!btn) { return; }
-                stopFsDrawWatch();
-                btn.click();
-                if (fsRefresh()) { return; }
-                // The watch waits as long as the viewer is open.
-                // It used to give up after 80 tries (8 seconds), so
-                // a slower load left the viewer's foreground frozen
-                // on the old photo for good while the waiting cards
-                // kept cycling behind it (Johnny, 2026-11-24).
-                fsDrawWatch = setInterval(function () {
-                    if (!fsOpen) { stopFsDrawWatch(); return; }
-                    if (fsRefresh()) { stopFsDrawWatch(); }
-                }, 100);
-            });
-        }
+        // The viewer's draw button is retired (2026-11-27): a
+        // swipe in the viewer steps the album through the same
+        // __rgSwipe* hooks as the stage, and the swipe script
+        // calls __rgFsAfterStep (fsWatchRefresh, below) so the
+        // viewer re-reads the stage in place once it settles —
+        // the settle watch the draw button used to run for
+        // itself, now serving every step the viewer takes.
         // CATEGORY + HISTORY INSIDE THE VIEWER (2026-11-20): the
         // control row at the viewer's bottom carries the stage
         // row's other two pieces — the category dropdown at the
@@ -3955,6 +3964,10 @@
                 if (fsRefresh()) { stopFsCatWatch(); }
             }, 100);
         }
+        // The swipe script's door back into this block: after a
+        // swipe steps the album under the open viewer, re-read
+        // the stage in place through the settle gate above.
+        window.__rgFsAfterStep = fsWatchRefresh;
         // The pair mirrors the stage pair of the viewed pool —
         // the same disabled ends, the same Previous photo / quote
         // naming — refreshed at every (soft) open, which is every
@@ -4018,13 +4031,15 @@
             // The selection itself already ran (the stage wiring's
             // listener was registered first): a pool switch changed
             // the stage behind the viewer, so re-read it in place;
-            // "All" changed no stage, only the draw's label.
+            // "All" changed no stage, only the selection's name —
+            // the Categories button re-labels itself through
+            // syncCatUI, here as on the stage.
             fsCatMenu.querySelectorAll('.gen-cat-row[data-sel]').forEach(function (row) {
                 row.addEventListener('click', function () {
                     var sel = row.getAttribute('data-sel');
                     closeFsCatMenu();
                     if (!fsOpen) { return; }
-                    if (sel === 'all') { syncFsDrawLabel(); return; }
+                    if (sel === 'all') { return; }
                     fsWatchRefresh();
                 });
             });
@@ -4091,80 +4106,78 @@
         });
     })();
 
-    // (SWIPE) SWIPE TO DEAL — THE DECK (2026-11-21): the draw button
-    // stays exactly as it is; swiping the dealt picture is a second
-    // way to press it. The model is a physical deck: the next entry
-    // is already dealt and waiting BEHIND the current picture, so a
-    // drag (any direction — one thumb, no direction decision) moves
-    // the current picture with the finger and reveals the waiting
-    // one underneath. Releasing before the commit point settles the
-    // picture back and nothing is dealt; releasing past it (or a
-    // flick with enough speed) sends the picture away and the draw
-    // fires — literally the draw segment's own click, so the deck,
-    // the session history, the Loved state, the category selection
-    // and the first-visit pulse all take the one existing path, and
-    // the card that comes up is the card that was waiting behind.
-    // The waiting card is a PEEK at the deck's head — the very card
-    // draw() shifts next — never a second deck: peeking runs
-    // draw()'s own deck preparation (weighted reshuffle + the
-    // back-to-back seam swap) when the deck is empty, so the
-    // previewed card is the dealt card even across a reshuffle, and
-    // peeking consumes nothing and persists nothing. History is
-    // untouched by the preview: back/forward keep re-rendering
-    // dealt cards, and the waiting card stays the next NEW deal
-    // while history is browsed — a swipe from mid-history is a
-    // fresh deal and truncates the forward entries, exactly like
-    // the button. Decks are per pool and per view (all / loved),
-    // so a category switch or a view toggle shows that pool's own
-    // waiting card, re-dealt by the __rgSwipePresent hooks in
-    // draw() and restoreGen(). In All mode the waiting card
-    // previews the visible pool's next deal; an All draw may still
-    // land on another pool — the button's own behaviour, kept
-    // identical on purpose.
-    //
-    // REVISED (2026-11-24) — ONE CARD ON STAGE, ALWAYS: the deck
-    // visual is gone. Johnny's recording showed the waiting card
-    // standing in the stage under the previous entry's name and
-    // words while a committed swipe settled, and the dragged
-    // picture sliding over the title with the next photo stacked
-    // beneath it. The waiting card now exists only as a preload
-    // and a peek record (behindId) — paintBehind never displays
-    // it — and a swipe never moves, flies out or lifts the
-    // picture: a committed swipe fires the draw at once, and the
-    // card on stage stays whole until renderEntry's atomic commit
-    // replaces photo and words in one frame. Exactly one item is
-    // ever visible in the stage, on every path that changes it.
+    // (ALBUM) SWIPE THE ALBUM (2026-11-27; the deck model of
+    // 2026-11-21 beneath it): the draw button is retired and the
+    // stage is an album. Three cards ride in the frame as one
+    // strip — the dealt card, the next card waiting at its right
+    // with its edge permanently visible in the frame (the peek
+    // that teaches the gesture with no words), and the previous
+    // card waiting off-frame at the left. A horizontal drag
+    // moves the strip with the finger; releasing past the commit
+    // point (or a flick with enough speed) slides the strip one
+    // card over and steps the album through the __rgSwipe*
+    // hooks: forward at the history's front deals a fresh card
+    // from the deck — the very card the peek previewed, dealt by
+    // the deck's own preparation (weighted reshuffle + the
+    // back-to-back seam swap when the deck runs empty), so a
+    // previewed card is the dealt card even across a reshuffle,
+    // and peeking consumes nothing and persists nothing —
+    // forward from mid-history and backward anywhere walk the
+    // session's history, and a Loved walk steps the collection.
+    // The step lands through renderEntry's atomic commit, so a
+    // card and its words always change in the same frame (the
+    // 2026-11-24 lesson stands: no card ever stands settled
+    // under another entry's name). In All mode the peek previews
+    // the visible pool's next deal while the draw itself may
+    // land on another pool (fwdJump): there the strip does not
+    // slide — the step fires at once, the retired button's own
+    // behaviour. Deep Overview and reduced-motion take the same
+    // no-slide path. Desktop keeps parity: mouse drags slide
+    // the strip, the arrow keys step it, and a horizontal wheel
+    // gesture steps it. On open, one gentle demo nudge shows
+    // the gesture (below); once the visitor has swiped
+    // themselves it never plays again.
     (function () {
         var PREFIXES = ['animals', 'art', 'arch', 'space', 'quotes', 'engineering', 'websites', 'scifi'];
         var TAP_DIST = 28;      // px of travel before a press becomes a drag
-        var COMMIT_DIST = 88;   // px of travel that commits the deal on release
+        var COMMIT_DIST = 88;   // px of travel that commits the step on release
         var FLICK_VEL = 0.45;   // px/ms over the last ~100ms that commits a short drag
+        var GAP = 10;           // px between cards in the strip
         var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-        var behind = {};        // prefix -> { img, quote, text, attrib } stage behind elements
+        var behind = {};        // prefix -> { img, quote, text, attrib } RIGHT neighbour elements
+        var prevEls = {};       // prefix -> { img, quote, text, attrib } LEFT neighbour elements
         var fsBehind = { img: null, quote: null, text: null, attrib: null };
+        var fsPrev = { img: null, quote: null, text: null, attrib: null };
         var suppressEl = null;
         var suppressUntil = 0;
+        var stripBusy = {};     // prefix -> true while a slide/settle owns that stage's strip
+        var fsBusy = false;     // the same, for the viewer's strip
+        var SWIPED_KEY = 'jbo-jv-swiped-v1';
 
         function viewMode() { return lovedOnly ? 'loved' : 'all'; }
+        function hasSwiped() { try { return !!localStorage.getItem(SWIPED_KEY); } catch (e) { return true; } }
+        function markSwiped() { try { localStorage.setItem(SWIPED_KEY, '1'); } catch (e) { } }
 
-        // Preload only (2026-11-24): the waiting card's bitmap and
-        // words are loaded into these elements so the deal that
-        // takes them is instant — but the elements are NEVER
-        // displayed. The stage shows exactly one card at a time;
-        // a second card rendered underneath, however briefly or
-        // however covered, is the glitch this fix removes.
-        function paintBehind(imgEl, quoteEl, textEl, attribEl, e, fs) {
+        // Paint an entry into a neighbour card pair (an image
+        // and a quote figure; the entry's kind decides which one
+        // is the face). Painting an image also preloads it — the
+        // bitmap is on the device before any drag begins, so the
+        // step that takes the card is instant. Visibility and
+        // position belong to the strip layout, not the painting.
+        function paintCard(els, e, fs) {
+            if (!els || !els.img) { return; }
+            if (!e) { els.img.hidden = true; els.quote.hidden = true; return; }
             if (e.quote) {
-                imgEl.hidden = true;
-                textEl.textContent = e.quote;
-                attribEl.textContent = '— ' + e.name;
-                quoteEl.className = (fs ? 'gen-fs-quote ' : 'gen-quote ') + quoteLenClass(e.quote.length) + (fs ? ' gen-fs-quote-behind' : ' gen-quote-behind');
-                quoteEl.hidden = true;
+                els.img.hidden = true;
+                els.text.textContent = e.quote;
+                els.attrib.textContent = '— ' + e.name;
+                els.quote.className = (fs ? 'gen-fs-quote ' : 'gen-quote ') + quoteLenClass(e.quote.length) + (fs ? ' gen-fs-quote-behind' : ' gen-quote-behind');
+                els.quote.hidden = false;
             } else {
-                quoteEl.hidden = true;
+                els.quote.hidden = true;
                 var u = stageUrl(e.img);
-                if (imgEl.getAttribute('src') !== u) { imgEl.src = u; }
-                imgEl.hidden = true;
+                if (els.img.getAttribute('src') !== u) { els.img.src = u; }
+                els.img.hidden = false;
             }
         }
 
@@ -4173,27 +4186,79 @@
             return sec ? sec.id.replace('gen-', '') : null;
         }
 
-        // The fullscreen viewer carries a twin of the visible
-        // pool's waiting card behind its own picture.
-        function syncFsBehind() {
-            var ov = document.getElementById('gen-fs');
-            if (!ov || ov.hidden || !fsBehind.img) { return; }
-            var p = visiblePrefix();
-            var st = p ? GEN[p] : null;
-            var e = (st && st.behindId) ? st.byId[st.behindId] : null;
-            if (!e) {
-                fsBehind.img.hidden = true;
-                fsBehind.quote.hidden = true;
-                return;
-            }
-            paintBehind(fsBehind.img, fsBehind.quote, fsBehind.text, fsBehind.attrib, e, true);
+        // The strip's geometry: the dealt card's face (the photo,
+        // or the quote figure in the Quotes pool), one card-step
+        // in px, and the transform every card rides on.
+        function faceOf(prefix) {
+            var q = document.getElementById(prefix + '-quote');
+            if (q && !q.hidden) { return q; }
+            return document.getElementById(prefix + '-img');
+        }
+        function fsFace() {
+            var q = document.getElementById('gen-fs-quote');
+            if (q && !q.hidden) { return q; }
+            return document.getElementById('gen-fs-img');
+        }
+        function stepPx(mainEl) { return mainEl ? (mainEl.offsetWidth + GAP) : 0; }
+        function setX(el, x) { if (el) { el.style.transform = 'translateX(' + x + 'px)'; } }
+        function layoutStrip(prefix, dx) {
+            var step = stepPx(faceOf(prefix));
+            setX(faceOf(prefix), dx);
+            var R = behind[prefix], L = prevEls[prefix];
+            if (R) { setX(R.img, step + dx); setX(R.quote, step + dx); }
+            if (L) { setX(L.img, -step + dx); setX(L.quote, -step + dx); }
+        }
+        function layoutFsStrip(dx) {
+            var step = stepPx(fsFace());
+            setX(fsFace(), dx);
+            setX(fsBehind.img, step + dx); setX(fsBehind.quote, step + dx);
+            setX(fsPrev.img, -step + dx); setX(fsPrev.quote, -step + dx);
+        }
+        function facesFor(isFs, prefix) {
+            if (isFs) { return [fsFace(), fsBehind.img, fsBehind.quote, fsPrev.img, fsPrev.quote]; }
+            var R = behind[prefix], L = prevEls[prefix];
+            return [faceOf(prefix), R && R.img, R && R.quote, L && L.img, L && L.quote];
         }
 
-        // Deal the waiting card for a pool: peek the deck's head
-        // and put it behind the stage picture. Setting the behind
-        // image's src is the preload — the file is on the device
-        // before any drag begins. A no-op when the head is already
-        // the card waiting there.
+        // Repaint a stage's neighbours from the album's state and
+        // rest the strip. While a slide owns the strip the
+        // repaint stands down — the settle poll repaints when
+        // the step lands.
+        function refreshNeighbours(prefix) {
+            var st = GEN[prefix];
+            var sec = document.getElementById('gen-' + prefix);
+            if (!st || !sec) { return; }
+            if (stripBusy[prefix]) { return; }
+            var state = window.__rgSwipeState ? window.__rgSwipeState(prefix) : { back: null, fwd: null };
+            paintCard(behind[prefix], state.fwd, false);
+            paintCard(prevEls[prefix], state.back, false);
+            sec.classList.toggle('jv-solo', !state.fwd);
+            layoutStrip(prefix, 0);
+            refreshFsNeighbours();
+        }
+
+        // The fullscreen viewer carries a twin of the visible
+        // pool's strip inside its own stage.
+        function refreshFsNeighbours() {
+            var ov = document.getElementById('gen-fs');
+            if (!ov || ov.hidden || !fsBehind.img) { return; }
+            if (fsBusy) { return; }
+            var p = visiblePrefix();
+            if (!p) { return; }
+            var state = window.__rgSwipeState ? window.__rgSwipeState(p) : { back: null, fwd: null };
+            paintCard(fsBehind, state.fwd, true);
+            paintCard(fsPrev, state.back, true);
+            ov.classList.toggle('jv-solo', !state.fwd);
+            layoutFsStrip(0);
+        }
+
+        // Keep the deck's waiting head on record for a pool:
+        // peek the deck's head and record it as behindId — the
+        // card the album's state reads as "forward" at the
+        // history's front, and the card the peek preloads. The
+        // neighbours themselves are painted by refreshNeighbours
+        // from the album's state. A no-op when the head is
+        // already the card waiting there.
         function dealBehind(prefix) {
             var st = GEN[prefix];
             if (!st) { return; }
@@ -4201,34 +4266,29 @@
             if (!els) { return; }
             var mode = viewMode();
             // A Loved walk in progress: the waiting card is the
-            // next loved item (painted from the entry itself — it
-            // may live in another pool), or nothing at the walk's
-            // end, where a swipe deals nothing.
+            // next loved item (it may live in another pool), or
+            // nothing at the walk's end, where a swipe steps
+            // nowhere.
             if (window.__rgLovedWalkNext) {
                 var wk = window.__rgLovedWalkNext();
                 if (wk === 'end') {
                     st.behindId = null;
-                    els.img.hidden = true;
-                    els.quote.hidden = true;
-                    syncFsBehind();
+                    refreshNeighbours(prefix);
                     return;
                 }
                 if (wk) {
                     if (st.behindId !== wk.id || st.behindMode !== 'lovedwalk') {
                         st.behindId = wk.id;
                         st.behindMode = 'lovedwalk';
-                        paintBehind(els.img, els.quote, els.text, els.attrib, wk, false);
                     }
-                    syncFsBehind();
+                    refreshNeighbours(prefix);
                     return;
                 }
             }
             var ids = effIds(st);
             if (!ids.length) {
                 st.behindId = null;
-                els.img.hidden = true;
-                els.quote.hidden = true;
-                syncFsBehind();
+                refreshNeighbours(prefix);
                 return;
             }
             if (!st.decks[mode].length) {
@@ -4241,16 +4301,15 @@
             if (st.behindId !== id || st.behindMode !== mode) {
                 st.behindId = id;
                 st.behindMode = mode;
-                var e = st.byId[id];
-                if (e) { paintBehind(els.img, els.quote, els.text, els.attrib, e, false); }
             }
-            syncFsBehind();
+            refreshNeighbours(prefix);
         }
         window.__rgSwipePresent = function (prefix) { dealBehind(prefix); };
 
-        // Behind elements, built here so the eight sections keep
-        // their markup untouched: one photo and one quote figure
-        // per stage, and one pair inside the fullscreen viewer.
+        // Neighbour elements, built here so the eight sections
+        // keep their markup untouched: a next pair and a previous
+        // pair (one photo and one quote figure each) per stage,
+        // and the same two pairs inside the fullscreen viewer.
         // The same pass moves each section's share · notes · love
         // chips from the row below the photo into the deck's
         // action row (DECK PLACEMENT, 2026-11-24 — see the CSS
@@ -4291,6 +4350,26 @@
             bQuote.appendChild(bf);
             stage.insertBefore(bQuote, stage.firstChild);
             behind[prefix] = { img: bImg, quote: bQuote, text: bq, attrib: bf };
+            var pImg = document.createElement('img');
+            pImg.className = 'gen-img-behind';
+            pImg.id = prefix + '-previmg';
+            pImg.alt = '';
+            pImg.setAttribute('aria-hidden', 'true');
+            pImg.hidden = true;
+            stage.insertBefore(pImg, stage.firstChild);
+            var pQuote = document.createElement('figure');
+            pQuote.className = 'gen-quote gen-quote-behind';
+            pQuote.id = prefix + '-prevquote';
+            pQuote.setAttribute('aria-hidden', 'true');
+            pQuote.hidden = true;
+            var pq = document.createElement('blockquote');
+            pq.className = 'gen-quote-text';
+            var pf = document.createElement('figcaption');
+            pf.className = 'gen-quote-attrib';
+            pQuote.appendChild(pq);
+            pQuote.appendChild(pf);
+            stage.insertBefore(pQuote, stage.firstChild);
+            prevEls[prefix] = { img: pImg, quote: pQuote, text: pq, attrib: pf };
         });
         (function () {
             var ov = document.getElementById('gen-fs');
@@ -4323,9 +4402,32 @@
             fsBehind.quote = bQuote;
             fsBehind.text = bq;
             fsBehind.attrib = bf;
-            // The viewer opening is when its waiting card must be
-            // in place behind the photo it opens on.
-            new MutationObserver(function () { syncFsBehind(); }).observe(ov, { attributes: true, attributeFilter: ['hidden'] });
+            var pvImg = document.createElement('img');
+            pvImg.className = 'gen-fs-img-behind';
+            pvImg.id = 'gen-fs-previmg';
+            pvImg.alt = '';
+            pvImg.setAttribute('aria-hidden', 'true');
+            pvImg.hidden = true;
+            fImg.parentNode.insertBefore(pvImg, fImg);
+            var pvQuote = document.createElement('figure');
+            pvQuote.className = 'gen-fs-quote gen-fs-quote-behind';
+            pvQuote.id = 'gen-fs-prevquote';
+            pvQuote.setAttribute('aria-hidden', 'true');
+            pvQuote.hidden = true;
+            var pvq = document.createElement('blockquote');
+            pvq.className = 'gen-fs-quotetext';
+            var pvf = document.createElement('figcaption');
+            pvf.className = 'gen-fs-quoteattrib';
+            pvQuote.appendChild(pvq);
+            pvQuote.appendChild(pvf);
+            fImg.parentNode.insertBefore(pvQuote, fImg);
+            fsPrev.img = pvImg;
+            fsPrev.quote = pvQuote;
+            fsPrev.text = pvq;
+            fsPrev.attrib = pvf;
+            // The viewer opening is when its strip must be in
+            // place around the photo it opens on.
+            new MutationObserver(function () { refreshFsNeighbours(); }).observe(ov, { attributes: true, attributeFilter: ['hidden'] });
         })();
 
         // A drag that crossed the tap threshold must never turn
@@ -4340,9 +4442,75 @@
             }
         }, true);
 
-        function fireDraw(isFs, prefix) {
-            var b = document.getElementById(isFs ? 'gen-fs-draw' : prefix + '-btn');
-            if (b) { b.click(); }
+        // Step the album one card through the hooks (the Loved
+        // walk, the history and the deck keep their one owner in
+        // the main script); in the viewer, the settle watch then
+        // re-reads the stage in place.
+        function fireStep(isFs, prefix, dir) {
+            if (dir > 0) { window.__rgSwipeForward(prefix); } else { window.__rgSwipeBack(prefix); }
+            if (isFs && window.__rgFsAfterStep) { window.__rgFsAfterStep(); }
+        }
+
+        // After a step fires, wait for the stage's atomic commit
+        // (shownId changes) — then rest the strip on the new card
+        // and repaint its neighbours. While the wait runs, the
+        // strip is busy: presents repaint nothing, so no frame
+        // pairs a sliding card with another entry's words.
+        function settlePoll(isFs, prefix, before, faces) {
+            var tries = 0;
+            var iv = setInterval(function () {
+                tries++;
+                var st = GEN[prefix];
+                var changed = !st || st.shownId !== before;
+                if (!changed && tries <= 32) { return; }
+                clearInterval(iv);
+                if (faces) { faces.forEach(function (el) { if (el) { el.classList.remove('rg-swipe-fly'); } }); }
+                if (isFs) { fsBusy = false; } else { stripBusy[prefix] = false; }
+                refreshNeighbours(prefix);
+                if (isFs) {
+                    var ov = document.getElementById('gen-fs');
+                    if (ov && !ov.hidden) { refreshFsNeighbours(); }
+                    else { layoutFsStrip(0); }
+                }
+            }, 50);
+        }
+
+        // One album step, from any surface (drag, keys, wheel):
+        // slide the strip one card over and fire the step as the
+        // slide lands — or fire at once on the no-slide paths
+        // (All mode's jump draw, Deep Overview, reduced motion,
+        // and the image-error surface, which has no card to
+        // slide).
+        function albumStep(isFs, prefix, dir, state, plain) {
+            var st = GEN[prefix];
+            var before = st ? st.shownId : null;
+            var sec = document.getElementById('gen-' + prefix);
+            var noSlide = plain || reduceMotion || (dir > 0 && state.fwdJump) ||
+                (!isFs && sec && sec.classList.contains('deep-open'));
+            if (isFs) { fsBusy = true; } else { stripBusy[prefix] = true; }
+            if (noSlide) {
+                fireStep(isFs, prefix, dir);
+                settlePoll(isFs, prefix, before, null);
+                return;
+            }
+            var faces = facesFor(isFs, prefix);
+            var step = stepPx(isFs ? fsFace() : faceOf(prefix));
+            faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-fly'); } });
+            if (isFs) { layoutFsStrip(dir > 0 ? -step : step); } else { layoutStrip(prefix, dir > 0 ? -step : step); }
+            setTimeout(function () {
+                fireStep(isFs, prefix, dir);
+                settlePoll(isFs, prefix, before, faces);
+            }, 260);
+        }
+
+        // Settle an uncommitted drag back to rest.
+        function settleStrip(isFs, prefix) {
+            var faces = facesFor(isFs, prefix);
+            faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-settle'); } });
+            if (isFs) { layoutFsStrip(0); } else { layoutStrip(prefix, 0); }
+            setTimeout(function () {
+                faces.forEach(function (el) { if (el) { el.classList.remove('rg-swipe-settle'); } });
+            }, 320);
         }
 
         function wireSwipe(el, opt) {
@@ -4350,6 +4518,7 @@
             if (el.tagName === 'IMG') { el.draggable = false; }
             var g = null;
             el.addEventListener('pointerdown', function (e) {
+                cancelNudge();
                 if (g) { return; }
                 if (opt.isFs && fsZoomed) { return; } // viewer zoomed: one finger pans the view, never deals
                 if (e.pointerType === 'mouse' && e.button !== 0) { return; }
@@ -4367,10 +4536,12 @@
                 // A drag can only begin on a dealt card whose
                 // waiting card is dealt behind it.
                 if (!st.behindId) { dealBehind(prefix); }
+                if (opt.isFs) { refreshFsNeighbours(); } else { refreshNeighbours(prefix); }
                 g = {
-                    id: e.pointerId, prefix: prefix,
+                    id: e.pointerId, prefix: prefix, el: el, plain: !!opt.plain,
                     x0: e.clientX, y0: e.clientY, dx: 0, dy: 0,
                     dragging: false, shownBefore: st.shownId,
+                    state: window.__rgSwipeState ? window.__rgSwipeState(prefix) : { back: null, fwd: null, fwdJump: false },
                     samples: [{ x: e.clientX, y: e.clientY, t: Date.now() }]
                 };
                 try { el.setPointerCapture(e.pointerId); } catch (err) { }
@@ -4383,33 +4554,36 @@
                 g.samples.push({ x: e.clientX, y: e.clientY, t: now });
                 while (g.samples.length > 2 && now - g.samples[0].t > 100) { g.samples.shift(); }
                 if (!g.dragging && Math.hypot(g.dx, g.dy) >= TAP_DIST) { g.dragging = true; }
-                // The picture itself never moves (2026-11-24): the
-                // drag is measured, not shown — moving the card is
-                // what exposed the waiting card beneath it and slid
-                // the photo over the entry's own title.
+                if (!g.dragging || g.plain) { return; }
+                // The strip follows the finger horizontally. A
+                // drag with nowhere to go (backward at the
+                // history's start, forward at a Loved walk's end)
+                // resists — it follows at a third of the travel —
+                // and settles back on release.
+                var dx = g.dx;
+                if (dx < 0 && !g.state.fwd) { dx = dx / 3; }
+                if (dx > 0 && !g.state.back) { dx = dx / 3; }
+                if (opt.isFs) { layoutFsStrip(dx); } else { layoutStrip(g.prefix, dx); }
             });
             function end(e, cancelled) {
                 if (!g || e.pointerId !== g.id) { return; }
                 var done = g;
                 g = null;
                 if (!done.dragging) { return; } // a tap: the click does its usual work
-                suppressEl = el;
+                suppressEl = done.el;
                 suppressUntil = Date.now() + 600;
-                var dist = Math.hypot(done.dx, done.dy);
+                var dist = Math.abs(done.dx);
                 var vel = 0;
                 var s0 = done.samples[0];
                 var dt = Date.now() - s0.t;
-                if (dt > 0) { vel = Math.hypot(e.clientX - s0.x, e.clientY - s0.y) / dt; }
-                var commit = !cancelled && (dist >= COMMIT_DIST || (dist >= TAP_DIST && vel >= FLICK_VEL));
-                // ONE CARD ON STAGE (fix, 2026-11-24): a committed
-                // swipe fires the draw immediately — the path the
-                // reduced-motion setting always took, now the only
-                // path. The card on stage is never moved, flown out
-                // or lifted, so the waiting card is never revealed
-                // and no frame ever pairs one entry's photo with
-                // another entry's words: the current card stays
-                // whole until renderEntry's atomic commit lands.
-                if (commit) { fireDraw(opt.isFs, done.prefix); }
+                if (dt > 0) { vel = Math.abs(e.clientX - s0.x) / dt; }
+                var dir = done.dx < 0 ? 1 : (done.dx > 0 ? -1 : 0);
+                var target = dir > 0 ? done.state.fwd : done.state.back;
+                var commit = !cancelled && dir !== 0 && !!target &&
+                    (dist >= COMMIT_DIST || (dist >= TAP_DIST && vel >= FLICK_VEL));
+                if (!commit) { if (!done.plain) { settleStrip(opt.isFs, done.prefix); } return; }
+                markSwiped();
+                albumStep(opt.isFs, done.prefix, dir, done.state, done.plain);
             }
             el.addEventListener('pointerup', function (e) { end(e, false); });
             el.addEventListener('pointercancel', function (e) { end(e, true); });
@@ -4450,8 +4624,9 @@
             // when its photo could not load (Websites' forbidden
             // hotlinks land there): the whole card surface is the
             // swipe target, so it carries the same wiring
-            // (2026-11-24).
-            wireSwipe(document.getElementById(p + '-imgerr'), { isFs: false, prefix: function () { return p; } });
+            // (2026-11-24). It has no card to slide, so its steps
+            // take the no-slide path (plain).
+            wireSwipe(document.getElementById(p + '-imgerr'), { isFs: false, plain: true, prefix: function () { return p; } });
         });
         wireSwipe(document.getElementById('gen-fs-img'), { isFs: true, prefix: visiblePrefix });
         wireSwipe(document.getElementById('gen-fs-quote'), { isFs: true, prefix: visiblePrefix });
@@ -4463,6 +4638,153 @@
             var st = GEN[p];
             if (st && st.shownId) { dealBehind(p); }
         });
+
+        // DESKTOP PARITY (2026-11-27): the arrow keys step the
+        // album the same way a swipe does — in the viewer when
+        // it stands open, on the stage otherwise — and a
+        // horizontal wheel gesture over the stage (a trackpad's
+        // two-finger sideways swipe, a wheel's sideways tilt)
+        // steps it too; in the viewer, where nothing scrolls
+        // behind, a vertical wheel gesture steps as well. A
+        // vertical wheel over the stage is left alone: the page
+        // still scrolls from the picture's own surface exactly
+        // as it always has.
+        function stepFromKeys(dir) {
+            var ov = document.getElementById('gen-fs');
+            var isFs = !!(ov && !ov.hidden);
+            var prefix = visiblePrefix();
+            if (!prefix) { return false; }
+            var st = GEN[prefix];
+            if (!st || !st.shownId) { return false; }
+            if (!st.behindId) { dealBehind(prefix); }
+            var state = window.__rgSwipeState ? window.__rgSwipeState(prefix) : { back: null, fwd: null };
+            if (dir > 0 && !state.fwd) { return false; }
+            if (dir < 0 && !state.back) { return false; }
+            markSwiped();
+            albumStep(isFs, prefix, dir, state, false);
+            return true;
+        }
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') { return; }
+            var t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) { return; }
+            var gal = document.getElementById('gen-gallery');
+            if (gal && !gal.hidden) { return; }
+            var m1 = document.getElementById('gen-cat-menu');
+            if (m1 && !m1.hidden) { return; }
+            var m2 = document.getElementById('gen-fs-cat-menu');
+            if (m2 && !m2.hidden) { return; }
+            if (stepFromKeys(e.key === 'ArrowRight' ? 1 : -1)) { e.preventDefault(); }
+        });
+        var wheelLockUntil = 0;
+        function onWheel(e, isFs) {
+            var now = Date.now();
+            if (now < wheelLockUntil) { return; }
+            var dx = e.deltaX || 0, dy = e.deltaY || 0;
+            var dir = 0;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                if (Math.abs(dx) < 24) { return; }
+                dir = dx > 0 ? 1 : -1;
+            } else if (isFs) {
+                if (Math.abs(dy) < 24) { return; }
+                dir = dy > 0 ? 1 : -1;
+            } else { return; }
+            var prefix = visiblePrefix();
+            if (!prefix) { return; }
+            var st = GEN[prefix];
+            if (!st || !st.shownId) { return; }
+            if (!st.behindId) { dealBehind(prefix); }
+            var state = window.__rgSwipeState ? window.__rgSwipeState(prefix) : { back: null, fwd: null };
+            if (dir > 0 && !state.fwd) { return; }
+            if (dir < 0 && !state.back) { return; }
+            e.preventDefault();
+            wheelLockUntil = now + 450;
+            markSwiped();
+            albumStep(isFs, prefix, dir, state, false);
+        }
+        PREFIXES.forEach(function (p) {
+            var sec = document.getElementById('gen-' + p);
+            var stage = sec ? sec.querySelector('.gen-stage') : null;
+            if (stage) { stage.addEventListener('wheel', function (e) { onWheel(e, false); }, { passive: false }); }
+        });
+        (function () {
+            var fsStage = document.querySelector('.gen-fs-stage');
+            if (fsStage) { fsStage.addEventListener('wheel', function (e) { onWheel(e, true); }, { passive: false }); }
+        })();
+
+        // THE DEMO NUDGE (2026-11-27): on open, once the stage
+        // first stands in view, the dealt card slides partway
+        // toward the next card and returns — one gentle
+        // demonstration of the gesture, riding on top of the
+        // peek that already says it silently. Any touch on the
+        // stage cancels it in the act; once the visitor has
+        // swiped themselves (markSwiped, persisted) it never
+        // plays again, on any later visit either.
+        var nudge = null;
+        var nudgeRetry = null, nudgeTries = 0;
+        function cancelNudge() {
+            if (nudgeRetry) { clearTimeout(nudgeRetry); nudgeRetry = null; }
+            if (!nudge) { return; }
+            nudge.timers.forEach(function (tm) { clearTimeout(tm); });
+            var faces = nudge.faces;
+            nudge = null;
+            faces.forEach(function (el) { if (el) { el.classList.remove('jv-nudging'); } });
+            var p = visiblePrefix();
+            if (p) { layoutStrip(p, 0); }
+        }
+        function maybeNudge() {
+            if (nudge || reduceMotion || hasSwiped()) { return; }
+            // The first card may still be decoding when the stage
+            // first scrolls into view (a slow connection): wait for
+            // the album to be ready rather than skipping the demo.
+            var ready = false;
+            var prefix = visiblePrefix();
+            if (prefix) {
+                var st0 = GEN[prefix];
+                var sec0 = document.getElementById('gen-' + prefix);
+                var state0 = window.__rgSwipeState ? window.__rgSwipeState(prefix) : { back: null, fwd: null };
+                ready = !!(st0 && st0.shownId && sec0 && !sec0.classList.contains('deep-open')
+                    && state0.fwd && !state0.fwdJump && !stripBusy[prefix]);
+            }
+            if (!ready) {
+                if (nudgeTries < 14) {
+                    nudgeTries++;
+                    nudgeRetry = setTimeout(maybeNudge, 400);
+                }
+                return;
+            }
+            var st = GEN[prefix];
+            var sec = document.getElementById('gen-' + prefix);
+            var faces = facesFor(false, prefix);
+            nudge = { faces: faces, timers: [] };
+            faces.forEach(function (el) { if (el) { el.classList.add('jv-nudging'); } });
+            layoutStrip(prefix, -54);
+            nudge.timers.push(setTimeout(function () { if (nudge) { layoutStrip(prefix, 0); } }, 780));
+            nudge.timers.push(setTimeout(function () {
+                if (!nudge) { return; }
+                var f = nudge.faces;
+                nudge = null;
+                f.forEach(function (el) { if (el) { el.classList.remove('jv-nudging'); } });
+            }, 1560));
+        }
+        (function () {
+            if (reduceMotion || hasSwiped()) { return; }
+            var prefix = visiblePrefix();
+            var sec = prefix ? document.getElementById('gen-' + prefix) : null;
+            var stage = sec ? sec.querySelector('.gen-stage') : null;
+            if (!stage) { return; }
+            stage.addEventListener('pointerdown', cancelNudge);
+            if ('IntersectionObserver' in window) {
+                var io = new IntersectionObserver(function (ents) {
+                    ents.forEach(function (en) {
+                        if (en.isIntersecting) { io.disconnect(); setTimeout(maybeNudge, 350); }
+                    });
+                }, { threshold: 0.55 });
+                io.observe(stage);
+            } else {
+                setTimeout(maybeNudge, 900);
+            }
+        })();
     })();
 
     // (3) Hearts on the photo (2026-11-14): the love button moved off
@@ -4496,8 +4818,6 @@
             if (vis && typeof MutationObserver !== 'undefined') {
                 new MutationObserver(function () { syncChip(p); }).observe(vis, { attributes: true, attributeFilter: ['hidden'] });
             }
-            var btn = document.getElementById(p + '-btn');
-            if (btn) { btn.addEventListener('click', function () { setTimeout(syncAllChips, 0); }); }
         });
         var tabsBar = document.getElementById('gen-tabs');
         if (tabsBar) { tabsBar.addEventListener('click', function () { setTimeout(syncAllChips, 0); }); }
