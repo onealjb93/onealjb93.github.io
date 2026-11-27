@@ -798,6 +798,36 @@ export function initUniverse(stage) {
     var captionEl = $('.uv-caption');
     var captionTextEl = $('.uv-caption-text');
     var captionCloseBtn = $('.uv-caption-close');
+    /* The caption card's pieces live in markup this script does not
+       own, and the two do not always arrive together: a phone that
+       loaded (or cached) games.html before the card gained its close
+       button on 2026-11-26 imports THIS script fresh on first tap
+       and hands it a stage whose caption has no button — the boot
+       then died wiring that button ("null is not an object
+       (evaluating 'captionCloseBtn.addEventListener')", Johnny's
+       crash, 2026-11-27) and the stage never loaded until a manual
+       reload fetched the new markup. So the missing pieces are
+       rebuilt in place, in the card's own settled form, and every
+       caption call below is guarded: any markup vintage — button,
+       no button, or no caption at all — boots, and where a caption
+       exists it keeps its full behaviour (present, ~6 s timer,
+       first-input dismissal, close button). */
+    if (captionEl) {
+        if (!captionTextEl) {
+            captionTextEl = document.createElement('span');
+            captionTextEl.className = 'uv-caption-text';
+            captionTextEl.setAttribute('aria-live', 'polite');
+            captionEl.insertBefore(captionTextEl, captionEl.firstChild);
+        }
+        if (!captionCloseBtn) {
+            captionCloseBtn = document.createElement('button');
+            captionCloseBtn.type = 'button';
+            captionCloseBtn.className = 'uv-caption-close';
+            captionCloseBtn.setAttribute('aria-label', 'Close');
+            captionCloseBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5L5 19"/></svg>';
+            captionEl.appendChild(captionCloseBtn);
+        }
+    }
     var labelsEl = $('.uv-labels');
     var tourBtn = $('.uv-tour-btn'), flyBtn = $('.uv-fly-btn');
     var speedInput = $('.uv-speed');
@@ -833,6 +863,22 @@ export function initUniverse(stage) {
                 im.src = new URL('./planets/' + f, import.meta.url).href;
                 earthPreload.push(im);
             });
+        /* The pin above exists so the browser cannot collect the
+           preloads mid-flight; it is not meant to hold them for the
+           whole session. The two 8192px maps are ~130 MB apiece once
+           decoded, and the texture stack built from them lives on
+           the GPU besides — pinning the decoded bitmaps too is a
+           duplicate the page carries forever. Once the stack has
+           landed, or three minutes have passed (long past any flight
+           that could still use the head start), the pin has done its
+           work: release it. On a phone that has just given up the
+           Games Room's WebGL context to open this game, that
+           duplicate is real memory pressure (the room-entry white
+           flash + reload, 2026-11-27). */
+        var pinWatch = setInterval(function () {
+            if (earthStackState.ready) { earthPreload.length = 0; clearInterval(pinWatch); }
+        }, 2000);
+        setTimeout(function () { earthPreload.length = 0; clearInterval(pinWatch); }, 180000);
     }
 
     var ctrl = {
@@ -1022,6 +1068,7 @@ export function initUniverse(stage) {
        jump gets its own full read. */
     var capTimer = null;
     function presentCaption() {
+        if (!captionEl) return;
         captionEl.classList.remove('uv-cap-off');
         if (capTimer) clearTimeout(capTimer);
         capTimer = setTimeout(capTimerFire, 6000);
@@ -1033,6 +1080,7 @@ export function initUniverse(stage) {
     }
     function dismissCaption() {
         if (capTimer) { clearTimeout(capTimer); capTimer = null; }
+        if (!captionEl) return;
         captionEl.classList.add('uv-cap-off');
     }
     function setCaption(text, present) {
@@ -1041,7 +1089,7 @@ export function initUniverse(stage) {
            at a second marked object carries the same sentence as the
            first, and it must still raise the card (the text-equality
            shortcut here once swallowed exactly that re-presentation) */
-        if (captionTextEl.textContent !== text) captionTextEl.textContent = text;
+        if (captionTextEl && captionTextEl.textContent !== text) captionTextEl.textContent = text;
         if (present !== false) presentCaption();
     }
     var EARTH_CAP = 'You are at Earth \u2014 home. Every light around you is a real star at its true position. Drag to look \u00B7 hold Fly (or press W) to fly anywhere \u00B7 scroll for speed. The tour is there when you want it.';
@@ -1066,7 +1114,7 @@ export function initUniverse(stage) {
             /* flown to another object's neighbourhood, or flown
                away again — the arrival card has expired either way */
             captionClaim = null; setCaption(CONTROLS_CAP, false);
-        } else if (!captionClaim && nearestName === 'Earth' && captionTextEl.textContent === CONTROLS_CAP) {
+        } else if (!captionClaim && nearestName === 'Earth' && captionTextEl && captionTextEl.textContent === CONTROLS_CAP) {
             captionClaim = { kind: 'earth' }; setCaption(EARTH_CAP);
         }
     }
@@ -4996,7 +5044,7 @@ export function initUniverse(stage) {
         });
         document.addEventListener('keyup', function (ev) { keys[ev.code] = false; });
 
-        captionCloseBtn.addEventListener('click', function () { dismissCaption(); captionCloseBtn.blur(); });
+        if (captionCloseBtn) captionCloseBtn.addEventListener('click', function () { dismissCaption(); captionCloseBtn.blur(); });
         tourBtn.addEventListener('click', function () {
             lastInputT = performance.now();
             if (tour.on) { stopTour(false); captionClaim = null; setCaption('Tour stopped. You have the controls.'); }
