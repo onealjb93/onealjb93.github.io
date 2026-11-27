@@ -1067,9 +1067,21 @@ export function initUniverse(stage) {
        their events unfold, and the arrival card at the end of a
        jump gets its own full read. */
     var capTimer = null;
+    /* the ~6 s auto-dismiss is a WALL-CLOCK deadline, not just a
+       timer: a bare setTimeout is suspended wholesale while the
+       page is obscured (the Control Center / URL-bar detours in
+       Johnny's 2026-11-27 recording stretched the boot card to
+       ~27 s) and can be starved far past its delay on a saturated
+       main thread (64 s late in the sandbox harness). The stamp
+       below is enforced from the frame loop and on the page's
+       return to visibility, so the card leaves ~6 s after it was
+       presented whatever the timer subsystem did meanwhile. The
+       timer stays as the quiet-page fast path. */
+    var capPresentedAt = 0;
     function presentCaption() {
         if (!captionEl) return;
         captionEl.classList.remove('uv-cap-off');
+        capPresentedAt = Date.now();
         if (capTimer) clearTimeout(capTimer);
         capTimer = setTimeout(capTimerFire, 6000);
     }
@@ -1078,8 +1090,27 @@ export function initUniverse(stage) {
         if (tour.on || flyAnim) { capTimer = setTimeout(capTimerFire, 1000); return; }
         dismissCaption();
     }
+    function capDeadlineCheck() {
+        if (!capPresentedAt || tour.on || flyAnim) return;
+        if (!captionEl || captionEl.classList.contains('uv-cap-off')) { capPresentedAt = 0; return; }
+        if (Date.now() - capPresentedAt >= 6000) dismissCaption();
+    }
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) return;
+        capDeadlineCheck();
+        /* returning from a detour is where the stale label-layer
+           presentation showed up: resetting the backing store
+           (same size — the next frame redraws it in full) forces
+           the compositor to take a fresh texture of the label
+           canvas instead of reviving the copy it held */
+        if (labelCanvas && labelCanvas.width) {
+            var lw = labelCanvas.width, lh = labelCanvas.height;
+            labelCanvas.width = lw; labelCanvas.height = lh;
+        }
+    });
     function dismissCaption() {
         if (capTimer) { clearTimeout(capTimer); capTimer = null; }
+        capPresentedAt = 0;
         if (!captionEl) return;
         captionEl.classList.add('uv-cap-off');
     }
@@ -1105,16 +1136,29 @@ export function initUniverse(stage) {
        neutral controls card, and flying home under your own power
        restores the Earth card. Tour and jump captions are events,
        set and cleared by the paths that own them. */
+    /* the Earth card's return-home restore below exists for one
+       story: the showing claim expired because he flew AWAY (the
+       two branches above), so coming back re-presents it. It must
+       never undo a dismissal he made himself — a grab during a
+       jump flight nulls the claim and silently swaps the words
+       in interruptTour exactly as the fly-away branches do, and
+       without this latch the restore read that state as "expired,
+       then returned" and raised the card again over his drags
+       (the other half of the 2026-11-27 overstay). Only the
+       fly-away branches set the latch; only the restore clears
+       it. */
+    var capAway = false;
     function syncCaption() {
         if (tour.on || flyAnim) return;
         if (captionClaim && captionClaim.kind === 'earth' && nearestName !== 'Earth') {
-            captionClaim = null; setCaption(CONTROLS_CAP, false);
+            captionClaim = null; capAway = true; setCaption(CONTROLS_CAP, false);
         } else if (captionClaim && captionClaim.kind === 'object' &&
                    (nearestName !== captionClaim.name || nearestDist > captionClaim.dist * 2.5)) {
             /* flown to another object's neighbourhood, or flown
                away again — the arrival card has expired either way */
-            captionClaim = null; setCaption(CONTROLS_CAP, false);
-        } else if (!captionClaim && nearestName === 'Earth' && captionTextEl && captionTextEl.textContent === CONTROLS_CAP) {
+            captionClaim = null; capAway = true; setCaption(CONTROLS_CAP, false);
+        } else if (!captionClaim && capAway && nearestName === 'Earth' && captionTextEl && captionTextEl.textContent === CONTROLS_CAP) {
+            capAway = false;
             captionClaim = { kind: 'earth' }; setCaption(EARTH_CAP);
         }
     }
@@ -1987,6 +2031,41 @@ export function initUniverse(stage) {
         geo.setIndex(idx);
         return geo;
     }
+    /* tile edge feather: a tile whose neighbours have not landed
+       yet — or whose globe map is still streaming in — must melt
+       into the globe, never stamp a hard rectangle on it (the
+       Moon defect: one crater patch floating on a blank sphere,
+       its straight edges sliding against the base as he skimmed).
+       Every tile texture's alpha is faded to zero over its outer
+       ~13% at decode time, so abutting tiles cross-blend across
+       the seam, a parent shows softly through a child's edge, and
+       a lone tile reads as a soft-edged detailed region with no
+       straight boundary at any range. Baked into the texture so
+       the render path's shape is unchanged. */
+    function etFeather(img) {
+        var S = 256, F = 34;
+        try {
+            var cv = document.createElement('canvas');
+            cv.width = S; cv.height = S;
+            var g = cv.getContext('2d');
+            g.drawImage(img, 0, 0, S, S);
+            var dat = g.getImageData(0, 0, S, S), px = dat.data;
+            for (var y = 0; y < S; y++) {
+                var dy = Math.min(y, S - 1 - y);
+                for (var x = 0; x < S; x++) {
+                    var d = Math.min(x, S - 1 - x, dy);
+                    if (d >= F) continue;
+                    var a = d / F; a = a * a * (3 - 2 * a);
+                    var o = (y * S + x) * 4 + 3;
+                    px[o] = Math.round(px[o] * a);
+                }
+            }
+            g.putImageData(dat, 0, 0);
+            return cv;
+        } catch (err) {
+            return img;   /* an unreadable source keeps the plain tile rather than none */
+        }
+    }
     function etQueue(L, z, x, y, prio) {
         if (L.dead) return;
         var e = etEntry(L, z, x, y);
@@ -2013,7 +2092,7 @@ export function initUniverse(stage) {
                        with a dozen uploads and the mesh rebuild */
                     enqueueUpload('tile:' + L.cfg.grpName + ':' + en.key, 1, 0, function () {
                         if (en.state !== 'decoded') return;   /* evicted while it waited */
-                        var tex = new THREE.Texture(img);
+                        var tex = new THREE.Texture(etFeather(img));
                         tex.colorSpace = THREE.SRGBColorSpace;
                         tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
                         tex.needsUpdate = true;
@@ -2162,8 +2241,13 @@ export function initUniverse(stage) {
             en.used = performance.now();
             if (L.meshes.has(k)) return;
             if (!en.geom) en.geom = etGeom(L, en.z, en.x, en.y);
-            if (!en.mat) en.mat = new THREE.MeshLambertMaterial({ map: en.tex, polygonOffset: true, polygonOffsetFactor: -(en.z - 4), polygonOffsetUnits: -(en.z - 4) });
+            if (!en.mat) en.mat = new THREE.MeshLambertMaterial({ map: en.tex, transparent: true, polygonOffset: true, polygonOffsetFactor: -(en.z - 4), polygonOffsetUnits: -(en.z - 4) });
             var mesh = new THREE.Mesh(en.geom, en.mat);
+            /* the feathered edges blend, so tiles join the
+               transparent pass — first within it (depth is still
+               written, so overlap resolves by depth as before),
+               under the clouds and atmosphere that must veil them */
+            mesh.renderOrder = -1;
             mesh.frustumCulled = false;
             L.grp.add(mesh);
             L.meshes.set(k, mesh);
@@ -2444,6 +2528,12 @@ export function initUniverse(stage) {
                 tex.colorSpace = THREE.SRGBColorSpace;
                 tex.anisotropy = maxAniso;
                 enqueueUpload('body:' + sb.n, 2, urgent ? 1 : 2, function () {
+                    /* the record keeps its texture so the retention
+                       pass in bodyTexService can release it once the
+                       body is far behind — and remembers the plain
+                       colour the release restores */
+                    sb.tex = tex;
+                    if (sb.plainHex === undefined) sb.plainHex = sb.texMat.color.getHex();
                     sb.texMat.map = tex; sb.texMat.color.set(0xffffff); sb.texMat.needsUpdate = true;
                     sb.texState = 'done';
                 });
@@ -2462,6 +2552,54 @@ export function initUniverse(stage) {
                 function () { /* the ring keeps its plain colour, as it does today when the strip 404s */ });
         }
     }
+    /* ---------------- bounded texture retention ----------------
+       A streamed texture is held only while its body is within
+       TEX_KEEP_PC of the camera (measured from the surface), or
+       within the body's own approach range when that reaches
+       farther (the Sun's does). 0.002 pc is far beyond the range
+       at which any map is perceptible — the largest planet
+       subtends well under a screen pixel there — and the whole
+       solar system spans only ~3e-4 pc, so in-system flight never
+       sheds anything: touring the planets behaves exactly as
+       before. What changes is leaving the neighbourhood: before
+       this pass, the background prefetch walked the entire system
+       and every decoded map (~870 MB of body maps, plus Earth's
+       ~440 MB high stack) stayed resident for the whole session —
+       growth without bound as he flies on, and the memory
+       pressure that gets the page's process killed mid-flight on
+       the phone. Now the set plateaus at the bodies near the
+       camera. A body flown back to re-streams exactly as a first
+       visit does — urgently on approach, at jump start for a
+       jump — so nothing he can see ever pops. */
+    var TEX_KEEP_PC = 0.002;
+    function releaseBodyTexture(sb) {
+        if (sb.tex) { sb.tex.dispose(); sb.tex = null; }
+        if (sb.texMat) {
+            sb.texMat.map = null;
+            sb.texMat.color.set(sb.plainHex !== undefined ? sb.plainHex : 0x888888);
+            sb.texMat.needsUpdate = true;
+        }
+        sb.texState = 'idle';
+    }
+    function releaseEarthStack() {
+        if (!earthSys || !earthStackState.ready) return;
+        var keys = ['tDay', 'tNight', 'tSpec', 'tNrm'], i, t;
+        for (i = 0; i < keys.length; i++) {
+            t = earthSys.uniforms[keys[i]].value;
+            if (t) { t.dispose(); earthSys.uniforms[keys[i]].value = null; }
+        }
+        t = earthSys.cloudUniforms.tCov.value;
+        if (t) { t.dispose(); earthSys.cloudUniforms.tCov.value = null; }
+        earthSys.uniforms.uHasStack.value = 0;
+        earthSys.uniforms.uHasSpec.value = 0;
+        earthSys.uniforms.uHasNrm.value = 0;
+        earthSys.uniforms.uBlend.value = 0;
+        earthSys.cloudUniforms.uBlend.value = 0;
+        if (earthSys.cloudMesh) earthSys.cloudMesh.visible = false;
+        earthStackState.started = false;
+        earthStackState.ready = false;
+        earthStackState.blend = 0;
+    }
     function bodyTexService(now) {
         if (!solarBodies) return;
         var i, sb, anyLoading = false, tilesBusy = false;
@@ -2476,9 +2614,18 @@ export function initUniverse(stage) {
             if (sb.texState !== 'idle') continue;
             if (camPos.distanceTo(sb.pos) - sb.r < 4000 * sb.r) requestBodyTexture(sb, true);
         }
+        /* retention: release what the flight has left far behind */
+        for (i = 0; i < solarBodies.length; i++) {
+            sb = solarBodies[i];
+            if (sb.texState !== 'done' || !sb.tex) continue;
+            if (camPos.distanceTo(sb.pos) - sb.r > Math.max(TEX_KEEP_PC, 4000 * sb.r)) releaseBodyTexture(sb);
+        }
+        if (earthStackState.ready && camPos.distanceTo(earthSys.pos) > TEX_KEEP_PC) releaseEarthStack();
         /* background prefetch: nearest first, one download at a
            time, never while a tile layer is fetching or showing,
-           never in the opening seconds */
+           never in the opening seconds — and only within the
+           retention range, so the walk no longer loads maps the
+           retention pass would immediately shed */
         if (!anyLoading && !tilesBusy && readyAt && now - readyAt > 4000) {
             var best = null, bd = Infinity;
             for (i = 0; i < solarBodies.length; i++) {
@@ -2487,7 +2634,7 @@ export function initUniverse(stage) {
                 var d = camPos.distanceTo(sb.pos);
                 if (d < bd) { bd = d; best = sb; }
             }
-            if (best) requestBodyTexture(best, false);
+            if (best && bd - best.r <= Math.max(TEX_KEEP_PC, 4000 * best.r)) requestBodyTexture(best, false);
         }
     }
 
@@ -3927,6 +4074,16 @@ export function initUniverse(stage) {
            a frame behind the view nor show a label twice. */
         labelCanvas = document.createElement('canvas');
         labelCanvas.className = 'uv-labelcv';
+        /* its own stable composited layer: on the phone the label
+           canvas was seen presenting a stale copy of itself above
+           the live one after system detours (every pill doubled,
+           offset by about a frame of camera motion, the stale copy
+           ghosting through the live pills' translucent fill). The
+           draw is provably single — one canvas, one cleared pass
+           per frame — so the doubling lives in presentation, and a
+           dedicated layer is what makes the compositor swap this
+           canvas's texture atomically instead of blending takes. */
+        labelCanvas.style.transform = 'translateZ(0)';
         labelsEl.appendChild(labelCanvas);
         labelCtx = labelCanvas.getContext('2d');
         refreshObstacles();   /* prime the obstacle cache so even the first frames de-collide against the caption + HUD */
@@ -4830,6 +4987,7 @@ export function initUniverse(stage) {
             lockBtnSync();   /* the Lock button's face (incl. the HD mark) follows the nearest body on the same gated cadence */
         }
         labelTick++;
+        capDeadlineCheck();   /* the caption's wall-clock ~6 s deadline — every frame, not on the HUD cadence */
         if (labelTick % 15 === 0) { updateNearest(); syncCaption(); refreshObstacles(); readLabelStyle(); bodyTexService(now); }
         drawLabels(stageW, stageH);
     }
