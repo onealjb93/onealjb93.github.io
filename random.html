@@ -4569,8 +4569,19 @@
         // up down any direction anymore." So a decisive flick UP
         // or DOWN deals the next fresh card too, on the stage and
         // in the viewer. The stage's surfaces carry
-        // touch-action: none, so no gesture is ever taken over
-        // by the browser mid-flight and the arbitration is ours:
+        // touch-action: none, which is meant to keep the browser
+        // from taking a gesture over mid-flight — but iOS Safari
+        // does not honour that promise for vertical drags: it
+        // claims them for page scroll and cancels the pointer
+        // stream, often before the drag threshold is crossed, so
+        // on the phone the classifier below never ran and only
+        // left/right flicks dealt (Johnny, 2026-11-27 11:54:
+        // "Swipes only left and right. It needs to swipe freely
+        // any way"). Two defences stand below: a non-passive
+        // touchmove claim inside wireSwipe stops the takeover
+        // before it starts, and end() reads a fast pointercancel
+        // as the flick it was, in case the stream dies anyway.
+        // Where the stream survives, the arbitration is ours:
         // velocity and distance decide what a vertical drag IS.
         // A fast one (trailing speed at or past FLICK_VEL_V as
         // it crosses the drag threshold, clearly vertical) is a
@@ -4630,7 +4641,7 @@
                 if (!st.behindId) { dealBehind(prefix); }
                 if (opt.isFs) { refreshFsNeighbours(); } else { refreshNeighbours(prefix); }
                 g = {
-                    id: e.pointerId, prefix: prefix, el: el, plain: !!opt.plain,
+                    id: e.pointerId, ptype: e.pointerType, prefix: prefix, el: el, plain: !!opt.plain,
                     x0: e.clientX, y0: e.clientY, dx: 0, dy: 0,
                     dragging: false, shownBefore: st.shownId, mode: null, lastY: e.clientY,
                     state: window.__rgSwipeState ? window.__rgSwipeState(prefix) : { back: null, fwd: null, fwdJump: false },
@@ -4638,6 +4649,28 @@
                 };
                 try { el.setPointerCapture(e.pointerId); } catch (err) { }
             });
+            // THE iOS CLAIM (fix, 2026-11-27): Safari decides
+            // scroll takeover from the TOUCH stream, not the
+            // pointer stream, and touch-action does not stop it —
+            // so the claim is made here, in the touch stream. A
+            // non-passive touchmove listener prevents the default
+            // (the scroll itself) for any single-touch gesture the
+            // deck has accepted, so the pointer stream survives
+            // whole and the arbitration below decides what the
+            // gesture is: a flick deals, and a 'scroll' verdict
+            // still moves the page 1:1 by hand for the rest of the
+            // drag — no page scroll is ever trapped by the claim.
+            // Two touches are never claimed (the viewer's pinch
+            // zoom stays the browser's), and neither is the
+            // zoomed viewer (one finger pans the zoomed picture
+            // natively; its pointerdown already stood down, so
+            // there is no gesture to claim for anyway).
+            el.addEventListener('touchmove', function (e) {
+                if (!g) { return; }
+                if (e.touches.length !== 1) { return; }
+                if (opt.isFs && fsZoomed) { return; }
+                e.preventDefault();
+            }, { passive: false });
             // Decide what a touch/pen gesture IS, once, from its
             // shape: 'strip' (horizontal — the album follows),
             // 'vflick' (a decisive vertical flick — deals at
@@ -4702,10 +4735,40 @@
                 if (dx > 0 && !g.state.back) { dx = dx / 3; }
                 if (opt.isFs) { layoutFsStrip(dx); } else { layoutStrip(g.prefix, dx); }
             });
+            // THE CANCELLED FLICK (the parachute, 2026-11-27): if
+            // the browser took the gesture anyway — a
+            // pointercancel landing before the drag threshold was
+            // crossed, so the classifier never ran — the cancel
+            // event still carries where the finger was when it
+            // was taken. Short, fast, clearly vertical travel by
+            // then is the flick the user threw: deal it, exactly
+            // as classifyMove would have. Anything slower,
+            // shorter or less vertical was a scroll being born
+            // and dies undealt. A gesture the classifier already
+            // claimed (any mode set) never reaches this reader —
+            // its own branch in end() owns it — and neither does
+            // the viewer, whose overlay has no page scroll
+            // competing for the gesture.
+            function cancelledFlick(done, e) {
+                if (done.mode) { return false; }
+                var cdx = e.clientX - done.x0, cdy = e.clientY - done.y0;
+                var acdx = Math.abs(cdx), acdy = Math.abs(cdy);
+                if (acdy < TAP_DIST || acdy <= V_AXIS * acdx) { return false; }
+                var ks0 = done.samples[0];
+                var kdt = Math.max(Date.now() - ks0.t, 8);
+                var kvel = Math.abs(e.clientY - ks0.y) / kdt;
+                if (!done.state.fwd || kvel < FLICK_VEL_V) { return false; }
+                suppressEl = done.el;
+                suppressUntil = Date.now() + 600;
+                markSwiped();
+                albumStep(false, done.prefix, 1, done.state, done.plain);
+                return true;
+            }
             function end(e, cancelled) {
                 if (!g || e.pointerId !== g.id) { return; }
                 var done = g;
                 g = null;
+                if (cancelled && !opt.isFs && done.ptype !== 'mouse' && cancelledFlick(done, e)) { return; }
                 if (!done.dragging) { return; } // a tap: the click does its usual work
                 suppressEl = done.el;
                 suppressUntil = Date.now() + 600;
