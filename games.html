@@ -28,14 +28,21 @@
          its photograph starts loading with the page, so the first
          frame the room shows is already complete -->
     <link rel="preload" as="image" href="games-room/assets/hero-room.webp" fetchpriority="high">
+    <!-- the room's nearest photographic surfaces preload too, so
+         the entry veil lifts onto finished stone and wood -->
+    <link rel="preload" as="image" href="games-room/assets-v3/trav.jpg">
+    <link rel="preload" as="image" href="games-room/assets-v3/ashlar.jpg">
+    <link rel="preload" as="image" href="games-room/assets-v3/floorwood.jpg">
     <script type="importmap">{ "imports": { "three": "./three.module.min.js" } }</script>
     <style>
-        /* The Games Room (2026-11-26): a full-screen room over the
-           page — Johnny's mountain-home photo as a projection-mapped
-           3D space (games-room/room.js, loaded on first entry). The
-           only chrome inside the room is the Leave games pill. The
-           room is a photograph, so its colours are its own in both
-           themes; the entry card above it uses the page's classes. */
+        /* The Games Room (2026-11-26): a full-screen modeled 3D
+           room (games-room/room.js) that this page BOOTS INTO — the
+           overlay is the first element in the body and its veil is
+           the first paint. This page IS the room (Johnny, 2026-11-27
+           07:44): the old games grid is abolished as a view — no
+           code path renders it — and Leave games leaves the page
+           entirely, back to wherever the visitor came from.
+           The room's colours are its own in both themes. */
         #gr-room { position: fixed; inset: 0; z-index: 1200; background: #14100c;
             font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
             -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -56,12 +63,35 @@
             opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease; white-space: nowrap; }
         #gr-pill.on { opacity: 1; transform: translate(-50%,0); pointer-events: auto; cursor: pointer; }
         #gr-pill small { display: block; text-align: center; font-weight: 400; font-size: 11px; opacity: .75; letter-spacing: .04em; }
+        /* the craft swap is its own small control, separate from
+           the board pill below it (Johnny, 2026-11-27 07:43: one
+           tap target, one verb — tapping the craft boards it; only
+           this pill swaps Disc ⇄ Starman) */
+        #gr-swap { position: absolute; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translate(-50%, 10px);
+            z-index: 20; padding: 7px 14px; border-radius: 999px; color: #fff; font: inherit; font-size: 13px; font-weight: 600;
+            background: rgba(20,16,10,.42); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
+            border: 1px solid rgba(255,255,255,.18); box-shadow: 0 6px 24px rgba(0,0,0,.35);
+            opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease; white-space: nowrap; }
+        #gr-swap.on { opacity: 1; transform: translate(-50%,0); pointer-events: auto; cursor: pointer; }
+        #gr-swap:active { background: rgba(20,16,10,.62); }
         #gr-back { position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 14px; z-index: 28;
             padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); color: #fff;
             background: rgba(20,16,10,.45); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
             font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; min-height: 44px; }
         #gr-fade { position: absolute; inset: 0; z-index: 26; pointer-events: none; opacity: 0;
             background: radial-gradient(ellipse at center, #ffffff 0%, #e8eff5 55%, #cfdde9 100%); }
+        /* the boot veil: the room's own loading look — warm dark,
+           like standing in the room before your eyes adjust. It is
+           the first paint of this page; it lifts (once) when the
+           finished room's first frame exists, and any later entry
+           uses the plain fade. If the room ever fails to load, the
+           host navigates away (back to the referring page, or
+           home) — the veil can never trap the page, and the old
+           grid never takes over. */
+        #gr-veil { position: absolute; inset: 0; z-index: 24; pointer-events: none;
+            background: radial-gradient(ellipse at 50% 42%, #2A2015 0%, #1D150E 55%, #14100C 100%);
+            transition: opacity .55s ease, visibility 0s linear .55s; }
+        #gr-veil.off { opacity: 0; visibility: hidden; }
     </style>
     <style>
         /* Section headings (2026-11-14; unpinned 2026-11-21, format
@@ -1372,6 +1402,24 @@
     <script defer src="https://cloud.umami.is/script.js" data-website-id="5062ac5a-8e7c-4aa2-a942-6c7f4ce40108"></script>
 </head>
 <body>
+<!-- The Games Room boots INTO itself (Johnny, 2026-11-26 23:25):
+     this overlay is the first element in the body, so it is the
+     page's FIRST PAINT on every arrival — Explore dropdown, direct
+     URL, refresh. It opens on the room's own loading veil (below)
+     and the veil lifts only when the finished room's first frame
+     exists. The games grid behind it is abolished as a view
+     (Johnny, 2026-11-27 07:44 — "No one should ever see that
+     anymore"): nothing ever reveals it, and "Leave games" leaves
+     the page entirely, back to the page the visitor came from. -->
+<div id="gr-room" role="dialog" aria-modal="true" aria-label="The Games Room">
+  <canvas id="gr-canvas"></canvas>
+  <button id="gr-leave" type="button">Leave games</button>
+  <div id="gr-pill"></div>
+  <button id="gr-swap" type="button"></button>
+  <button id="gr-back" type="button" style="display:none">← The room</button>
+  <div id="gr-fade"></div>
+  <div id="gr-veil"></div>
+</div>
     <script>
         // Theme before first paint: stored choice wins, dark is the default.
         // Never follows the OS setting. Storage failure falls back to dark.
@@ -1419,14 +1467,12 @@
         <p>A place to play. More games coming.</p>
     </header>
 
+    <!-- The games' own sections live in this container, but the
+         grid is no longer a view (Johnny, 2026-11-27 07:44): the
+         room is the only door to them, and no state of this page
+         presents the wall of cards. The old Games Room card is
+         gone entirely — the room needs no card; it IS the page. -->
     <div class="games-grid" id="gamesGrid">
-    <section class="gr-section" aria-labelledby="games-room-heading">
-        <div class="game-card">
-        <span class="game-card-photo" data-room-open aria-hidden="true"><img src="games-room/assets/hero-room.webp" alt="" width="1280" height="512" loading="eager" decoding="async"></span>
-        <h2 id="games-room-heading"><button type="button" class="game-toggle" data-room-open>The Games Room</button></h2>
-        <p data-room-open>Step inside the mountain home — the games live here now. Board the Disc out on the porch and fly to the Universe, pick up the iPad on the island for Line Rider, settle over the plate on the coffee table for the Frequency Generator.</p>
-        </div>
-    </section>
     <section class="lr-section" aria-labelledby="line-rider-heading">
         <div class="game-card">
         <span class="game-card-photo" data-card-open="linerider" aria-hidden="true"><img src="game-peek-linerider.webp" alt="" width="1156" height="546" loading="lazy" decoding="async"></span>
@@ -8514,13 +8560,6 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
     })();
 })();
 </script>
-<div id="gr-room" hidden role="dialog" aria-modal="true" aria-label="The Games Room">
-  <canvas id="gr-canvas"></canvas>
-  <button id="gr-leave" type="button">Leave games</button>
-  <div id="gr-pill"></div>
-  <button id="gr-back" type="button" style="display:none">← The room</button>
-  <div id="gr-fade"></div>
-</div>
 <script>
 /* The Games Room — host glue (2026-11-26). The room itself is
    games-room/room.js (an ES module, loaded lazily on first entry);
@@ -8530,13 +8569,25 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
    restore run exactly as they do from the grid), and bringing the
    room back — running the start backwards — when a room-started
    game closes. The page's scroll position never moves under the
-   room: entering locks it, leaving restores it as it was. */
+   room: entering locks it, and a game visit restores it as it was.
+   LEAVING is different (Johnny, 2026-11-27 07:44): the grid this
+   page used to fall back to is abolished as a view, so Leave games
+   leaves the page entirely — back to the page the visitor came
+   from (the in-site referrer), or to the homepage when there is
+   no in-site referrer (a direct arrival). No code path in this
+   script ever presents the grid. */
 (function () {
     var overlay = document.getElementById('gr-room');
     if (!overlay) return;
+    var veil = document.getElementById('gr-veil');
     var THR_KEY = 'games-room-return-v1';
     var PAGE_NAME = { linerider: 'linerider', universe: 'universe', thumbdrive: 'thumbkart', frequency: 'frequency' };
     var roomPromise = null, roomApi = null, roomOpen = false;
+    /* booted: false only during this page load's first entry. The
+       overlay (with its veil) is the first paint; the first
+       showRoom lifts the veil instead of fading in, and any hide
+       ends the boot state for good */
+    var booted = false;
     var armed = null; /* page name of the game the room started, awaiting its close */
     var pageScroll = null, guardId = 0;
     /* Locking/unlocking the page toggles the scrollbar, and the
@@ -8556,9 +8607,51 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         guardId = requestAnimationFrame(step);
     }
 
-    function loadRoom() {
+    /* Where Leave games goes: the page the visitor came from, when
+       that page is on this site and is not this page itself (the
+       in-site referrer); otherwise the homepage. Leaving is a real
+       navigation — the grid behind the room is never a destination. */
+    function leaveTarget() {
+        var ref = '';
+        try { ref = document.referrer || ''; } catch (e) { /* no referrer access */ }
+        if (ref) {
+            try {
+                var u = new URL(ref);
+                if (u.origin === window.location.origin && u.pathname !== window.location.pathname) return u.href;
+            } catch (e) { /* unparseable referrer: fall through to home */ }
+        }
+        return 'index.html';
+    }
+    function leaveNavigate() {
+        window.location.href = leaveTarget();
+    }
+
+    var roomGen = 0;
+    /* the roomId whose station a rebuilt room must resume at
+       after a dispose-and-rebuild handoff (the Universe) */
+    var disposedReturn = null;
+    /* set while a rebuilt room is loading for a return: its
+       roomReady lifts the veil instead of booting the entry */
+    var returnPending = null;
+    function loadRoom(force) {
+        if (force) { roomPromise = null; roomGen++; }
         if (!roomPromise) {
-            roomPromise = import('./games-room/room.js').then(function () { roomApi = window.__room || null; });
+            /* a forced load re-imports the module under a fresh
+               URL: the disposed instance stays disposed, and the
+               new instance builds a new room (textures come from
+               the browser cache, so the rebuild is quick). Once a
+               generation exists, every load uses its URL — the
+               bare URL would hand back the disposed instance
+               from the module cache */
+            var url = './games-room/room.js' + (roomGen ? '?r=' + roomGen : '');
+            roomPromise = import(url).then(function () { roomApi = window.__room || null; })
+                .catch(function () {
+                    /* the room failed to load: never trap the
+                       visitor behind the veil, and never fall back
+                       to the abolished grid — leave the way Leave
+                       games leaves */
+                    leaveNavigate();
+                });
         }
         return roomPromise;
     }
@@ -8579,7 +8672,12 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
     function showRoom(stationId) {
         pageScroll = window.scrollY;
         overlay.hidden = false;
-        fadeInRoom();
+        /* the boot show is already on screen (overlay + veil were
+           the first paint): no fade — once the room is live, the
+           veil lifts off the finished frame. Every later show
+           fades in as before */
+        var isBoot = !booted;
+        if (!isBoot) fadeInRoom();
         roomOpen = true;
         document.documentElement.classList.add('gr-lock');
         loadRoom().then(function () {
@@ -8587,18 +8685,41 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             roomApi.setHostActive(true);
             roomApi.refit();
             if (stationId) roomApi.resumeAtStation(stationId);
+            if (isBoot) {
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        if (veil) veil.classList.add('off');
+                        booted = true;
+                    });
+                });
+            }
         });
     }
     function hideRoom(keepLock) {
         overlay.hidden = true;
         overlay.style.opacity = '';
         overlay.style.transition = '';
+        booted = true;
+        if (veil) veil.classList.add('off');
         roomOpen = false;
         /* handing over to a game keeps the page locked under the
            game's own lock as well, so the scrollbar state never
            flips while the shell restores the scroll at the close */
         if (!keepLock) document.documentElement.classList.remove('gr-lock');
         if (roomApi) roomApi.setHostActive(false);
+    }
+
+    /* arrive in the craft the room had parked: set the Universe's
+       own craft switch once its rig is up */
+    function startUvShipSync(craft) {
+        var tries = 0;
+        var iv = window.setInterval(function () {
+            tries++;
+            if (window.__uvShip) {
+                window.clearInterval(iv);
+                if (window.__uvShip.current() !== craft) window.__uvShip.set(craft);
+            } else if (tries > 160) window.clearInterval(iv);
+        }, 250);
     }
 
     window.__roomHost = {
@@ -8615,29 +8736,43 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             if (!name) return;
             armed = name;
             pageScroll = window.scrollY;
+            if (roomId === 'universe' && roomApi && roomApi.disposeForGame) {
+                /* THE HANDOFF (Johnny's iPhone, 2026-11-27 00:52):
+                   with the room's context still resident, the
+                   Universe's own initialization put two heavy
+                   WebGL contexts on the GPU at once and iOS killed
+                   the page — white flash, reload, back on the grid
+                   in the wrong theme. So the room RELEASES
+                   everything first, behind its own veil (no flash,
+                   no grid, no reload), and only then does the game
+                   initialize. The room rebuilds fresh when the
+                   game closes — see the return observer below */
+                disposedReturn = roomId;
+                if (veil) veil.classList.remove('off');
+                roomApi.disposeForGame();
+                roomApi = null;
+                roomPromise = null;
+                window.setTimeout(function () {
+                    hideRoom(true);
+                    var btn = document.querySelector('[data-game-btn="universe"]');
+                    if (btn) btn.click();
+                    startUvShipSync(craft);
+                }, 400);
+                return;
+            }
             hideRoom(true);
             var btn = document.querySelector('[data-game-btn="' + name + '"]');
             if (btn) btn.click();
-            if (name === 'universe') {
-                /* arrive in the craft the room had parked: set the
-                   game's own craft switch once its rig is up */
-                var tries = 0;
-                var iv = window.setInterval(function () {
-                    tries++;
-                    if (window.__uvShip) {
-                        window.clearInterval(iv);
-                        if (window.__uvShip.current() !== craft) window.__uvShip.set(craft);
-                    } else if (tries > 160) window.clearInterval(iv);
-                }, 250);
-            }
+            if (name === 'universe') startUvShipSync(craft);
         },
-        /* Leave games: out of the room, back to this page exactly
-           as it was — the room resets to its entry state so the
-           next visit starts at the door, like the mock's page load */
+        /* Leave games: out of the room and off this page — back
+           to the page the visitor came from, or home when there
+           is no in-site referrer. The room resets first, so if the
+           browser later restores this page from its back-cache the
+           room stands at its entry state, ready. */
         leave: function () {
             if (roomApi) roomApi.hostReset();
-            hideRoom();
-            guardScroll();
+            leaveNavigate();
         }
     };
 
@@ -8647,10 +8782,14 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
     });
     /* if the room module ever failed to load, Leave still leaves */
     document.getElementById('gr-leave').addEventListener('click', function () {
-        if (!roomApi) { hideRoom(); guardScroll(); }
+        if (!roomApi) leaveNavigate();
     });
     document.addEventListener('keydown', function (e) {
-        if (roomOpen && (e.key === 'Escape' || e.key === 'Esc')) window.__roomHost.leave();
+        if (e.key !== 'Escape' && e.key !== 'Esc') return;
+        /* Escape in the room (or behind its boot veil) is Leave.
+           While a game is open, Escape is the game's own — its
+           close brings the room back through the observer below. */
+        if (roomOpen || !booted) window.__roomHost.leave();
     });
 
     /* A game the room started has closed — its door button reports
@@ -8667,9 +8806,38 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         if (btn && btn.getAttribute('aria-expanded') === 'false') {
             armed = null;
             overlay.hidden = false;
-            fadeInRoom();
             roomOpen = true;
             document.documentElement.classList.add('gr-lock');
+            if (disposedReturn) {
+                /* the room was released for this game: rebuild it
+                   fresh behind the veil, resume at the station the
+                   game belongs to, and run the start backwards —
+                   the rebuilt room is the same room (parked state
+                   is deterministic), so the return is Δ=0 */
+                var roomId = disposedReturn;
+                disposedReturn = null;
+                returnPending = roomId;
+                if (veil) veil.classList.remove('off');
+                /* the disposed module took its canvas with it —
+                   the room renders into the shared #gr-canvas
+                   element, so give the fresh module a fresh one
+                   in the same spot (first child, as in the markup) */
+                if (!document.getElementById('gr-canvas')) {
+                    var freshCanvas = document.createElement('canvas');
+                    freshCanvas.id = 'gr-canvas';
+                    overlay.insertBefore(freshCanvas, overlay.firstChild);
+                }
+                loadRoom(true).then(function () {
+                    if (!roomApi) { returnPending = null; leaveNavigate(); return; }
+                    roomApi.setHostActive(true);
+                    roomApi.refit();
+                    roomApi.resumeAtStation(roomId);
+                    roomApi.hostReturn();
+                });
+                guardScroll();
+                return;
+            }
+            fadeInRoom();
             if (roomApi) { roomApi.setHostActive(true); roomApi.refit(); roomApi.hostReturn(); }
             guardScroll();
         }
@@ -8689,29 +8857,30 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
     if (backFrom === 'threads') window.setTimeout(function () { showRoom('threads'); }, 350);
 
     /* Arriving on this page IS arriving in the room (Johnny,
-       2026-11-26 19:57: "When i press games in the dropdown it
-       should take me to the room"). The room preloads with the page
-       and opens itself the moment its first complete frame exists —
-       no card tap, no intermediate step. A touch or keypress on the
-       page first (someone tapping a game card in the brief load
-       window) cancels the auto-open and leaves the page in charge;
-       Leave games still exits to this page exactly as it was, and
-       the room card above stays as the way back in. */
+       2026-11-26 19:57 + 23:25: "When i press games in the dropdown
+       it should take me to the room"). The overlay and its veil
+       are the page's first paint, so there is no intermediate
+       frame to cancel into: the room preloads with the page, and
+       the moment its first complete frame exists the veil lifts
+       off it. The grid is abolished as a view (Johnny, 2026-11-27
+       07:44: "No one should ever see that anymore") — nothing on
+       this page renders it, ever; Leave games (or Escape) is the
+       way out, back to the page the visitor came from, or home
+       when there is none. */
     loadRoom();
-    var autoOpenArmed = backFrom !== 'threads';
-    function cancelAutoOpen() { autoOpenArmed = false; }
-    document.addEventListener('pointerdown', cancelAutoOpen);
-    document.addEventListener('keydown', cancelAutoOpen);
     window.__roomHost.roomReady = function () {
-        if (!autoOpenArmed || roomOpen) return;
-        autoOpenArmed = false;
+        if (returnPending) {
+            /* a rebuilt room's first complete frame: lift the
+               veil off the return already in motion */
+            returnPending = null;
+            if (veil) veil.classList.add('off');
+            return;
+        }
+        if (roomOpen || backFrom === 'threads') return;
         showRoom(null);
     };
     /* the room finished before this hook was armed (fast cache) */
-    if (autoOpenArmed && window.__roomReady) {
-        autoOpenArmed = false;
-        showRoom(null);
-    }
+    if (window.__roomReady && !roomOpen && backFrom !== 'threads') showRoom(null);
 })();
 </script>
 </body>
