@@ -70,6 +70,77 @@ STALE_DAYS = 21
 MIN_ROWS = 3000
 OUT = os.environ.get("POL_OUT", "politicians-trades.json")
 
+# --- committee-context tags (2026-11-27) --------------------------------
+# A trade is tagged when a committee the member sits on oversees
+# the sector the traded stock belongs to. Jurisdiction is CONTEXT
+# — it says what a committee's remit covers, nothing about any
+# member's conduct — and the maps below are deliberately
+# conservative: only jurisdictions that are clear on their face
+# are listed. Appropriations is excluded on purpose: it funds
+# everything, so a match there would mean nothing. Matching uses
+# the PARENT committee only (the part of the dataset's label
+# before " — "), so an Appropriations subcommittee named
+# "Defense" or "Financial Services and General Government" can
+# never produce a tag.
+# (parent-name suffix, short name for the readout, what it
+# oversees in plain words, the sector keys it covers)
+COMMITTEE_JURISDICTIONS = [
+    ("Committee on Armed Services", "Armed Services", "defense", {"defense"}),
+    ("Committee on Financial Services", "Financial Services", "banks, fintech and payments", {"banks", "fintech", "payments"}),
+    ("Banking, Housing, and Urban Affairs", "Banking", "banks", {"banks"}),
+    ("Committee on Energy and Commerce", "Energy and Commerce", "energy", {"energy"}),
+    ("Committee on Energy and Natural Resources", "Energy and Natural Resources", "energy", {"energy"}),
+    ("Committee on Commerce, Science, and Transportation", "Commerce, Science and Transportation", "technology, telecom and transport", {"tech", "telecom", "transport"}),
+    ("Committee on Agriculture", "Agriculture", "agriculture and food", {"agriculture", "food"}),
+    ("Agriculture, Nutrition, and Forestry", "Agriculture", "agriculture and food", {"agriculture", "food"}),
+    ("Health, Education, Labor, and Pensions", "Health (HELP)", "health and pharma", {"pharma", "health"}),
+    ("Select Committee on Intelligence", "Intelligence", "defense and technology", {"defense", "tech"}),
+]
+
+# One primary sector per ticker — standard classifications, only
+# for the sectors the jurisdictions above cover (a ticker outside
+# them can never be tagged, so it needs no entry). Seeded from
+# the price file's universe and extended to the other names the
+# filings actually trade.
+TICKER_SECTORS = {}
+for _sec, _tickers in {
+    "defense": "LMT RTX NOC GD BA LHX HII TXT HON RKLB SPCX AVAV KTOS LDOS SAIC CACI BWXT",
+    "banks": "JPM BAC WFC C GS MS SCHW COF USB PNC TFC RF CFG KEY HBAN FITB MTB BK STT NTRS",
+    "fintech": "COIN HOOD SOFI AFRM UPST NU",
+    "payments": "V MA AXP PYPL FIS FISV GPN XYZ FOUR TOST",
+    "energy": "XOM CVX COP EOG SLB OXY MPC PSX VLO HAL BKR FANG DVN KMI WMB OKE CTRA APA EQT LNG HES MRO TRGP",
+    "tech": ("AAPL MSFT NVDA GOOG GOOGL META AVGO AMD INTC QCOM TXN CSCO ADBE ADSK AMAT LRCX KLAC SNPS CDNS CRWD PANW "
+             "FTNT DDOG ARM ASML TSM MU PLTR ORCL CRM NOW IBM ACN HPQ HPE DELL NTAP STX WDC SNDK SMCI ANSS KEYS GLW "
+             "NBIS CRWV ALAB LITE MRVL MPWR NXPI MCHP ADI TER ON SWKS QRVO SHOP INTU WDAY APP RDDT NET ZS OKTA TEAM "
+             "MDB SNOW HUBS TWLO ENTG"),
+    "telecom": "T VZ TMUS CMCSA CHTR LUMN",
+    "transport": "UNP NSC CSX ODFL UPS FDX DAL UAL AAL LUV JBHT CHRW XPO PCAR UBER KNX SAIA",
+    "agriculture": "ADM BG CF MOS DE AGCO CTVA NTR CNH",
+    "food": "TSN HRL GIS CPB KHC SYY PEP MNST KDP MDLZ HSY MKC SJM KR ACI STZ KO",
+    "pharma": "LLY AMGN GILD VRTX REGN MRNA ALNY MRK PFE ABBV BMY AZN NVO BIIB INCY",
+    "health": "UNH ELV CI HUM CVS MDT ABT BSX SYK EW TMO DHR A MCK CAH BDX ZBH ISRG GEHC DXCM RMD STE WST CNC MOH HCA ZTS",
+}.items():
+    for _t in _tickers.split():
+        TICKER_SECTORS[_t] = _sec
+
+
+def committee_tag(committee_labels, ticker):
+    """The jurisdiction tag for one trade, or None: (short name,
+    oversees phrase) of the first of the member's committees whose
+    remit covers the ticker's sector."""
+    sector = TICKER_SECTORS.get(ticker)
+    if sector is None:
+        return None
+    for label in committee_labels or []:
+        parent = label.split(" — ")[0].strip()
+        for suffix in (" (Chair)", " (Ranking Member)"):
+            if parent.endswith(suffix):
+                parent = parent[: -len(suffix)]
+        for needle, short, area, sectors in COMMITTEE_JURISDICTIONS:
+            if parent.endswith(needle) and sector in sectors:
+                return (short, area)
+    return None
+
 
 def log(msg):
     print("[politicians] " + msg, flush=True)
@@ -638,6 +709,22 @@ def main():
         r["owner"], r["doc"],
     ] for r in rows]
 
+    # Committee-context tags: a sparse map from row index to a
+    # tagInfo entry, computed from the member's committees and
+    # the ticker's sector (see COMMITTEE_JURISDICTIONS above).
+    tag_info = []
+    tag_ids = {}
+    tags = {}
+    for i, r in enumerate(rows):
+        t = committee_tag(members[r["m"]][5], r["ticker"])
+        if t is None:
+            continue
+        if t not in tag_ids:
+            tag_ids[t] = len(tag_info)
+            tag_info.append([t[0], t[1]])
+        tags[str(i)] = tag_ids[t]
+    log("committee tags: %d of %d rows tagged, %d distinct tags" % (len(tags), len(rows), len(tag_info)))
+
     out = {
         "counts": {"rows": len(rows), "members": len(members)},
         "asOf": as_of.isoformat(),
@@ -656,9 +743,12 @@ def main():
             "clusters": "A ticker appears when at least 3 different members bought it within one rolling 45-day window of trade dates; each cluster shows its strongest such window from the trailing 12 months of filings, with the window's dates. Disclosure lag means the most recent weeks are always incompletely filed, so clusters are not filtered to 'recent' ones.",
             "curves": "A reconstruction from the disclosed trades, not the member's real account: each covered buy opens a position sized at its range midpoint at the trade date's close in this page's price file; sells close the oldest positions first; sales of positions opened before the window are left out, as are trades in stocks the price file does not cover. Indexed to 100 at the window's start, beside the S&P 500 over the same weeks.",
             "late": "The STOCK Act gives a member 45 days from a trade to disclose it. A filing that took longer is flagged with the number of days past the deadline — the dates themselves, stated plainly.",
+            "committees": "A trade is marked when a committee the member sits on oversees the sector the traded stock belongs to — Armed Services and defense, Financial Services and banks, Energy and Commerce and energy, and the like, under a short explicit map. Appropriations is left out: it funds everything, so a match there would say nothing. The mark is jurisdiction context only; it claims nothing about why a trade happened.",
         },
         "members": members,
         "rows": out_rows,
+        "tags": tags,
+        "tagInfo": tag_info,
         "board": board,
         "leaderboard": lb,
         "clusters": clusters,
