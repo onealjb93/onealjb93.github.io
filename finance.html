@@ -8231,6 +8231,16 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         // that bar; when the inspection ends it returns to the
         // latest bar. The values are tipRows' own — the same rows,
         // formats and conditions the in-chart tooltip carried.
+        // The strip's cells are built ONCE per row shape and
+        // then updated in place (2026-11-27): the old build tore
+        // the whole strip down and rebuilt it on every pointer
+        // move of a scrub, and on iOS the compositor could
+        // present a half-repainted strip — old and new values
+        // drawn over each other in the same cell. In-place text
+        // updates swap one text run for another inside a cell
+        // that never leaves the tree, so every presented frame
+        // carries exactly one value per cell.
+        var tipSig = "", tipValSpans = [];
         function updateTip() {
             var strip = document.getElementById("finReadout");
             if (!strip) return;
@@ -8242,24 +8252,36 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (pill0) pill0.hidden = false;
             var idx = (hover >= view.start && hover <= view.end) ? hover : view.end;
             var b = view.s.bars[idx];
-            strip.textContent = "";
-            var KEY_BY_LABEL = { "Close": "close", "200-day": "ma200", "50-day": "ma50", "RSI": "rsi", "P/E": "pe", "Volume": "vol" };
-            function stat(label, value) {
-                var cell = document.createElement("div");
-                cell.className = "fin-stat";
-                if (KEY_BY_LABEL[label]) cell.setAttribute("data-key", KEY_BY_LABEL[label]);
-                var lab = document.createElement("span");
-                lab.className = "fin-stat-label";
-                lab.textContent = label;
-                var val = document.createElement("span");
-                val.className = "fin-stat-value";
-                val.textContent = value;
-                cell.appendChild(lab); cell.appendChild(val);
-                strip.appendChild(cell);
+            var rows = [];
+            if (view.intra || view.fine) rows.push(["Time", fmtIntraStamp(b)]);
+            else rows.push(["Date", fmtDate(b[0])]);
+            tipRows(view, idx).forEach(function (r) { rows.push([r.label, r.value]); });
+            var sig = rows.map(function (r) { return r[0]; }).join("|");
+            if (sig !== tipSig || strip.childElementCount !== rows.length) {
+                var KEY_BY_LABEL = { "Close": "close", "200-day": "ma200", "50-day": "ma50", "RSI": "rsi", "P/E": "pe", "Volume": "vol" };
+                strip.textContent = "";
+                tipValSpans = [];
+                rows.forEach(function (r) {
+                    var cell = document.createElement("div");
+                    cell.className = "fin-stat";
+                    if (KEY_BY_LABEL[r[0]]) cell.setAttribute("data-key", KEY_BY_LABEL[r[0]]);
+                    var lab = document.createElement("span");
+                    lab.className = "fin-stat-label";
+                    lab.textContent = r[0];
+                    var val = document.createElement("span");
+                    val.className = "fin-stat-value";
+                    val.textContent = r[1];
+                    cell.appendChild(lab); cell.appendChild(val);
+                    strip.appendChild(cell);
+                    tipValSpans.push(val);
+                });
+                tipSig = sig;
+                return;
             }
-            if (view.intra || view.fine) stat("Time", fmtIntraStamp(b));
-            else stat("Date", fmtDate(b[0]));
-            tipRows(view, idx).forEach(function (r) { stat(r.label, r.value); });
+            rows.forEach(function (r, i) {
+                var s = tipValSpans[i];
+                if (s && s.textContent !== r[1]) s.textContent = r[1];
+            });
         }
         // The span indicator (2026-11-23): the overlay in the
         // chart frame's top-left corner naming the visible
@@ -8492,6 +8514,15 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (!isFinite(lo) || !isFinite(hi) || hi <= lo) { lo = 0; hi = 1; }
             var pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
             autoSpanY = hi - lo;
+            // The fitted domain's own floor, before the nice-step
+            // snap below rounds it down to a tick: when the data
+            // itself sits far above zero (the S&P's whole history
+            // does), the snap can still land the lowest tick on
+            // exactly 0 and print a stray "0.00" at the pane's
+            // foot — a value the series never traded at. The tick
+            // loop below skips non-positive ticks in that case;
+            // the domain and the scale are untouched.
+            var dataLo = lo;
             // A manual price range (a vertical pinch) suspends
             // the auto-fit: the pinched range replaces the fitted
             // one, and the nice-step snap below still rounds the
@@ -8575,6 +8606,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             var yOrder = yTicks.slice();
             if (yOrder.length > 2) yOrder = [yOrder[yOrder.length - 1], yOrder[0]].concat(yOrder.slice(1, -1));
             yOrder.forEach(function (gv) {
+                if (!manualY && dataLo > 0 && gv <= 0) return; // the snap's zero tick: not a price this series ever saw
                 var gy = YP(gv);
                 ctx.strokeStyle = gridC;
                 ctx.beginPath(); ctx.moveTo(6, gy); ctx.lineTo(6 + plotW, gy); ctx.stroke();
@@ -8660,8 +8692,14 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (volH > 0) {
                 ctx.fillStyle = subC; ctx.textAlign = "left";
                 ctx.fillText("Volume", 8, volY + 11);
+                // A fine view's daily fallback points carry a
+                // whole day's volume in an hourly pane; they are
+                // marked at build time (v.fine.fb) and stay out of
+                // the pane's scale and bars — the pane speaks the
+                // rung's own units (2026-11-27).
+                var fbSkip = (v.fine && v.fine.fb) ? v.fine.fb : null;
                 var maxV = 0;
-                for (i = v.start; i <= v.end; i++) if (bars[i][5] > maxV) maxV = bars[i][5];
+                for (i = v.start; i <= v.end; i++) { if (fbSkip && fbSkip[i]) continue; if (bars[i][5] > maxV) maxV = bars[i][5]; }
                 // The average shares the pane's scale, so a heavy
                 // stretch just before this window can never push the
                 // line up out of its own pane.
@@ -8681,6 +8719,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                     var vw = Math.max(1, plotW / n * 0.7);
                     ctx.fillStyle = subC; ctx.globalAlpha = 0.55;
                     for (i = v.start; i <= v.end; i++) {
+                        if (fbSkip && fbSkip[i]) continue;
                         var vh = bars[i][5] / maxV * volH;
                         if (vh > 0) ctx.fillRect(X(i) - vw / 2, volY + volH - vh, vw, vh);
                     }
@@ -8700,18 +8739,41 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 // reference lines, dashed in the muted violet.
                 ctx.strokeStyle = gridC;
                 ctx.beginPath(); ctx.moveTo(6, YR(50)); ctx.lineTo(6 + plotW, YR(50)); ctx.stroke();
-                ctx.fillStyle = subC; ctx.textAlign = "left";
-                ctx.fillText("100", 10 + plotW, axisY(YR(100) + 10, rsiY, rsiY + rsiH));
-                ctx.fillText("50", 10 + plotW, axisY(YR(50) + 3, rsiY, rsiY + rsiH));
-                ctx.fillText("0", 10 + plotW, axisY(YR(0) - 2, rsiY, rsiY + rsiH));
                 [30, 70].forEach(function (lv) {
                     var ly = YR(lv);
                     ctx.strokeStyle = RSI_GUIDE_COLOR;
                     ctx.setLineDash([4, 4]);
                     ctx.beginPath(); ctx.moveTo(6, ly); ctx.lineTo(6 + plotW, ly); ctx.stroke();
                     ctx.setLineDash([]);
-                    ctx.fillStyle = RSI_GUIDE_COLOR; ctx.textAlign = "left";
-                    ctx.fillText(String(lv), 10 + plotW, axisY(ly + 3, rsiY, rsiY + rsiH));
+                });
+                // The five right-edge labels thin to their own
+                // heights (2026-11-27): the pane is the chart's
+                // slimmest, and when the frame shrank mid-gesture
+                // the clamped baselines of 100/70/50/30/0 landed
+                // on top of each other. The scale's ends draw
+                // first, then 50, then the guides; a label whose
+                // baseline falls within a digit's height (8px) of
+                // a drawn one is skipped — the date axis's own
+                // thinning rule (2026-11-24), carried to this
+                // pane. At the pane's ordinary height every label
+                // clears and all five draw, exactly as before;
+                // the thinning only bites when the pane is
+                // genuinely squished.
+                var rsiLabs = [
+                    { t: "100", y: axisY(YR(100) + 3, rsiY, rsiY + rsiH), c: subC, p: 0 },
+                    { t: "0", y: axisY(YR(0) - 2, rsiY, rsiY + rsiH), c: subC, p: 0 },
+                    { t: "50", y: axisY(YR(50) + 3, rsiY, rsiY + rsiH), c: subC, p: 1 },
+                    { t: "70", y: axisY(YR(70) + 3, rsiY, rsiY + rsiH), c: RSI_GUIDE_COLOR, p: 2 },
+                    { t: "30", y: axisY(YR(30) + 3, rsiY, rsiY + rsiH), c: RSI_GUIDE_COLOR, p: 2 }
+                ];
+                rsiLabs.sort(function (a, b) { return a.p - b.p; });
+                var drawnY = [];
+                ctx.textAlign = "left";
+                rsiLabs.forEach(function (L) {
+                    for (var di = 0; di < drawnY.length; di++) if (Math.abs(L.y - drawnY[di]) < 8) return;
+                    drawnY.push(L.y);
+                    ctx.fillStyle = L.c;
+                    ctx.fillText(L.t, 10 + plotW, L.y);
                 });
                 ctx.fillStyle = subC; ctx.textAlign = "left";
                 ctx.fillText(v.intra ? "RSI · 1-min" : (v.fine ? (v.fine.rung === "60" ? "RSI · hourly" : "RSI · " + v.fine.rung + "-min") : "RSI"), 8, rsiY + 11);
@@ -9773,6 +9835,20 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         syncFs();
         var canvas = document.getElementById("jboChartCanvas");
         if (canvas) {
+            // Scrub renders coalesce onto the animation frame
+            // (2026-11-27): a fast finger fires far more pointer
+            // moves than the screen presents frames, and rendering
+            // on every one let the canvas and the readout strip
+            // present different instants of the same scrub. One
+            // render per presented frame keeps the crosshair, the
+            // panes and the strip in lockstep — the value a frame
+            // shows is the value its crosshair stands on.
+            var renderQueued = false;
+            function scheduleRender() {
+                if (renderQueued) return;
+                renderQueued = true;
+                requestAnimationFrame(function () { renderQueued = false; render(); });
+            }
             function onPointer(e) {
                 if (!view || !layout) return;
                 var rect = canvas.getBoundingClientRect();
@@ -9781,7 +9857,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 var frac = (e.clientX - rect.left - 6) / layout.plotW;
                 var i = layout.start + Math.round(frac * (layout.end - layout.start));
                 i = Math.max(layout.start, Math.min(layout.end, i));
-                if (i !== hover) { hover = i; render(); }
+                if (i !== hover) { hover = i; scheduleRender(); }
                 else { updateTip(); } // same week, new pointer spot: the bubble still follows (a touch finger moving within one week must never end up under it)
             }
             // ---- the free pinch: ONE 2D transform (2026-11-24) ----
@@ -10738,16 +10814,28 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 merged.push([Date.parse(dd) / 1000 + 43200, dbars[j][1], dbars[j][2], dbars[j][3], dbars[j][4], dbars[j][5]]);
             }
             merged.sort(function (a, b) { return a[0] - b[0]; });
+            // The fallback points (a whole day's daily bar
+            // standing in the intraday series) carry a whole
+            // day's VOLUME in an hourly pane: left in the volume
+            // average and the pane's scale, one fallback point
+            // flattened every hourly bar in the window to a line
+            // (2026-11-27 — the pane read 5.2B over hourly bars
+            // whose largest is 1.3B). They are marked here so the
+            // pane scales and averages on the rung's own bars;
+            // the point itself still draws its price and still
+            // reads its true daily volume in the strip.
+            var fbSet = {};
+            merged.forEach(function (b, ix) { if (!covered[etClock(b[0]).date]) fbSet[ix] = true; });
             // The stepped daily values: each bar takes its ET
             // date's daily value; a date with no daily bar of its
             // own (a Sunday-evening futures bar) carries the last
             // daily value forward — a step, never an invention.
             var closes = [], ma200 = [], ma50 = [], pe = peArr ? [] : null, vols = [];
             var lastIx = -1;
-            merged.forEach(function (b) {
+            merged.forEach(function (b, bix) {
                 var d = etClock(b[0]).date;
                 if (dIdx[d] !== undefined) lastIx = dIdx[d];
-                closes.push(b[4]); vols.push(b[5]);
+                closes.push(b[4]); vols.push(fbSet[bix] ? 0 : b[5]);
                 ma200.push(lastIx < 0 ? null : dMa200[lastIx]);
                 ma50.push(lastIx < 0 ? null : dMa50[lastIx]);
                 if (pe) pe.push(lastIx < 0 ? null : peArr[lastIx]);
@@ -10798,7 +10886,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 isBench: PICK_KEYS.indexOf(key) >= 0,
                 start: 0, end: merged.length - 1,
                 hasVolume: merged.some(function (b) { return b[5] > 0; }),
-                fine: { rung: rung, through: doc.through_et || null, shade: shade, aDate: aDate, bDate: bDate }
+                fine: { rung: rung, through: doc.through_et || null, shade: shade, aDate: aDate, bDate: bDate, fb: fbSet }
             };
         }
         function fineTicks(v, start, end) {
