@@ -431,6 +431,15 @@ html.jv-framed body { padding-top: 0 !important; }
            (Johnny's 2026-11-27 recording showed the page moving
            behind the viewer while he dragged). */
         html.jv-fs-lock, html.jv-fs-lock body { overflow: hidden !important; }
+        /* The same lock, held by the inline deck for the length of
+           a touch gesture (deck fix, 2026-11-28): the viewer's
+           swipe is free because no page scroll exists behind it;
+           the inline deck borrows that exact environment from
+           touchstart until the gesture resolves, so no native
+           scroll can start, steal, or interleave mid-swipe. The
+           arbitration's scroll verdict releases the lock at the
+           moment it hands the gesture to the page. */
+        html.jv-deck-lock, html.jv-deck-lock body { overflow: hidden !important; }
         @media (prefers-reduced-motion: reduce) {
             .rg-swipe-fly, .rg-swipe-settle, .rg-swipe-land { transition: none !important; }
         }
@@ -2795,7 +2804,19 @@ html.jv-framed body { padding-top: 0 !important; }
                 loader.onerror = loadFailed;
                 loader.src = url;
             }
-            var heldImg = warmTake(stage);
+            // ATOMIC SWAP (deck fix, 2026-11-28): the fastest true
+            // source is the deck's own waiting face — the bitmap
+            // the visitor is already looking at, decoded and
+            // painted by the strip. When the swipe script reports
+            // that exact file decoded in a face, the caption and
+            // the stage photo swap in this same task; the old
+            // loader path below stays as the fallback for cards
+            // no face is showing. (Before this, a swipe's commit
+            // waited on a fresh loader decode of the very file
+            // already on screen, and the caption landed a beat
+            // after the card did — Johnny's recordings.)
+            var faceImg = (typeof window.__rgFaceBitmap === 'function') ? window.__rgFaceBitmap(prefix, stage) : null;
+            var heldImg = faceImg || warmTake(stage);
             if (heldImg) {
                 // Paint-ready: the decoded bitmap is already on the
                 // device — swap now, no loader round-trip.
@@ -4326,7 +4347,8 @@ html.jv-framed body { padding-top: 0 !important; }
             } else {
                 els.quote.hidden = true;
                 var u = stageUrl(e.img);
-                if (els.img.getAttribute('src') !== u) { els.img.src = u; }
+                var srcChanged = els.img.getAttribute('src') !== u;
+                if (srcChanged) { els.img.src = u; }
                 els.img.hidden = false;
                 // DECODE TRACKING (perf pass, 2026-11-27):
                 // painting starts the decode at once, and the
@@ -4335,7 +4357,13 @@ html.jv-framed body { padding-top: 0 !important; }
                 // toward a card whose decode is still pending
                 // (see whenCardReady), so the incoming picture
                 // can never arrive blank or stutter mid-flight.
-                if (els.img.decode) {
+                // (Deck fix, 2026-11-28: a repaint of the SAME
+                // file no longer restarts the decode or clears
+                // the readiness flag — refreshNeighbours repaints
+                // at every gesture begin and every rest, and the
+                // churn left the flag pending at the very moment
+                // the atomic swap came to read it.)
+                if (els.img.decode && (srcChanged || !els.readyDone)) {
                     els.readyDone = false;
                     els.ready = els.img.decode().then(
                         function () { els.readyDone = true; },
@@ -4347,6 +4375,48 @@ html.jv-framed body { padding-top: 0 !important; }
         function visiblePrefix() {
             var sec = document.querySelector('.gen-section:not([hidden])');
             return sec ? sec.id.replace('gen-', '') : null;
+        }
+
+        // THE FACE BITMAP, FOR THE ATOMIC SWAP (deck fix,
+        // 2026-11-28): renderEntry asks here whether any waiting
+        // face — this pool's neighbours, or the viewer's — is
+        // already displaying this exact file with its decode
+        // finished. If so, the stage swap needs no loader: the
+        // bitmap is on the device, and caption + photo commit in
+        // one task, the frame the card lands.
+        window.__rgFaceBitmap = function (prefix, url) {
+            var cands = [behind[prefix], prevEls[prefix], fsBehind, fsPrev];
+            for (var i = 0; i < cands.length; i++) {
+                var p = cands[i];
+                // Decoded (the decode() promise landed) or simply
+                // fully loaded and displaying — either way the
+                // bitmap is on the device and the stage element
+                // paints the same file in the same frame.
+                if (p && p.img && !p.img.hidden && p.img.getAttribute('src') === url &&
+                    (p.readyDone || (p.img.complete && p.img.naturalWidth > 0))) { return p.img; }
+            }
+            return null;
+        };
+
+        // THE GESTURE SCROLL LOCK (deck fix, 2026-11-28): the
+        // fullscreen viewer's swipe is free because the page
+        // behind it is locked (jv-fs-lock) — no native scroll
+        // exists to steal the gesture, fight the drag, or paint
+        // page content across the deck mid-swipe. The inline
+        // deck takes the same lock at touchstart and holds it
+        // until the gesture resolves: a card verdict keeps it
+        // until the strip rests, a scroll verdict releases it at
+        // the handoff itself, and a watchdog guarantees the page
+        // can never be left locked.
+        var deckLockTimer = null;
+        function lockDeckScroll() {
+            document.documentElement.classList.add('jv-deck-lock');
+            if (deckLockTimer) { clearTimeout(deckLockTimer); }
+            deckLockTimer = setTimeout(unlockDeckScroll, 4000);
+        }
+        function unlockDeckScroll() {
+            document.documentElement.classList.remove('jv-deck-lock');
+            if (deckLockTimer) { clearTimeout(deckLockTimer); deckLockTimer = null; }
         }
 
         // TWO CARDS AHEAD, DECODED (feel fix, 2026-11-28): the
@@ -4741,7 +4811,7 @@ html.jv-framed body { padding-top: 0 !important; }
         function restStripNow(isFs, prefix, faces, landFace) {
             if (landFace) { landFace.classList.add('rg-swipe-land'); }
             if (faces) { faces.forEach(function (el) { if (el) { el.classList.remove('rg-swipe-fly'); el.classList.remove('rg-swipe-incoming'); el.style.transitionDuration = ''; } }); }
-            if (isFs) { fsBusy = false; } else { stripBusy[prefix] = false; }
+            if (isFs) { fsBusy = false; } else { stripBusy[prefix] = false; unlockDeckScroll(); }
             // In the viewer, re-read the stage NOW: the
             // face's photo and the credit swap in this same
             // task as the strip's rest, so the viewer never
@@ -4892,6 +4962,7 @@ html.jv-framed body { padding-top: 0 !important; }
 
         // Settle an uncommitted drag back to rest.
         function settleStrip(isFs, prefix) {
+            if (!isFs) { unlockDeckScroll(); }
             var faces = facesFor(isFs, prefix);
             faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-settle'); el.style.transitionDuration = ''; } });
             if (isFs) { layoutFsStrip(0); } else { layoutStrip(prefix, 0); }
@@ -5106,6 +5177,11 @@ html.jv-framed body { padding-top: 0 !important; }
                 dragDims.w = bface ? bface.offsetWidth : 0;
                 dragDims.h = bface ? bface.offsetHeight : 0;
                 if (bface) { bface.style.willChange = 'transform'; }
+                // The inline deck borrows the viewer's locked
+                // page for the gesture (see lockDeckScroll): a
+                // mouse drag never contests scroll, so it is not
+                // locked; touch and pen are.
+                if (!opt.isFs && ptype !== 'mouse') { lockDeckScroll(); }
                 return true;
             }
             el.addEventListener('pointerdown', function (e) {
@@ -5130,6 +5206,7 @@ html.jv-framed body { padding-top: 0 !important; }
                         // test named 'card' only, which an
                         // undecided drag would have slipped past).
                         if (live.dragging && live.mode !== 'scroll' && live.mode !== 'vflick' && !live.plain) { settleStrip(opt.isFs, live.prefix); }
+                        unlockDeckScroll();
                     }
                     return;
                 }
@@ -5258,6 +5335,7 @@ html.jv-framed body { padding-top: 0 !important; }
                 }
                 if (ady >= SCROLL_DIST) {
                     g.mode = 'scroll';
+                    unlockDeckScroll(); // the handoff: the page scrolls from here, never before it
                     if (!g.plain) { settleStrip(opt.isFs, g.prefix); }
                     window.scrollBy(0, -g.dy);
                     g.lastY = y;
@@ -5352,13 +5430,14 @@ html.jv-framed body { padding-top: 0 !important; }
                 if (done.faceEl) { done.faceEl.style.willChange = ''; }
                 dragDims.w = 0; dragDims.h = 0;
                 if (cancelled && !opt.isFs && done.ptype !== 'mouse' && cancelledFlick(done, x, y)) { return; }
-                if (!done.dragging) { return; } // a tap: the click does its usual work
+                if (!done.dragging) { unlockDeckScroll(); return; } // a tap: the click does its usual work
                 suppressEl = done.el;
                 suppressUntil = Date.now() + 600;
                 // The vertical modes resolve before the
                 // horizontal strip logic ever sees the gesture.
                 if (done.mode === 'vflick') { return; } // dealt mid-gesture, at the flick itself
                 if (done.mode === 'scroll') {
+                    unlockDeckScroll();
                     if (!cancelled) {
                         startScrollMomentum(trailVel(done, x, y).vy);
                     }
@@ -5375,7 +5454,7 @@ html.jv-framed body { padding-top: 0 !important; }
                     var ptarget = pdir > 0 ? done.state.fwd : done.state.back;
                     var pcommit = !cancelled && pdir !== 0 && !!ptarget &&
                         (pdist >= COMMIT_DIST || (pdist >= TAP_DIST && pvel >= FLICK_VEL));
-                    if (!pcommit) { return; }
+                    if (!pcommit) { unlockDeckScroll(); return; }
                     markSwiped();
                     albumStep(opt.isFs, done.prefix, pdir, done.state, done.plain);
                     return;
