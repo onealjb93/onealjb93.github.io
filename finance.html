@@ -9292,45 +9292,49 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 var bl = cur.style === "candles" ? b[3] : b[4], bh = cur.style === "candles" ? b[2] : b[4];
                 if (bl < lo) lo = bl;
                 if (bh > hi) hi = bh;
-                if (v.ma200[i] !== null) { if (v.ma200[i] < lo) lo = v.ma200[i]; if (v.ma200[i] > hi) hi = v.ma200[i]; }
-                if (v.ma50[i] !== null) { if (v.ma50[i] < lo) lo = v.ma50[i]; if (v.ma50[i] > hi) hi = v.ma50[i]; }
             }
-            if (!isFinite(lo) || !isFinite(hi) || hi <= lo) { lo = 0; hi = 1; }
-            var pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
-            autoSpanY = hi - lo;
-            // The fitted domain's own floor, before the nice-step
-            // snap below rounds it down to a tick: when the data
-            // itself sits far above zero (the S&P's whole history
-            // does), the snap can still land the lowest tick on
-            // exactly 0 and print a stray "0.00" at the pane's
-            // foot — a value the series never traded at. The tick
-            // loop below skips non-positive ticks in that case;
-            // the domain and the scale are untouched.
+            // The fit is the visible window's own price data —
+            // the closes, or the candle extremes in candle style
+            // — and nothing else (2026-11-27). The average lines
+            // used to widen the fit to their own range: on a
+            // one-month window the 200-day average sits far from
+            // the month's prices, so the domain stretched to hold
+            // it and the price line rode the pane's top over an
+            // empty bottom half (Johnny's MSFT recording). The
+            // averages still draw, clipped by the pane like every
+            // overlay; they return to view at the windows where
+            // they cross the prices. This is the range buttons'
+            // own fit (btnFitRange), now the fit for EVERY window
+            // — a button's frame and a pinched frame promise the
+            // same thing.
+            if (!isFinite(lo) || !isFinite(hi)) { lo = 0; hi = 1; }
+            if (!(hi > lo)) { var fm = hi || 1; lo = fm * 0.995; hi = fm * 1.005; }
+            // The data's own floor, before the headroom below:
+            // when the data itself sits far above zero (the S&P's
+            // whole history does), the fitted domain can still
+            // reach exactly 0 and print a stray "0.00" at the
+            // pane's foot — a value the series never traded at.
+            // The tick loop below skips non-positive ticks in
+            // that case; the domain and the scale are untouched.
             var dataLo = lo;
+            var pad = (hi - lo) * 0.12; lo = Math.max(0, lo - pad); hi += pad;
+            autoSpanY = hi - lo;
             // A manual price range (a vertical pinch) suspends
             // the auto-fit: the pinched range replaces the fitted
             // one, and the nice-step snap below still rounds the
             // axis labels to round values at that range.
             if (manualY && manualY.hi > manualY.lo) { lo = manualY.lo; hi = manualY.hi; }
-            // The scale then snaps outward to the nice-step ladder:
-            // the domain becomes the ticks, so every price gridline
-            // carries a round value and the pane holds five to
-            // seven of them at any zoom (2026-11-22).
+            // The domain is exact on both paths (2026-11-27): the
+            // snap picks the tick spacing only, and the ticks are
+            // the nice steps inside the range. The auto-fit used
+            // to snap its domain outward to the tick ladder, which
+            // widened an already-fitted range a second time — the
+            // flattening the range buttons' fit was built to end
+            // (a 10-year domain floored to zero under data that
+            // starts at 2,191), now ended for every window.
             var yStep = niceStep(hi - lo), yTicks = [];
-            if (manualY && manualY.hi > manualY.lo) {
-                // The pinched domain is exact: the snap picks the
-                // tick spacing only, and the ticks are the nice
-                // steps inside the range — expanding the domain
-                // back to the tick grid (the auto-fit's rule)
-                // would swallow gentle squeezes whole.
-                for (var tm = Math.ceil(lo / yStep) * yStep; tm <= hi + 1e-9; tm += yStep) yTicks.push(tm);
-                if (!yTicks.length) yTicks = [lo, hi];
-            } else {
-                lo = Math.floor(lo / yStep) * yStep;
-                var nTick = Math.max(1, Math.ceil((hi - lo) / yStep - 1e-9));
-                hi = lo + nTick * yStep;
-                for (var ti = 0; ti <= nTick; ti++) yTicks.push(lo + ti * yStep);
-            }
+            for (var tm = Math.ceil(lo / yStep) * yStep; tm <= hi + 1e-9; tm += yStep) yTicks.push(tm);
+            if (!yTicks.length) yTicks = [lo, hi];
             layout.hi = hi; layout.lo = lo;
             function X(idx) { return 6 + (n <= 1 ? plotW / 2 : (idx - v.start) / (n - 1) * plotW); }
             function YP(p) { return priceY + (hi - p) / (hi - lo) * priceH; }
@@ -10405,13 +10409,15 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         // or the candle extremes in candle style — with an
         // eighth of the range as headroom above and below, so
         // the line fills about 80% of the pane and never rides
-        // an edge. The general auto-fit keeps its wider,
-        // average-inclusive range for pinch-set windows; a
-        // button's frame is a promise, so its fit is exact: the
-        // fitted range rides the manual-range path (its domain
-        // is never snapped outward to the tick ladder — the
-        // snap was the old buttons' flattening: a 10-year domain
-        // floored to zero under data that starts at 2,191).
+        // an edge. Since 2026-11-27 the general auto-fit is this
+        // same fit (the visible price data, the same headroom,
+        // the domain never snapped outward to the tick ladder),
+        // so a pinched frame and a button's frame promise the
+        // same thing; the button's fit still rides the
+        // manual-range path, which now computes the identical
+        // range — it stays as the tap's own record that this
+        // window is a button's, and stands down the moment the
+        // window stops being the button's.
         // The fit is armed by the tap and held by render: while
         // the button's window is the window on screen, a sharper
         // layer landing (the intraday file, a fine rung) refits
