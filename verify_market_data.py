@@ -11,9 +11,17 @@ so alongside recomputation this suite cross-checks a sample of
 prices against independent sources.
 
 Checks (each failure prints one plain line and fails the run):
-  CALENDAR   finance-chart-daily.json's `through` is exactly
-             the last completed US session (weekend/holiday
-             aware), and every headline series ends there.
+  CALENDAR   finance-chart-daily.json's `through` is the last
+             completed US session (weekend/holiday aware), and
+             every headline series ends there — with one
+             exception: BTC trades every calendar day, so
+             `through` (the max over all series) may sit past
+             the session when every day inside the lead is a
+             non-session day; then session-bound series are
+             judged against the session date and BTC against
+             `through` itself. A lead spanning a session day
+             still fails — that is a missing session, not a
+             holiday.
   BARS       per series: dates strictly increasing, OHLC
              ordered, closes positive, no unexplained jump in
              the last bar, last close in line with its own
@@ -76,6 +84,15 @@ Checks (each failure prints one plain line and fails the run):
              is exact, a lead of two days fails, a lag fails,
              and any other series ahead of the daily through
              fails.
+             DAILY LEAD (2026-11-28): the same shape inside the
+             daily file itself — on the Thanksgiving 2026 run
+             the daily `through` itself was the holiday (BTC's
+             bar), and the strict session equality failed a
+             correct build 95 ways and blocked the publish.
+             The daily through may now lead the last session
+             only over non-session days (see CALENDAR), and
+             the intraday/rungs/cross-check anchors follow the
+             session date on such a run.
 
 Usage (workflow):  python verify_market_data.py
 Local/tests:       --dir DIR (artifact directory; default cwd)
@@ -223,10 +240,29 @@ def check_daily(suite, doc, expected_through, fcd):
         suite.fail("%s: no through date" % f)
         return None
     through = d(through_raw)
-    if through != expected_through:
+    # BTC trades every calendar day, so on a run whose last
+    # completed session is followed only by non-session days
+    # (a holiday, a weekend) the builder's `through` — the max
+    # over all series — legitimately sits past the session on
+    # BTC's bar alone (first seen 2026-11-27: through 2026-11-26
+    # on Thanksgiving night, last session 2026-11-25, and the
+    # strict equality below failed a correct build 95 ways).
+    # Accept that lead only when NO session day falls inside
+    # it: a lead spanning a session means a session's data is
+    # missing, which still fails. Session-bound series are
+    # then judged against the session date, BTC against
+    # `through` itself.
+    lead_ok = (through > expected_through
+               and sessions_between(expected_through, through) == 0)
+    if through != expected_through and not lead_ok:
         suite.fail("%s: through is %s, but the last completed US "
                    "session is %s (calendar check)"
                    % (f, through, expected_through))
+    if lead_ok:
+        suite.note("%s: through %s is past the last session %s "
+                   "only over non-session days (BTC) — accepted"
+                   % (f, through, expected_through))
+    session_through = expected_through if lead_ok else through
     series = doc.get("series") or {}
     if len(series) < 100:
         suite.fail("%s: only %d series (expected the full "
@@ -245,13 +281,23 @@ def check_daily(suite, doc, expected_through, fcd):
             suite.fail("%s: series %s ends %s, AFTER the through "
                        "date %s — a future bar" % (f, key, last_day,
                                                    through))
-        if key in HEADLINE_KEYS and last_day != through:
+        if key != "BTC" and last_day > session_through:
+            suite.fail("%s: series %s ends %s, AFTER the last "
+                       "completed session %s — a future bar for a "
+                       "session-bound series"
+                       % (f, key, last_day, session_through))
+        # BTC is judged against the file's own through; every
+        # other headline series against the session date (the
+        # two are identical unless the BTC lead above applied).
+        headline_target = through if key == "BTC" else session_through
+        if key in HEADLINE_KEYS and last_day != headline_target:
             suite.fail("%s: headline series %s ends %s, not the "
-                       "through date %s" % (f, key, last_day, through))
-        elif sessions_between(last_day, through) > 3:
+                       "through date %s" % (f, key, last_day,
+                                            headline_target))
+        elif sessions_between(last_day, session_through) > 3:
             suite.fail("%s: series %s ends %s, more than 3 "
                        "sessions before through %s"
-                       % (f, key, last_day, through))
+                       % (f, key, last_day, session_through))
         # OHLC sanity + jump on the recent tail.
         for b in bars[-30:]:
             o, h, l, c = (float(b[1]), float(b[2]), float(b[3]),
@@ -958,6 +1004,17 @@ def main():
         series = check_daily(suite, daily, expected_through, fcd)
         if daily.get("through"):
             through = d(daily["through"])
+            # Sibling files (intraday, fine rungs) and the
+            # cross-check anchor on the SESSION date: when the
+            # daily through leads it only over non-session days
+            # (BTC's holiday/weekend bar), the session-bound
+            # series in those files correctly end at the
+            # session, and their own BTC/VIX leads are judged
+            # by the existing holiday-lead rule against it.
+            if (through > expected_through
+                    and sessions_between(expected_through,
+                                         through) == 0):
+                through = expected_through
     if daily is not None and series and fcd is not None:
         prev_series = None
         if prev_path:
