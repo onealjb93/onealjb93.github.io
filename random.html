@@ -4221,8 +4221,9 @@
         var TAP_DIST = 28;      // px of travel before a press becomes a drag
         var COMMIT_DIST = 88;   // px of travel that commits the step on release
         var FLICK_VEL = 0.45;   // px/ms over the last ~100ms that commits a short drag
-        var V_AXIS = 1.4;       // |dy| must beat |dx| by this factor for a gesture to read as vertical
+        var V_AXIS = 2.75;      // |dy| must beat |dx| by this factor for a gesture to read as vertical (deck fix, 2026-11-27: the cone was 1.4 — every drag steeper than ~54° — so most natural diagonal swipes were handed to page scroll on the stage while the viewer, which never arbitrates, took them as card drags; 2.75 confines the contest to drags within ~20° of true vertical, which is the shape of an honest scroll)
         var FLICK_VEL_V = 0.5;  // px/ms trailing speed that makes a vertical stage drag a dealing flick, not a scroll
+        var SCROLL_DIST = 56;   // px of in-cone vertical travel, still slow, that proves a stage drag is a scroll and hands it to the page (deck fix, 2026-11-27: until this distance the verdict is open and the card rides the finger — see arbitrate())
         var GAP = 8;            // px between cards in the strip (the visible peek sliver is --jv-peek minus this)
         var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
         var behind = {};        // prefix -> { img, quote, text, attrib } RIGHT neighbour elements
@@ -4231,6 +4232,7 @@
         var fsPrev = { img: null, quote: null, text: null, attrib: null };
         var suppressEl = null;
         var suppressUntil = 0;
+        var dragDims = { w: 0, h: 0 }; // dealt face's size, cached at drag begin (perf pass, 2026-11-27: layoutDrag read offsetWidth/offsetHeight on every move — a layout read inside the gesture; the size cannot change mid-drag, so it is read once, at begin)
         var stripBusy = {};     // prefix -> true while a slide/settle owns that stage's strip
         var fsBusy = false;     // the same, for the viewer's strip
         var SWIPED_KEY = 'jbo-jv-swiped-v1';
@@ -4259,6 +4261,19 @@
                 var u = stageUrl(e.img);
                 if (els.img.getAttribute('src') !== u) { els.img.src = u; }
                 els.img.hidden = false;
+                // DECODE TRACKING (perf pass, 2026-11-27):
+                // painting starts the decode at once, and the
+                // card's readiness is recorded on the pair —
+                // throwStep and albumStep will not start a flight
+                // toward a card whose decode is still pending
+                // (see whenCardReady), so the incoming picture
+                // can never arrive blank or stutter mid-flight.
+                if (els.img.decode) {
+                    els.readyDone = false;
+                    els.ready = els.img.decode().then(
+                        function () { els.readyDone = true; },
+                        function () { els.readyDone = true; });
+                }
             }
         }
 
@@ -4326,7 +4341,7 @@
             var mag = Math.hypot(tx, ty);
             var ux = mag > 0.001 ? tx / mag : 1;
             var uy = mag > 0.001 ? ty / mag : 0;
-            var sep = Math.abs(ux) * face.offsetWidth + Math.abs(uy) * face.offsetHeight + GAP;
+            var sep = Math.abs(ux) * (dragDims.w || face.offsetWidth) + Math.abs(uy) * (dragDims.h || face.offsetHeight) + GAP;
             var trail = trailSide === 'back' ? L : (trailSide === 'fwd' ? R : null);
             if (trail) { setPairXY(trail, tx - ux * sep, ty - uy * sep); }
             setPairVis(R, trail === R ? '' : 'hidden');
@@ -4620,11 +4635,17 @@
             }
             var faces = facesFor(isFs, prefix);
             var step = stepPx(isFs ? fsFace() : faceOf(prefix));
+            var inc = dir > 0 ? (isFs ? fsBehind : behind[prefix]) : (isFs ? fsPrev : prevEls[prefix]);
+            // Same decode gate as the throw: a button/keyboard
+            // step's slide also waits for the incoming card's
+            // decode (already resolved in practice).
+            whenCardReady(inc, function () {
             faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-fly'); } });
             if (isFs) { layoutFsStrip(dir > 0 ? -step : step); } else { layoutStrip(prefix, dir > 0 ? -step : step); }
             fireOnLand(isFs ? fsFace() : faceOf(prefix), 420, function () {
                 fireStep(isFs, prefix, dir);
                 settlePoll(isFs, prefix, before, faces);
+            });
             });
         }
 
@@ -4665,6 +4686,11 @@
             var trail = dir > 0 ? R : L;
             var other = dir > 0 ? L : R;
             var faces = facesFor(isFs, prefix);
+            // DECODE GATE (perf pass, 2026-11-27): the flight
+            // starts only once the incoming card is decoded —
+            // in practice already true (see paintCard), so the
+            // throw is not delayed; the gate is the guarantee.
+            whenCardReady(trail, function () {
             faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-fly'); } });
             if (trail) {
                 [trail.img, trail.quote].forEach(function (el) { if (el) { el.classList.add('rg-swipe-incoming'); } });
@@ -4676,6 +4702,7 @@
             fireOnLand(face, 450, function () {
                 fireStep(isFs, prefix, dir);
                 settlePoll(isFs, prefix, before, faces);
+            });
             });
         }
 
@@ -4701,6 +4728,20 @@
         // flight's own transitionend — the same frame the card
         // lands, by construction — with the timer kept only as
         // a fallback for a transition that never runs.
+        // Run fn once the incoming card pair's picture is
+        // fully decoded — at once when it already is (the
+        // normal case: neighbours are painted and decoding
+        // starts the moment the current card is dealt, a whole
+        // dwell before any throw), and raced against a 300ms
+        // cap so a pathological image can never trap a flight.
+        function whenCardReady(els, fn) {
+            if (!els || !els.img || els.img.hidden || !els.ready || els.readyDone) { fn(); return; }
+            var done = false;
+            function go() { if (!done) { done = true; fn(); } }
+            els.ready.then(go, go);
+            setTimeout(go, 300);
+        }
+
         function fireOnLand(face, ms, fn) {
             var fired = false;
             function go() {
@@ -4739,16 +4780,24 @@
         // touchmove claim inside wireSwipe stops the takeover
         // before it starts, and end() reads a fast pointercancel
         // as the flick it was, in case the stream dies anyway.
-        // Where the stream survives, the arbitration is ours:
-        // velocity and distance decide what a vertical drag IS.
-        // A fast one (trailing speed at or past FLICK_VEL_V as
-        // it crosses the drag threshold, clearly vertical) is a
-        // flick and deals. A slow or sustained one is a scroll:
-        // the strip settles home and the page follows the finger
-        // 1:1 for the rest of the drag, with a short momentum
-        // glide on release — the page is never trapped under a
-        // stage gesture. The viewer has nothing scrolling behind
-        // it, so there a vertical drag is a card drag like any
+        // Where the stream survives, the arbitration is ours —
+        // and since the deck fix (2026-11-27) it stays OPEN
+        // until the gesture proves itself (see arbitrate()):
+        // the card rides the finger from the first move in
+        // every direction, and only a drag confined to the
+        // narrow cone around true vertical is contested at
+        // all. There, trailing velocity and sustained distance
+        // decide what it IS: a fast one is a flick and deals at
+        // once; a slow one sustained to SCROLL_DIST is a
+        // scroll — the page is handed the whole accumulated
+        // travel and follows the finger 1:1 for the rest of
+        // the drag, with a short momentum glide on release, so
+        // the page is never trapped under a stage gesture.
+        // Anything else — every diagonal, every direction a
+        // person actually throws a card — is the card's, and a
+        // release before any verdict is decided from the whole
+        // vector. The viewer has nothing scrolling behind it,
+        // so there a vertical drag is a card drag like any
         // other and the release decides. Mouse drags get the
         // same free 2D follow and throw as touch (desktop
         // parity); the vertical arbitration is for touch and
@@ -4818,6 +4867,17 @@
                     state: window.__rgSwipeState ? window.__rgSwipeState(prefix) : { back: null, fwd: null, fwdJump: false },
                     samples: [{ x: x, y: y, t: Date.now() }]
                 };
+                // Perf pass (2026-11-27): cache the face's size
+                // for the drag's layout math (no layout reads on
+                // move events) and promote the face to its own
+                // layer for the gesture's duration, so drags and
+                // the flights they become run on composited
+                // transforms only. Both are undone in finish().
+                var bface = opt.isFs ? fsFace() : faceOf(prefix);
+                g.faceEl = bface;
+                dragDims.w = bface ? bface.offsetWidth : 0;
+                dragDims.h = bface ? bface.offsetHeight : 0;
+                if (bface) { bface.style.willChange = 'transform'; }
                 return true;
             }
             el.addEventListener('pointerdown', function (e) {
@@ -4835,7 +4895,13 @@
                     pinchBlock = true;
                     if (g && g.src === 'touch') {
                         var live = g; g = null;
-                        if (live.dragging && live.mode === 'card' && !live.plain) { settleStrip(opt.isFs, live.prefix); }
+                        if (live.faceEl) { live.faceEl.style.willChange = ''; }
+                        dragDims.w = 0; dragDims.h = 0;
+                        // Any followed drag settles home — 'card'
+                        // or the still-open verdict alike (the old
+                        // test named 'card' only, which an
+                        // undecided drag would have slipped past).
+                        if (live.dragging && live.mode !== 'scroll' && live.mode !== 'vflick' && !live.plain) { settleStrip(opt.isFs, live.prefix); }
                     }
                     return;
                 }
@@ -4894,44 +4960,80 @@
             }
             el.addEventListener('touchend', touchFinish);
             el.addEventListener('touchcancel', touchFinish);
-            // Decide what a touch/pen gesture IS, once, from its
-            // shape: 'card' (the free 2D drag — the picture
-            // follows the pointer at any angle), 'vflick' (a
-            // decisive vertical flick — the card is thrown at
-            // once, along its own direction), or 'scroll' (a
-            // slow vertical drag — the page takes the gesture).
-            // The vertical cone alone is arbitrated, because the
-            // page must never be trapped under the stage; every
-            // other angle is the card's. In the viewer nothing
-            // scrolls behind, so its vertical drags are card
-            // drags too and the release decides. Mouse never
-            // classifies: a mouse drag is a card drag from its
-            // first move.
-            function classifyMove(y) {
+            // TRAILING VELOCITY (deck fix, 2026-11-27): every
+            // velocity in the gesture system is read over the
+            // trailing ~100ms window, never from the gesture's
+            // start. The reference is the last sample at or
+            // before the window's edge — the position the finger
+            // actually held then — with the window's length
+            // floored at 100ms when that sample is older, so a
+            // finger held still reads exactly zero (a held card
+            // cannot be dealt by its own history) and a flick
+            // thrown from a held position reads at its true
+            // speed. (The previous build read velocity from
+            // samples[0] — the gesture's start — so a hold
+            // poisoned every later reading.)
+            function trailVel(gr, x, y) {
+                var now = Date.now();
+                var ref = gr.samples[0];
+                for (var i = 0; i < gr.samples.length; i++) {
+                    if (gr.samples[i].t <= now - 100) { ref = gr.samples[i]; } else { break; }
+                }
+                var dt = Math.max(now - Math.max(ref.t, now - 100), 8);
+                return { vx: (x - ref.x) / dt, vy: (y - ref.y) / dt };
+            }
+            // ARBITRATION (deck fix, 2026-11-27 — the page deck
+            // read as broken on Johnny's phone while the viewer
+            // worked, and this function was the difference): the
+            // old classifier decided ONCE, at the first move past
+            // the drag threshold, from the drag's initial
+            // direction, inside a vertical cone 1.4 wide — every
+            // drag steeper than ~54° was the page's. A natural
+            // diagonal swipe starts steep, so on the stage the
+            // card never followed and the page scrolled instead;
+            // in the viewer nothing arbitrates, so the identical
+            // swipe threw the card. The verdict is now OPEN
+            // until the gesture proves itself, and the card
+            // rides the finger while it is open — hold it, move
+            // it, put it back, the card stays under the finger
+            // and nothing is decided until proof or release:
+            // - out of the (narrowed) vertical cone at any move:
+            //   'card', for good;
+            // - in the cone at flick speed: 'vflick' — thrown at
+            //   once, as before;
+            // - in the cone, still slow, sustained to
+            //   SCROLL_DIST of vertical travel: 'scroll' — the
+            //   strip settles and the page is handed the WHOLE
+            //   accumulated travel in one scrollBy, so the
+            //   handoff has no dead zone and no jump, then
+            //   follows the finger 1:1 as before. The page is
+            //   never trapped: any drag that means "scroll"
+            //   still scrolls, it just has to mean it for 56px.
+            // A release while the verdict is still open is
+            // decided by finish() from the whole vector —
+            // displacement plus trailing velocity — exactly
+            // like a card drag's release. In the viewer nothing
+            // scrolls behind, so its drags are card drags from
+            // the first move and the release decides. Mouse
+            // never arbitrates: a mouse drag is a card drag
+            // from its first move.
+            function arbitrate(y) {
+                if (opt.isFs) { g.mode = 'card'; return; }
                 var adx = Math.abs(g.dx), ady = Math.abs(g.dy);
-                if (ady > V_AXIS * adx && ady >= TAP_DIST) {
-                    if (opt.isFs) { g.mode = 'card'; return; }
-                    // Velocity over the trailing sample window,
-                    // with an 8ms floor on the window: inside a
-                    // narrower window the timestamps cannot prove
-                    // slowness (events delivered in the same
-                    // millisecond read as dt 0), and large travel
-                    // inside it is a flick by any definition.
-                    var s0 = g.samples[0];
-                    var dt = Math.max(Date.now() - s0.t, 8);
-                    var vvel = Math.abs(y - s0.y) / dt;
-                    if (g.state.fwd && vvel >= FLICK_VEL_V) {
-                        g.mode = 'vflick';
-                        markSwiped();
-                        throwStep(opt.isFs, g.prefix, 1, 0, g.dy < 0 ? -1 : 1, g.state, g.plain, 0, 0);
-                        return;
-                    }
-                    g.mode = 'scroll';
-                    if (!g.plain) { settleStrip(opt.isFs, g.prefix); }
-                    g.lastY = y;
+                if (ady <= V_AXIS * adx) { g.mode = 'card'; return; }
+                var vvel = Math.abs(trailVel(g, g.x0 + g.dx, y).vy);
+                if (g.state.fwd && vvel >= FLICK_VEL_V) {
+                    g.mode = 'vflick';
+                    markSwiped();
+                    throwStep(opt.isFs, g.prefix, 1, 0, g.dy < 0 ? -1 : 1, g.state, g.plain, g.tx || 0, g.ty || 0);
                     return;
                 }
-                g.mode = 'card';
+                if (ady >= SCROLL_DIST) {
+                    g.mode = 'scroll';
+                    if (!g.plain) { settleStrip(opt.isFs, g.prefix); }
+                    window.scrollBy(0, -g.dy);
+                    g.lastY = y;
+                }
             }
             // One move, from either stream: the pointer stream
             // (mouse, pen, and any pointer the touch stream did
@@ -4958,9 +5060,12 @@
                     g.lastY = y;
                     return;
                 }
-                if (!g.mode && g.ptype !== 'mouse') { classifyMove(y); }
+                if (!g.mode && g.ptype !== 'mouse') { arbitrate(y); }
                 if (g.mode === 'vflick' || g.mode === 'scroll') { return; }
-                if (g.plain || g.mode !== 'card') { return; }
+                if (g.plain) { return; }
+                // 'card', or the verdict still open (an in-cone
+                // drag that has proved nothing yet): the card
+                // rides the finger either way.
                 // THE FREE DRAG (2026-11-27): the picture follows
                 // the pointer as one continuous 2D vector — up,
                 // down, diagonal, anywhere — at the pointer's own
@@ -4992,7 +5097,7 @@
             // event still carries where the finger was when it
             // was taken. Short, fast, clearly vertical travel by
             // then is the flick the user threw: deal it, exactly
-            // as classifyMove would have. Anything slower,
+            // as arbitrate() would have. Anything slower,
             // shorter or less vertical was a scroll being born
             // and dies undealt. A gesture the classifier already
             // claimed (any mode set) never reaches this reader —
@@ -5004,9 +5109,7 @@
                 var cdx = x - done.x0, cdy = y - done.y0;
                 var acdx = Math.abs(cdx), acdy = Math.abs(cdy);
                 if (acdy < TAP_DIST || acdy <= V_AXIS * acdx) { return false; }
-                var ks0 = done.samples[0];
-                var kdt = Math.max(Date.now() - ks0.t, 8);
-                var kvel = Math.abs(y - ks0.y) / kdt;
+                var kvel = Math.abs(trailVel(done, x, y).vy);
                 if (!done.state.fwd || kvel < FLICK_VEL_V) { return false; }
                 suppressEl = done.el;
                 suppressUntil = Date.now() + 600;
@@ -5018,6 +5121,8 @@
                 if (!g) { return; }
                 var done = g;
                 g = null;
+                if (done.faceEl) { done.faceEl.style.willChange = ''; }
+                dragDims.w = 0; dragDims.h = 0;
                 if (cancelled && !opt.isFs && done.ptype !== 'mouse' && cancelledFlick(done, x, y)) { return; }
                 if (!done.dragging) { return; } // a tap: the click does its usual work
                 suppressEl = done.el;
@@ -5027,9 +5132,7 @@
                 if (done.mode === 'vflick') { return; } // dealt mid-gesture, at the flick itself
                 if (done.mode === 'scroll') {
                     if (!cancelled) {
-                        var ss0 = done.samples[0];
-                        var sdt = Math.max(Date.now() - ss0.t, 8);
-                        startScrollMomentum((y - ss0.y) / sdt);
+                        startScrollMomentum(trailVel(done, x, y).vy);
                     }
                     return;
                 }
@@ -5039,9 +5142,7 @@
                     // original horizontal verdict, and its step
                     // takes the no-slide path.
                     var pdist = Math.abs(done.dx);
-                    var ps0 = done.samples[0];
-                    var pdt = Math.max(Date.now() - ps0.t, 8);
-                    var pvel = Math.abs(x - ps0.x) / pdt;
+                    var pvel = Math.abs(trailVel(done, x, y).vx);
                     var pdir = done.dx < 0 ? 1 : (done.dx > 0 ? -1 : 0);
                     var ptarget = pdir > 0 ? done.state.fwd : done.state.back;
                     var pcommit = !cancelled && pdir !== 0 && !!ptarget &&
@@ -5061,10 +5162,9 @@
                 // state is exactly where it was — same picture,
                 // same place in the history.
                 var dist = Math.hypot(done.dx, done.dy);
-                var s0 = done.samples[0];
-                var dt = Math.max(Date.now() - s0.t, 8);
-                var vx = (x - s0.x) / dt;
-                var vy = (y - s0.y) / dt;
+                var tv = trailVel(done, x, y);
+                var vx = tv.vx;
+                var vy = tv.vy;
                 var speed = Math.hypot(vx, vy);
                 var rightward = done.dx > 0 && Math.abs(done.dx) >= Math.abs(done.dy);
                 var dir = rightward ? -1 : 1;
@@ -5146,6 +5246,15 @@
         PREFIXES.forEach(function (p) {
             var st = GEN[p];
             if (st && st.shownId) { dealBehind(p); }
+        });
+
+        // The dealt openers were painted before this block ran,
+        // so their decodes were never tracked; start them now —
+        // the card standing on the stage should never be the
+        // one still decoding (perf pass, 2026-11-27).
+        PREFIXES.forEach(function (p) {
+            var fi = document.getElementById(p + '-img');
+            if (fi && fi.decode) { fi.decode().then(function () { }, function () { }); }
         });
 
         // DESKTOP PARITY (2026-11-27): the arrow keys step the
