@@ -196,13 +196,18 @@
     #chart-body > .jbo-chart-frame { flex: 1 1 auto; min-height: 0; }
     .chart-intro { margin-top: 1rem; }
     .jbo-chart-frame { position: relative; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; }
-    /* The canvas is touch-action: none in both views (the
-       full-screen rules below restate it): the stage owns every
-       touch that lands on it, so the page can never scroll out
-       from under a chart gesture — one finger inspects, two
-       fingers run the free pinch — identically inline and full
-       screen (free pinch, 2026-11-24). */
-    .jbo-chart-frame canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+    /* The canvas is touch-action: pan-y in both views (the
+       full-screen rules below restate it): the browser owns a
+       vertical drag and scrolls the page with it, so the chart
+       never traps the page's scroll; a horizontal drag is not a
+       scroll, so it reaches the chart's handlers and only
+       inspects — the crosshair follows the finger like a cursor
+       and the window never moves under one finger. Two fingers
+       are claimed by the handlers' own touch listeners
+       (preventDefault), so a pinch is the chart's, never the
+       page's — identically inline and full screen (touch model
+       restored, 2026-11-27). */
+    .jbo-chart-frame canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: crosshair; }
     /* The span indicator (2026-11-23): a non-interactive overlay
        in the chart's top-left corner naming the visible window --
        dates plus span at a zoom, "All · <first> – <last>" at the
@@ -922,7 +927,7 @@
     #chart.chart-fs { position: fixed; inset: 0; z-index: 1100; display: flex; flex-direction: column; width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; margin: 0; box-sizing: border-box; overflow: hidden; overscroll-behavior: none; background: var(--bg-color); padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) calc(env(safe-area-inset-right, 0px) + 0.6rem) calc(env(safe-area-inset-bottom, 0px) + 0.6rem) calc(env(safe-area-inset-left, 0px) + 0.6rem); }
     #chart:fullscreen > .chart-intro, #chart:-webkit-full-screen > .chart-intro, #chart.chart-fs > .chart-intro { display: none; }
     #chart:fullscreen > #chart-body, #chart:-webkit-full-screen > #chart-body, #chart.chart-fs > #chart-body { flex: 1 1 auto; height: auto; min-height: 0; }
-    #chart:fullscreen .jbo-chart-frame canvas, #chart:-webkit-full-screen .jbo-chart-frame canvas, #chart.chart-fs .jbo-chart-frame canvas { touch-action: none; }
+    #chart:fullscreen .jbo-chart-frame canvas, #chart:-webkit-full-screen .jbo-chart-frame canvas, #chart.chart-fs .jbo-chart-frame canvas { touch-action: pan-y; }
     #chart:fullscreen > .chart-front-door, #chart:-webkit-full-screen > .chart-front-door, #chart.chart-fs > .chart-front-door { display: none; }
     #chart:fullscreen #chartKey, #chart:-webkit-full-screen #chartKey, #chart.chart-fs #chartKey,
     #chart:fullscreen #jboChartNote, #chart:-webkit-full-screen #jboChartNote, #chart.chart-fs #jboChartNote,
@@ -11451,31 +11456,33 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 if (i !== hover) { hover = i; scheduleRender(); }
                 else { updateTip(); } // same week, new pointer spot: the bubble still follows (a touch finger moving within one week must never end up under it)
             }
-            // ---- the free pinch: ONE 2D transform (2026-11-24) ----
-            // Johnny's ruling, from his pinch video: "Just pinch
-            // and move any way you want in a chart." The two-finger
-            // gesture is a single transform, the way Photos and
-            // Maps behave — no axis cases, no engagement
-            // thresholds, no component minimums. Every move event
-            // applies one incremental step: the horizontal spread
-            // ratio scales the time window, the vertical spread
-            // ratio scales the price range, both about the data
-            // point under the fingers' midpoint, and the midpoint's
-            // own motion pans — when the step ends, the anchor data
-            // point sits under the moving midpoint on both axes.
-            // A diagonal pinch is not a special case because there
-            // are no cases. The window lives in epoch milliseconds
-            // (gWin) for the whole gesture, so a granularity-rung
-            // swap mid-gesture changes which bars draw, never the
-            // window: the window is a function of the fingers only,
-            // and the old seam overshoot dies with the bar-unit
-            // gesture it lived in. The canvas carries
-            // touch-action: none, so the page never scrolls during
-            // a chart gesture. One finger still only inspects.
-            // When a gesture ends with one finger still down, that
-            // finger is ignored until it lifts, so the crosshair
-            // never jumps mid-gesture.
-            var ptrs = {}, gest = null, gestBlock = false, lastTap = { t: 0, x: 0, y: 0 };
+            // ---- the pinch: span only, on both axes ----
+            // Johnny's touch law (settled 2026-11-24, restored
+            // 2026-11-27): the timeframe buttons change the
+            // window, one finger only inspects, and a pinch
+            // changes the SPAN — each move recomputes the window
+            // from the gesture's BEGIN state (the begin window
+            // scaled by the finger-distance ratio, about the data
+            // point under the fingers' begin midpoint, on X and
+            // on Y alike), never from the last frame, so no step
+            // can compound or drift and translating both fingers
+            // changes nothing. The window lives in epoch
+            // milliseconds (gWin) for the whole gesture, so a
+            // granularity-rung swap mid-gesture changes which
+            // bars draw, never the window. The canvas carries
+            // touch-action: pan-y: a one-finger vertical drag is
+            // the browser's (the page scrolls), a horizontal drag
+            // reaches these handlers and only inspects; the
+            // two-finger gesture is claimed by the touch
+            // listeners below (preventDefault), never by the
+            // page. When a gesture ends with one finger still
+            // down, that finger is ignored until it lifts, so
+            // the crosshair never jumps mid-gesture.
+            var ptrs = {}, gest = null, gestBlock = false;
+            // The pointer family (touch / mouse / pen) that last
+            // worked on the canvas — the pointerleave ghost gate
+            // below reads it.
+            var ptrFamily = "";
             // The mouse's drag state (2026-11-23): a press snapshots
             // the drawn window; movement past the Bitcoin charts'
             // 3px threshold pans a zoomed window by the dragged
@@ -11661,6 +11668,18 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 gest.win0 = gWin;
                 gest.fx0 = cl01(((a.x + b.x) / 2 - rect.left - 6) / layout.plotW);
                 gest.fy0 = cl01(((a.y + b.y) / 2 - rect.top - layout.priceY) / layout.priceH);
+                // The Y half's begin state (2026-11-27): the
+                // begin finger distance, the begin price range and
+                // the price under the begin midpoint — the pinch's
+                // Y is recomputed from these on every move, like
+                // its X, so it cannot ratchet.
+                gest.dy0 = Math.max(1, Math.abs(a.y - b.y));
+                gest.autoSpan0 = autoSpanY;
+                gest.ySpan0 = null; gest.yAnchor = null;
+                if (layout.lo !== null && layout.hi !== null && layout.hi > layout.lo) {
+                    gest.ySpan0 = manualY ? (manualY.hi - manualY.lo) : (layout.hi - layout.lo);
+                    gest.yAnchor = layout.hi - gest.fy0 * (layout.hi - layout.lo);
+                }
                 gest.midX0 = (a.x + b.x) / 2;
                 gest.anchorT = null;
                 if (gWin && view.s && view.s.bars && view.s.bars.length > 1) {
@@ -11682,43 +11701,40 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 render();
                 return true;
             }
-            // The price half of one gesture step: the range scales
-            // by the vertical spread ratio about the price under
-            // the fingers' BEGIN midpoint — spreading narrows the
-            // range (the line stretches taller), closing widens
-            // it, the photo model's direction. The anchor height
-            // is fixed at the gesture's first frame (2026-11-24,
-            // Johnny's no-pan law: pinch changes span only, and a
-            // two-finger translation moves nothing, on either
-            // axis). The range is bounded to [10%, 10x] of the
-            // view's auto-fit span, measured against autoSpanY so
-            // repeated pinches cannot walk past the bounds.
-            // Auto-fit stands until a vertical spread first
-            // engages Y; once engaged, Y tracks the spread to the
-            // gesture's end. Returns true when the manual range
-            // changed.
+            // The price half of the pinch, a state function of
+            // the gesture like the time half (2026-11-27): the
+            // range is the BEGIN range scaled by the vertical
+            // finger-distance ratio (begin distance / current
+            // distance), about the price under the fingers' BEGIN
+            // midpoint — spreading narrows the range (the line
+            // stretches taller), closing widens it, the photo
+            // model's direction, and a two-finger translation
+            // moves nothing (Johnny's no-pan law, both axes). It
+            // is recomputed from the begin state on every move:
+            // the per-step ratio it replaces multiplied the
+            // CURRENT range on every pointermove, so a one-second
+            // pinch ratcheted the range to its bound — the
+            // 2,000-tick scale in Johnny's 2026-11-27 recording.
+            // The range is bounded to [10%, 10x] of the BEGIN
+            // view's auto-fit span. A gesture whose fingers begin
+            // stacked vertically (under 8px apart — no real
+            // baseline) never engages Y. Auto-fit stands until a
+            // vertical spread first engages Y; once engaged, Y
+            // tracks the spread to the gesture's end. Returns
+            // true when the manual range changed.
             function applyPinchY(pmy, midY, dyP, dyN, rect) {
-                if (!layout || layout.lo === null || layout.hi === null || !layout.priceH) return false;
-                var top = rect.top + layout.priceY;
-                var fyP = (gest && gest.fy0 != null) ? gest.fy0 : cl01((pmy - top) / layout.priceH);
-                var fyN = fyP;
-                var anchorPrice = layout.hi - fyP * (layout.hi - layout.lo);
-                var span = manualY ? (manualY.hi - manualY.lo) : (layout.hi - layout.lo);
-                var scaled = false;
-                if (dyP >= 2 && dyN >= 2) {
-                    var r = dyP / dyN;
-                    if (r < 0.5) r = 0.5; else if (r > 2) r = 2;
-                    if (r !== 1) { span = span * r; scaled = true; }
+                if (!gest || gest.ySpan0 == null || gest.yAnchor == null) return false;
+                if (dyN < 2 || gest.dy0 < 8) return false;
+                if (Math.abs(dyN - gest.dy0) >= 2) gest.yOn = true;
+                if (!gest.yOn) return false;
+                var span = gest.ySpan0 * (gest.dy0 / dyN);
+                if (gest.autoSpan0 > 0) {
+                    if (span < gest.autoSpan0 * 0.1) span = gest.autoSpan0 * 0.1;
+                    if (span > gest.autoSpan0 * 10) span = gest.autoSpan0 * 10;
                 }
-                if (scaled) gest.yOn = true;
-                if (!gest.yOn && !manualY) return false;
-                if (autoSpanY > 0) {
-                    if (span < autoSpanY * 0.1) span = autoSpanY * 0.1;
-                    if (span > autoSpanY * 10) span = autoSpanY * 10;
-                }
-                var nhi = anchorPrice + fyN * span;
+                var nhi = gest.yAnchor + gest.fy0 * span;
                 var nlo = nhi - span;
-                if (nlo < 0 && anchorPrice > 0) { nhi -= nlo; nlo = 0; }
+                if (nlo < 0 && gest.yAnchor > 0) { nhi -= nlo; nlo = 0; }
                 if (manualY && manualY.lo === nlo && manualY.hi === nhi) return false;
                 manualY = { lo: nlo, hi: nhi };
                 return true;
@@ -11777,19 +11793,16 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 // changes nothing the fingers hold.
                 var fxN = gest.fx0;
                 var span0 = gest.win0.b - gest.win0.a;
-                var anchorLin = gest.win0.a + gest.fx0 * span0;
-                var anchorT = anchorLin;
-                if (gest.anchorT != null) {
-                    // Blend the index-mapped anchor in with the
-                    // finger-distance change (24px to full): zero
-                    // spread change keeps the window exactly (a
-                    // pure Y pinch, or a pure translation, never
-                    // moves it), a real pinch gets the true bar
-                    // under the fingers.
-                    var hTravel = Math.abs(dxN - gest.d0x) / 2;
-                    var hw = Math.min(1, hTravel / 24);
-                    anchorT = anchorLin + (gest.anchorT - anchorLin) * hw;
-                }
+                // The anchor is the begin centroid's time, held
+                // at the begin fraction for the whole gesture —
+                // no index-mapped blend (2026-11-27): the blend
+                // shifted the anchor by the gap between linear
+                // time and bar time (weekends and holidays) as
+                // the spread changed, which is a pan riding on
+                // the zoom. The time under the fingers' begin
+                // midpoint stays at that fraction; only the span
+                // changes.
+                var anchorT = gest.win0.a + gest.fx0 * span0;
                 var nSpan = span0 * (gest.d0x / Math.max(1, dxN));
                 var tA = anchorT - fxN * nSpan;
                 var tB = tA + nSpan;
@@ -11805,31 +11818,32 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             }
             canvas.addEventListener("pointerdown", function (e) {
                 if (curveMode) return;
-                // Every pointer is tracked toward a gesture, in
-                // both views: the canvas's touch-action (pan-y)
-                // hands horizontal drags and two-finger gestures to
-                // the chart, inline exactly as in the full-screen
-                // view — the Scoreboard chart's gate-free tracking,
-                // carried back to the chart it came from. A vertical
-                // drag still scrolls the page.
-                {
+                ptrFamily = e.pointerType || "mouse";
+                // Touch pointers (and the pen) are tracked toward
+                // a gesture, in both views: the canvas's
+                // touch-action (pan-y) hands horizontal drags and
+                // two-finger gestures to the chart, inline exactly
+                // as in the full-screen view — the Scoreboard
+                // chart's gate-free tracking, carried back to the
+                // chart it came from. A vertical drag still
+                // scrolls the page: the browser claims it and
+                // pointercancel ends the inspection. The mouse is
+                // never tracked here — it has its own drag below,
+                // and a mouse entry in this table could pair with
+                // a real finger into a phantom pinch.
+                if (e.pointerType !== "mouse") {
                     var id = ptrId(e);
                     ptrs[id] = { x: e.clientX, y: e.clientY, raw: e.pointerId };
                     var n = Object.keys(ptrs).length;
                     if (n === 2) { if (!gestureBegin()) gestBlock = true; return; }
                     if (n > 2 || gestBlock) return;
                 }
-                // Double-tap: a second quick tap at the same spot
-                // hands the window back to the range button.
-                if (e.pointerType === "touch") {
-                    var now = Date.now();
-                    if ((zoom || fineWin) && now - lastTap.t < 400 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 48) {
-                        zoom = null; fineWin = null; manualY = null; hover = -1; lastTap = { t: 0, x: 0, y: 0 };
-                        render();
-                    } else {
-                        lastTap = { t: now, x: e.clientX, y: e.clientY };
-                    }
-                }
+                // One finger never changes the window — there is
+                // no double-tap reset (2026-11-27): a second quick
+                // tap at the same spot is how a reader re-inspects
+                // a dot while zoomed, and the old reset wiped the
+                // window out from under exactly that. The All
+                // button is the window's reset.
                 if (e.pointerType === "mouse" && view) {
                     mDrag = { x: e.clientX, y: e.clientY, start: view.start, end: view.end, zoomed: (view.end - view.start) < (rangeEnd - rangeStart) || !!view.fine, moved: false };
                 }
@@ -11837,6 +11851,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             });
             canvas.addEventListener("pointermove", function (e) {
                 if (curveMode) return;
+                ptrFamily = e.pointerType || "mouse";
                 var id = ptrId(e);
                 if (ptrs[id]) {
                     ptrs[id].x = e.clientX; ptrs[id].y = e.clientY;
@@ -11855,7 +11870,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 // moves the crosshair, and a click lands on
                 // pointerdown. In the full-screen view nothing here
                 // changes: drags inspect and the two-pointer
-                // gesture pans and zooms there, as before.
+                // gesture zooms there (span only), as before.
                 // The mouse's drag (2026-11-23, the Bitcoin charts'
                 // contract): past a 3px threshold a held drag PANS a
                 // zoomed window — the bar under the cursor stays
@@ -11899,6 +11914,20 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
                 // (Johnny's ruling, 2026-11-20: a tap's readout
                 // stays after the finger lifts).
                 if (e.pointerType && e.pointerType !== "mouse") return;
+                // The compatibility ghost (2026-11-27, caught in
+                // the touch gate's event log): after a touch
+                // sequence the browser ALSO fires a pointerleave
+                // with pointerType "mouse" — the synthetic mouse
+                // position being invalidated by the scroll the
+                // finger just made. It passes the type gate above
+                // and wiped the readout the finger had set, so
+                // every page scroll that began on the chart ended
+                // with the inspector snapping back to the latest
+                // bar. A real mouse leave is preceded by the
+                // mouse's own activity on the canvas; when the
+                // last pointer family to work here was touch, a
+                // mouse leave is the ghost — ignore it.
+                if (ptrFamily && ptrFamily !== "mouse") return;
                 ptrs = {}; gest = null; gestBlock = false;
                 mDrag = null; canvas.style.cursor = "";
                 if (hover !== -1) { hover = -1; render(); }
@@ -11906,7 +11935,13 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             canvas.addEventListener("pointercancel", function (e) {
                 gestureEnd(ptrId(e));
                 if (e.pointerType === "mouse") { mDrag = null; canvas.style.cursor = ""; }
-                if (hover !== -1) { hover = -1; render(); }
+                // Only the mouse's cancel clears the crosshair.
+                // A touch cancel is the browser claiming the drag
+                // (a vertical drag becoming the page's scroll) or
+                // the finger lifting — the readout stays where
+                // the finger left it, exactly as on a lift (the
+                // pointerleave ruling above, 2026-11-20).
+                if (e.pointerType === "mouse" && hover !== -1) { hover = -1; render(); }
             });
             // With two fingers down, the gesture belongs to the
             // chart, never to the page, in both views: the canvas's
@@ -13889,8 +13924,13 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             // fires pointerleave too, and a tap's readout must stay
             // after the finger lifts (Johnny's ruling, 2026-11-20).
             // Only the mouse's leave resets the gesture tracking
-            // and clears the readout.
+            // and clears the readout. The price chart's ghost gate
+            // rides along (2026-11-27): a compatibility pointerleave
+            // typed "mouse" after a touch sequence is not the mouse
+            // leaving — sbPtr still names the family that last
+            // worked here, and a touch there vetoes it.
             if (e.pointerType && e.pointerType !== "mouse") return;
+            if (sbPtr && sbPtr.type && sbPtr.type !== "mouse") return;
             sbPtrs = {}; sbGest = null; sbGestBlock = false;
             sbClearHover();
         });
