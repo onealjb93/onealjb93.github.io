@@ -395,10 +395,26 @@
         .gen-img-behind[hidden], .gen-quote-behind[hidden], .gen-fs-img-behind[hidden], .gen-fs-quote-behind[hidden] { display: none !important; }
         .gen-img-behind { inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
         .gen-quote-behind { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100%; cursor: default; }
-        .gen-fs-img-behind { inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; background: #000; border-radius: 20px; }
+        .gen-fs-img-behind { inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
         .gen-fs-quote-behind { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100%; }
-        .rg-swipe-fly { transition: transform var(--dur-2) var(--ease-out) !important; }
-        .rg-swipe-settle { transition: transform var(--dur-2) var(--ease-inout) !important; }
+        /* THE FLIGHT (feel fix, 2026-11-28): one transform track,
+           300ms on a decisive ease-out, transform only — the
+           flight carries its own timing rather than borrowing
+           the shared --dur-2 token, and a hard flick shortens it
+           inline (throwStep reads the release speed), so the
+           card keeps the finger's own pace. The settle home is
+           the same track, shorter. */
+        .rg-swipe-fly { transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1) !important; }
+        .rg-swipe-settle { transition: transform 240ms cubic-bezier(0.4, 0, 0.2, 1) !important; }
+        /* THE LANDING (feel fix, 2026-11-28): when the step
+           fires on the incoming card's arrival, the dealt face
+           is still finishing its flight's invisible tail off-
+           stage. Its rest is given a 1ms track so the landing
+           is a real transition that ends the moment the strip
+           rests — the card lands when it arrives, not when a
+           formal tail runs out. One frame at most; nothing
+           visible moves. */
+        .rg-swipe-land { transition: transform 1ms linear !important; }
         /* FS SCROLL LOCK (iOS fix, 2026-11-27): while the
            fullscreen viewer stands open, the swipe script's
            overlay observer puts .jv-fs-lock on <html> — the page
@@ -409,7 +425,7 @@
            behind the viewer while he dragged). */
         html.jv-fs-lock, html.jv-fs-lock body { overflow: hidden !important; }
         @media (prefers-reduced-motion: reduce) {
-            .rg-swipe-fly, .rg-swipe-settle { transition: none !important; }
+            .rg-swipe-fly, .rg-swipe-settle, .rg-swipe-land { transition: none !important; }
         }
         /* FIXED FRAME + SEALED DECK (2026-11-21, Johnny's two
            catches on the shipped swipe): (1) at rest the waiting
@@ -457,7 +473,7 @@
             #gen-quotes:not(.deep-open) > .gen-body > .gen-stage { align-self: stretch; }
         }
         .gen-fs-img-behind { left: 0; top: 0; right: auto; bottom: auto; width: 100%; height: 100%; }
-        .gen-fs .gen-fs-quote { width: 100%; height: 100%; max-width: none; box-sizing: border-box; margin: 0; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; border-radius: 20px; box-shadow: var(--glass-shadow); }
+        .gen-fs .gen-fs-quote { width: 100%; height: 100%; max-width: none; box-sizing: border-box; margin: 0; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: var(--bg-color); background-image: linear-gradient(var(--card-bg), var(--card-bg)); border-radius: 8px; }
         .gen-fs [hidden] { display: none !important; }
         .gen-fs .gen-fs-quotetext, .gen-fs .gen-fs-quoteattrib { max-width: 48ch; }
         .gen-fs .gen-fs-quote-behind { left: 0; top: 0; right: auto; bottom: auto; width: 100%; height: 100%; transform: none; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
@@ -830,7 +846,15 @@
            screen. iPhone Safari cannot fullscreen arbitrary elements,
            so there the overlay is simply fixed inset:0 — identical
            behaviour from the visitor's side. */
-        .gen-fs { position: fixed; inset: 0; z-index: 3000; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; cursor: zoom-out; box-sizing: border-box; padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom)); }
+        .gen-fs { position: fixed; inset: 0; z-index: 3000; display: flex; flex-direction: column; align-items: stretch; justify-content: center; cursor: zoom-out; box-sizing: border-box; padding: calc(12px + env(safe-area-inset-top)) 1px calc(12px + env(safe-area-inset-bottom)); }
+        /* ONE PRESENTATION (feel fix, 2026-11-28): the viewer is
+           the deck's own card on the site's own surface — opaque,
+           never the translucent scrim. Through the scrim the page
+           behind (with the previous entry's caption, blurred)
+           ghosted around the viewer's photo, so the words and
+           the picture could be seen disagreeing, and the photo
+           floated in a black void unlike anything on the page. */
+        .gen-fs.glass-scrim { background: var(--bg-color); -webkit-backdrop-filter: none; backdrop-filter: none; }
         /* VIEWER LAYOUT (2026-11-23): the photo lives in its own
            stage box (flexible height, one fixed size per viewport)
            and the action cluster lives in a fixed row BELOW it —
@@ -841,23 +865,31 @@
            waiting card behind it, the control row, the credit,
            the exit icon) is now positioned against this stage box,
            at the same offsets from the photo's own edges. */
-        .gen-fs-stage { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; }
+        /* THE DECK'S OWN FRAME (feel fix, 2026-11-28): the
+           viewer's stage follows the page stage's own rule at
+           every size — not a full-height column the photo bands
+           inside. On the phone that rule is the fixed 3:2 frame
+           (below); at 768px and up it is the card itself. */
+        /* At 768px and up the stage IS the card box, exactly as
+           the page's own large-screen rule has it: the card at
+           its own width rule and natural height, the whole box
+           bounded by the deck's 3:2 frame proportions and
+           capped so the bar and credit always fit the screen
+           with it. Width-filling at natural aspect, like the
+           deck — the same card, the same fill rule. */
+        .gen-fs-stage { position: relative; flex: none; min-height: 0; width: min(100%, 1120px, calc((100vh - 176px) * 1.5)); width: min(100%, 1120px, calc((100dvh - 176px) * 1.5)); margin: 0 auto; }
         .gen-fs-actions { flex: none; display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; margin-left: auto; }
         .gen-fs[hidden] { display: none !important; }
         .gen-fs:fullscreen { width: 100%; height: 100%; }
-        .gen-fs-img { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; background: #000; border-radius: 20px; box-shadow: var(--glass-shadow); }
-        /* Credit line (2026-11-22): bottom-left and left-aligned —
-           it leaves the centre so it can never run under the
-           action cluster. Its left edge takes the cluster's own
-           inset (0.55rem inside the photo box, mirrored), and its
-           right edge keeps the measure it had when the cluster
-           rode the photo's bottom-right corner, so the credit
-           wraps exactly where it always has; the cluster itself
-           now lives in the control row above the credit strip
-           (2026-11-23; the row is the viewer's one header row
-           since 2026-11-27). */
-        .gen-fs-credit { position: absolute; left: 0.55rem; right: calc(0.55rem + 36px + 0.5rem + 36px + 0.5rem + 36px + 16px); bottom: 0; margin: 0; padding: 1.6rem 1rem 0.7rem; font-size: 0.78rem; line-height: 1.35; text-align: left; color: rgba(255, 255, 255, 0.8); background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent); border-radius: 0 0 0 20px; }
-        .gen-fs-credit a { color: rgba(255, 255, 255, 0.9); }
+        .gen-fs-img { display: block; width: 100%; height: auto; max-width: 100%; max-height: calc(100vh - 176px); max-height: calc(100dvh - 176px); object-fit: contain; background-color: var(--bg-color); background-image: linear-gradient(var(--card-bg), var(--card-bg)); border-radius: 8px; }
+        /* Credit line: left-aligned, under the card (below). */
+        /* BELOW THE CARD (feel fix, 2026-11-28): the credit
+           stands in flow under the card on the surface, at the
+           card's own width, where the page's own source line
+           sits under its stage — not stranded at the screen's
+           bottom over a black gradient. */
+        .gen-fs-credit { position: static; flex: none; width: min(100%, 1120px, calc((100vh - 176px) * 1.5)); width: min(100%, 1120px, calc((100dvh - 176px) * 1.5)); margin: 10px auto 0; padding: 0.15rem 0 0; font-size: 0.78rem; line-height: 1.35; text-align: left; color: var(--subtext-color); background: none; border-radius: 0; }
+        .gen-fs-credit a { color: var(--link-color); }
         /* CONTROL ROW INSIDE THE VIEWER (2026-11-20; the draw
            button retired 2026-11-27 — swiping deals; ONE ROW,
            2026-11-27): one integrated row that mirrors the
@@ -874,16 +906,35 @@
            width: the sizing tiers at the end of this stylesheet
            compact the pieces at phone widths, so nothing ever
            wraps, overlaps or leaves the screen. */
+        /* ABOVE THE CARD (feel fix, 2026-11-28): the row stands
+           in flow just over the card, at the card's own width,
+           where the deck's header row sits over its stage — the
+           same arrangement in both views, anchored to the
+           picture, never floating mid-screen. */
         .gen-fs-bar {
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 4.9rem;
+            position: relative;
             z-index: 2;
+            flex: none;
+            width: min(100%, 1120px, calc((100vh - 176px) * 1.5));
+            width: min(100%, 1120px, calc((100dvh - 176px) * 1.5));
             height: 52px;
+            margin: 0 auto 10px;
             display: flex;
             align-items: center;
             gap: 0.6rem;
+        }
+        /* PHONE (feel fix, 2026-11-28): below 768px the page
+           stage is the fixed 3:2 frame, so the viewer's stage
+           is that frame — the same box at the stage's own
+           width, height-bound only when the viewport is too
+           short for the frame at full width (the bar above
+           and the credit below the card are counted in the
+           176px). This block stands after the base viewer
+           rules so its declarations win at equal specificity. */
+        @media (max-width: 767px) {
+            .gen-fs-stage { width: min(100%, calc((100vh - 176px) * 1.5)); width: min(100%, calc((100dvh - 176px) * 1.5)); aspect-ratio: 3 / 2; }
+            .gen-fs-img { height: 100%; max-height: 100%; }
+            .gen-fs-bar, .gen-fs-credit { width: min(100%, calc((100vh - 176px) * 1.5)); width: min(100%, calc((100dvh - 176px) * 1.5)); }
         }
         .gen-fs-pick {
             position: static;
@@ -1359,8 +1410,16 @@
         .gen-fs .gen-fs-img-behind.rg-swipe-incoming, .gen-fs .gen-fs-quote-behind.rg-swipe-incoming {
             filter: brightness(1) blur(0px);
         }
+        /* NO DISSOLVE (feel fix, 2026-11-28): the incoming card
+           takes its full treatment the instant its flight starts
+           — the filter is NOT transitioned. A brightness/blur
+           ramp spread across the glide is what made the deal
+           read as a slow dissolve instead of a card flying; the
+           flight is motion only. (At rest and under the finger
+           the waiting card keeps its subdued peek treatment —
+           only the flight is exempt.) */
         .rg-swipe-fly.rg-swipe-incoming {
-            transition: transform var(--dur-2) var(--ease-out), filter var(--dur-2) var(--ease-out) !important;
+            transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1) !important;
         }
         .gen-fs-pick { font-weight: 500; }
         .gen-fs-pick .gen-pick-name { font-size: 0.98rem; }
@@ -1722,20 +1781,14 @@
     </section>
 
     <div class="gen-fs glass-scrim" id="gen-fs" hidden role="dialog" aria-modal="true" aria-label="Photo, full screen">
-        <!-- Viewer layout (2026-11-23; one row, 2026-11-27): the
-             photo and everything positioned against it (waiting
-             card, control row, credit, exit icon) live in
-             .gen-fs-stage; the action cluster rides in
-             .gen-fs-actions, the right end of the viewer's one
-             control row — the same place the stage's header row
-             keeps it, in either view. -->
-        <div class="gen-fs-stage">
-        <img class="gen-fs-img" id="gen-fs-img" alt="">
-        <figure class="gen-fs-quote qlen-2" id="gen-fs-quote" hidden>
-            <blockquote class="gen-fs-quotetext" id="gen-fs-quotetext"></blockquote>
-            <figcaption class="gen-fs-quoteattrib" id="gen-fs-quoteattrib"></figcaption>
-        </figure>
-
+        <!-- Viewer layout (2026-11-23; one row, 2026-11-27; ONE
+             UNIT, feel fix 2026-11-28): the control row, the card
+             and the credit stand in flow in the deck's own order —
+             row over the stage, credit under it — the viewer
+             wearing the page section's arrangement. The photo and
+             its waiting cards live in .gen-fs-stage, the deck
+             stage's own frame; the action cluster rides in
+             .gen-fs-actions, the right end of the control row. -->
         <!-- The viewer's control row (2026-11-20; the draw
              button retired 2026-11-27 — swiping deals, here as on
              the stage): the stage's control row carried into
@@ -1759,9 +1812,16 @@
                  exactly where the stage's header row keeps them. -->
             <div class="gen-fs-actions" id="gen-fs-actions"></div>
         </div>
+        <div class="gen-fs-stage">
+        <img class="gen-fs-img" id="gen-fs-img" alt="">
+        <figure class="gen-fs-quote qlen-2" id="gen-fs-quote" hidden>
+            <blockquote class="gen-fs-quotetext" id="gen-fs-quotetext"></blockquote>
+            <figcaption class="gen-fs-quoteattrib" id="gen-fs-quoteattrib"></figcaption>
+        </figure>
+
+        </div>
         <p class="gen-fs-credit" id="gen-fs-pcredit">Photo: <a id="gen-fs-credit" href="#" target="_blank" rel="noopener"></a></p>
         <p class="gen-fs-credit" id="gen-fs-qcredit" hidden>Source: <a id="gen-fs-qsource" href="#" target="_blank" rel="noopener"></a></p>
-        </div>
         <div class="gen-cat-scrim gen-fs-cat-scrim" id="gen-fs-cat-scrim" hidden></div>
         <div class="gen-cat-menu gen-fs-cat-menu" id="gen-fs-cat-menu" role="menu" aria-label="Choose a category" hidden>
             <div class="gen-cat-head">
@@ -4282,6 +4342,48 @@
             return sec ? sec.id.replace('gen-', '') : null;
         }
 
+        // TWO CARDS AHEAD, DECODED (feel fix, 2026-11-28): the
+        // waiting card is painted and decoding from the moment
+        // it is dealt behind the current one (see paintCard);
+        // the card behind THAT one is warmed here, so a rapid
+        // second flick's incoming card is already a bitmap on
+        // the device and its flight never waits on a decode.
+        // Warmth only — nothing here is displayed — and a tiny
+        // held set keeps the bitmaps from being dropped between
+        // deals.
+        var preDecoded = {};
+        var preDecodedOrder = [];
+        function predecode(url) {
+            if (!url || preDecoded[url]) { return; }
+            var im = new Image();
+            preDecoded[url] = im;
+            preDecodedOrder.push(url);
+            im.src = url;
+            if (im.decode) { im.decode().then(function () {}, function () {}); }
+            while (preDecodedOrder.length > 4) {
+                var old = preDecodedOrder.shift();
+                delete preDecoded[old];
+            }
+        }
+        function predecodeNextNext(prefix) {
+            var st = GEN[prefix];
+            if (!st || !st.byId) { return; }
+            // Forward through history first: the card two steps
+            // along the history's own order.
+            if (st.hist && st.histPos < st.hist.length - 2) {
+                var he = st.byId[st.hist[st.histPos + 2]];
+                if (he && !he.quote) { predecode(stageUrl(he.img)); }
+                return;
+            }
+            // Otherwise the deck's second card: the waiting card
+            // is the deck's head, so the card behind it is next.
+            var deck = st.decks ? st.decks[viewMode()] : null;
+            if (deck && deck.length > 1 && st.behindId === deck[0]) {
+                var de = st.byId[deck[1]];
+                if (de && !de.quote) { predecode(stageUrl(de.img)); }
+            }
+        }
+
         // The strip's geometry: the dealt card's face (the photo,
         // or the quote figure in the Quotes pool), one card-step
         // in px, and the transform every card rides on.
@@ -4367,6 +4469,7 @@
             paintCard(prevEls[prefix], state.back, false);
             sec.classList.toggle('jv-solo', !state.fwd);
             layoutStrip(prefix, 0);
+            predecodeNextNext(prefix);
             refreshFsNeighbours();
         }
 
@@ -4383,6 +4486,7 @@
             paintCard(fsPrev, state.back, true);
             ov.classList.toggle('jv-solo', !state.fwd);
             layoutFsStrip(0);
+            predecodeNextNext(p);
         }
 
         // Keep the deck's waiting head on record for a pool:
@@ -4591,28 +4695,75 @@
             if (isFs && window.__rgFsAfterStep) { window.__rgFsAfterStep(); }
         }
 
+        // THE COMMIT, NOT THE CALL (feel fix, 2026-11-28):
+        // shownId flips the moment renderEntry is CALLED, but
+        // the card itself — photo and caption together — commits
+        // later, when the decoded photo swaps in (swapIn). A
+        // strip that rested on shownId alone could snap its face
+        // back to centre still carrying the old photo, over the
+        // incoming card that had already landed: two photos and
+        // the old words stacked for a visible beat (Johnny's
+        // recording: one entry's title garbled over another's
+        // photo). The rest now waits for the commit itself: the
+        // stage's shownStage has caught up with the data-stage
+        // it was dealt — the same predicate the viewer's own
+        // settle gate uses — or a terminal state (a quote, which
+        // commits synchronously; the error surface, whose words
+        // and box commit together with the photo staying down).
+        function stepCommitted(prefix, before) {
+            var st = GEN[prefix];
+            if (!st) { return true; }
+            if (st.shownId === before) { return false; }
+            var e = st.byId ? st.byId[st.shownId] : null;
+            if (!e || e.quote) { return true; }
+            var imgEl = document.getElementById(prefix + '-img');
+            if (!imgEl || imgEl.hidden) { return true; }
+            return st.shownStage === imgEl.getAttribute('data-stage');
+        }
+
         // After a step fires, wait for the stage's atomic commit
-        // (shownId changes) — then rest the strip on the new card
-        // and repaint its neighbours. While the wait runs, the
-        // strip is busy: presents repaint nothing, so no frame
-        // pairs a sliding card with another entry's words.
-        function settlePoll(isFs, prefix, before, faces) {
+        // (see stepCommitted) — then rest the strip on the new
+        // card and repaint its neighbours. While the wait runs,
+        // the strip is busy: presents repaint nothing, so no
+        // frame pairs a sliding card with another entry's words.
+        // Rest the strip after a committed step (feel fix,
+        // 2026-11-28): the dealt face's rest runs on the 1ms
+        // landing track when it was still mid-flight, so its
+        // landing transition ends in the same task as the
+        // commit — photo, words and landing are one moment.
+        function restStripNow(isFs, prefix, faces, landFace) {
+            if (landFace) { landFace.classList.add('rg-swipe-land'); }
+            if (faces) { faces.forEach(function (el) { if (el) { el.classList.remove('rg-swipe-fly'); el.classList.remove('rg-swipe-incoming'); el.style.transitionDuration = ''; } }); }
+            if (isFs) { fsBusy = false; } else { stripBusy[prefix] = false; }
+            // In the viewer, re-read the stage NOW: the
+            // face's photo and the credit swap in this same
+            // task as the strip's rest, so the viewer never
+            // rests on a photo its words have not caught up
+            // with.
+            if (isFs) {
+                var ov0 = document.getElementById('gen-fs');
+                if (ov0 && !ov0.hidden && window.__rgFsAfterStep) { window.__rgFsAfterStep(); }
+            }
+            refreshNeighbours(prefix);
+            if (isFs) {
+                var ov = document.getElementById('gen-fs');
+                if (ov && !ov.hidden) { refreshFsNeighbours(); }
+                else { layoutFsStrip(0); }
+            }
+            if (landFace) {
+                setTimeout(function () { landFace.classList.remove('rg-swipe-land'); }, 80);
+            }
+        }
+
+        function settlePoll(isFs, prefix, before, faces, landFace) {
             var tries = 0;
             var iv = setInterval(function () {
                 tries++;
-                var st = GEN[prefix];
-                var changed = !st || st.shownId !== before;
-                if (!changed && tries <= 32) { return; }
+                if (!stepCommitted(prefix, before) && tries <= 32) { return; }
                 clearInterval(iv);
-                if (faces) { faces.forEach(function (el) { if (el) { el.classList.remove('rg-swipe-fly'); el.classList.remove('rg-swipe-incoming'); } }); }
-                if (isFs) { fsBusy = false; } else { stripBusy[prefix] = false; }
-                refreshNeighbours(prefix);
-                if (isFs) {
-                    var ov = document.getElementById('gen-fs');
-                    if (ov && !ov.hidden) { refreshFsNeighbours(); }
-                    else { layoutFsStrip(0); }
-                }
+                restStripNow(isFs, prefix, faces, landFace || null);
             }, 50);
+            return function () { clearInterval(iv); };
         }
 
         // One album step, from any surface (drag, keys, wheel):
@@ -4641,10 +4792,19 @@
             // decode (already resolved in practice).
             whenCardReady(inc, function () {
             faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-fly'); } });
+            // The incoming card flies at full treatment from the
+            // flight's first frame, exactly as a throw's does
+            // (feel fix, 2026-11-28 — no dissolve on any path).
+            if (inc) { [inc.img, inc.quote].forEach(function (el) { if (el) { el.classList.add('rg-swipe-incoming'); } }); }
             if (isFs) { layoutFsStrip(dir > 0 ? -step : step); } else { layoutStrip(prefix, dir > 0 ? -step : step); }
-            fireOnLand(isFs ? fsFace() : faceOf(prefix), 420, function () {
+            var faceEl = isFs ? fsFace() : faceOf(prefix);
+            fireOnArrive(faceEl, pairFace(inc), 450, function () {
+                var cancel = settlePoll(isFs, prefix, before, faces, faceEl);
                 fireStep(isFs, prefix, dir);
-                settlePoll(isFs, prefix, before, faces);
+                if (stepCommitted(prefix, before)) {
+                    cancel();
+                    restStripNow(isFs, prefix, faces, faceEl);
+                }
             });
             });
         }
@@ -4664,7 +4824,7 @@
         // no-slide paths (All mode's jump draw, Deep Overview,
         // reduced motion, the image-error surface) fire at once,
         // exactly as albumStep's do.
-        function throwStep(isFs, prefix, dir, ux, uy, state, plain, fromX, fromY) {
+        function throwStep(isFs, prefix, dir, ux, uy, state, plain, fromX, fromY, speed) {
             var st = GEN[prefix];
             var before = st ? st.shownId : null;
             var sec = document.getElementById('gen-' + prefix);
@@ -4681,6 +4841,17 @@
             var sw = stage ? stage.clientWidth : 0;
             var sh = stage ? stage.clientHeight : 0;
             var exit = Math.abs(ux) * (sw + face.offsetWidth) + Math.abs(uy) * (sh + face.offsetHeight) + GAP + 8;
+            // VELOCITY CARRIES (feel fix, 2026-11-28): a flick's
+            // flight keeps the release's own pace — the faster
+            // the flick, the shorter the flight, inside the
+            // snappy band; a committed drag that was not a flick
+            // takes the standard 300ms. The duration is set
+            // inline on the flying faces (the class carries the
+            // 300ms default) and the settle clears it again.
+            var flyMs = 300;
+            if (speed && speed >= FLICK_VEL) {
+                flyMs = Math.round(Math.min(320, Math.max(230, 330 - 45 * speed)));
+            }
             var R = isFs ? fsBehind : behind[prefix];
             var L = isFs ? fsPrev : prevEls[prefix];
             var trail = dir > 0 ? R : L;
@@ -4691,7 +4862,7 @@
             // in practice already true (see paintCard), so the
             // throw is not delayed; the gate is the guarantee.
             whenCardReady(trail, function () {
-            faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-fly'); } });
+            faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-fly'); el.style.transitionDuration = flyMs + 'ms'; } });
             if (trail) {
                 [trail.img, trail.quote].forEach(function (el) { if (el) { el.classList.add('rg-swipe-incoming'); } });
                 setPairVis(trail, '');
@@ -4699,9 +4870,15 @@
             }
             setPairVis(other, 'hidden');
             setXY(face, fromX + ux * exit, fromY + uy * exit);
-            fireOnLand(face, 450, function () {
+            fireOnArrive(face, pairFace(trail), flyMs + 150, function () {
+                var cancel = settlePoll(isFs, prefix, before, faces, face);
                 fireStep(isFs, prefix, dir);
-                settlePoll(isFs, prefix, before, faces);
+                // A warm commit lands NOW, in this same task —
+                // the poll remains only for a card still loading.
+                if (stepCommitted(prefix, before)) {
+                    cancel();
+                    restStripNow(isFs, prefix, faces, face);
+                }
             });
             });
         }
@@ -4709,11 +4886,11 @@
         // Settle an uncommitted drag back to rest.
         function settleStrip(isFs, prefix) {
             var faces = facesFor(isFs, prefix);
-            faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-settle'); } });
+            faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-settle'); el.style.transitionDuration = ''; } });
             if (isFs) { layoutFsStrip(0); } else { layoutStrip(prefix, 0); }
             setTimeout(function () {
                 faces.forEach(function (el) { if (el) { el.classList.remove('rg-swipe-settle'); } });
-            }, 320);
+            }, 300);
         }
 
         // FIRE WHEN THE FLIGHT LANDS (iOS fix, 2026-11-27): a
@@ -4755,6 +4932,50 @@
             }
             if (face) { face.addEventListener('transitionend', onT); }
             setTimeout(go, ms);
+        }
+
+        // FIRE WHEN THE CARD ARRIVES (feel fix, 2026-11-28): the
+        // flight's ease-out has a long soft tail — the incoming
+        // card is within a few px of centre for the last third
+        // of the transition, visibly home while its words still
+        // wait for the formal transitionend (measured: the card
+        // home at ~200ms, the caption flipping ~190ms later).
+        // The step now fires when the incoming card has
+        // ARRIVED — its computed place within 3px of centre —
+        // or on the face's transitionend, whichever comes
+        // first; the settle then snaps the sub-3px remainder,
+        // which no eye can catch, and the timer remains the
+        // fallback for a transition that never runs.
+        function fireOnArrive(face, trail, ms, fn) {
+            var fired = false;
+            var raf = 0;
+            function go() {
+                if (fired) { return; }
+                fired = true;
+                if (face) { face.removeEventListener('transitionend', onT); }
+                if (raf) { cancelAnimationFrame(raf); }
+                fn();
+            }
+            function onT(ev) {
+                if (ev.target === face && ev.propertyName === 'transform') { go(); }
+            }
+            if (face) { face.addEventListener('transitionend', onT); }
+            if (trail) {
+                var tick = function () {
+                    if (fired) { return; }
+                    var m = new DOMMatrixReadOnly(getComputedStyle(trail).transform);
+                    if (Math.abs(m.e) <= 3 && Math.abs(m.f) <= 3) { go(); return; }
+                    raf = requestAnimationFrame(tick);
+                };
+                raf = requestAnimationFrame(tick);
+            }
+            setTimeout(go, ms);
+        }
+        // The visible element of a neighbour pair (the photo, or
+        // the quote figure in the Quotes pool).
+        function pairFace(els) {
+            if (!els) { return null; }
+            return (els.img && !els.img.hidden) ? els.img : els.quote;
         }
 
         // ANY-DIRECTION FLICKS + THE SCROLL HANDOFF (revision,
@@ -5025,7 +5246,7 @@
                 if (g.state.fwd && vvel >= FLICK_VEL_V) {
                     g.mode = 'vflick';
                     markSwiped();
-                    throwStep(opt.isFs, g.prefix, 1, 0, g.dy < 0 ? -1 : 1, g.state, g.plain, g.tx || 0, g.ty || 0);
+                    throwStep(opt.isFs, g.prefix, 1, 0, g.dy < 0 ? -1 : 1, g.state, g.plain, g.tx || 0, g.ty || 0, vvel);
                     return;
                 }
                 if (ady >= SCROLL_DIST) {
@@ -5114,7 +5335,7 @@
                 suppressEl = done.el;
                 suppressUntil = Date.now() + 600;
                 markSwiped();
-                throwStep(false, done.prefix, 1, 0, cdy < 0 ? -1 : 1, done.state, done.plain, 0, 0);
+                throwStep(false, done.prefix, 1, 0, cdy < 0 ? -1 : 1, done.state, done.plain, 0, 0, kvel);
                 return true;
             }
             function finish(x, y, cancelled) {
@@ -5188,7 +5409,7 @@
                     var dm = dist || 1;
                     ux = done.dx / dm; uy = done.dy / dm;
                 }
-                throwStep(opt.isFs, done.prefix, dir, ux, uy, done.state, done.plain, done.tx || 0, done.ty || 0);
+                throwStep(opt.isFs, done.prefix, dir, ux, uy, done.state, done.plain, done.tx || 0, done.ty || 0, speed);
             }
             el.addEventListener('pointerup', function (e) {
                 if (g && g.src === 'ptr' && e.pointerId === g.id) { finish(e.clientX, e.clientY, false); }
