@@ -992,23 +992,52 @@ export function initUniverse(stage) {
     var upLanes = [[], [], []], upKeys = {}, upApplied = 0;
     var readyAt = 0;         /* when ctrl.ready flipped — paces the background planet prefetch */
     var lastFrameMs = 16;    /* previous frame's real cost — background uploads yield to it */
-    function enqueueUpload(key, cost, lane, run) {
+    function enqueueUpload(key, cost, lane, run, onDrop) {
         if (upKeys[key]) return;
         upKeys[key] = 1;
-        upLanes[lane].push({ key: key, cost: cost, run: run });
+        upLanes[lane].push({ key: key, cost: cost, run: run, onDrop: onDrop || null });
+        /* Lane 0 (streamed tiles) is CAPPED (2026-11-28): every
+           queued tile item pins its decoded 256x256 image in the
+           run closure until the budget spends on it. The budget
+           spends 2 units a frame, so any stretch where arrivals
+           outpace frames — a sagging frame rate under close-range
+           tile churn is exactly that stretch — grew this queue,
+           and the pinned bitmaps with it, without bound: the
+           memory pressure that killed the page mid-flight on the
+           phone (~50 s of close-range flying, 2026-11-28). The
+           cap drops the OLDEST waiting tiles (the view has most
+           likely moved past them); a dropped tile's onDrop
+           releases its image and returns the entry to 'idle', so
+           a later check re-queues it if the ground is still
+           wanted. Nothing already uploaded is ever dropped. */
+        if (lane === 0) {
+            while (upLanes[0].length > 30) {
+                var dropped = upLanes[0].shift();
+                delete upKeys[dropped.key];
+                if (dropped.onDrop) { try { dropped.onDrop(); } catch (e) {} }
+            }
+        }
     }
     function processUploads() {
-        var budget = 2, guard = 0;
-        while (guard++ < 10 && budget > 0) {
+        var budget = 2, guard = 0, tileRuns = 0;
+        while (guard++ < 14) {
             var it = null, lane = -1;
-            if (upLanes[0].length) { it = upLanes[0][0]; lane = 0; }
-            else if (upLanes[1].length) { it = upLanes[1][0]; lane = 1; }
-            else if (upLanes[2].length && lastFrameMs < 50) { it = upLanes[2][0]; lane = 2; }
+            /* tiles may drain past the shared budget, up to 5 a
+               frame: a 256x256 upload is small, and a backlog of
+               them is pinned memory — draining it a little faster
+               when it exists is worth more than the strict
+               2-unit discipline that let it accumulate. Large
+               textures (cost 2) still wait for a fresh budget. */
+            if (upLanes[0].length && (budget > 0 || tileRuns < 5)) { it = upLanes[0][0]; lane = 0; }
+            else if (upLanes[1].length && budget > 0) { it = upLanes[1][0]; lane = 1; }
+            else if (upLanes[2].length && budget > 0 && lastFrameMs < 50) { it = upLanes[2][0]; lane = 2; }
             else break;
-            if (it.cost > budget) break;   /* a large texture waits for a fresh frame rather than sharing one */
+            if (lane !== 0 && it.cost > budget) break;   /* a large texture waits for a fresh frame rather than sharing one */
             upLanes[lane].shift();
             delete upKeys[it.key];
-            budget -= it.cost; upApplied++;
+            if (lane === 0) { tileRuns++; if (budget > 0) budget -= it.cost; }
+            else budget -= it.cost;
+            upApplied++;
             try { it.run(); } catch (e) { /* an upload must never break the frame */ }
         }
     }
@@ -1913,6 +1942,7 @@ export function initUniverse(stage) {
             cfg: cfg, grp: null, sysPos: null, R: 0, cache: new Map(), queue: [], inflight: 0,
             meshes: new Map(), key: '', lastCheck: 0, dirty: false,
             dead: false, errRun: 0, wantN: 0, z: -1, lastH: -1, prevH: -1, lastLat: 0, lastLon: 0,
+            fading: new Set(), rawZ: -1, rawN: 0,
             MAXC: 168, MAXSET: 96, MAXFLY: 12, SEG: 10
         };
     }
@@ -2036,40 +2066,63 @@ export function initUniverse(stage) {
        into the globe, never stamp a hard rectangle on it (the
        Moon defect: one crater patch floating on a blank sphere,
        its straight edges sliding against the base as he skimmed).
-       Every tile texture's alpha is faded to zero over its outer
-       ~13% at decode time, so abutting tiles cross-blend across
-       the seam, a parent shows softly through a child's edge, and
-       a lone tile reads as a soft-edged detailed region with no
-       straight boundary at any range. Baked into the texture so
-       the render path's shape is unchanged. */
+       The first build faded alpha to zero over the outer ~13% of
+       every tile — and at close range that cure became the Earth
+       defect of 2026-11-28: abutting tiles do not overlap, so the
+       two fades facing each other across every boundary summed
+       to a broad band where the darker globe showed through — a
+       dark grid laid over the terrain, widest exactly where the
+       ground beneath was darkest. A hairline feather (~2%) was
+       tried next and still drew the lattice wherever a tile
+       bordered a differently-toned parent. So the feather is
+       GONE: same-zoom neighbours are adjacent samples of one
+       continuous image, and drawn opaque their shared edge is
+       simply not there. The soft arrival the feather was really
+       for is done by a whole-tile fade-in instead (see en.born
+       in etPump's upload and the fade pass at the top of
+       etFrame): a tile materialises over ~300 ms on top of the
+       parent that already carries its geography — parents always
+       load first, so a tile never lands on a blank sphere (the
+       original Moon defect) — and the ground reads as sharpening,
+       never as a framed rectangle. A side benefit: no per-tile
+       canvas pass at decode time, which was real main-thread
+       cost inside the upload budget. */
     function etFeather(img) {
-        var S = 256, F = 34;
-        try {
-            var cv = document.createElement('canvas');
-            cv.width = S; cv.height = S;
-            var g = cv.getContext('2d');
-            g.drawImage(img, 0, 0, S, S);
-            var dat = g.getImageData(0, 0, S, S), px = dat.data;
-            for (var y = 0; y < S; y++) {
-                var dy = Math.min(y, S - 1 - y);
-                for (var x = 0; x < S; x++) {
-                    var d = Math.min(x, S - 1 - x, dy);
-                    if (d >= F) continue;
-                    var a = d / F; a = a * a * (3 - 2 * a);
-                    var o = (y * S + x) * 4 + 3;
-                    px[o] = Math.round(px[o] * a);
-                }
-            }
-            g.putImageData(dat, 0, 0);
-            return cv;
-        } catch (err) {
-            return img;   /* an unreadable source keeps the plain tile rather than none */
-        }
+        return img;
     }
+    /* While etFrame queues a check's work it records every key it
+       admits into etAdmit; etPruneQueue then reaps the fetch queue
+       back to that set (2026-11-28). Before this, admission was
+       fire-and-forget: the wanted set, both parents and two
+       prefetch rings were queued every 200 ms check around a
+       MOVING ground point, and nothing ever removed the entries
+       the view had already flown past — the queue (and the cache
+       entries behind it) grew for as long as the flight lasted.
+       Parents (prio < 10) are always kept: they are few, cheap,
+       and they are the coverage everything else lands on. */
+    var etAdmit = null;
     function etQueue(L, z, x, y, prio) {
         if (L.dead) return;
         var e = etEntry(L, z, x, y);
+        if (etAdmit) etAdmit.add(e.key);
         if (e.state === 'idle') { e.state = 'queued'; L.queue.push({ e: e, p: prio }); }
+    }
+    function etPruneQueue(L) {
+        if (!L.queue.length) return;
+        var keep = [];
+        for (var i = 0; i < L.queue.length; i++) {
+            var it = L.queue[i];
+            if (it.p < 10 || (etAdmit && etAdmit.has(it.e.key))) keep.push(it);
+            else if (it.e.state === 'queued') it.e.state = 'idle';   /* flown past: back to idle, re-queueable if wanted again */
+        }
+        /* hard length cap as the last line: drop the lowest
+           priorities (highest p) beyond 64 waiting fetches */
+        if (keep.length > 64) {
+            keep.sort(function (a, b) { return a.p - b.p; });
+            for (var j = 64; j < keep.length; j++) if (keep[j].e.state === 'queued') keep[j].e.state = 'idle';
+            keep.length = 64;
+        }
+        L.queue = keep;
     }
     function etPump(L) {
         if (L.dead) { L.queue.length = 0; return; }
@@ -2096,7 +2149,14 @@ export function initUniverse(stage) {
                         tex.colorSpace = THREE.SRGBColorSpace;
                         tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
                         tex.needsUpdate = true;
-                        en.tex = tex; en.state = 'ready'; L.dirty = true; etEvict(L);
+                        en.tex = tex; en.state = 'ready'; en.born = performance.now(); L.fading.add(en); L.dirty = true; etEvict(L);
+                    }, function () {
+                        /* dropped by the lane cap before its upload
+                           ever ran: release the decoded image (this
+                           closure was its only reference) and let a
+                           later check re-queue the tile if the
+                           ground under the camera still wants it */
+                        if (en.state === 'decoded') { en.state = 'idle'; L.dirty = true; }
                     });
                     etPump(L);
                 };
@@ -2116,12 +2176,25 @@ export function initUniverse(stage) {
     }
     function etEvict(L) {
         if (L.cache.size <= L.MAXC) return;
-        var arr = Array.from(L.cache.values()).filter(function (e) { return e.state === 'ready' || e.state === 'failed' || e.state === 'idle' || e.state === 'decoded'; });
+        /* 'queued' entries are evictable too (2026-11-28): the
+           old filter spared them, and since admission runs every
+           check while only 12 fetches fly at once, the queue —
+           and the cache Map holding its entries — grew straight
+           past the cap during sustained close-range flight (839
+           entries against a 168 cap in the diagnosis run). The
+           cap is now a real cap for everything except the <=12
+           fetches actually in flight and what is on screen. */
+        var arr = Array.from(L.cache.values()).filter(function (e) { return e.state === 'ready' || e.state === 'failed' || e.state === 'idle' || e.state === 'decoded' || e.state === 'queued'; });
         arr.sort(function (a, b) { return a.used - b.used; });
         for (var i = 0; i < arr.length && L.cache.size > L.MAXC; i++) {
             var e = arr[i];
             if (L.meshes.has(e.key)) continue;   /* never evict what is on screen */
             if (e.state === 'decoded') e.state = 'evicted';   /* its queued upload becomes a no-op */
+            if (e.state === 'queued') {
+                e.state = 'idle';
+                for (var qi = L.queue.length - 1; qi >= 0; qi--) if (L.queue[qi].e === e) L.queue.splice(qi, 1);
+            }
+            L.fading.delete(e);
             if (e.tex) e.tex.dispose();
             if (e.geom) e.geom.dispose();
             if (e.mat) e.mat.dispose();
@@ -2148,6 +2221,20 @@ export function initUniverse(stage) {
            one level lower for the same screen */
         if (L.cfg.proj === 'eq') z -= 1;
         z = Math.max(L.cfg.zMin, Math.min(L.cfg.zMax, z));
+        /* zoom-out hysteresis (2026-11-28): sharpening is applied
+           the moment the altitude calls for it, but a one-level
+           zoom-OUT must be asked for three checks running before
+           the set rebuilds coarser. Level flight near a zoom
+           boundary otherwise oscillates the whole wanted set
+           between two zooms — a full patch swap every 200 ms —
+           which read on the phone as patches sweeping through
+           the view. The margin loop below may still shed zoom
+           under this one to bound an oversized set; that is
+           load-shedding, not oscillation, and is untouched. */
+        if (L.z > 0 && z < L.z) {
+            if (L.rawZ === z) L.rawN++; else { L.rawZ = z; L.rawN = 1; }
+            if (L.rawN < 3) z = L.z;
+        } else { L.rawZ = z; L.rawN = 0; }
         var e = camera.matrixWorld.elements, tanV = 0.52057, tanH = tanV * camera.aspect;
         var pts = [[0, 0], [1, 1], [1, -1], [-1, 1], [-1, -1], [0, 1], [0, -1], [1, 0], [-1, 0]];
         var laMin = Infinity, laMax = -Infinity, loMin = Infinity, loMax = -Infinity, miss = false;
@@ -2228,20 +2315,51 @@ export function initUniverse(stage) {
                 parents.push({ z: pz, x: ((qx % pn) + pn) % pn, y: qy, p: Math.max(Math.abs(qx * 4 + 1.5 - cx), Math.abs(qy * 4 + 1.5 - cy)) / 4 });
             }
         }
-        return { z: z, tiles: tiles, parents: parents, sig: z + ':' + x0 + ',' + y0 + ',' + x1 + ',' + y1 };
+        return { z: z, tiles: tiles, parents: parents, sig: z + ':' + x0 + ',' + y0 + ',' + x1 + ',' + y1, win: { x0: x0, y0: y0, x1: x1, y1: y1 } };
     }
     function etRebuild(L, w) {
         var want = new Map(), i, t, e;
         for (i = 0; i < w.parents.length; i++) { t = w.parents[i]; e = L.cache.get(etKey(t.z, t.x, t.y)); if (e && e.state === 'ready') want.set(e.key, e); }
         for (i = 0; i < w.tiles.length; i++) { t = w.tiles[i]; e = L.cache.get(etKey(t.z, t.x, t.y)); if (e && e.state === 'ready') want.set(e.key, e); }
         Array.from(L.meshes.keys()).forEach(function (k) {
-            if (!want.has(k)) { L.grp.remove(L.meshes.get(k)); L.meshes.delete(k); }
+            if (want.has(k)) return;
+            /* coverage skirt (2026-11-28): a mesh leaves only when
+               its ground has left the window's edge for good. The
+               old rule removed every mesh the new wanted set did
+               not name, on every 200 ms signature change — while
+               flying, the new window's tiles are still fetching, so
+               the screen repeatedly lost its coverage back to the
+               bare globe and the returning patches swept across
+               the view (the diagnosis run measured ZERO tiles on
+               screen at closest range, mid-churn, twice). A mesh
+               whose footprint still intersects the window plus a
+               one-tile ring stays — slightly stale at the edges,
+               where the far field hides it — until the sharper
+               replacements are actually ready to cover it. */
+            var en2 = L.cache.get(k);
+            if (en2 && w.win) {
+                var s = Math.pow(2, w.z - en2.z);
+                var fx0 = en2.x * s, fx1 = (en2.x + 1) * s, fy0 = en2.y * s, fy1 = (en2.y + 1) * s;
+                var wcx = (w.win.x0 + w.win.x1) / 2, shift = Math.round((wcx - (fx0 + fx1) / 2) / Math.pow(2, w.z)) * Math.pow(2, w.z);
+                fx0 += shift; fx1 += shift;
+                if (fx1 >= w.win.x0 - 1 && fx0 <= w.win.x1 + 1 && fy1 >= w.win.y0 - 1 && fy0 <= w.win.y1 + 1) {
+                    en2.used = performance.now();
+                    return;
+                }
+            }
+            L.grp.remove(L.meshes.get(k)); L.meshes.delete(k);
         });
         want.forEach(function (en, k) {
             en.used = performance.now();
             if (L.meshes.has(k)) return;
             if (!en.geom) en.geom = etGeom(L, en.z, en.x, en.y);
-            if (!en.mat) en.mat = new THREE.MeshLambertMaterial({ map: en.tex, transparent: true, polygonOffset: true, polygonOffsetFactor: -(en.z - 4), polygonOffsetUnits: -(en.z - 4) });
+            if (!en.mat) {
+                en.mat = new THREE.MeshLambertMaterial({ map: en.tex, transparent: true, polygonOffset: true, polygonOffsetFactor: -(en.z - 4), polygonOffsetUnits: -(en.z - 4) });
+                /* a just-born tile starts its fade where the fade
+                   pass currently is, never at full opacity */
+                en.mat.opacity = en.born ? Math.min(1, (performance.now() - en.born) / 300) : 1;
+                if (en.mat.opacity < 1) L.fading.add(en);
+            }
             var mesh = new THREE.Mesh(en.geom, en.mat);
             /* the feathered edges blend, so tiles join the
                transparent pass — first within it (depth is still
@@ -2255,6 +2373,18 @@ export function initUniverse(stage) {
     }
     function etFrame(L, now) {
         if (!L.grp || !L.sysPos) return;
+        /* whole-tile fade-in, every frame (the 200 ms check below
+           is far too coarse to animate it): a tile born within the
+           last 300 ms has its material opacity ramped to 1, so it
+           materialises over the parent that already carries its
+           geography — the ground sharpens; nothing stamps. */
+        if (L.fading.size) {
+            L.fading.forEach(function (en) {
+                var k = Math.min(1, (now - (en.born || 0)) / 300);
+                if (en.mat) en.mat.opacity = k;
+                if (k >= 1) L.fading.delete(en);
+            });
+        }
         if (now - L.lastCheck < 200) return;
         L.lastCheck = now;
         var w = etWanted(L);
@@ -2267,6 +2397,7 @@ export function initUniverse(stage) {
                on the globe at the moment of engagement instead of
                only starting their fetch there */
             if (!L.dead && L.lastH > 0 && L.lastH < 3 * L.R) {
+                etAdmit = new Set();
                 var pz = L.cfg.zMin, pn = Math.pow(2, pz);
                 var pnx = L.cfg.proj === 'eq' ? 2 * pn : pn;
                 var pcx = Math.floor((L.lastLon + Math.PI) / (2 * Math.PI) * pnx);
@@ -2275,17 +2406,25 @@ export function initUniverse(stage) {
                     var wy2 = pcy + ay; if (wy2 < 0 || wy2 >= pn) continue;
                     etQueue(L, pz, ((pcx + ax) % pnx + pnx) % pnx, wy2, 40);
                 }
+                etPruneQueue(L); etAdmit = null;
                 etPump(L);
             }
             return;
         }
         L.z = w.z; L.wantN = w.tiles.length;
+        etAdmit = new Set();
+        /* admission runs EVERY check, not only on a signature
+           change (2026-11-28): etQueue is state-deduped and cheap,
+           and etPruneQueue below can only judge what is stale
+           against a complete picture of what the current view
+           wants — a tile queued one check ago and still waiting
+           for a fetch slot must be re-admitted, not reaped. */
+        var i, t;
+        for (i = 0; i < w.parents.length; i++) { t = w.parents[i]; etQueue(L, t.z, t.x, t.y, t.p); }
+        for (i = 0; i < w.tiles.length; i++) { t = w.tiles[i]; etQueue(L, t.z, t.x, t.y, 10 + t.p); }
+        etPump(L);
         if (w.sig !== L.key || L.dirty) {
             L.key = w.sig; L.dirty = false;
-            var i, t;
-            for (i = 0; i < w.parents.length; i++) { t = w.parents[i]; etQueue(L, t.z, t.x, t.y, t.p); }
-            for (i = 0; i < w.tiles.length; i++) { t = w.tiles[i]; etQueue(L, t.z, t.x, t.y, 10 + t.p); }
-            etPump(L);
             etEvict(L);
             etRebuild(L, w);
         }
@@ -2315,6 +2454,7 @@ export function initUniverse(stage) {
             }
             etPump(L);
         }
+        etPruneQueue(L); etAdmit = null;
         L.prevH = L.lastH;
     }
     function tileFrameAll(now) {
@@ -2323,7 +2463,7 @@ export function initUniverse(stage) {
     function etState(L) {
         return {
             on: !!(L.grp && L.meshes.size), z: L.z, shown: L.meshes.size,
-            cached: L.cache.size, wanted: L.wantN, dead: L.dead,
+            cached: L.cache.size, wanted: L.wantN, dead: L.dead, qlen: L.queue.length,
             keys: Array.from(L.meshes.keys()).sort()
         };
     }
