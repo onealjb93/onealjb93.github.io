@@ -38,7 +38,7 @@ from datetime import date, timedelta
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-UA = "onealjb93.github.io johnny-website@muse.ai"
+UA = "Johnny ONeal johnny-website@muse.ai"
 OUT = os.environ.get("INS_OUT", "insiders.json")
 # Locally the price file and caches live under ../raw; in CI the
 # checkout's own finance-chart-daily.json is the price file and
@@ -62,6 +62,15 @@ def _get_session():
     # 46058270264, 2026-11-27) even with the declared User-Agent
     # below. The same declared agent sent through requests — the
     # client the politicians builder already uses — is the fix.
+    # And the declared agent itself matters: with the old UA
+    # ("onealjb93.github.io johnny-website@muse.ai") SEC's edge
+    # 403'd EVERY client and header profile — urllib, requests,
+    # curl, browser headers — while the identical requests with
+    # a person-named UA ("Johnny ONeal johnny-website@muse.ai")
+    # return 200 on www.sec.gov, data.sec.gov and Archives
+    # (proven 2026-11-27 after run 46084775013 died on the same
+    # 403). The blocked token was the github.io domain standing
+    # as the declarer's name; keep a person's name there.
     if _session[0] is None:
         s = requests.Session()
         s.headers.update({
