@@ -73,6 +73,13 @@
         .notes-sub { margin: 0.5rem 0 0.5rem; color: var(--subtext-color); font-size: 0.85rem; }
         .notes-embed { min-height: 120px; }
     </style>
+<script>if (new URLSearchParams(location.search).has('framed')) document.documentElement.classList.add('jv-framed');</script>
+<style>
+/* framed in the Games Room (2026-11-28): the room's frame is the
+   chrome — the page's own nav and title hide, the viewer is the page */
+html.jv-framed body > nav.site-nav, html.jv-framed body > header.page-header { display: none !important; }
+html.jv-framed body { padding-top: 0 !important; }
+</style>
 </head>
 <body>
     <script>
@@ -6830,6 +6837,68 @@
             if (quote && !quote.hidden) { quote.click(); }
         });
     })();
+</script>
+<script>
+/* Johnny's View, framed (2026-11-28): when the Games Room's
+   fireplace painting opens this page inside its frame (?framed=1),
+   present the doorway's entry — Mount Corcoran, the Oil Paintings
+   entry that matches the painting over the fireplace — through
+   the page's own __rgSharePresent, open it in the fullscreen
+   viewer, and speak the frame's two words: 'jv-ready' when the
+   viewer is up, 'jv-exit' if the viewer is closed from inside.
+   The room's own exit pill is the primary way back. */
+(function () {
+    if (!new URLSearchParams(location.search).has('framed')) return;
+    /* the room's frame already IS the fullscreen: if the viewer
+       took real fullscreen for itself, the browser would hide
+       the whole parent page — including the frame's own exit
+       pill — behind it. Inside the frame the viewer's overlay
+       fills everything on its own, so the real request is a
+       no-op here; the viewer's close path keys off the
+       fullscreen element being absent and cleans up directly. */
+    if (window.Element && Element.prototype.requestFullscreen) {
+        Element.prototype.requestFullscreen = function () { return Promise.resolve(); };
+    }
+    if (window.Element && Element.prototype.webkitRequestFullscreen) {
+        Element.prototype.webkitRequestFullscreen = function () { return Promise.resolve(); };
+    }
+    var postedReady = false, postedExit = false;
+    function post(msg) {
+        try { window.parent.postMessage(msg, window.location.origin); } catch (e) { /* no parent */ }
+    }
+    var overlay = document.getElementById('gen-fs');
+    var wasOpen = false;
+    if (overlay) {
+        new MutationObserver(function () {
+            var open = !overlay.hidden;
+            if (open) {
+                wasOpen = true;
+                if (!postedReady) { postedReady = true; post('jv-ready'); }
+            } else if (wasOpen && !postedExit) {
+                postedExit = true; post('jv-exit');
+            }
+        }).observe(overlay, { attributes: true, attributeFilter: ['hidden'] });
+    }
+    var presented = false, tries = 0;
+    var iv = setInterval(function () {
+        tries++;
+        if (overlay && !overlay.hidden) { clearInterval(iv); return; }
+        if (!presented) {
+            try { presented = !!(window.__rgSharePresent && window.__rgSharePresent('art', 'mount-corcoran')); } catch (e) { /* pools not up yet */ }
+        }
+        if (presented && tries % 4 === 1) {
+            var b = document.getElementById('rg-fs-btn');
+            if (b) b.click();
+        }
+        if (tries > 60) {
+            clearInterval(iv);
+            /* never trap the room behind its fade: land on the
+               framed deck (chrome hidden, the painting presented)
+               even if the viewer never opened */
+            if (!postedReady) { postedReady = true; post('jv-ready'); }
+        }
+    }, 250);
+})();
 </script>
 </body>
 </html>

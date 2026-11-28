@@ -92,6 +92,69 @@
             background: radial-gradient(ellipse at 50% 42%, #2A2015 0%, #1D150E 55%, #14100C 100%);
             transition: opacity .55s ease, visibility 0s linear .55s; }
         #gr-veil.off { opacity: 0; visibility: hidden; }
+        /* ===== the seamless frame (Johnny, 2026-11-27 19:46:
+           "No breaking the frame. A seamless experience.") —
+           entering a game never leaves this one fullscreen frame:
+           flight games hand over inside the room's own white
+           flight fade, station games dissolve out of the room's
+           approach, and every game presents edge-to-edge with its
+           controls inside the frame as glass. The frame fade is
+           the only full-screen layer above everything, it carries
+           the game's own sky colour, and it is never black. */
+        #gr-framefade { position: fixed; inset: 0; z-index: 4000; pointer-events: none; opacity: 0;
+            background: radial-gradient(ellipse at center, #ffffff 0%, #e8eff5 55%, #cfdde9 100%); }
+        #gr-framefade.tint-deep { background: radial-gradient(ellipse at 50% 42%, #241b11 0%, #17110b 55%, #100c08 100%); }
+        #gr-frame-exit { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 14px; z-index: 3900;
+            padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); color: #fff;
+            background: rgba(20,16,10,.45); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
+            font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            font-size: 14px; font-weight: 600; cursor: pointer; min-height: 44px;
+            box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+        #gr-frame-exit[hidden] { display: none; }
+        #gr-frame-exit:active { background: rgba(20,16,10,.62); }
+        #gr-thr { position: fixed; inset: 0; z-index: 2500; background: #05070c; }
+        #gr-thr[hidden] { display: none; }
+        #gr-thr iframe { display: block; width: 100%; height: 100%; border: 0; }
+        #gr-jv { position: fixed; inset: 0; z-index: 2500; background: #0a0d12; }
+        #gr-jv[hidden] { display: none; }
+        #gr-jv iframe { display: block; width: 100%; height: 100%; border: 0; }
+        /* a game inside the frame: no card, no page chrome — the
+           section itself is the whole screen */
+        section.gr-frame { padding: 0 !important; margin: 0 !important; }
+        section.gr-frame .game-card { display: none !important; }
+        section.gr-frame.gr-frame-under { z-index: 1100 !important; }
+        /* Universe: the canvas owns the whole frame; the controls
+           float over its foot as one glass bar */
+        .uv-section.gr-frame { background: #04070e; }
+        .uv-section.gr-frame .uv-stage { position: relative; height: 100%; }
+        .uv-section.gr-frame .uv-stage-box { position: absolute; inset: 0; border: 0; border-radius: 0; }
+        .uv-section.gr-frame .uv-hud { left: 152px; }
+        .uv-section.gr-frame .uv-caption { bottom: 128px; }
+        .uv-section.gr-frame .uv-controls { position: absolute; left: 10px; right: 10px;
+            bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 30; margin-top: 0;
+            background: rgba(7,11,18,.55); background: color-mix(in srgb, #0a1018 62%, transparent);
+            backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3);
+            border: 1px solid rgba(255,255,255,.14); border-radius: 18px; padding: 8px 10px; }
+        /* Line Rider: the paper fills the frame; the HUD and the
+           tools float over it as glass */
+        .lr-section.gr-frame .lr-stage { position: relative; height: 100%; }
+        .lr-section.gr-frame #lr-canvas { position: absolute; inset: 0; width: 100%; height: 100%;
+            border: 0; border-radius: 0; min-height: 0; }
+        .lr-section.gr-frame .lr-hud { position: absolute; top: calc(10px + env(safe-area-inset-top));
+            left: 152px; right: 10px; z-index: 6; }
+        .lr-section.gr-frame .lr-toolbar { position: absolute; left: 10px; right: 10px; margin: 0;
+            bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 6;
+            background: var(--card-bg); background: color-mix(in srgb, var(--card-bg) 86%, transparent);
+            backdrop-filter: blur(18px) saturate(1.25); -webkit-backdrop-filter: blur(18px) saturate(1.25);
+            border: 1px solid var(--border-color); border-radius: 16px; padding: 8px; }
+        .lr-section.gr-frame #lr-tools-panel { top: calc(58px + env(safe-area-inset-top)); bottom: auto; }
+        /* Thumb Drive: its stage already fills its shell — the
+           shell simply takes the whole frame */
+        .tk-section.gr-frame .tk-shell { border: 0; border-radius: 0; }
+        /* Frequency: the rig fills the frame edge-to-edge */
+        .fg-section.gr-frame { background: #0a0b0d; }
+        .fg-section.gr-frame .fg-shell { border: 0; border-radius: 0; }
+        .fg-section.gr-frame .fg-keys { display: none; }
     </style>
     <style>
         /* Section headings (2026-11-14; unpinned 2026-11-21, format
@@ -1420,6 +1483,15 @@
   <div id="gr-fade"></div>
   <div id="gr-veil"></div>
 </div>
+<!-- The seamless frame's own chrome (Johnny, 2026-11-27 19:46):
+     one fade layer that carries every room ⇄ game hand-over, one
+     exit pill that lives inside the frame while a game is open,
+     and the Threads layer — AR World framed in place, so the
+     chair's game also never breaks the frame. -->
+<div id="gr-thr" hidden><iframe id="gr-thr-iframe" title="AR World" allow="camera; microphone; accelerometer; gyroscope"></iframe></div>
+<div id="gr-jv" hidden><iframe id="gr-jv-iframe" title="Johnny's View" allowfullscreen allow="fullscreen"></iframe></div>
+<button id="gr-frame-exit" type="button" hidden>← The room</button>
+<div id="gr-framefade" aria-hidden="true"></div>
     <script>
         // Theme before first paint: stored choice wins, dark is the default.
         // Never follows the OS setting. Storage failure falls back to dark.
@@ -6064,6 +6136,12 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         var FS_BTN = { linerider: '.lr-fs-btn', universe: '.uv-fs-btn', thumbkart: '.tk-fs-btn', frequency: '.fg-fs-btn' };
         var sections = {}, fsBtns = {}, slots = {};
         var savedScroll = 0, doorRect = null, animating = false;
+        /* the seamless frame: while the room host has a game in
+           the frame, opens/closes are instant (the room's own
+           motion is the transition) and nothing is written to the
+           restore session — a refresh always lands back in the
+           room, never inside a framed game */
+        var frame = null;
         var bodies = {
             linerider: document.getElementById('game-body-linerider'),
             universe: document.getElementById('game-body-universe'),
@@ -6161,6 +6239,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         }
         function openGame(name, instant) {
             if (open === name || animating) return;
+            if (frame === name) instant = true;
             var section = sections[name], body = bodies[name], btn = btns[name];
             if (!section || !body || !btn) return;
             if (open) closeGame(open, true);
@@ -6191,7 +6270,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
             engineStart(name);
             engineSetActive(name, true);
             if (name === 'linerider') fixLrFit();
-            saveSession();
+            if (!frame) saveSession();
             if (instant || reduce) return;
             animating = true;
             section.style.transformOrigin = '0 0';
@@ -6211,11 +6290,12 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         }
         function closeGame(name, instant) {
             if (open !== name) return;
+            if (frame === name) instant = true;
             var section = sections[name], body = bodies[name], btn = btns[name];
             if (!section || !body || !btn) return;
             open = null;
             engineSetActive(name, false);
-            saveSession();
+            if (!frame) saveSession();
             if (name === 'linerider') {
                 var ht = document.querySelector('.lr-howto.open');
                 if (ht) ht.classList.remove('open');
@@ -6235,6 +6315,11 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 btn.setAttribute('aria-expanded', 'false');
                 setArrow(btn, false);
                 setFsBtn(name, false);
+                if (frame === name) {
+                    section.classList.remove('gr-frame', 'gr-frame-under');
+                    document.documentElement.classList.remove('gr-frame-on');
+                    frame = null;
+                }
                 animating = false;
                 // Δ = 0: the page returns to the exact scroll
                 // position the visitor left — the layout never
@@ -6307,6 +6392,25 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                 else sessionStorage.removeItem(SESSION_KEY);
             } catch (e) { /* storage blocked */ }
         }
+        /* The seamless frame's door in and out of the shell: the
+           room host drives games through here so a game presents
+           inside the one fullscreen frame — assembled instantly
+           (no door FLIP; the room's flight/approach IS the
+           transition), card chrome stripped by the gr-frame
+           class. Exit runs the shell's own close; the host's
+           observer hears it land and brings the room back. */
+        window.__gamesFrame = {
+            enter: function (name) {
+                var sec = sections[name];
+                if (!sec) return;
+                frame = name;
+                sec.classList.add('gr-frame');
+                document.documentElement.classList.add('gr-frame-on');
+                openGame(name, true);
+            },
+            exit: function () { if (frame) closeGame(frame, true); },
+            current: function () { return frame; }
+        };
         function toggle(name) {
             if (animating) { setTimeout(function () { toggle(name); }, 500); return; }
             if (open === name) closeGame(name);
@@ -8612,14 +8716,9 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
        in-site referrer); otherwise the homepage. Leaving is a real
        navigation — the grid behind the room is never a destination. */
     function leaveTarget() {
-        var ref = '';
-        try { ref = document.referrer || ''; } catch (e) { /* no referrer access */ }
-        if (ref) {
-            try {
-                var u = new URL(ref);
-                if (u.origin === window.location.origin && u.pathname !== window.location.pathname) return u.href;
-            } catch (e) { /* unparseable referrer: fall through to home */ }
-        }
+        /* Johnny, 2026-11-27 22:51: "Leave games" goes to the
+           HOMEPAGE — the room replaces the old games page entirely,
+           so there is no games page to return to. */
         return 'index.html';
     }
     function leaveNavigate() {
@@ -8643,7 +8742,7 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                generation exists, every load uses its URL — the
                bare URL would hand back the disposed instance
                from the module cache */
-            var url = './games-room/room.js' + (roomGen ? '?r=' + roomGen : '');
+            var url = './games-room/room-photo.js' + (roomGen ? '?r=' + roomGen : '');
             roomPromise = import(url).then(function () { roomApi = window.__room || null; })
                 .catch(function () {
                     /* the room failed to load: never trap the
@@ -8722,48 +8821,263 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         }, 250);
     }
 
+    /* ===== the seamless frame (Johnny, 2026-11-27 19:46) =====
+       frameGame: the page name of the game currently presented
+       inside the frame ('threads' for AR World). Every hand-over
+       runs under #gr-framefade or a dissolve of the room overlay
+       itself, so no frame of the page behind, no black frame and
+       no second set of chrome can ever show. */
+    var frameGame = null;
+    var framefade = document.getElementById('gr-framefade');
+    var frameExitBtn = document.getElementById('gr-frame-exit');
+    var thrLayer = document.getElementById('gr-thr');
+    var thrIframe = document.getElementById('gr-thr-iframe');
+    var thrReadyFn = null;
+    var jvLayer = document.getElementById('gr-jv');
+    var jvIframe = document.getElementById('gr-jv-iframe');
+    var jvReadyFn = null;
+    function ffSnap(tint) {
+        if (!framefade) return;
+        framefade.className = tint || '';
+        framefade.style.transition = 'none';
+        framefade.style.opacity = '1';
+    }
+    function ffTo(op, dur) {
+        return new Promise(function (res) {
+            if (!framefade) { res(); return; }
+            framefade.style.transition = 'opacity ' + dur + 'ms ease';
+            framefade.style.opacity = String(op);
+            window.setTimeout(res, dur + 50);
+        });
+    }
+    function showFrameExit(on) { if (frameExitBtn) frameExitBtn.hidden = !on; }
+    function delay(ms) { return new Promise(function (res) { window.setTimeout(res, ms); }); }
+    function waitUvReady(timeout) {
+        return new Promise(function (res) {
+            var t0 = Date.now();
+            (function poll() {
+                var r = false;
+                try { r = !!(window.__uv && window.__uv.getState && window.__uv.getState().ready); } catch (e) { /* not up yet */ }
+                var fb = document.querySelector('.uv-fallback');
+                if (r || (fb && !fb.hidden) || Date.now() - t0 > timeout) { res(); return; }
+                window.setTimeout(poll, 200);
+            })();
+        });
+    }
+    function waitFgReady() {
+        return new Promise(function (res) {
+            var t0 = Date.now();
+            (function poll() {
+                var l = document.getElementById('fg-loading');
+                if (!l || l.hidden || Date.now() - t0 > 1600) { res(); return; }
+                window.setTimeout(poll, 150);
+            })();
+        });
+    }
+    /* lift the frame fade once the room's return flight is under
+       way: the room's own white overlay leads the descent, so the
+       fade hands the eye straight to it */
+    function watchFlightback() {
+        var t0 = Date.now();
+        (function poll() {
+            var vs = null;
+            try { vs = window.__room && window.__room.state ? window.__room.state().viewState : null; } catch (e) { /* rebuilding */ }
+            if (vs === 'flightback' || vs === 'back' || Date.now() - t0 > 8000) { ffTo(0, 700); return; }
+            window.setTimeout(poll, 120);
+        })();
+    }
+    /* Threads, framed: AR World loads inside the frame and
+       signals readiness; if it never signals, fall back to the
+       proven full-page route rather than trap the visitor */
+    function thrEnter() {
+        frameGame = 'threads';
+        pageScroll = window.scrollY;
+        if (framefade) framefade.className = 'tint-deep';
+        ffTo(1, 300).then(function () {
+            hideRoom(true);
+            if (thrLayer) thrLayer.hidden = false;
+            if (thrIframe) thrIframe.src = 'ar-rhythm.html?framed=1';
+            showFrameExit(true);
+            var decided = false;
+            thrReadyFn = function (ok) {
+                if (decided) return;
+                decided = true;
+                thrReadyFn = null;
+                if (frameGame !== 'threads') return;
+                if (!ok) {
+                    thrTeardown();
+                    frameGame = null;
+                    showFrameExit(false);
+                    try { sessionStorage.setItem(THR_KEY, 'threads'); } catch (e) { /* storage blocked */ }
+                    window.location.href = 'ar-rhythm.html';
+                    return;
+                }
+                ffTo(0, 400);
+            };
+            window.setTimeout(function () { if (thrReadyFn) thrReadyFn(false); }, 6500);
+        });
+    }
+    function thrTeardown() {
+        if (thrIframe) thrIframe.src = 'about:blank';
+        if (thrLayer) thrLayer.hidden = true;
+    }
+    function thrExit() {
+        showFrameExit(false);
+        if (framefade) framefade.className = 'tint-deep';
+        ffTo(1, 300).then(function () {
+            thrTeardown();
+            frameGame = null;
+            overlay.hidden = false;
+            roomOpen = true;
+            document.documentElement.classList.add('gr-lock');
+            overlay.style.opacity = '';
+            overlay.style.transition = '';
+            if (roomApi) { roomApi.setHostActive(true); roomApi.refit(); roomApi.hostReturn(); }
+            ffTo(0, 450);
+        });
+    }
+    /* Johnny's View, framed (Johnny, 2026-11-27 22:34-22:37):
+       the fireplace painting is a portal — it opens Johnny's View
+       inside the frame, fullscreen, on the Oil Paintings, starting
+       on Mount Corcoran (the pool entry that matches the painting
+       over the fireplace). The page's own share doorway presents
+       the entry; its framed script opens the viewer and signals
+       readiness; if it never signals, fall back to the plain page
+       (which still lands on the same painting via the doorway)
+       rather than trap the visitor. */
+    function jvEnter() {
+        frameGame = 'painting';
+        pageScroll = window.scrollY;
+        if (framefade) framefade.className = 'tint-deep';
+        ffTo(1, 300).then(function () {
+            hideRoom(true);
+            if (jvLayer) jvLayer.hidden = false;
+            if (jvIframe) jvIframe.src = 'random.html?framed=1#share/art/mount-corcoran';
+            showFrameExit(true);
+            var decided = false;
+            jvReadyFn = function (ok) {
+                if (decided) return;
+                decided = true;
+                jvReadyFn = null;
+                if (frameGame !== 'painting') return;
+                if (!ok) {
+                    jvTeardown();
+                    frameGame = null;
+                    showFrameExit(false);
+                    window.location.href = 'random.html#share/art/mount-corcoran';
+                    return;
+                }
+                ffTo(0, 400);
+            };
+            window.setTimeout(function () { if (jvReadyFn) jvReadyFn(false); }, 8000);
+        });
+    }
+    function jvTeardown() {
+        if (jvIframe) jvIframe.src = 'about:blank';
+        if (jvLayer) jvLayer.hidden = true;
+    }
+    function jvExit() {
+        showFrameExit(false);
+        if (framefade) framefade.className = 'tint-deep';
+        ffTo(1, 300).then(function () {
+            jvTeardown();
+            frameGame = null;
+            overlay.hidden = false;
+            roomOpen = true;
+            document.documentElement.classList.add('gr-lock');
+            overlay.style.opacity = '';
+            overlay.style.transition = '';
+            if (roomApi) { roomApi.setHostActive(true); roomApi.refit(); roomApi.hostReturn(); }
+            ffTo(0, 450);
+        });
+    }
+    /* the frame's own exit: fade to the game's sky, close the
+       game underneath it, and let the observer's return bring
+       the room back under the same fade */
+    function frameExit() {
+        if (!frameGame) return;
+        if (frameGame === 'threads') { thrExit(); return; }
+        if (frameGame === 'painting') { jvExit(); return; }
+        var name = frameGame;
+        showFrameExit(false);
+        if (framefade) framefade.className = (name === 'universe' || name === 'thumbkart') ? '' : 'tint-deep';
+        ffTo(1, 400).then(function () { window.__gamesFrame.exit(); });
+    }
+
     window.__roomHost = {
         /* the room's start has finished its motion: hand over */
         enterGame: function (roomId, craft) {
-            if (roomId === 'threads') {
-                /* Threads lives on its own page; remember the chair
-                   so coming back lands in it (see below) */
-                try { sessionStorage.setItem(THR_KEY, 'threads'); } catch (e) { /* storage blocked */ }
-                window.setTimeout(function () { window.location.href = 'ar-rhythm.html'; }, 300);
-                return;
-            }
+            if (roomId === 'threads') { thrEnter(); return; }
+            if (roomId === 'visionpro') { thrEnter(); return; }
+            if (roomId === 'painting') { jvEnter(); return; }
             var name = PAGE_NAME[roomId];
             if (!name) return;
             armed = name;
+            frameGame = name;
             pageScroll = window.scrollY;
-            if (roomId === 'universe' && roomApi && roomApi.disposeForGame) {
-                /* THE HANDOFF (Johnny's iPhone, 2026-11-27 00:52):
-                   with the room's context still resident, the
-                   Universe's own initialization put two heavy
-                   WebGL contexts on the GPU at once and iOS killed
-                   the page — white flash, reload, back on the grid
-                   in the wrong theme. So the room RELEASES
-                   everything first, behind its own veil (no flash,
-                   no grid, no reload), and only then does the game
-                   initialize. The room rebuilds fresh when the
-                   game closes — see the return observer below */
+            if (roomId === 'universe') {
+                /* THE HANDOFF, inside the frame: the room's flight
+                   fade is already at full white when its start
+                   finishes, so the frame fade takes over in the
+                   same colour and the room releases its context
+                   behind it (two resident heavy contexts killed
+                   the page on Johnny's iPhone, 2026-11-27 00:52 —
+                   the release still happens FIRST). The Universe
+                   then assembles edge-to-edge in the same frame,
+                   and the fade lifts only when its first real
+                   frames exist: climb → cloud → orbit, one motion.
+                   The room rebuilds fresh on the way back — see
+                   the return observer below */
                 disposedReturn = roomId;
-                if (veil) veil.classList.remove('off');
-                roomApi.disposeForGame();
+                ffSnap('');
+                if (roomApi && roomApi.disposeForGame) roomApi.disposeForGame();
                 roomApi = null;
                 roomPromise = null;
-                window.setTimeout(function () {
-                    hideRoom(true);
-                    var btn = document.querySelector('[data-game-btn="universe"]');
-                    if (btn) btn.click();
-                    startUvShipSync(craft);
-                }, 400);
+                hideRoom(true);
+                window.__gamesFrame.enter('universe');
+                startUvShipSync(craft);
+                waitUvReady(9000).then(function () {
+                    if (frameGame !== 'universe') return;
+                    showFrameExit(true);
+                    ffTo(0, 900);
+                });
                 return;
             }
-            hideRoom(true);
+            if (roomId === 'thumbdrive') {
+                /* the kart's start also ends inside the room's
+                   white flight fade: the same hand-over, and the
+                   room stays alive behind the game (its return is
+                   the reverse flight) */
+                ffSnap('');
+                hideRoom(true);
+                window.__gamesFrame.enter('thumbkart');
+                window.setTimeout(function () {
+                    if (frameGame !== 'thumbkart') return;
+                    showFrameExit(true);
+                    ffTo(0, 700);
+                }, 420);
+                return;
+            }
+            /* station games (Line Rider on the iPad, Frequency on
+               the coffee table): the game assembles UNDER the
+               room overlay and the room dissolves away — the
+               approach's push-in becomes the game's own screen
+               with no cut at all */
             var btn = document.querySelector('[data-game-btn="' + name + '"]');
-            if (btn) btn.click();
-            if (name === 'universe') startUvShipSync(craft);
+            var sec = btn ? btn.closest('section') : null;
+            if (sec) sec.classList.add('gr-frame-under');
+            window.__gamesFrame.enter(name);
+            var wait = name === 'frequency' ? waitFgReady() : delay(500);
+            wait.then(function () {
+                if (frameGame !== name) return;
+                overlay.style.transition = 'opacity .45s ease';
+                overlay.style.opacity = '0';
+                window.setTimeout(function () {
+                    hideRoom(true);
+                    if (sec) sec.classList.remove('gr-frame-under');
+                    showFrameExit(true);
+                }, 480);
+            });
         },
         /* Leave games: out of the room and off this page — back
            to the page the visitor came from, or home when there
@@ -8792,6 +9106,52 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         if (roomOpen || !booted) window.__roomHost.leave();
     });
 
+    /* ===== frame listeners ===== */
+    if (frameExitBtn) frameExitBtn.addEventListener('click', frameExit);
+    window.addEventListener('message', function (e) {
+        if (e.origin !== window.location.origin) return;
+        if (e.data === 'thr-ready' && thrReadyFn) { var f = thrReadyFn; f(true); }
+        else if (e.data === 'thr-exit' && frameGame === 'threads') frameExit();
+        else if (e.data === 'jv-ready' && jvReadyFn) { var jf = jvReadyFn; jf(true); }
+        else if (e.data === 'jv-exit' && frameGame === 'painting') frameExit();
+    });
+    /* Escape inside the frame is the frame's exit (capture phase,
+       so the game's close never runs unfaded) — unless one of the
+       game's own dialogs is open, when Escape stays the game's */
+    document.addEventListener('keydown', function (e) {
+        if (!frameGame || (e.key !== 'Escape' && e.key !== 'Esc')) return;
+        var fgShade = document.getElementById('fg-infoShade');
+        if (fgShade && !fgShade.classList.contains('fg-hidden')) return;
+        var tkShade = document.getElementById('tk-scoreShade');
+        if (tkShade && !tkShade.classList.contains('tk-hidden')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        frameExit();
+    }, true);
+    /* Returning to this page (a tab switch, an app switch — the
+       black flash with the doubled Leave pill in Johnny's
+       2026-11-27 recording): the browser shows its stale snapshot
+       of the pill while the room's canvas still paints black
+       underneath. The pill doubling is the snapshot itself and
+       no page code can stop the browser compositing it — but the
+       black canvas is ours: re-cover with the room's veil the
+       moment the page is visible again, and lift it only on the
+       room's next real rendered frame. */
+    function roomResumeGuard() {
+        if (!roomOpen || document.hidden) return;
+        if (veil) veil.classList.remove('off');
+        if (roomApi && roomApi.refit) roomApi.refit();
+        if (roomApi && roomApi.onNextFrame) {
+            roomApi.onNextFrame(function () { if (veil) veil.classList.add('off'); });
+        } else {
+            window.setTimeout(function () { if (veil) veil.classList.add('off'); }, 700);
+        }
+    }
+    window.addEventListener('pageshow', roomResumeGuard);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) roomResumeGuard();
+    });
+
     /* A game the room started has closed — its door button reports
        collapsed (the shell sets that when the close fully lands and
        the scroll is restored): bring the room back at that station
@@ -8805,6 +9165,19 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
         var btn = doorBtns[armed];
         if (btn && btn.getAttribute('aria-expanded') === 'false') {
             armed = null;
+            var fg = frameGame;
+            frameGame = null;
+            if (fg) {
+                /* a framed game is coming back: the frame fade is
+                   the cover while the room returns. If the game's
+                   own close got here first (its in-game exit,
+                   Escape), it may not be up yet — snap it on now
+                   so no frame of the page behind can ever show */
+                if (!framefade || framefade.style.opacity !== '1') {
+                    ffSnap((fg === 'universe' || fg === 'thumbkart') ? '' : 'tint-deep');
+                }
+                showFrameExit(false);
+            }
             overlay.hidden = false;
             roomOpen = true;
             document.documentElement.classList.add('gr-lock');
@@ -8835,11 +9208,14 @@ return { setActive: tkSetActive, openScores: function () { openScores('view'); }
                     roomApi.hostReturn();
                 });
                 guardScroll();
+                if (fg) watchFlightback();
                 return;
             }
             fadeInRoom();
             if (roomApi) { roomApi.setHostActive(true); roomApi.refit(); roomApi.hostReturn(); }
             guardScroll();
+            if (fg === 'thumbkart') watchFlightback();
+            else if (fg) window.setTimeout(function () { ffTo(0, 450); }, 500);
         }
     });
     Object.keys(doorBtns).forEach(function (n) {
