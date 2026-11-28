@@ -47,6 +47,18 @@ jobs:
       - name: Run chart data updater (The Chart)
         run: python fetch_chart_data.py
 
+  # Dilution & Buybacks data (2026-11-28): per-ticker share-count
+  # steps from SEC EDGAR filings (build_shares_data.py reads the
+  # chart file above for the universe and the previous
+  # dilution-data.json for its incremental filing watermark; a
+  # failed ticker keeps its previous entry). continue-on-error is
+  # deliberate: a share-count failure must never block the market
+  # data pipeline — the previous dilution-data.json stays live and
+  # the failure shows in this run's log.
+      - name: Run share-count builder (Dilution & Buybacks)
+        continue-on-error: true
+        run: python build_shares_data.py
+
       - name: Run share-stub refresher
         run: python update_share_stubs.py
 
@@ -67,7 +79,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
-          git add finance-data.json finance-history.json finance-chart-data.json finance-chart-daily.json finance-intraday.json finance-chart-first.json btc-state.json s og-recipes.jpg og-sustainability.jpg og-random.jpg share-refresh-state.json grades-history.json og-bitcoin.jpg og-finance.jpg scoreboard-stocks.json fine30 fine60 fine15 fine5 verification-report.json
+          git add finance-data.json finance-history.json finance-chart-data.json finance-chart-daily.json dilution-data.json finance-intraday.json finance-chart-first.json btc-state.json s og-recipes.jpg og-sustainability.jpg og-random.jpg share-refresh-state.json grades-history.json og-bitcoin.jpg og-finance.jpg scoreboard-stocks.json fine30 fine60 fine15 fine5 verification-report.json
           git add finance-context.json insider-purchases.json || true
           git add og-finance-*.jpg || true
           git commit -m "Automated daily financial data refresh via API [skip ci]" || exit 0
