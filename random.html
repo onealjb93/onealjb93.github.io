@@ -399,6 +399,15 @@
         .gen-fs-quote-behind { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100%; }
         .rg-swipe-fly { transition: transform var(--dur-2) var(--ease-out) !important; }
         .rg-swipe-settle { transition: transform var(--dur-2) var(--ease-inout) !important; }
+        /* FS SCROLL LOCK (iOS fix, 2026-11-27): while the
+           fullscreen viewer stands open, the swipe script's
+           overlay observer puts .jv-fs-lock on <html> — the page
+           behind the viewer cannot scroll or rubber-band, so no
+           scroller back there competes for the viewer's drags
+           and the blurred backdrop never shifts mid-gesture
+           (Johnny's 2026-11-27 recording showed the page moving
+           behind the viewer while he dragged). */
+        html.jv-fs-lock, html.jv-fs-lock body { overflow: hidden !important; }
         @media (prefers-reduced-motion: reduce) {
             .rg-swipe-fly, .rg-swipe-settle { transition: none !important; }
         }
@@ -4537,6 +4546,13 @@
             // The viewer opening is when its strip must be in
             // place around the photo it opens on.
             new MutationObserver(function () { refreshFsNeighbours(); }).observe(ov, { attributes: true, attributeFilter: ['hidden'] });
+            // The viewer's open state also locks the page's
+            // scroll (the .jv-fs-lock CSS at the swipe styles):
+            // nothing behind the viewer may scroll or shift
+            // while a drag is arbitrated inside it.
+            var syncFsLock = function () { document.documentElement.classList.toggle('jv-fs-lock', !ov.hidden); };
+            new MutationObserver(syncFsLock).observe(ov, { attributes: true, attributeFilter: ['hidden'] });
+            syncFsLock();
         })();
 
         // A drag that crossed the tap threshold must never turn
@@ -4606,10 +4622,10 @@
             var step = stepPx(isFs ? fsFace() : faceOf(prefix));
             faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-fly'); } });
             if (isFs) { layoutFsStrip(dir > 0 ? -step : step); } else { layoutStrip(prefix, dir > 0 ? -step : step); }
-            setTimeout(function () {
+            fireOnLand(isFs ? fsFace() : faceOf(prefix), 420, function () {
                 fireStep(isFs, prefix, dir);
                 settlePoll(isFs, prefix, before, faces);
-            }, 260);
+            });
         }
 
         // THE THROW (2026-11-27, Johnny's model completed:
@@ -4657,10 +4673,10 @@
             }
             setPairVis(other, 'hidden');
             setXY(face, fromX + ux * exit, fromY + uy * exit);
-            setTimeout(function () {
+            fireOnLand(face, 450, function () {
                 fireStep(isFs, prefix, dir);
                 settlePoll(isFs, prefix, before, faces);
-            }, 300);
+            });
         }
 
         // Settle an uncommitted drag back to rest.
@@ -4671,6 +4687,33 @@
             setTimeout(function () {
                 faces.forEach(function (el) { if (el) { el.classList.remove('rg-swipe-settle'); } });
             }, 320);
+        }
+
+        // FIRE WHEN THE FLIGHT LANDS (iOS fix, 2026-11-27): a
+        // step used to fire on a fixed timer (260/300ms) while
+        // the card's glide is a 250ms transition — two clocks
+        // that agree on a fast desktop and drift apart on a
+        // loaded phone, where the timer lands late and the
+        // arrived card stands for a visible beat under the
+        // previous entry's words (Johnny's recording: the manta
+        // photo centred under "The Dust Bath", the sunfish
+        // under "Autumn Colours"). The step now fires from the
+        // flight's own transitionend — the same frame the card
+        // lands, by construction — with the timer kept only as
+        // a fallback for a transition that never runs.
+        function fireOnLand(face, ms, fn) {
+            var fired = false;
+            function go() {
+                if (fired) { return; }
+                fired = true;
+                if (face) { face.removeEventListener('transitionend', onT); }
+                fn();
+            }
+            function onT(ev) {
+                if (ev.target === face && ev.propertyName === 'transform') { go(); }
+            }
+            if (face) { face.addEventListener('transitionend', onT); }
+            setTimeout(go, ms);
         }
 
         // ANY-DIRECTION FLICKS + THE SCROLL HANDOFF (revision,
@@ -4735,58 +4778,122 @@
             if (!el) { return; }
             if (el.tagName === 'IMG') { el.draggable = false; }
             var g = null;
-            el.addEventListener('pointerdown', function (e) {
+            // Set while two or more fingers are down (a pinch in
+            // progress): no new gesture may begin until every
+            // finger has lifted, on either stream.
+            var pinchBlock = false;
+            // Begin a gesture from either input stream. src is
+            // 'touch' when the touch stream owns the gesture,
+            // 'ptr' when the pointer stream does; pid is the
+            // pointerId or the touch identifier. On a real touch
+            // the touch stream always begins first (touchstart
+            // precedes the derived pointerdown), so the pointer
+            // twin of the same finger finds g already set and
+            // stands down — one gesture, one owner.
+            function begin(x, y, ptype, src, pid) {
                 cancelNudge();
                 stopScrollMomentum();
-                if (g) { return; }
-                if (opt.isFs && fsZoomed) { return; } // viewer zoomed: one finger pans the view, never deals
-                if (e.pointerType === 'mouse' && e.button !== 0) { return; }
-                if (el.hidden) { return; }
+                if (g) { return false; }
+                if (pinchBlock) { return false; }
+                if (opt.isFs && fsZoomed) { return false; } // viewer zoomed: one finger pans the view, never deals
+                if (el.hidden) { return false; }
                 if (opt.isFs) {
                     var ov = document.getElementById('gen-fs');
-                    if (!ov || ov.hidden) { return; }
+                    if (!ov || ov.hidden) { return false; }
                     var menu = document.getElementById('gen-fs-cat-menu');
-                    if (menu && !menu.hidden) { return; }
+                    if (menu && !menu.hidden) { return false; }
                 }
                 var prefix = opt.prefix();
-                if (!prefix) { return; }
+                if (!prefix) { return false; }
                 var st = GEN[prefix];
-                if (!st || !st.shownId) { return; }
+                if (!st || !st.shownId) { return false; }
                 // A drag can only begin on a dealt card whose
                 // waiting card is dealt behind it.
                 if (!st.behindId) { dealBehind(prefix); }
                 if (opt.isFs) { refreshFsNeighbours(); } else { refreshNeighbours(prefix); }
                 g = {
-                    id: e.pointerId, ptype: e.pointerType, prefix: prefix, el: el, plain: !!opt.plain,
-                    x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, tx: 0, ty: 0, trailSide: null,
-                    dragging: false, shownBefore: st.shownId, mode: null, lastY: e.clientY,
+                    id: pid, src: src, ptype: ptype, prefix: prefix, el: el, plain: !!opt.plain,
+                    x0: x, y0: y, dx: 0, dy: 0, tx: 0, ty: 0, trailSide: null,
+                    dragging: false, shownBefore: st.shownId, mode: null, lastY: y,
                     state: window.__rgSwipeState ? window.__rgSwipeState(prefix) : { back: null, fwd: null, fwdJump: false },
-                    samples: [{ x: e.clientX, y: e.clientY, t: Date.now() }]
+                    samples: [{ x: x, y: y, t: Date.now() }]
                 };
-                try { el.setPointerCapture(e.pointerId); } catch (err) { }
+                return true;
+            }
+            el.addEventListener('pointerdown', function (e) {
+                if (e.pointerType === 'mouse' && e.button !== 0) { return; }
+                if (begin(e.clientX, e.clientY, e.pointerType, 'ptr', e.pointerId)) {
+                    try { el.setPointerCapture(e.pointerId); } catch (err) { }
+                }
             });
-            // THE iOS CLAIM (fix, 2026-11-27): Safari decides
-            // scroll takeover from the TOUCH stream, not the
-            // pointer stream, and touch-action does not stop it —
-            // so the claim is made here, in the touch stream. A
-            // non-passive touchmove listener prevents the default
-            // (the scroll itself) for any single-touch gesture the
-            // deck has accepted, so the pointer stream survives
-            // whole and the arbitration below decides what the
-            // gesture is: a flick deals, and a 'scroll' verdict
-            // still moves the page 1:1 by hand for the rest of the
-            // drag — no page scroll is ever trapped by the claim.
-            // Two touches are never claimed (the viewer's pinch
-            // zoom stays the browser's), and neither is the
-            // zoomed viewer (one finger pans the zoomed picture
-            // natively; its pointerdown already stood down, so
-            // there is no gesture to claim for anyway).
+            el.addEventListener('touchstart', function (e) {
+                if (e.touches.length !== 1) {
+                    // A second finger lands: the gesture becomes
+                    // the browser's (the viewer's pinch zoom). A
+                    // live card drag settles home undealt and the
+                    // deck stands down until every finger lifts.
+                    pinchBlock = true;
+                    if (g && g.src === 'touch') {
+                        var live = g; g = null;
+                        if (live.dragging && live.mode === 'card' && !live.plain) { settleStrip(opt.isFs, live.prefix); }
+                    }
+                    return;
+                }
+                if (g) { return; }
+                var t = e.touches[0];
+                begin(t.clientX, t.clientY, 'touch', 'touch', t.identifier);
+            }, { passive: true });
+            function touchById(list, id) {
+                for (var i = 0; i < list.length; i++) { if (list[i].identifier === id) { return list[i]; } }
+                return null;
+            }
+            // THE TOUCH STREAM DRIVES TOUCH (iOS fix, 2026-11-27,
+            // second round — Johnny's device recording): the first
+            // round ran the whole gesture on Pointer Events and
+            // used this listener only to preventDefault the scroll
+            // away. On the phone that was not enough: iOS Safari
+            // subjects the pointer stream to its own gesture
+            // arbitration (its scroller claims vertical travel —
+            // in the viewer the page behind visibly scrolled
+            // mid-drag — and the stream dies in pointercancel),
+            // the FS surfaces carry touch-action: pinch-zoom,
+            // which WebKit does not read as "pan is ours", and
+            // what follow survived read as axis-locked jumps
+            // between transition positions. So touch is now
+            // driven from the touch stream itself — the channel
+            // iOS has honoured since long before pointer events:
+            // touchstart begins the gesture, every touchmove is
+            // preventDefaulted from the first one (the scroll
+            // takeover never starts) and fed to the same move
+            // arbitration the pointer stream feeds, and
+            // touchend/touchcancel finish it. The arbitration
+            // still decides what the gesture is: a flick deals,
+            // and a 'scroll' verdict moves the page 1:1 by hand
+            // for the rest of the drag — no page scroll is ever
+            // trapped. Two touches are never claimed (the
+            // viewer's pinch zoom stays the browser's — see the
+            // touchstart stand-down), and neither is the zoomed
+            // viewer (one finger pans the zoomed picture
+            // natively; its begin already stood down, so there
+            // is no gesture to claim for anyway).
             el.addEventListener('touchmove', function (e) {
                 if (!g) { return; }
                 if (e.touches.length !== 1) { return; }
                 if (opt.isFs && fsZoomed) { return; }
                 e.preventDefault();
+                if (g.src !== 'touch') { return; }
+                var t = touchById(e.changedTouches, g.id) || e.touches[0];
+                if (t) { move(t.clientX, t.clientY); }
             }, { passive: false });
+            function touchFinish(e) {
+                if (e.touches && e.touches.length === 0) { pinchBlock = false; }
+                if (!g || g.src !== 'touch') { return; }
+                var t = touchById(e.changedTouches, g.id);
+                if (!t) { return; }
+                finish(t.clientX, t.clientY, e.type === 'touchcancel');
+            }
+            el.addEventListener('touchend', touchFinish);
+            el.addEventListener('touchcancel', touchFinish);
             // Decide what a touch/pen gesture IS, once, from its
             // shape: 'card' (the free 2D drag — the picture
             // follows the pointer at any angle), 'vflick' (a
@@ -4800,7 +4907,7 @@
             // drags too and the release decides. Mouse never
             // classifies: a mouse drag is a card drag from its
             // first move.
-            function classifyMove(e) {
+            function classifyMove(y) {
                 var adx = Math.abs(g.dx), ady = Math.abs(g.dy);
                 if (ady > V_AXIS * adx && ady >= TAP_DIST) {
                     if (opt.isFs) { g.mode = 'card'; return; }
@@ -4812,7 +4919,7 @@
                     // inside it is a flick by any definition.
                     var s0 = g.samples[0];
                     var dt = Math.max(Date.now() - s0.t, 8);
-                    var vvel = Math.abs(e.clientY - s0.y) / dt;
+                    var vvel = Math.abs(y - s0.y) / dt;
                     if (g.state.fwd && vvel >= FLICK_VEL_V) {
                         g.mode = 'vflick';
                         markSwiped();
@@ -4821,21 +4928,25 @@
                     }
                     g.mode = 'scroll';
                     if (!g.plain) { settleStrip(opt.isFs, g.prefix); }
-                    g.lastY = e.clientY;
+                    g.lastY = y;
                     return;
                 }
                 g.mode = 'card';
             }
-            el.addEventListener('pointermove', function (e) {
-                if (!g || e.pointerId !== g.id) { return; }
-                g.dx = e.clientX - g.x0;
-                g.dy = e.clientY - g.y0;
+            // One move, from either stream: the pointer stream
+            // (mouse, pen, and any pointer the touch stream did
+            // not claim first) and the touch stream both land
+            // here with plain coordinates.
+            function move(x, y) {
+                if (!g) { return; }
+                g.dx = x - g.x0;
+                g.dy = y - g.y0;
                 var now = Date.now();
-                g.samples.push({ x: e.clientX, y: e.clientY, t: now });
+                g.samples.push({ x: x, y: y, t: now });
                 while (g.samples.length > 2 && now - g.samples[0].t > 100) { g.samples.shift(); }
                 if (!g.dragging && Math.hypot(g.dx, g.dy) >= TAP_DIST) {
                     g.dragging = true;
-                    if (e.pointerType === 'mouse') { g.mode = 'card'; }
+                    if (g.ptype === 'mouse') { g.mode = 'card'; }
                 }
                 if (!g.dragging) { return; }
                 // A dealt flick owns the rest of its gesture.
@@ -4843,11 +4954,11 @@
                 // A scroll-classified drag moves the page with
                 // the finger, 1:1, for as long as it lasts.
                 if (g.mode === 'scroll') {
-                    window.scrollBy(0, g.lastY - e.clientY);
-                    g.lastY = e.clientY;
+                    window.scrollBy(0, g.lastY - y);
+                    g.lastY = y;
                     return;
                 }
-                if (!g.mode && e.pointerType !== 'mouse') { classifyMove(e); }
+                if (!g.mode && g.ptype !== 'mouse') { classifyMove(y); }
                 if (g.mode === 'vflick' || g.mode === 'scroll') { return; }
                 if (g.plain || g.mode !== 'card') { return; }
                 // THE FREE DRAG (2026-11-27): the picture follows
@@ -4870,6 +4981,9 @@
                 g.trailSide = rightward ? (g.state.back ? 'back' : null)
                     : (g.state.fwd ? 'fwd' : null);
                 layoutDrag(opt.isFs, g.prefix, tx, ty, g.trailSide);
+            }
+            el.addEventListener('pointermove', function (e) {
+                if (g && g.src === 'ptr' && e.pointerId === g.id) { move(e.clientX, e.clientY); }
             });
             // THE CANCELLED FLICK (the parachute, 2026-11-27): if
             // the browser took the gesture anyway — a
@@ -4885,14 +4999,14 @@
             // its own branch in end() owns it — and neither does
             // the viewer, whose overlay has no page scroll
             // competing for the gesture.
-            function cancelledFlick(done, e) {
+            function cancelledFlick(done, x, y) {
                 if (done.mode) { return false; }
-                var cdx = e.clientX - done.x0, cdy = e.clientY - done.y0;
+                var cdx = x - done.x0, cdy = y - done.y0;
                 var acdx = Math.abs(cdx), acdy = Math.abs(cdy);
                 if (acdy < TAP_DIST || acdy <= V_AXIS * acdx) { return false; }
                 var ks0 = done.samples[0];
                 var kdt = Math.max(Date.now() - ks0.t, 8);
-                var kvel = Math.abs(e.clientY - ks0.y) / kdt;
+                var kvel = Math.abs(y - ks0.y) / kdt;
                 if (!done.state.fwd || kvel < FLICK_VEL_V) { return false; }
                 suppressEl = done.el;
                 suppressUntil = Date.now() + 600;
@@ -4900,11 +5014,11 @@
                 throwStep(false, done.prefix, 1, 0, cdy < 0 ? -1 : 1, done.state, done.plain, 0, 0);
                 return true;
             }
-            function end(e, cancelled) {
-                if (!g || e.pointerId !== g.id) { return; }
+            function finish(x, y, cancelled) {
+                if (!g) { return; }
                 var done = g;
                 g = null;
-                if (cancelled && !opt.isFs && done.ptype !== 'mouse' && cancelledFlick(done, e)) { return; }
+                if (cancelled && !opt.isFs && done.ptype !== 'mouse' && cancelledFlick(done, x, y)) { return; }
                 if (!done.dragging) { return; } // a tap: the click does its usual work
                 suppressEl = done.el;
                 suppressUntil = Date.now() + 600;
@@ -4915,7 +5029,7 @@
                     if (!cancelled) {
                         var ss0 = done.samples[0];
                         var sdt = Math.max(Date.now() - ss0.t, 8);
-                        startScrollMomentum((e.clientY - ss0.y) / sdt);
+                        startScrollMomentum((y - ss0.y) / sdt);
                     }
                     return;
                 }
@@ -4927,7 +5041,7 @@
                     var pdist = Math.abs(done.dx);
                     var ps0 = done.samples[0];
                     var pdt = Math.max(Date.now() - ps0.t, 8);
-                    var pvel = Math.abs(e.clientX - ps0.x) / pdt;
+                    var pvel = Math.abs(x - ps0.x) / pdt;
                     var pdir = done.dx < 0 ? 1 : (done.dx > 0 ? -1 : 0);
                     var ptarget = pdir > 0 ? done.state.fwd : done.state.back;
                     var pcommit = !cancelled && pdir !== 0 && !!ptarget &&
@@ -4949,8 +5063,8 @@
                 var dist = Math.hypot(done.dx, done.dy);
                 var s0 = done.samples[0];
                 var dt = Math.max(Date.now() - s0.t, 8);
-                var vx = (e.clientX - s0.x) / dt;
-                var vy = (e.clientY - s0.y) / dt;
+                var vx = (x - s0.x) / dt;
+                var vy = (y - s0.y) / dt;
                 var speed = Math.hypot(vx, vy);
                 var rightward = done.dx > 0 && Math.abs(done.dx) >= Math.abs(done.dy);
                 var dir = rightward ? -1 : 1;
@@ -4976,8 +5090,12 @@
                 }
                 throwStep(opt.isFs, done.prefix, dir, ux, uy, done.state, done.plain, done.tx || 0, done.ty || 0);
             }
-            el.addEventListener('pointerup', function (e) { end(e, false); });
-            el.addEventListener('pointercancel', function (e) { end(e, true); });
+            el.addEventListener('pointerup', function (e) {
+                if (g && g.src === 'ptr' && e.pointerId === g.id) { finish(e.clientX, e.clientY, false); }
+            });
+            el.addEventListener('pointercancel', function (e) {
+                if (g && g.src === 'ptr' && e.pointerId === g.id) { finish(e.clientX, e.clientY, true); }
+            });
         }
 
         // VIEWER ZOOM ARBITRATION (fix, 2026-11-21): the viewer's
