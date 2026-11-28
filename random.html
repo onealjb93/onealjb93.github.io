@@ -1338,6 +1338,21 @@
             transform: none;
         }
         .gen-fs.jv-solo .gen-fs-img-behind, .gen-fs.jv-solo .gen-fs-quote-behind { width: 100%; }
+        /* THE INCOMING CARD LANDS CLEAN (2026-11-27): during a
+           throw the trailing card glides to centre and sheds its
+           subdued peek treatment as it comes — by the time it
+           takes the stage it is the picture itself, at full
+           brightness and sharpness, so the commit swap to the
+           dealt card (the same entry, the same place) is
+           invisible. One card de-subduing is not a cross-fade:
+           the two cards never overlap and never blend. */
+        .gen-section .gen-img-behind.rg-swipe-incoming, .gen-section .gen-quote-behind.rg-swipe-incoming,
+        .gen-fs .gen-fs-img-behind.rg-swipe-incoming, .gen-fs .gen-fs-quote-behind.rg-swipe-incoming {
+            filter: brightness(1) blur(0px);
+        }
+        .rg-swipe-fly.rg-swipe-incoming {
+            transition: transform var(--dur-2) var(--ease-out), filter var(--dur-2) var(--ease-out) !important;
+        }
         .gen-fs-pick { font-weight: 500; }
         .gen-fs-pick .gen-pick-name { font-size: 0.98rem; }
         /* ONE-ROW HEADER TIERS (2026-11-27): below 600px the
@@ -4151,18 +4166,26 @@
 
     // (ALBUM) SWIPE THE ALBUM (2026-11-27; the deck model of
     // 2026-11-21 beneath it): the draw button is retired and the
-    // stage is an album. Three cards ride in the frame as one
-    // strip — the dealt card, the next card waiting at its right
-    // with its edge permanently visible in the frame (the peek
-    // that teaches the gesture with no words), and the previous
-    // card waiting off-frame at the left. A horizontal drag
-    // moves the strip with the finger; releasing past the commit
-    // point (or a flick with enough speed) slides the strip one
-    // card over and steps the album through the __rgSwipe*.
-    // A decisive flick up or down deals the next card too (the
-    // any-direction flick, restored 2026-11-27), while a slow
-    // vertical drag is handed to the page as a scroll — the
-    // arbitration lives in wireSwipe below.
+    // stage is an album. Three cards ride in the frame — the
+    // dealt card, the next card waiting at its right with its
+    // edge permanently visible in the frame (the peek that
+    // teaches the gesture with no words), and the previous card
+    // waiting off-frame at the left. THE FREE DRAG AND THE
+    // THROW (completed 2026-11-27, Johnny's full model: "drag
+    // it anywhere freely · change your mind and it puts itself
+    // back in place · throw it off the screen to bring the
+    // next"): a drag moves the dealt card with the finger as a
+    // continuous 2D vector at any angle, the incoming card
+    // trailing along the drag's axis; a release below the
+    // commit point settles the card back to exactly its place,
+    // state untouched; a committed release throws the card off
+    // the stage along its release vector and the trailing card
+    // comes in cleanly beneath/after it. A rightward throw
+    // walks back through history; any other direction deals
+    // the next fresh card. A decisive flick up or down throws
+    // at once, while a slow vertical drag is handed to the
+    // page as a scroll — the arbitration lives in wireSwipe
+    // below.
     // hooks: forward at the history's front deals a fresh card
     // from the deck — the very card the peek previewed, dealt by
     // the deck's own preparation (weighted reshuffle + the
@@ -4250,18 +4273,55 @@
         }
         function stepPx(mainEl) { return mainEl ? (mainEl.offsetWidth + GAP) : 0; }
         function setX(el, x) { if (el) { el.style.transform = 'translateX(' + x + 'px)'; } }
+        function setXY(el, x, y) { if (el) { el.style.transform = 'translate(' + x + 'px, ' + y + 'px)'; } }
+        function setPairXY(els, x, y) { if (els) { setXY(els.img, x, y); setXY(els.quote, x, y); } }
+        function setPairVis(els, vis) {
+            if (!els) { return; }
+            [els.img, els.quote].forEach(function (el) { if (el) { el.style.visibility = vis; } });
+        }
         function layoutStrip(prefix, dx) {
             var step = stepPx(faceOf(prefix));
             setX(faceOf(prefix), dx);
             var R = behind[prefix], L = prevEls[prefix];
-            if (R) { setX(R.img, step + dx); setX(R.quote, step + dx); }
-            if (L) { setX(L.img, -step + dx); setX(L.quote, -step + dx); }
+            if (R) { setX(R.img, step + dx); setX(R.quote, step + dx); setPairVis(R, ''); }
+            if (L) { setX(L.img, -step + dx); setX(L.quote, -step + dx); setPairVis(L, ''); }
         }
         function layoutFsStrip(dx) {
             var step = stepPx(fsFace());
             setX(fsFace(), dx);
-            setX(fsBehind.img, step + dx); setX(fsBehind.quote, step + dx);
-            setX(fsPrev.img, -step + dx); setX(fsPrev.quote, -step + dx);
+            setX(fsBehind.img, step + dx); setX(fsBehind.quote, step + dx); setPairVis(fsBehind, '');
+            setX(fsPrev.img, -step + dx); setX(fsPrev.quote, -step + dx); setPairVis(fsPrev, '');
+        }
+        // FREE 2D DRAG LAYOUT (2026-11-27, Johnny's model: "drag
+        // it anywhere freely"): the dealt card rides at the
+        // pointer's own displacement (tx, ty) — a continuous
+        // vector at any angle, never snapped to a direction —
+        // and the incoming card trails it along that same axis
+        // at exactly one card-separation (the two rectangles'
+        // projection on the axis, plus the gap), so the incoming
+        // card's subdued edge fills the space the dealt card
+        // vacates and the two cards never overlap. Which card
+        // trails is the release's own question answered early:
+        // the previous card when the drag runs rightward (the
+        // history direction), the next card otherwise. The
+        // pair that is not trailing is hidden for the drag's
+        // duration, so no second edge can show on a wrong side;
+        // the rest layout (layoutStrip/layoutFsStrip) restores
+        // both visibilities with the rest transforms.
+        function layoutDrag(isFs, prefix, tx, ty, trailSide) {
+            var face = isFs ? fsFace() : faceOf(prefix);
+            if (!face) { return; }
+            setXY(face, tx, ty);
+            var R = isFs ? fsBehind : behind[prefix];
+            var L = isFs ? fsPrev : prevEls[prefix];
+            var mag = Math.hypot(tx, ty);
+            var ux = mag > 0.001 ? tx / mag : 1;
+            var uy = mag > 0.001 ? ty / mag : 0;
+            var sep = Math.abs(ux) * face.offsetWidth + Math.abs(uy) * face.offsetHeight + GAP;
+            var trail = trailSide === 'back' ? L : (trailSide === 'fwd' ? R : null);
+            if (trail) { setPairXY(trail, tx - ux * sep, ty - uy * sep); }
+            setPairVis(R, trail === R ? '' : 'hidden');
+            setPairVis(L, trail === L ? '' : 'hidden');
         }
         function facesFor(isFs, prefix) {
             if (isFs) { return [fsFace(), fsBehind.img, fsBehind.quote, fsPrev.img, fsPrev.quote]; }
@@ -4513,7 +4573,7 @@
                 var changed = !st || st.shownId !== before;
                 if (!changed && tries <= 32) { return; }
                 clearInterval(iv);
-                if (faces) { faces.forEach(function (el) { if (el) { el.classList.remove('rg-swipe-fly'); } }); }
+                if (faces) { faces.forEach(function (el) { if (el) { el.classList.remove('rg-swipe-fly'); el.classList.remove('rg-swipe-incoming'); } }); }
                 if (isFs) { fsBusy = false; } else { stripBusy[prefix] = false; }
                 refreshNeighbours(prefix);
                 if (isFs) {
@@ -4552,6 +4612,57 @@
             }, 260);
         }
 
+        // THE THROW (2026-11-27, Johnny's model completed:
+        // "throw it off the screen to bring the next"): a
+        // committed drag does not slide the strip sideways — the
+        // dealt card continues along its release vector (ux, uy)
+        // from wherever the finger left it (fromX, fromY) until
+        // it is wholly past the stage's edge, and the trailing
+        // card — the very card the drag previewed — glides to
+        // centre along the same axis, shedding its subdued
+        // treatment as it lands (rg-swipe-incoming). The step
+        // fires as the throw lands, through the same atomic
+        // commit as every other step, so the card that arrives
+        // and the words above it change in the same frame. The
+        // no-slide paths (All mode's jump draw, Deep Overview,
+        // reduced motion, the image-error surface) fire at once,
+        // exactly as albumStep's do.
+        function throwStep(isFs, prefix, dir, ux, uy, state, plain, fromX, fromY) {
+            var st = GEN[prefix];
+            var before = st ? st.shownId : null;
+            var sec = document.getElementById('gen-' + prefix);
+            var noSlide = plain || reduceMotion || (dir > 0 && state.fwdJump) ||
+                (!isFs && sec && sec.classList.contains('deep-open'));
+            if (isFs) { fsBusy = true; } else { stripBusy[prefix] = true; }
+            if (noSlide) {
+                fireStep(isFs, prefix, dir);
+                settlePoll(isFs, prefix, before, null);
+                return;
+            }
+            var face = isFs ? fsFace() : faceOf(prefix);
+            var stage = face ? face.parentNode : null;
+            var sw = stage ? stage.clientWidth : 0;
+            var sh = stage ? stage.clientHeight : 0;
+            var exit = Math.abs(ux) * (sw + face.offsetWidth) + Math.abs(uy) * (sh + face.offsetHeight) + GAP + 8;
+            var R = isFs ? fsBehind : behind[prefix];
+            var L = isFs ? fsPrev : prevEls[prefix];
+            var trail = dir > 0 ? R : L;
+            var other = dir > 0 ? L : R;
+            var faces = facesFor(isFs, prefix);
+            faces.forEach(function (el) { if (el) { el.classList.add('rg-swipe-fly'); } });
+            if (trail) {
+                [trail.img, trail.quote].forEach(function (el) { if (el) { el.classList.add('rg-swipe-incoming'); } });
+                setPairVis(trail, '');
+                setPairXY(trail, 0, 0);
+            }
+            setPairVis(other, 'hidden');
+            setXY(face, fromX + ux * exit, fromY + uy * exit);
+            setTimeout(function () {
+                fireStep(isFs, prefix, dir);
+                settlePoll(isFs, prefix, before, faces);
+            }, 300);
+        }
+
         // Settle an uncommitted drag back to rest.
         function settleStrip(isFs, prefix) {
             var faces = facesFor(isFs, prefix);
@@ -4564,11 +4675,15 @@
 
         // ANY-DIRECTION FLICKS + THE SCROLL HANDOFF (revision,
         // 2026-11-27, Johnny's device verdict): the album strip
-        // alone reads only left/right, and Johnny wants his
-        // any-direction flick back — "It's only right left. Not
-        // up down any direction anymore." So a decisive flick UP
-        // or DOWN deals the next fresh card too, on the stage and
-        // in the viewer. The stage's surfaces carry
+        // alone read only left/right, and Johnny wants his
+        // any-direction swipe back — "It's only right left. Not
+        // up down any direction anymore." So the drag itself is
+        // now free in two dimensions (the card follows the
+        // pointer at any angle — see THE FREE DRAG in
+        // pointermove), a decisive flick UP or DOWN throws the
+        // card at once, on the stage and in the viewer, and a
+        // committed release in any direction throws it off the
+        // screen (see THE THROW above). The stage's surfaces carry
         // touch-action: none, which is meant to keep the browser
         // from taking a gesture over mid-flight — but iOS Safari
         // does not honour that promise for vertical drags: it
@@ -4590,10 +4705,11 @@
         // 1:1 for the rest of the drag, with a short momentum
         // glide on release — the page is never trapped under a
         // stage gesture. The viewer has nothing scrolling behind
-        // it, so there a vertical drag simply deals on release
-        // past the commit point, up or down alike. Mouse keeps
-        // exactly its old behaviour (horizontal drag, keys,
-        // wheel); the vertical arbitration is for touch and pen.
+        // it, so there a vertical drag is a card drag like any
+        // other and the release decides. Mouse drags get the
+        // same free 2D follow and throw as touch (desktop
+        // parity); the vertical arbitration is for touch and
+        // pen, whose gestures the page scroll competes for.
         var momentumRAF = 0;
         function stopScrollMomentum() {
             if (momentumRAF) { cancelAnimationFrame(momentumRAF); momentumRAF = 0; }
@@ -4642,7 +4758,7 @@
                 if (opt.isFs) { refreshFsNeighbours(); } else { refreshNeighbours(prefix); }
                 g = {
                     id: e.pointerId, ptype: e.pointerType, prefix: prefix, el: el, plain: !!opt.plain,
-                    x0: e.clientX, y0: e.clientY, dx: 0, dy: 0,
+                    x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, tx: 0, ty: 0, trailSide: null,
                     dragging: false, shownBefore: st.shownId, mode: null, lastY: e.clientY,
                     state: window.__rgSwipeState ? window.__rgSwipeState(prefix) : { back: null, fwd: null, fwdJump: false },
                     samples: [{ x: e.clientX, y: e.clientY, t: Date.now() }]
@@ -4672,16 +4788,22 @@
                 e.preventDefault();
             }, { passive: false });
             // Decide what a touch/pen gesture IS, once, from its
-            // shape: 'strip' (horizontal — the album follows),
-            // 'vflick' (a decisive vertical flick — deals at
-            // once), 'scroll' (a slow vertical drag — the page
-            // takes the gesture), or 'vert' (the viewer's
-            // vertical drag — the release decides). Mouse never
-            // classifies: its behaviour is unchanged.
+            // shape: 'card' (the free 2D drag — the picture
+            // follows the pointer at any angle), 'vflick' (a
+            // decisive vertical flick — the card is thrown at
+            // once, along its own direction), or 'scroll' (a
+            // slow vertical drag — the page takes the gesture).
+            // The vertical cone alone is arbitrated, because the
+            // page must never be trapped under the stage; every
+            // other angle is the card's. In the viewer nothing
+            // scrolls behind, so its vertical drags are card
+            // drags too and the release decides. Mouse never
+            // classifies: a mouse drag is a card drag from its
+            // first move.
             function classifyMove(e) {
                 var adx = Math.abs(g.dx), ady = Math.abs(g.dy);
                 if (ady > V_AXIS * adx && ady >= TAP_DIST) {
-                    if (opt.isFs) { g.mode = 'vert'; return; }
+                    if (opt.isFs) { g.mode = 'card'; return; }
                     // Velocity over the trailing sample window,
                     // with an 8ms floor on the window: inside a
                     // narrower window the timestamps cannot prove
@@ -4694,7 +4816,7 @@
                     if (g.state.fwd && vvel >= FLICK_VEL_V) {
                         g.mode = 'vflick';
                         markSwiped();
-                        albumStep(opt.isFs, g.prefix, 1, g.state, g.plain);
+                        throwStep(opt.isFs, g.prefix, 1, 0, g.dy < 0 ? -1 : 1, g.state, g.plain, 0, 0);
                         return;
                     }
                     g.mode = 'scroll';
@@ -4702,7 +4824,7 @@
                     g.lastY = e.clientY;
                     return;
                 }
-                if (adx >= TAP_DIST && adx > ady) { g.mode = 'strip'; }
+                g.mode = 'card';
             }
             el.addEventListener('pointermove', function (e) {
                 if (!g || e.pointerId !== g.id) { return; }
@@ -4711,7 +4833,10 @@
                 var now = Date.now();
                 g.samples.push({ x: e.clientX, y: e.clientY, t: now });
                 while (g.samples.length > 2 && now - g.samples[0].t > 100) { g.samples.shift(); }
-                if (!g.dragging && Math.hypot(g.dx, g.dy) >= TAP_DIST) { g.dragging = true; }
+                if (!g.dragging && Math.hypot(g.dx, g.dy) >= TAP_DIST) {
+                    g.dragging = true;
+                    if (e.pointerType === 'mouse') { g.mode = 'card'; }
+                }
                 if (!g.dragging) { return; }
                 // A dealt flick owns the rest of its gesture.
                 if (g.mode === 'vflick') { return; }
@@ -4724,16 +4849,27 @@
                 }
                 if (!g.mode && e.pointerType !== 'mouse') { classifyMove(e); }
                 if (g.mode === 'vflick' || g.mode === 'scroll') { return; }
-                if (g.mode === 'vert' || g.plain) { return; }
-                // The strip follows the finger horizontally. A
-                // drag with nowhere to go (backward at the
-                // history's start, forward at a Loved walk's end)
-                // resists — it follows at a third of the travel —
-                // and settles back on release.
-                var dx = g.dx;
-                if (dx < 0 && !g.state.fwd) { dx = dx / 3; }
-                if (dx > 0 && !g.state.back) { dx = dx / 3; }
-                if (opt.isFs) { layoutFsStrip(dx); } else { layoutStrip(g.prefix, dx); }
+                if (g.plain || g.mode !== 'card') { return; }
+                // THE FREE DRAG (2026-11-27): the picture follows
+                // the pointer as one continuous 2D vector — up,
+                // down, diagonal, anywhere — at the pointer's own
+                // displacement, with the incoming card trailing
+                // along the drag's axis (layoutDrag). A drag with
+                // nowhere to go resists per component, so the
+                // follow stays continuous as it crosses an axis:
+                // toward a missing history the rightward travel
+                // drags at a third; toward a missing next (a
+                // Loved walk's end) the leftward and vertical
+                // travel does. Resisted or not, an uncommitted
+                // release settles the card home to the pixel.
+                var tx = g.dx, ty = g.dy;
+                if (!g.state.back && tx > 0) { tx = tx / 3; }
+                if (!g.state.fwd) { if (tx < 0) { tx = tx / 3; } ty = ty / 3; }
+                g.tx = tx; g.ty = ty;
+                var rightward = g.dx > 0 && Math.abs(g.dx) >= Math.abs(g.dy);
+                g.trailSide = rightward ? (g.state.back ? 'back' : null)
+                    : (g.state.fwd ? 'fwd' : null);
+                layoutDrag(opt.isFs, g.prefix, tx, ty, g.trailSide);
             });
             // THE CANCELLED FLICK (the parachute, 2026-11-27): if
             // the browser took the gesture anyway — a
@@ -4761,7 +4897,7 @@
                 suppressEl = done.el;
                 suppressUntil = Date.now() + 600;
                 markSwiped();
-                albumStep(false, done.prefix, 1, done.state, done.plain);
+                throwStep(false, done.prefix, 1, 0, cdy < 0 ? -1 : 1, done.state, done.plain, 0, 0);
                 return true;
             }
             function end(e, cancelled) {
@@ -4783,32 +4919,62 @@
                     }
                     return;
                 }
-                if (done.mode === 'vert') {
-                    // The viewer's vertical drag: up or down past
-                    // the commit point — or flicked there — deals
-                    // the next card; anything less settles back.
-                    var ady = Math.abs(done.dy);
-                    var vs0 = done.samples[0];
-                    var vdt = Math.max(Date.now() - vs0.t, 8);
-                    var vvel = Math.abs(e.clientY - vs0.y) / vdt;
-                    var commitV = !cancelled && !!done.state.fwd &&
-                        (ady >= COMMIT_DIST || (ady >= TAP_DIST && vvel >= FLICK_VEL));
-                    if (!commitV) { if (!done.plain) { settleStrip(opt.isFs, done.prefix); } return; }
+                if (done.plain) {
+                    // The image-error surface has no card to
+                    // follow or throw: its release keeps the
+                    // original horizontal verdict, and its step
+                    // takes the no-slide path.
+                    var pdist = Math.abs(done.dx);
+                    var ps0 = done.samples[0];
+                    var pdt = Math.max(Date.now() - ps0.t, 8);
+                    var pvel = Math.abs(e.clientX - ps0.x) / pdt;
+                    var pdir = done.dx < 0 ? 1 : (done.dx > 0 ? -1 : 0);
+                    var ptarget = pdir > 0 ? done.state.fwd : done.state.back;
+                    var pcommit = !cancelled && pdir !== 0 && !!ptarget &&
+                        (pdist >= COMMIT_DIST || (pdist >= TAP_DIST && pvel >= FLICK_VEL));
+                    if (!pcommit) { return; }
                     markSwiped();
-                    albumStep(opt.isFs, done.prefix, 1, done.state, done.plain);
+                    albumStep(opt.isFs, done.prefix, pdir, done.state, done.plain);
                     return;
                 }
-                var dist = Math.abs(done.dx);
+                // THE RELEASE (2026-11-27): distance and speed
+                // are read off the drag's whole vector, at any
+                // angle. A rightward release (rightward-dominant)
+                // throws back through history; any other direction
+                // throws forward to the next fresh card. Below
+                // the commit line the gesture was a change of
+                // mind: the strip settles home and the album's
+                // state is exactly where it was — same picture,
+                // same place in the history.
+                var dist = Math.hypot(done.dx, done.dy);
                 var s0 = done.samples[0];
                 var dt = Math.max(Date.now() - s0.t, 8);
-                var vel = Math.abs(e.clientX - s0.x) / dt;
-                var dir = done.dx < 0 ? 1 : (done.dx > 0 ? -1 : 0);
+                var vx = (e.clientX - s0.x) / dt;
+                var vy = (e.clientY - s0.y) / dt;
+                var speed = Math.hypot(vx, vy);
+                var rightward = done.dx > 0 && Math.abs(done.dx) >= Math.abs(done.dy);
+                var dir = rightward ? -1 : 1;
                 var target = dir > 0 ? done.state.fwd : done.state.back;
-                var commit = !cancelled && dir !== 0 && !!target &&
-                    (dist >= COMMIT_DIST || (dist >= TAP_DIST && vel >= FLICK_VEL));
-                if (!commit) { if (!done.plain) { settleStrip(opt.isFs, done.prefix); } return; }
+                var commit = !cancelled && !!target &&
+                    (dist >= COMMIT_DIST || (dist >= TAP_DIST && speed >= FLICK_VEL));
+                if (!commit) { settleStrip(opt.isFs, done.prefix); return; }
                 markSwiped();
-                albumStep(opt.isFs, done.prefix, dir, done.state, done.plain);
+                // The throw's direction: the flick's velocity
+                // when the release was a flick and its direction
+                // agrees with the step's (a rightward step exits
+                // rightward, any other step never exits
+                // rightward-dominant); otherwise the drag's own
+                // displacement, which always agrees.
+                var velRight = vx > 0 && Math.abs(vx) >= Math.abs(vy);
+                var ux, uy;
+                if (speed >= FLICK_VEL && velRight === rightward && (vx || vy)) {
+                    var vm = Math.hypot(vx, vy);
+                    ux = vx / vm; uy = vy / vm;
+                } else {
+                    var dm = dist || 1;
+                    ux = done.dx / dm; uy = done.dy / dm;
+                }
+                throwStep(opt.isFs, done.prefix, dir, ux, uy, done.state, done.plain, done.tx || 0, done.ty || 0);
             }
             el.addEventListener('pointerup', function (e) { end(e, false); });
             el.addEventListener('pointercancel', function (e) { end(e, true); });
