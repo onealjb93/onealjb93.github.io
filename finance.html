@@ -3182,6 +3182,19 @@
     #scoreboard.sr-part > .sr-part-title { margin-top: 10px; }
     #screener.sr-part { border-top: 1px solid var(--border-color); margin-top: 20px; padding-top: 4px; }
     #screener.sr-part h3 { margin-top: 1.25rem; }
+    #dilution.sr-part { border-top: 1px solid var(--border-color); margin-top: 20px; padding-top: 4px; }
+    #dilution.sr-part h3 { margin-top: 1.25rem; }
+    .dil-win-row { margin: 10px 0 2px; }
+    .dil-win-row .filter-pill[disabled] { opacity: 0.38; cursor: default; }
+    #dilPanels { margin-top: 2px; }
+    .dil-panel { margin-top: 10px; }
+    .dil-panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .dil-panel-name { font-size: 0.85rem; color: var(--subtext-color); }
+    .dil-panel-end { font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
+    .dil-canvas { display: block; width: 100%; height: 92px; touch-action: pan-y; }
+    .dil-readout { font-size: 0.9rem; margin: 10px 0 0; min-height: 1.25em; }
+    .dil-verdict { font-size: 1rem; font-weight: 650; margin: 6px 0 0; }
+    .dil-note, .dil-gap-text, .dil-loading { font-size: 0.85rem; color: var(--subtext-color); }
     body.fin-searching #stockreview { display: none; }
     #stockreview:fullscreen, #stockreview:-webkit-full-screen { display: flex; flex-direction: column; height: 100%; width: 100%; margin: 0; box-sizing: border-box; overflow: hidden; overscroll-behavior: none; background: var(--bg-color); padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) calc(env(safe-area-inset-right, 0px) + 0.6rem) calc(env(safe-area-inset-bottom, 0px) + 0.6rem) calc(env(safe-area-inset-left, 0px) + 0.6rem); }
     #stockreview.sr-fs { position: fixed; inset: 0; z-index: 1100; display: flex; flex-direction: column; width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; margin: 0; box-sizing: border-box; overflow: hidden; overscroll-behavior: none; background: var(--bg-color); padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) calc(env(safe-area-inset-right, 0px) + 0.6rem) calc(env(safe-area-inset-bottom, 0px) + 0.6rem) calc(env(safe-area-inset-left, 0px) + 0.6rem); }
@@ -3191,7 +3204,7 @@
     <div class="stock-review-section collapsible-section" id="stockreview">
         <h2 class="section-title"><button type="button" class="section-toggle" data-section="stockreview" aria-expanded="false" aria-controls="stockreview-body"><span class="section-chevron" aria-hidden="true">&#9654;</span><span class="section-toggle-text">Stock Review</span></button><button type="button" class="filter-pill chart-fs-btn" id="stockreviewFsBtn" aria-label="Full screen" aria-pressed="false"><svg class="chart-fs-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg><svg class="chart-fs-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg></button></h2>
         <div class="section-body" id="stockreview-body" hidden>
-        <p class="sr-cat-line">One stock, judged both ways &mdash; the committee&rsquo;s grades first, then Johnny&rsquo;s checklist, on the same name.</p>
+        <p class="sr-cat-line">One stock, three looks &mdash; the committee&rsquo;s grades first, then Johnny&rsquo;s checklist, then the share-count story, on the same name.</p>
         <div class="sr-picker">
             <div class="selector-group" style="max-width: 320px;">
                 <label for="srTicker">Pick a stock</label>
@@ -3349,6 +3362,50 @@
         <p>Track results vs. a total-market index fund after taxes and fees. If you can&rsquo;t beat it over 3–5 years, shift core money to the index. John Bogle&rsquo;s Cost Matters Hypothesis: after costs, the average active investor must underperform a low-cost index fund by exactly the amount of the costs. SPIVA Year-End 2025: 89.5% of US large-cap funds underperformed after costs over 15 years; over 20 years, ~93–94% fell short. Buffett&rsquo;s 2007–2017 bet proved the point: a Vanguard S&amp;P 500 index fund compounded 7.1%/yr against hedge funds, after fees.</p>
           </div>
         </details>
+    </div>
+    <!-- Dilution & Buybacks (2026-11-28): the third part of Stock
+         Review — the share-count story under every price. Three
+         line panels on one timeline: the whole company (market
+         cap), the share count it is divided by, and the price per
+         share. Data: dilution-data.json (SEC EDGAR filings,
+         nightly) for the counts, finance-chart-daily.json for the
+         prices — the script is at the end of the Stock Review
+         conductor below. -->
+    <div class="sr-part" id="dilution">
+        <h3 class="sr-part-title">Dilution &amp; Buybacks</h3>
+        <p>Price = the whole company &divide; the share count.</p>
+        <div class="selector-group" style="max-width: 320px;">
+            <label for="dilTicker">See the share count on a stock</label>
+            <select id="dilTicker"><option value="">Choose a stock&hellip;</option></select>
+        </div>
+        <div class="chip-row dil-win-row" id="dilWinRow" role="group" aria-label="Time window">
+            <button type="button" class="filter-pill" data-dilwin="3">3Y</button>
+            <button type="button" class="filter-pill" data-dilwin="5">5Y</button>
+            <button type="button" class="filter-pill" data-dilwin="10">10Y</button>
+        </div>
+        <div id="dilBody">
+            <div id="dilPanels">
+                <div class="dil-panel">
+                    <div class="dil-panel-head"><span class="dil-panel-name">Whole company (market cap)</span><span class="dil-panel-end" id="dilEndCap"></span></div>
+                    <canvas id="dilCapCanvas" class="dil-canvas" aria-label="Market cap over time, indexed to 100 at the start of the window"></canvas>
+                </div>
+                <div class="dil-panel">
+                    <div class="dil-panel-head"><span class="dil-panel-name">Share count</span><span class="dil-panel-end" id="dilEndShares"></span></div>
+                    <canvas id="dilSharesCanvas" class="dil-canvas" aria-label="Shares outstanding over time, indexed to 100 at the start of the window"></canvas>
+                </div>
+                <div class="dil-panel">
+                    <div class="dil-panel-head"><span class="dil-panel-name">Price per share</span><span class="dil-panel-end" id="dilEndPrice"></span></div>
+                    <canvas id="dilPriceCanvas" class="dil-canvas" aria-label="Price per share over time, indexed to 100 at the start of the window"></canvas>
+                </div>
+            </div>
+            <p class="dil-readout" id="dilReadout" aria-live="polite"></p>
+            <p class="dil-verdict" id="dilVerdict"></p>
+            <p class="dil-note" id="dilNote">Share counts are the period-end counts in the company&rsquo;s own SEC filings, split-adjusted; the share line steps only when a filing steps it. Market cap is each day&rsquo;s price times the share count in force that day. All three lines start at 100 so their slopes compare honestly.</p>
+        </div>
+        <div id="dilGap" hidden>
+            <p class="dil-gap-text" id="dilGapText"></p>
+        </div>
+        <p class="dil-loading" id="dilLoading">Loading share counts&hellip;</p>
     </div>
         </div>
     </div><!-- /stockreview -->
@@ -16799,6 +16856,414 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         var iv = setInterval(function () { fillOptions(); if (sel.options.length > 1 || ++tries > 40) clearInterval(iv); }, 250);
         sel.addEventListener("change", function () { pick(sel.value); });
         window.__srPick = pick;
+    })();
+    </script>
+<script>
+    // Dilution & Buybacks (2026-11-28): the third part of Stock
+    // Review. Pick a stock and see the three lines that make its
+    // price — the whole company (market cap), the share count it
+    // is divided by, and the price per share — on one timeline.
+    // Share counts are SEC EDGAR period-end filings
+    // (dilution-data.json, built nightly by build_shares_data.py),
+    // drawn as the step line they are: a count changes only when a
+    // filing or an issuance changes it. Market cap is each day's
+    // close times the share count in force that day — never
+    // today's count carried into the past. All three lines are
+    // indexed to 100 at the window's start so their slopes compare
+    // honestly; the end labels carry the real units. Names with no
+    // share count of their own (indexes, commodities, the
+    // preferreds, anything EDGAR has no usable filings for) get a
+    // plain no-share-count state instead of a drawn line.
+    (function () {
+        "use strict";
+        var sel = document.getElementById("dilTicker");
+        if (!sel) return;
+        var bodyEl = document.getElementById("dilBody");
+        var gapEl = document.getElementById("dilGap");
+        var gapText = document.getElementById("dilGapText");
+        var loadEl = document.getElementById("dilLoading");
+        var readoutEl = document.getElementById("dilReadout");
+        var verdictEl = document.getElementById("dilVerdict");
+        var winRow = document.getElementById("dilWinRow");
+        var panelsEl = document.getElementById("dilPanels");
+        var noteEl = document.getElementById("dilNote");
+        var NOTE_BASE = noteEl.textContent;
+        var endEls = {
+            cap: document.getElementById("dilEndCap"),
+            shares: document.getElementById("dilEndShares"),
+            price: document.getElementById("dilEndPrice")
+        };
+        var canvases = {
+            cap: document.getElementById("dilCapCanvas"),
+            shares: document.getElementById("dilSharesCanvas"),
+            price: document.getElementById("dilPriceCanvas")
+        };
+        var COLORS = { cap: "#5b93ff", shares: "#e8a13a", price: "#35a852" };
+        var KEYS = ["cap", "shares", "price"];
+        var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        var state = {
+            ticker: null, win: 5, dil: null, daily: null,
+            started: false, view: null, scrub: -1
+        };
+
+        function cssVar(name, fallback) {
+            var v = getComputedStyle(document.body).getPropertyValue(name);
+            return (v && v.trim()) || fallback;
+        }
+        function dayOf(iso) { return Math.round(Date.parse(iso + "T00:00:00Z") / 86400000); }
+        function dstr(iso) {
+            var p = iso.split("-");
+            return Number(p[2]) + " " + MON[Number(p[1]) - 1] + " " + p[0];
+        }
+        function fmtShares(v) {
+            if (v >= 1e12) return (v / 1e12).toFixed(2) + "T";
+            if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+            if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+            return String(Math.round(v));
+        }
+        function fmtCap(v) {
+            if (v >= 1e12) return "$" + (v / 1e12).toFixed(2) + "T";
+            if (v >= 1e9) return "$" + (v / 1e9).toFixed(1) + "B";
+            if (v >= 1e6) return "$" + (v / 1e6).toFixed(0) + "M";
+            return "$" + Math.round(v);
+        }
+        function fmtPrice(v) { return "$" + v.toFixed(2); }
+        function fmtPct(x) {
+            var p = x * 100;
+            return (p >= 0 ? "+" : "\u2212") + Math.abs(p).toFixed(1) + "%";
+        }
+
+        function start() {
+            if (state.started) return;
+            state.started = true;
+            var dilP = fetch("dilution-data.json").then(function (r) {
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                return r.json();
+            });
+            var dailyP = window.jboDailyDataPromise || fetch("finance-chart-daily.json").then(function (r) {
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                return r.json();
+            });
+            Promise.all([dilP, dailyP]).then(function (res) {
+                state.dil = res[0];
+                state.daily = res[1];
+                loadEl.hidden = true;
+                fillPicker();
+                render(state.ticker || "AAPL");
+            }).catch(function () {
+                loadEl.textContent = "Share counts could not be loaded — check your connection and reload the page.";
+            });
+        }
+
+        function fillPicker() {
+            var series = (state.daily && state.daily.series) || {};
+            var dilSeries = (state.dil && state.dil.series) || {};
+            var tickers = Object.keys(series).sort();
+            var stocks = [], other = [];
+            tickers.forEach(function (t) {
+                var kind = dilSeries[t] && dilSeries[t].kind;
+                (kind === "equity" ? stocks : other).push(t);
+            });
+            function addOpts(label, list) {
+                if (!list.length) return;
+                var g = document.createElement("optgroup");
+                g.label = label;
+                list.forEach(function (t) {
+                    var o = document.createElement("option");
+                    o.value = t;
+                    o.textContent = (series[t].name || t) + " (" + t + ")";
+                    g.appendChild(o);
+                });
+                sel.appendChild(g);
+            }
+            sel.innerHTML = "";
+            var ph = document.createElement("option");
+            ph.value = "";
+            ph.textContent = "Choose a stock…";
+            sel.appendChild(ph);
+            addOpts("Stocks", stocks);
+            addOpts("Indexes, commodities & more", other);
+            if (state.ticker) sel.value = state.ticker;
+        }
+
+        function supportedWins(t) {
+            var d = state.dil.series[t];
+            if (!d || d.kind !== "equity" || !d.steps || !d.steps.length) return [];
+            var bars = state.daily.series[t].bars;
+            var lastDay = dayOf(bars[bars.length - 1][0]);
+            var firstStep = dayOf(d.steps[0][0]);
+            var out = [];
+            [3, 5, 10].forEach(function (w) {
+                // A window is offered only when a filed count was
+                // already in force on its first day — the full
+                // window is covered by filings, never padded.
+                if (firstStep <= lastDay - Math.round(w * 365.25)) out.push(w);
+            });
+            return out;
+        }
+
+        function buildView(t, w) {
+            var d = state.dil.series[t];
+            var bars = state.daily.series[t].bars;
+            var steps = d.steps;
+            var lastDay = dayOf(bars[bars.length - 1][0]);
+            var target = lastDay - Math.round(w * 365.25);
+            var si = 0;
+            var rows = [];
+            for (var i = 0; i < bars.length; i++) {
+                var day = dayOf(bars[i][0]);
+                if (day < target) continue;
+                while (si + 1 < steps.length && dayOf(steps[si + 1][0]) <= day) si++;
+                if (day < dayOf(steps[0][0])) continue;
+                var shares = steps[si][1];
+                var close = bars[i][4];
+                rows.push({ iso: bars[i][0], day: day, shares: shares, price: close, cap: close * shares });
+            }
+            if (rows.length < 2) return null;
+            var s0 = rows[0], sN = rows[rows.length - 1];
+            rows.forEach(function (r) {
+                r.iCap = r.cap / s0.cap * 100;
+                r.iShares = r.shares / s0.shares * 100;
+                r.iPrice = r.price / s0.price * 100;
+            });
+            return {
+                rows: rows,
+                slice: s0.shares / sN.shares - 1,
+                spanYears: (sN.day - s0.day) / 365.25,
+                startIso: s0.iso, endIso: sN.iso
+            };
+        }
+
+        function gapMessage(t) {
+            var d = state.dil.series[t] || { kind: "nofiling" };
+            var name = (state.daily.series[t] && state.daily.series[t].name) || t;
+            var head = "No share count exists for this kind of holding. ";
+            switch (d.kind) {
+                case "index": return head + name + " (" + t + ") is an index — a scoreboard for a basket of companies, not a company itself, and it issues no shares.";
+                case "commodity": return head + name + " is a commodity — no company stands behind it and no shares are issued.";
+                case "currency": return head + name + " is a currency — no company, no shares.";
+                case "rate": return head + name + " is an interest rate, not a company — there are no shares to count.";
+                case "crypto": return head + "Bitcoin is not a company and issues no shares — its supply story is told on the Bitcoin page.";
+                case "preferred": return "No share count of its own exists for this kind of holding. " + name + " (" + t + ") is a preferred stock — a claim that is paid before the common shares, not a slice of the company — so there is no slice to watch grow or shrink.";
+                default: return "No usable share-count filings for " + name + " (" + t + ") were found in SEC EDGAR — rather than guess at a line, the tool draws nothing.";
+            }
+        }
+
+        function render(t) {
+            if (!state.dil || !state.daily) { state.ticker = t; return; }
+            if (!t || !state.daily.series[t]) t = "AAPL";
+            state.ticker = t;
+            if (sel.value !== t) sel.value = t;
+            var d = state.dil.series[t];
+            if (!d || d.kind !== "equity") {
+                bodyEl.hidden = true;
+                winRow.hidden = true;
+                gapEl.hidden = false;
+                gapText.textContent = gapMessage(t);
+                state.view = null;
+                return;
+            }
+            gapEl.hidden = true;
+            bodyEl.hidden = false;
+            winRow.hidden = false;
+            var wins = supportedWins(t);
+            if (!wins.length) {
+                bodyEl.hidden = true;
+                winRow.hidden = true;
+                gapEl.hidden = false;
+                gapText.textContent = "The filings for " + t + " reach back less than three years — not enough shared history to draw the three lines honestly yet.";
+                state.view = null;
+                return;
+            }
+            if (wins.indexOf(state.win) < 0) state.win = wins.indexOf(5) >= 0 ? 5 : wins[wins.length - 1];
+            winRow.querySelectorAll("button[data-dilwin]").forEach(function (b) {
+                var w = Number(b.getAttribute("data-dilwin"));
+                b.disabled = wins.indexOf(w) < 0;
+                b.classList.toggle("active", w === state.win);
+                b.setAttribute("aria-pressed", w === state.win ? "true" : "false");
+            });
+            state.view = buildView(t, state.win);
+            state.scrub = -1;
+            if (!state.view) return;
+            var rows = state.view.rows, s0 = rows[0], sN = rows[rows.length - 1];
+            endEls.cap.innerHTML = fmtCap(sN.cap) + " · <span>" + fmtPct(sN.cap / s0.cap - 1) + "</span>";
+            endEls.shares.innerHTML = fmtShares(sN.shares) + " shares · <span>" + fmtPct(sN.shares / s0.shares - 1) + "</span>";
+            endEls.price.innerHTML = fmtPrice(sN.price) + " · <span>" + fmtPct(sN.price / s0.price - 1) + "</span>";
+            noteEl.textContent = NOTE_BASE + (d.unit ? " Counts are in " + d.unit + " terms, as the company reports them in its filings." : "");
+            var span = state.view.spanYears >= state.win - 0.15
+                ? "the last " + state.win + " years"
+                : "since " + dstr(state.view.startIso);
+            var slice = state.view.slice;
+            if (slice > 0.02) verdictEl.textContent = "Buybacks at work — your slice of the company grew " + Math.abs(slice * 100).toFixed(1) + "% over " + span + ".";
+            else if (slice < -0.02) verdictEl.textContent = "Dilution — your slice of the company shrank " + Math.abs(slice * 100).toFixed(1) + "% over " + span + ".";
+            else verdictEl.textContent = "Share count roughly flat — the price line is the company's own story.";
+            updateReadout();
+            drawAll();
+        }
+
+        function updateReadout() {
+            var rows = state.view && state.view.rows;
+            if (!rows || !rows.length) { readoutEl.textContent = ""; return; }
+            var r = state.scrub >= 0 ? rows[state.scrub] : rows[rows.length - 1];
+            readoutEl.textContent = (state.scrub >= 0 ? "" : "Latest — ")
+                + dstr(r.iso) + " · Company " + fmtCap(r.cap)
+                + " · Shares " + fmtShares(r.shares)
+                + " · Price " + fmtPrice(r.price);
+        }
+
+        function drawPanel(key) {
+            var canvas = canvases[key];
+            var rows = state.view && state.view.rows;
+            if (!canvas || !rows) return;
+            var wrap = canvas.parentElement;
+            var W = wrap.clientWidth, H = canvas.clientHeight || 92;
+            if (W < 40) return;
+            var dpr = window.devicePixelRatio || 1;
+            canvas.width = Math.round(W * dpr);
+            canvas.height = Math.round(H * dpr);
+            var ctx = canvas.getContext("2d");
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, W, H);
+            var field = key === "cap" ? "iCap" : key === "shares" ? "iShares" : "iPrice";
+            var min = Infinity, max = -Infinity;
+            rows.forEach(function (r) { if (r[field] < min) min = r[field]; if (r[field] > max) max = r[field]; });
+            if (min === max) { min -= 1; max += 1; }
+            var pad = (max - min) * 0.12;
+            min -= pad; max += pad;
+            var top = 6, bottom = key === "price" ? 16 : 6;
+            var ph = H - top - bottom;
+            function X(i) { return i / (rows.length - 1) * (W - 2) + 1; }
+            function Y(v) { return top + (max - v) / (max - min) * ph; }
+            var grid = cssVar("--border-color", "#888");
+            var sub = cssVar("--subtext-color", "#999");
+            // The dashed 100 baseline: where the window started.
+            ctx.strokeStyle = grid;
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, Y(100));
+            ctx.lineTo(W, Y(100));
+            ctx.stroke();
+            ctx.setLineDash([]);
+            // The line itself — a step path for the share count,
+            // which only moves when a filing moves it.
+            ctx.strokeStyle = COLORS[key];
+            ctx.lineWidth = 2;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            if (key === "shares") {
+                ctx.moveTo(X(0), Y(rows[0][field]));
+                for (var i = 1; i < rows.length; i++) {
+                    ctx.lineTo(X(i), Y(rows[i - 1][field]));
+                    ctx.lineTo(X(i), Y(rows[i][field]));
+                }
+            } else {
+                rows.forEach(function (r, i) {
+                    if (i === 0) ctx.moveTo(X(0), Y(r[field]));
+                    else ctx.lineTo(X(i), Y(r[field]));
+                });
+            }
+            ctx.stroke();
+            // End dot.
+            ctx.fillStyle = COLORS[key];
+            ctx.beginPath();
+            ctx.arc(X(rows.length - 1), Y(rows[rows.length - 1][field]), 3, 0, Math.PI * 2);
+            ctx.fill();
+            // Year ticks under the price panel only — one axis
+            // shared by all three panels.
+            if (key === "price") {
+                ctx.fillStyle = sub;
+                ctx.font = "10px sans-serif";
+                ctx.textAlign = "center";
+                var lastYear = "";
+                rows.forEach(function (r, i) {
+                    var y = r.iso.slice(0, 4);
+                    if (y !== lastYear && i > 0) {
+                        lastYear = y;
+                        ctx.fillText(y, Math.max(16, Math.min(W - 16, X(i))), H - 3);
+                    }
+                });
+            }
+            // Scrub cursor, synced across the three panels.
+            if (state.scrub >= 0) {
+                var sx = X(state.scrub);
+                ctx.strokeStyle = sub;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(sx, 0);
+                ctx.lineTo(sx, H - (key === "price" ? 14 : 0));
+                ctx.stroke();
+                ctx.fillStyle = COLORS[key];
+                ctx.beginPath();
+                ctx.arc(sx, Y(rows[state.scrub][field]), 3.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawAll() {
+            if (!state.view) return;
+            KEYS.forEach(drawPanel);
+        }
+
+        function scrubTo(clientX) {
+            var rows = state.view && state.view.rows;
+            if (!rows || rows.length < 2) return;
+            var rect = panelsEl.getBoundingClientRect();
+            var f = (clientX - rect.left) / rect.width;
+            f = Math.max(0, Math.min(1, f));
+            var idx = Math.round(f * (rows.length - 1));
+            if (idx !== state.scrub) {
+                state.scrub = idx;
+                updateReadout();
+                drawAll();
+            }
+        }
+
+        panelsEl.addEventListener("pointerdown", function (e) {
+            scrubTo(e.clientX);
+            if (panelsEl.setPointerCapture) {
+                try { panelsEl.setPointerCapture(e.pointerId); } catch (err) {}
+            }
+        });
+        panelsEl.addEventListener("pointermove", function (e) {
+            if (e.buttons || e.pointerType === "touch") scrubTo(e.clientX);
+        });
+        panelsEl.addEventListener("pointerleave", function () {
+            if (state.scrub !== -1) { state.scrub = -1; updateReadout(); drawAll(); }
+        });
+        panelsEl.addEventListener("pointerup", function () {
+            if (state.scrub !== -1) { state.scrub = -1; updateReadout(); drawAll(); }
+        });
+
+        sel.addEventListener("change", function () { if (sel.value) render(sel.value); });
+        winRow.addEventListener("click", function (e) {
+            var b = e.target.closest ? e.target.closest("button[data-dilwin]") : null;
+            if (!b || b.disabled) return;
+            state.win = Number(b.getAttribute("data-dilwin"));
+            render(state.ticker);
+        });
+        // The Stock Review shared picker drives this part too:
+        // one pick at the top of the section runs all three parts.
+        var sr = document.getElementById("srTicker");
+        if (sr) sr.addEventListener("change", function () {
+            if (!sr.value) return;
+            start();
+            if (state.dil && state.daily) render(sr.value);
+            else state.ticker = sr.value;
+        });
+        window.addEventListener("resize", drawAll);
+        document.addEventListener("fullscreenchange", function () { setTimeout(drawAll, 60); });
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) themeToggle.addEventListener("change", function () { setTimeout(drawAll, 30); });
+        if (window.IntersectionObserver) {
+            var io = new IntersectionObserver(function (entries) {
+                entries.forEach(function (en) { if (en.isIntersecting) { start(); io.disconnect(); } });
+            }, { rootMargin: "500px" });
+            io.observe(document.getElementById("dilution"));
+        } else {
+            start();
+        }
     })();
     </script>
 <script>
