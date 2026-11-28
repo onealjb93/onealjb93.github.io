@@ -1562,6 +1562,19 @@
         .btc-chart-card:fullscreen #btc-view-anim .pl-readout .pl-label, .btc-chart-card.btc-fs-fallback #btc-view-anim .pl-readout .pl-label { font-size: 0.66rem; line-height: 1.25; }
         .btc-chart-card:fullscreen #btc-view-anim .pl-readout .pl-value, .btc-chart-card.btc-fs-fallback #btc-view-anim .pl-readout .pl-value { font-size: 0.92rem; line-height: 1.2; }
         .btc-chart-card:fullscreen #btc-view-anim .pl-readout .pl-note, .btc-chart-card.btc-fs-fallback #btc-view-anim .pl-readout .pl-note { display: none; }
+        /* Fullscreen readout fit (2026-11-28): at phone widths the
+           slim row above still ran wider than the stage and clipped
+           its last cells mid-word — "VS. TYPICAL P", "387% abov…",
+           with Floor and Ceiling off the edge entirely. In the
+           card's fullscreen states the strip now takes the page's
+           own phone treatment (the two-column grid from the
+           max-width: 768px rules) whenever the row cannot fit, so
+           every stat is on screen at phone widths; the chart flexes
+           to the height that leaves. Wider fullscreen stages keep
+           the slim row. */
+        @media (max-width: 600px) {
+            .btc-chart-card:fullscreen #btc-view-anim .pl-readout, .btc-chart-card.btc-fs-fallback #btc-view-anim .pl-readout { display: grid; grid-template-columns: repeat(2, minmax(0, auto)); justify-content: space-between; overflow: visible; column-gap: 12px; row-gap: 8px; }
+        }
         .btc-chart-card:fullscreen .pl-chart-wrap, .btc-chart-card.btc-fs-fallback .pl-chart-wrap { padding-top: 0; }
         .btc-chart-card:fullscreen .pl-chart-wrap canvas, .btc-chart-card.btc-fs-fallback .pl-chart-wrap canvas { height: calc(100% - 52px); margin-top: 52px; }
         .btc-chart-card:fullscreen .pl-fs2, .btc-chart-card.btc-fs-fallback .pl-fs2 { top: 4px; left: 10px; }
@@ -6437,18 +6450,67 @@ draw();
                 ctx.fillStyle = cAxis;
                 ctx.fillText(tickLabel(yv), g.padL - 8, y);
             }
-            /* grid + x labels: years zoomed out, months zoomed in; a label is
-               still only drawn when it clears the previous one */
+            /* grid + x labels: years zoomed out, months zoomed in.
+               Year ladder (2026-11-28): this axis is log-days, so the
+               recent years compress toward the right edge — the old
+               left-to-right clearance filter spent its labels on the
+               spread-out early years and ran out before the present,
+               leaving the axis labelled only to 2020 while the price
+               line ran on to today, in fullscreen worst of all. The
+               ladder now picks a regular year step anchored on the
+               current year: the smallest step whose tightest gap
+               (always the last one on a log axis) still clears a
+               label's own width with air to spare. The ladder always
+               ends at the current year; years past it join only while
+               the same gap holds; unlabeled years keep the faint
+               gridline. Every label is clamped inside the stage, so
+               no year is ever clipped at the right edge. The step is
+               recomputed from the live geometry on every draw, so
+               page view, fullscreen and every size between carry the
+               right ladder. Month and day ladders keep the clearance
+               filter, with the same clamp. */
             ctx.textAlign = 'center';
             var minGap = small ? 42 : 56, lastLabelX = -1e9;
-            xTicks(dMin, dMax).forEach(function (tk) {
+            var xTk = xTicks(dMin, dMax), yearLadder = (dMax - dMin > 1400), labelDays = null;
+            if (yearLadder) {
+                var nowYear = dateOf(SPOT.days).getUTCFullYear(), endI = -1;
+                for (var yi = 0; yi < xTk.length; yi++) { if (+xTk[yi].label <= nowYear) endI = yi; }
+                if (endI < 0) endI = xTk.length - 1;
+                var endYear = +xTk[endI].label;
+                var reqGap = ctx.measureText('2026').width + 10;
+                var stepOpts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 30], chosen = null, chosenStep = 0;
+                for (var si = 0; si < stepOpts.length && !chosen; si++) {
+                    var stp = stepOpts[si], cand = [];
+                    for (var ci = 0; ci <= endI; ci++) { if ((endYear - (+xTk[ci].label)) % stp === 0) cand.push(ci); }
+                    var okStep = cand.length > 0;
+                    for (var gi = 1; gi < cand.length && okStep; gi++) {
+                        if (g.x(xTk[cand[gi]].days) - g.x(xTk[cand[gi - 1]].days) < reqGap) okStep = false;
+                    }
+                    if (okStep) { chosen = cand; chosenStep = stp; }
+                }
+                if (!chosen) { chosen = [endI]; }
+                if (chosenStep) {
+                    var lastCi = chosen[chosen.length - 1];
+                    for (var ei = endI + 1; ei < xTk.length; ei++) {
+                        if ((+xTk[ei].label - endYear) % chosenStep !== 0) continue;
+                        if (g.x(xTk[ei].days) - g.x(xTk[lastCi].days) < reqGap) break;
+                        chosen.push(ei); lastCi = ei;
+                    }
+                }
+                labelDays = {};
+                chosen.forEach(function (ci) { labelDays[xTk[ci].days] = true; });
+            }
+            xTk.forEach(function (tk) {
                 var x = g.x(tk.days);
-                ctx.strokeStyle = tk.major ? cGridX : cGridX2;
+                var labeled = yearLadder ? !!labelDays[tk.days] : (x - lastLabelX >= minGap);
+                ctx.strokeStyle = (yearLadder ? labeled : tk.major) ? cGridX : cGridX2;
                 ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(x, g.padT); ctx.lineTo(x, h - g.padB); ctx.stroke();
-                if (x - lastLabelX >= minGap) {
+                if (labeled) {
+                    var halfW = ctx.measureText(tk.label).width / 2;
+                    var lx = Math.max(halfW + 1, Math.min(x, w - halfW - 1));
                     ctx.fillStyle = cAxis;
-                    ctx.fillText(tk.label, x, h - g.padB + 14);
+                    ctx.fillText(tk.label, lx, h - g.padB + 14);
                     lastLabelX = x;
                 }
             });
