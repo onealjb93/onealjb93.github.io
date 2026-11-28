@@ -171,12 +171,50 @@ def main():
         # fetch that returns a shorter history than the previous
         # file, or one ending weeks ago, is a truncated record —
         # count it as a failure, so the run writes nothing.
+        # One legitimate exception (2026-11-28): the 10y window
+        # ROLLS. When its start crosses a weekly bar, the oldest
+        # week drops off before the current week adds a new one,
+        # so the count can fall by a point or two with the end
+        # date ADVANCING (Thanksgiving 2026: 524 -> 523 points,
+        # first week 2016-11-21 dropped, last date 2026-11-25
+        # -> 2026-11-27, and the strict count check failed the
+        # whole run). Yahoo also RE-DATES the in-progress week:
+        # the previous file's final bar carries the day it was
+        # built on (Wed 2026-11-25) and the new pull carries
+        # the same week's bar under its latest trading day
+        # (Fri 2026-11-27), so the old final date "drops" too.
+        # A roll is accepted only when every dropped date is
+        # either a leading prefix of the old series or that
+        # re-dated final bar (same week, new end no earlier) —
+        # interior or end loss still fails exactly as before.
         prev_prices = (previous.get(symbol) or {}).get("prices") or []
         if prev_prices and len(rows) < len(prev_prices):
-            log("  GUARD: %s shrank %d -> %d points — treating "
-                "as a failure" % (symbol, len(prev_prices), len(rows)))
-            if symbol not in failures:
-                failures.append(symbol)
+            new_dates = {r[0] for r in rows}
+            prev_dates = [r[0] for r in prev_prices]
+            dropped = [x for x in prev_dates if x not in new_dates]
+            prev_last = max(prev_dates)
+            new_last = rows[-1][0]
+            roll_gap = (date.fromisoformat(new_last)
+                        - date.fromisoformat(prev_last)).days
+            window_roll = (bool(dropped)
+                           and new_last >= prev_last
+                           and all(x < rows[0][0]
+                                   or (x == prev_last
+                                       and 0 <= roll_gap < 7)
+                                   for x in dropped))
+            if window_roll:
+                log("  GUARD NOTE: %s shrank %d -> %d points by "
+                    "window roll only (dropped %d old date(s), "
+                    "all leading or the re-dated final week, "
+                    "end advanced to %s) — accepted"
+                    % (symbol, len(prev_prices), len(rows),
+                       len(dropped), rows[-1][0]))
+            else:
+                log("  GUARD: %s shrank %d -> %d points — treating "
+                    "as a failure" % (symbol, len(prev_prices),
+                                      len(rows)))
+                if symbol not in failures:
+                    failures.append(symbol)
         if (date.fromisoformat(today)
                 - date.fromisoformat(rows[-1][0])).days > 14:
             log("  GUARD: %s ends %s, more than 14 days before "
