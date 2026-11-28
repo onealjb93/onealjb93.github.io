@@ -2568,8 +2568,7 @@
         </div>
         <div class="fin-readout-wrap"><div class="fin-readout" id="finReadout" aria-live="polite" hidden></div><button type="button" class="fin-color-pill" id="finColorPill" aria-label="Color the readings" aria-pressed="false" hidden><span class="fin-dot o" aria-hidden="true"></span><span class="fin-dot b" aria-hidden="true"></span><span class="fin-dot p" aria-hidden="true"></span></button></div>
         <p class="fin-chart-status" id="finChartStatus" hidden></p>
-        <div class="pol-curve-bar" id="polCurveBar" hidden><span class="pol-curve-bar-text" id="polCurveBarText"></span><button type="button" class="filter-pill" id="polCurveExit">Back to <span id="polCurveBackName">the chart</span></button></div>
-        <div class="jbo-chart-frame" id="jboChartFrame"><div class="fin-span-ind" id="finSpanInd" aria-hidden="true"></div><div class="fin-dot-bubble glass-bubble" id="finDotBubble" hidden></div><canvas id="jboChartCanvas" aria-label="Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"></canvas></div>
+        <div class="jbo-chart-frame" id="jboChartFrame"><div class="pol-curve-bar" id="polCurveBar" hidden><span class="pol-curve-bar-text" id="polCurveBarText"></span><button type="button" class="filter-pill" id="polCurveExit">Back to <span id="polCurveBackName">the chart</span></button></div><div class="fin-span-ind" id="finSpanInd" aria-hidden="true"></div><div class="fin-dot-bubble glass-bubble" id="finDotBubble" hidden></div><canvas id="jboChartCanvas" aria-label="Daily price chart with 200-day and 50-day moving averages, volume, daily RSI and an optional P/E pane"></canvas></div>
         <p class="jbo-chart-note" id="jboChartNote" hidden></p>
         <p class="jbo-chart-note fin-ind-btcnote" id="finIndBtcNote" hidden>A deeper Bitcoin indicator lives on the <a href="bitcoin.html">Bitcoin page</a>.</p>
         </div>
@@ -3225,14 +3224,25 @@
     .pol-copy-pos .pol-copy-tk { font-weight: 700; min-width: 64px; }
     .pol-copy-pos .pol-copy-amt { margin-left: auto; font-weight: 600; white-space: nowrap; }
     .pol-copy-pos .pol-copy-pct { color: var(--subtext-color); white-space: nowrap; min-width: 52px; text-align: right; }
-    /* Fixed height, and the hidden state reserves the same
-       box invisibly (2026-11-27): entering or leaving a
-       member's curve can no longer shove the chart down or
-       pull it up — the bar's space is always there, its
-       contents simply appear inside it. The heights are the
-       bar's measured own at each width. */
+    /* Fixed height (2026-11-27). The bar used to reserve its
+       box invisibly above the frame while hidden — a 115px
+       dead band between the readings and the chart on every
+       fresh load (Johnny's screenshot, 2026-11-27 19:29:
+       "What is all this empty space for?"). It now lives
+       INSIDE the chart frame as an overlay (chart-gap fix,
+       2026-11-27): hidden it takes no space anywhere; shown,
+       curve mode's plot yields its height inside the frame,
+       so the frame's top and everything below it still
+       never move. The heights are the bar's measured own
+       at each width. */
     .pol-curve-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px solid #4dabf7; border-radius: 8px; padding: 7px 10px; margin-bottom: 8px; font-size: 0.9rem; height: 115px; }
-    .pol-curve-bar[hidden] { display: flex; visibility: hidden; }
+    .pol-curve-bar[hidden] { display: none; }
+    /* Inside the frame the bar is an overlay strip across the
+       frame's top (chart-gap fix): the frame's box never
+       changes, the canvas keeps filling it, and curve mode's
+       plot yields the bar's height in its own geometry
+       (topOff in drawCurveMode). */
+    #jboChartFrame > .pol-curve-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 4; margin: 0; border: none; border-bottom: 1px solid #4dabf7; border-radius: 0; background: var(--card-bg); }
     @media (min-width: 769px) {
         .pol-curve-bar { height: 53px; }
     }
@@ -10991,7 +11001,13 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             var cs = window.getComputedStyle ? window.getComputedStyle(document.body) : null;
             function varc(name, fb) { var v = cs ? cs.getPropertyValue(name) : ""; v = (v || "").trim(); return v || fb; }
             var subC = varc("--subtext-color", "#9198a1"), gridC = varc("--border-color", "rgba(128,128,128,0.25)");
-            var axisW = 58, axisH = 20, plotW = W - axisW - 12, plotH = H - axisH;
+            var axisW = 58, axisH = 20, plotW = W - axisW - 12;
+            // The curve bar overlays the frame's top inside the
+            // frame (chart-gap fix, 2026-11-27): the plot yields
+            // its height so no line or label slides under it.
+            var barEl = document.getElementById("polCurveBar");
+            var topOff = (barEl && !barEl.hidden) ? barEl.offsetHeight : 0;
+            var plotH = H - axisH - topOff;
             var sl = curveSlice(), s0 = sl[0], s1 = sl[1];
             var vals = curveData.vals, spx = curveData.spx, dates = curveData.dates;
             var lo = Infinity, hi = -Infinity, i;
@@ -11002,7 +11018,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             if (!isFinite(lo) || !isFinite(hi)) { lo = 99; hi = 101; }
             var pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
             function X(i) { return 6 + (s1 === s0 ? plotW / 2 : (i - s0) / (s1 - s0) * plotW); }
-            function Y(v) { return 6 + (hi - v) / (hi - lo) * (plotH - 12); }
+            function Y(v) { return 6 + topOff + (hi - v) / (hi - lo) * (plotH - 12); }
             ctx.font = "11px system-ui, sans-serif";
             for (var g = 0; g <= 4; g++) {
                 var gv = lo + (hi - lo) * g / 4, gy = Y(gv);
@@ -11086,6 +11102,10 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             hideDotBubble();
             var bar = document.getElementById("polCurveBar");
             if (bar) bar.hidden = false;
+            // The bar overlays the frame's top (chart-gap fix):
+            // the span indicator rides 25px below the bar.
+            var sind = document.getElementById("finSpanInd");
+            if (sind && bar) sind.style.top = (25 + bar.offsetHeight) + "px";
             var bt = document.getElementById("polCurveBarText");
             if (bt) bt.textContent = name + " \u2014 their disclosed trades, rebuilt as a portfolio, against the S&P 500.";
             var bn = document.getElementById("polCurveBackName");
@@ -11101,6 +11121,8 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
             curveMode = false; curveData = null;
             var bar = document.getElementById("polCurveBar");
             if (bar) bar.hidden = true;
+            var sind2 = document.getElementById("finSpanInd");
+            if (sind2) sind2.style.top = "25px";
             if (curveSaved) {
                 cur.key = curveSaved.key; cur.range = curveSaved.range; cur.style = curveSaved.style;
                 zoom = curveSaved.zoom; manualY = curveSaved.manualY; hover = curveSaved.hover;
